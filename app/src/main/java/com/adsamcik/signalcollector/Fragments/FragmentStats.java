@@ -19,6 +19,8 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.Data.Stat;
 import com.adsamcik.signalcollector.Data.StatData;
 import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.Extensions;
+import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.loopj.android.http.AsyncHttpClient;
@@ -103,7 +105,7 @@ public class FragmentStats extends Fragment {
 
         if (showIndex) {
             TextView rowNum = new TextView(c);
-            rowNum.setText(index + "");
+            rowNum.setText(Integer.toString(index));
             rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
             rowNum.setTextSize(15);
             row.addView(rowNum);
@@ -137,8 +139,8 @@ public class FragmentStats extends Fragment {
         long diff = time - lastRequest;
         if (diff > 600000) {
             if (PlayController.isLogged())
-                client.post("http://collector.adsamcik.com/getUserStats.php", new RequestParams("userID", PlayController.gamesController.getUserID()), userStatsResponseHandler);
-            client.get("http://collector.adsamcik.com/data/stats.json", null, generalStatsResponseHandler);
+                client.post(Network.URL_USER_STATS, new RequestParams("userID", PlayController.gamesController.getUserID()), userStatsResponseHandler);
+            client.get(Network.URL_STATS, null, generalStatsResponseHandler);
             lastRequest = time;
         } else {
             String data;

@@ -33,7 +33,6 @@ public class DataStore {
     public static final String DATA_FILE = "dataStore";
     private static Context context;
     private static boolean uploadRequested;
-    private static boolean uploadInProgress = false;
     private static long size;
     private static String uploadCache;
     private static AsyncHttpResponseHandler uploadResponse = new AsyncHttpResponseHandler() {
@@ -79,7 +78,6 @@ public class DataStore {
     }
 
     public static boolean updateAutoUploadState(Context c) {
-        if (uploadInProgress) return false;
         if (Setting.sharedPreferences == null)
             Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
 
@@ -118,7 +116,7 @@ public class DataStore {
         rp.add("data", serialized);
         uploadCache = data;
         Log.d("data", data);
-        new AsyncHttpClient().post(Setting.URL_DATA_UPLOAD, rp, uploadResponse);
+        new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, uploadResponse);
     }
 
     public static <T> boolean save(String fileName, T data) {

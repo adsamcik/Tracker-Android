@@ -12,6 +12,7 @@ import android.widget.Button;
 
 import com.adsamcik.signalcollector.BaseGameUtils;
 import com.adsamcik.signalcollector.Extensions;
+import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.google.android.gms.common.ConnectionResult;
@@ -55,7 +56,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
         RequestParams rp = new RequestParams();
         rp.add("register", "false");
         rp.add("userID", getUserID());
-        hac.post(Setting.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
+        hac.post(Network.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
                 Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, true).apply();
@@ -131,7 +132,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
             rp.add("imei", Extensions.getImei());
             rp.add("userName", getUserName());
             rp.add("register", "true");
-            hac.post(Setting.URL_USER_REGISTRATION, rp, new AsyncHttpResponseHandler() {
+            hac.post(Network.URL_USER_REGISTRATION, rp, new AsyncHttpResponseHandler() {
                 @Override
                 public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
                     Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER,true).apply();

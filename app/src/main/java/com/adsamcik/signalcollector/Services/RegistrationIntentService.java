@@ -8,6 +8,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Extensions;
+import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.google.android.gms.gcm.GcmPubSub;
@@ -73,7 +74,7 @@ public class RegistrationIntentService extends IntentService {
         rp.add("imei", Extensions.getImei());
         rp.add("register", "true");
 
-        ahc.post(Setting.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
+        ahc.post(Network.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
                 Setting.sharedPreferences.edit().putBoolean(Setting.SENT_TOKEN_TO_SERVER, true).apply();

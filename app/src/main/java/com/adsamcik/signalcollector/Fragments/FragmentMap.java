@@ -21,6 +21,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 
+import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -70,7 +71,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
             public URL getTileUrl(int x, int y, int zoom) {
 
     /* Define the URL pattern for the tile images */
-                String s = String.format("http://collector.adsamcik.com/tiles/z%dx%dy%dt%s.png", zoom, x, y, type);
+                String s = String.format(Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, type);
 
                 if (!checkTileExists(x, y, zoom)) {
                     return null;

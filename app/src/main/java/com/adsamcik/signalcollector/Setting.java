@@ -12,10 +12,6 @@ public class Setting implements Serializable {
     //0-no auto upload;1-wifi autoUpload;2-autoUpload
     public static final String AUTO_UPLOAD = "autoUpload";
     public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
-    public static final String URL_WEB = "http://collector.adsamcik.xyz/";
-    public static final String URL_USER_REGISTRATION = URL_WEB + "register/user";
-    public static final String URL_TOKEN_REGISTRATION = URL_WEB + "register/device";
-    public static final String URL_DATA_UPLOAD = URL_WEB + "upload.php";
     public static final String UPLOAD_BROADCAST_TAG = "UploadingData";
     public static SharedPreferences sharedPreferences;
 
