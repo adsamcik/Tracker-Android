@@ -82,3 +82,10 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+/.idea/workspace.xml
+/.idea/libraries
+
+google-services.json
+key.gradle
+keys.xml

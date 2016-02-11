@@ -1,0 +1,100 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    tools:context=".Fragments.FragmentMain">
+
+    <TextView
+        android:id="@+id/textTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:text="COLLECTED TIME"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <TextView
+        android:id="@+id/textLatitude"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/textTime"
+        android:text="LATITUDE"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <TextView
+        android:id="@+id/textLongitude"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="LONGITUDE"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/textLatitude" />
+
+    <TextView
+        android:id="@+id/textAltitude"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ALTITUDE"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/textLongitude" />
+
+    <TextView
+        android:id="@+id/textAccuracy"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ACCURACY"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_below="@+id/textAltitude" />
+
+    <TextView
+        android:id="@+id/textWifi"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="WIFI COUNT"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_below="@+id/textAccuracy"
+        android:layout_alignParentStart="true" />
+
+    <TextView
+        android:id="@+id/textCurrentCell"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CELL STRENGTH"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_centerVertical="true"
+        android:layout_below="@+id/textWifi" />
+
+    <TextView
+        android:id="@+id/textCellCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CELL COUNT"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_below="@+id/textCurrentCell"
+        android:layout_alignParentStart="true" />
+
+    <TextView
+        android:id="@+id/textPressure"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="PRESSURE"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_below="@+id/textCellCount"
+        android:layout_alignStart="@+id/textWifi" />
+
+    <TextView
+        android:id="@+id/textActivity"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ACTIVITY"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_below="@+id/textPressure"
+        android:layout_alignStart="@+id/textWifi" />
+
+</RelativeLayout>

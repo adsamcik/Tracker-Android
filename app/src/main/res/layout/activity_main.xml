@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <android.support.design.widget.AppBarLayout
+        android:id="@+id/AppBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/colorPrimary"
+        android:paddingTop="24dp">
+
+        <android.support.design.widget.TabLayout
+            android:id="@+id/tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:tabGravity="fill"
+            app:tabMode="fixed" />
+    </android.support.design.widget.AppBarLayout>
+
+    <android.support.v4.view.ViewPager
+        android:id="@+id/container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/AppBar" />
+
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingBottom="64dp">
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/toggleTracking_fab"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="16dp"
+            android:clickable="true"
+            android:src="@drawable/ic_play_arrow_black_48dp"
+            app:backgroundTint="@color/colorPrimary"
+            app:layout_anchorGravity="bottom|right|end" />
+
+        <TextView
+            android:id="@+id/textApproxSize"
+            android:layout_width="140dp"
+            android:layout_height="wrap_content"
+            android:layout_alignBottom="@+id/upload_fab"
+            android:layout_alignTop="@+id/upload_fab"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:layout_toStartOf="@+id/upload_fab"
+            android:gravity="center_vertical|end"
+            android:text="SIZE"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/upload_fab"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@+id/toggleTracking_fab"
+            android:layout_alignParentEnd="true"
+            android:layout_marginBottom="16dp"
+            android:layout_marginEnd="16dp"
+            android:clickable="true"
+            android:longClickable="false"
+            android:src="@drawable/ic_cloud_upload_black_48dp"
+            app:backgroundTint="@color/colorPrimary"
+            app:layout_anchorGravity="bottom|right|end" />
+    </RelativeLayout>
+</RelativeLayout>

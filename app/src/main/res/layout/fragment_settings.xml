@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/textView_trackingOptions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_automaticTracking"
+        android:textSize="18sp" />
+
+    <Spinner
+        android:id="@+id/spinner_trackingOptions"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/textView_trackingOptions"
+        android:layout_marginBottom="5dp"
+        android:padding="15dp" />
+
+    <TextView
+        android:id="@+id/textView_automaticUpload"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/spinner_trackingOptions"
+        android:paddingTop="15dp"
+        android:text="@string/settings_automaticUpload"
+        android:textSize="18sp" />
+
+    <Spinner
+        android:id="@+id/spinner_automaticUpload"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/textView_automaticUpload"
+        android:layout_marginBottom="5dp"
+        android:padding="15dp" />
+
+    <TextView
+        android:id="@+id/textView_playLoginTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/spinner_automaticUpload"
+        android:paddingBottom="15dp"
+        android:paddingTop="15dp"
+        android:text="@string/settings_playGames"
+        android:textSize="18sp" />
+
+    <Button
+        android:id="@+id/textView_playLoginText"
+        style="?android:attr/colorButtonNormal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignEnd="@+id/textView_playLoginTitle"
+        android:layout_alignTop="@+id/textView_playLoginTitle"
+        android:backgroundTint="@color/login"
+        android:text="@string/settings_playGamesLogin"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:translationZ="6dp" />
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/textView_playLoginTitle"
+        android:layout_centerHorizontal="true">
+
+        <ImageButton
+            android:id="@+id/ib_achievements"
+            android:layout_width="75dp"
+            android:layout_height="75dp"
+            android:layout_margin="15dp"
+            android:background="@drawable/games_achievements"
+            android:contentDescription="@string/achievements"/>
+
+        <ImageButton
+            android:id="@+id/ib_leaderboards"
+            android:layout_width="75dp"
+            android:layout_height="75dp"
+            android:layout_margin="15dp"
+            android:layout_toEndOf="@id/ib_achievements"
+            android:background="@drawable/games_leaderboards"
+            android:contentDescription="@string/leaderboards"/>
+
+        <ImageButton
+            android:id="@+id/ib_quests"
+            android:layout_width="75dp"
+            android:layout_height="75dp"
+            android:layout_margin="15dp"
+            android:layout_toEndOf="@id/ib_leaderboards"
+            android:background="@drawable/games_quests_grey"
+            android:contentDescription="@string/quests"/>
+    </RelativeLayout>
+
+</RelativeLayout>
