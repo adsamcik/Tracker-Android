@@ -4,13 +4,13 @@
     <string-array name="background_tracking_options">
         <item>Disabled</item>
         <item>On foot</item>
-        <item>On foot and in vehicle</item>
+        <item>Always</item>
     </string-array>
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload">
         <item>Disabled</item>
         <item>Wifi only</item>
-        <item>Cell/Wifi</item>
+        <item>Cell or Wifi</item>
     </string-array>
     <string name="settings_playGames">Google Play Games</string>
     <string name="settings_playGamesLogin">Login</string>

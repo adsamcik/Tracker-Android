@@ -29,6 +29,24 @@ public class Extensions {
         return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
     }
 
+    public static int getNavBarHeight(Context c) {
+        int result = 0;
+        boolean hasMenuKey = ViewConfiguration.get(c).hasPermanentMenuKey();
+        boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
+
+        if (!hasMenuKey && !hasBackKey) {
+            //The device has a navigation bar
+            Resources resources = c.getResources();
+
+            int orientation = resources.getConfiguration().orientation;
+            int resourceId = resources.getIdentifier(orientation == Configuration.ORIENTATION_PORTRAIT ? "navigation_bar_height" : "navigation_bar_width", "dimen", "android");
+
+            if (resourceId > 0)
+                return c.getResources().getDimensionPixelSize(resourceId);
+        }
+        return result;
+    }
+
     //0-still, 1-foot, 2-vehicle
     public static int EvaluateActivity(int val) {
         switch (val) {
@@ -51,28 +69,11 @@ public class Extensions {
         }
     }
 
-    public static int getNavBarHeight(Context c) {
-        int result = 0;
-        boolean hasMenuKey = ViewConfiguration.get(c).hasPermanentMenuKey();
-        boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
-
-        if (!hasMenuKey && !hasBackKey) {
-            //The device has a navigation bar
-            Resources resources = c.getResources();
-
-            int orientation = resources.getConfiguration().orientation;
-            int resourceId = resources.getIdentifier(orientation == Configuration.ORIENTATION_PORTRAIT ? "navigation_bar_height" : "navigation_bar_width", "dimen", "android");
-
-            if (resourceId > 0)
-                return c.getResources().getDimensionPixelSize(resourceId);
-        }
-        return result;
-    }
-
     public static boolean canBackgroundTrack(Context c, int evalActivity) {
-        if(evalActivity == 3 || TrackerService.isActive) return false;
+        if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive) return false;
         if(Setting.sharedPreferences == null) Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
-        return Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1) <= evalActivity;
+        int val = Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1);
+        return val == 2 || val == evalActivity;
     }
 
     public static int CountSavedData() {
