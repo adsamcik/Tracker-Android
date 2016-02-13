@@ -45,6 +45,7 @@ public class PlayIntentService extends IntentService {
                 trackerService.putExtra("approxSize", Extensions.CountSavedData());
                 trackerService.putExtra("backTrack", true);
                 startService(trackerService);
+                TrackerService.service = trackerService;
                 //Log.d(TAG, "Started service");
                 //Log.d(TAG, "Most Probable Name : " + mostProbableName + " type " + detectedActivity.getType());
                 //Log.d(TAG, "Confidence : " + confidence);

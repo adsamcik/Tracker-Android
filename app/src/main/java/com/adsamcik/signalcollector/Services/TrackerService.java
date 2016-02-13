@@ -47,7 +47,10 @@ import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
     public static final String TAG = "SignalCollector-Tracker";
+
     public static boolean isActive = false;
+    public static Intent service;
+
     public static long approxSize = 0;
     public final int UPDATE_TIME = 2000;
     public final float MIN_DISTANCE_M = 0;

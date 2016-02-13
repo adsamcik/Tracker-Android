@@ -41,7 +41,6 @@ import java.util.List;
 public class MainActivity extends FragmentActivity {
     public static final String TAG = "SignalCollector";
 
-    public static boolean activityAvailable = false;
     public static MainActivity instance;
     public static Context context;
     //static boolean tracking = false;
@@ -140,8 +139,8 @@ public class MainActivity extends FragmentActivity {
                 new View.OnClickListener() {
                     public void onClick(View v) {
                         if (cloudStatus == 1) {
-                            if (trackerService != null)
-                                stopService(trackerService);
+                            if (TrackerService.service != null)
+                                stopService(TrackerService.service);
                             changeCloudStatus(2);
                             new LoadAndUploadTask().execute();
                         }
@@ -202,8 +201,9 @@ public class MainActivity extends FragmentActivity {
                 trackerService.putExtra("backTrack", backgroundTracking);
 
                 startService(trackerService);
+                TrackerService.service = trackerService;
             } else {
-                stopService(trackerService);
+                stopService(TrackerService.service);
             }
         }
     }
