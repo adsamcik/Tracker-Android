@@ -2,9 +2,11 @@ package com.adsamcik.signalcollector;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
+import android.preference.Preference;
 import android.preference.PreferenceManager;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -26,15 +28,22 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.charset.Charset;
 
 import cz.msebera.android.httpclient.Header;
 
 public class DataStore {
+    public static final String TAG = "DATA-STORE";
     public static final String DATA_FILE = "dataStore";
+    public static final String KEY_FILE_ID = "saveFileID";
+
+    public static final int MAX_FILESIZE = 5242880;
+
     private static Context context;
     private static boolean uploadRequested;
     private static long size;
     private static String uploadCache;
+
     private static AsyncHttpResponseHandler uploadResponse = new AsyncHttpResponseHandler() {
         @Override
         public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -67,6 +76,18 @@ public class DataStore {
             Log.d("response", "Status " + statusCode + " message " + new String(responseBody));*/
         }
     };
+
+    public static SharedPreferences getPreferences() {
+        if (Setting.sharedPreferences == null) {
+            if (context != null)
+                Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
+            else {
+                Log.e(TAG, Log.getStackTraceString(new Throwable("No shared preferences and null context")));
+                return null;
+            }
+        }
+        return Setting.sharedPreferences;
+    }
 
     public static void setContext(Context c) {
         context = c;
@@ -115,26 +136,7 @@ public class DataStore {
         rp.add("imei", Extensions.getImei());
         rp.add("data", serialized);
         uploadCache = data;
-        Log.d("data", data);
         new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, uploadResponse);
-    }
-
-    public static <T> boolean save(String fileName, T data) {
-        try {
-            FileOutputStream fos = context.openFileOutput(fileName, Context.MODE_APPEND);
-            ObjectOutputStream os = new ObjectOutputStream(fos);
-            os.writeObject(data);
-            os.close();
-            fos.close();
-            return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    public static boolean saveStringObject(String fileName, Object data) {
-        return saveString(fileName, new Gson().toJson(data));
     }
 
     public static boolean saveString(String fileName, String data) {
@@ -158,6 +160,25 @@ public class DataStore {
             Log.d("noFile", "no saved data");
             return false;
         }
+    }
+
+    public static boolean saveData(String data) {
+        SharedPreferences sp = getPreferences();
+        if (sp == null)
+            return false;
+
+        int id = sp.getInt(KEY_FILE_ID, 0);
+        String fileName = DATA_FILE + id;
+
+        boolean result = saveStringAppend(fileName, data);
+        if (sizeOf(fileName) > MAX_FILESIZE)
+            sp.edit().putInt(KEY_FILE_ID, ++id).apply();
+
+        return result;
+    }
+
+    public static int sizeOf(String fileName) {
+        return loadString(fileName).getBytes(Charset.defaultCharset()).length;
     }
 
     public static boolean saveStringAppend(String fileName, String data) {
@@ -189,7 +210,7 @@ public class DataStore {
 
     @SuppressWarnings("unchecked")
     public static <T> T LoadStringObject(String fileName, Class c) {
-        String data = LoadString(fileName);
+        String data = loadString(fileName);
         //field[] f = c.getDeclaredFields();
         try {
             Gson gson = new Gson();
@@ -205,8 +226,8 @@ public class DataStore {
         }
     }
 
-    public static StringBuilder LoadStringAsBuilder(String fileName) {
-        if (!Exists(fileName))
+    public static StringBuilder loadStringAsBuilder(String fileName) {
+        if (!exists(fileName))
             return null;
         try {
             FileInputStream fis = context.openFileInput(fileName);
@@ -227,26 +248,26 @@ public class DataStore {
         }
     }
 
-    public static String LoadString(String fileName) {
-        StringBuilder sb = LoadStringAsBuilder(fileName);
+    public static String loadString(String fileName) {
+        StringBuilder sb = loadStringAsBuilder(fileName);
         if (sb != null)
             return sb.toString();
         else
             return "";
     }
 
-    public static boolean Exists(String fileName) {
+    public static boolean exists(String fileName) {
         return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
     }
 
 
-    public static String ArrayToJSON(Object[] array) {
+    public static String arrayToJSON(Object[] array) {
         if (array == null || array.length == 0)
             return "";
         String out = "[";
         String data;
         for (Object anArray : array) {
-            data = ObjectToJSON(anArray);
+            data = objectToJSON(anArray);
             if (!data.equals("")) {
                 out += data + ",";
             }
@@ -260,7 +281,7 @@ public class DataStore {
         return out;
     }
 
-    public static String ObjectToJSON(Object o) {
+    public static String objectToJSON(Object o) {
         if (o == null) return "";
         Class c = o.getClass();
         Field[] fields = c.getFields();
@@ -272,7 +293,7 @@ public class DataStore {
                 String typeName = field.getType().getSimpleName();
                 String data = "";
                 if (field.getType().isArray())
-                    data = ArrayToJSON((Object[]) field.get(o));
+                    data = arrayToJSON((Object[]) field.get(o));
                 else if (typeName.equals("double"))
                     data = Double.toString(field.getDouble(o));
                 else if (typeName.equals("long"))
@@ -290,7 +311,7 @@ public class DataStore {
                 } else if (typeName.equals("boolean"))
                     data = Boolean.toString(field.getBoolean(o));
                 else if (!field.getType().isPrimitive())
-                    data = ObjectToJSON(field.get(o));
+                    data = objectToJSON(field.get(o));
                 else
                     Log.e("type", "Unknown type " + typeName + " - " + field.getName());
 

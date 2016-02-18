@@ -77,7 +77,7 @@ public class Extensions {
     }
 
     public static int CountSavedData() {
-        StringBuilder sb = DataStore.LoadStringAsBuilder(DataStore.DATA_FILE);
+        StringBuilder sb = DataStore.loadStringAsBuilder(DataStore.DATA_FILE);
         if (sb != null)
             return sb.toString().getBytes(Charset.defaultCharset()).length;
         else

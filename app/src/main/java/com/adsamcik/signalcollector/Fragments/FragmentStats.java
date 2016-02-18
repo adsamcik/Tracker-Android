@@ -19,7 +19,6 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.Data.Stat;
 import com.adsamcik.signalcollector.Data.StatData;
 import com.adsamcik.signalcollector.DataStore;
-import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
@@ -144,16 +143,16 @@ public class FragmentStats extends Fragment {
             lastRequest = time;
         } else {
             String data;
-            if (DataStore.Exists(USER_STAT_FILE)) {
-                data = DataStore.LoadString(USER_STAT_FILE);
+            if (DataStore.exists(USER_STAT_FILE)) {
+                data = DataStore.loadString(USER_STAT_FILE);
                 try {
                     GenerateUserStatsTable(readJsonStream(new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8))));
                 } catch (IOException e) {
                     Log.e("Error", e.getMessage());
                 }
             }
-            if (DataStore.Exists(GENERAL_STAT_FILE)) {
-                data = DataStore.LoadString(GENERAL_STAT_FILE);
+            if (DataStore.exists(GENERAL_STAT_FILE)) {
+                data = DataStore.loadString(GENERAL_STAT_FILE);
                 try {
                     GenerateStatsTable(readJsonStream(new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8))));
                 } catch (IOException e) {

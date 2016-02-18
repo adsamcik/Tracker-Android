@@ -128,7 +128,7 @@ public class TrackerService extends Service implements SensorEventListener {
         }
 
         int wifiCount = d.wifi == null ? -1 : d.wifi.length;
-        approxSize += DataStore.ObjectToJSON(d).getBytes(Charset.defaultCharset()).length;
+        approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
         sendUpdateInfoBroadcast(d.time, wifiCount, cellCount, cellDbm, cellAsu, cellType, d.longitude, d.latitude, d.altitude, d.accuracy, pressureValue, Extensions.getActivityName(currentActivity));
 
         UpdateNotification(true, wifiCount, cellCount);
@@ -181,15 +181,16 @@ public class TrackerService extends Service implements SensorEventListener {
     void saveData() {
         if (data.size() == 0) return;
 
-        String input = DataStore.ArrayToJSON(data.toArray(new Data[data.size()]));
+        String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 
         if (input == null) return;
+
         input = input.substring(1, input.length() - 1);
-        if (DataStore.saveStringAppend(DataStore.DATA_FILE, input)) {
+        if (DataStore.saveData(input)) {
             data.clear();
         } else {
             stopSelf();
-            Log.e(TAG, "failed saving");
+            Log.e(TAG, "Saving failed.");
         }
     }
 

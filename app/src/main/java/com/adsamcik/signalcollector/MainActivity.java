@@ -312,14 +312,6 @@ public class MainActivity extends FragmentActivity {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(statusReceiver);
     }
 
-    int CountSavedData() {
-        StringBuilder sb = DataStore.LoadStringAsBuilder(DataStore.DATA_FILE);
-        if (sb != null)
-            return sb.toString().getBytes(Charset.defaultCharset()).length;
-        else
-            return 0;
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
