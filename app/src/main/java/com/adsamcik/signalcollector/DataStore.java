@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
-import android.preference.Preference;
 import android.preference.PreferenceManager;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -21,10 +20,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -36,6 +33,7 @@ public class DataStore {
     public static final String TAG = "DATA-STORE";
     public static final String DATA_FILE = "dataStore";
     public static final String KEY_FILE_ID = "saveFileID";
+    public static final String KEY_SIZE = "totalSize";
 
     public static final int MAX_FILESIZE = 5242880;
 
@@ -113,7 +111,7 @@ public class DataStore {
                             (autoUpload >= 2 &&
                                     activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE &&
                                     !activeNetwork.isRoaming()))) {
-                new LoadAndUploadTask().execute();
+                new LoadAndUploadTask().execute(getDataFileNames());
                 uploadRequested = false;
                 size = TrackerService.approxSize;
                 TrackerService.approxSize = 0;
@@ -121,6 +119,17 @@ public class DataStore {
             }
         }
         return false;
+    }
+
+    static String[] getDataFileNames() {
+        SharedPreferences sp = getPreferences();
+        if (sp == null)
+            return null;
+        int maxID = sp.getInt(KEY_FILE_ID, 0);
+        String[] fileNames = new String[maxID + 1];
+        for (int i = 0; i <= maxID; i++)
+            fileNames[i] = DATA_FILE + i;
+        return fileNames;
     }
 
     public static void upload(String data) {
@@ -162,19 +171,31 @@ public class DataStore {
         }
     }
 
-    public static boolean saveData(String data) {
+    public static int saveData(String data) {
         SharedPreferences sp = getPreferences();
         if (sp == null)
-            return false;
+            return 0;
 
         int id = sp.getInt(KEY_FILE_ID, 0);
         String fileName = DATA_FILE + id;
 
-        boolean result = saveStringAppend(fileName, data);
+        if (!saveStringAppend(fileName, data))
+            return 0;
+
+
         if (sizeOf(fileName) > MAX_FILESIZE)
             sp.edit().putInt(KEY_FILE_ID, ++id).apply();
 
-        return result;
+        int size = data.getBytes(Charset.defaultCharset()).length;
+        sp.edit().putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
+
+        return size;
+    }
+
+    public static int sizeOfData() {
+        SharedPreferences sp = getPreferences();
+        if (sp == null) return -1;
+        return sp.getInt(KEY_SIZE, 0);
     }
 
     public static int sizeOf(String fileName) {

@@ -193,7 +193,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
         public void onReceive(Context context, Intent intent) {
             if (updatePosition && map != null) {
                 CameraUpdate center = CameraUpdateFactory.newLatLng(new LatLng(intent.getDoubleExtra("latitude", 0), intent.getDoubleExtra("longitude", 0)));
-                CameraUpdate zoom = CameraUpdateFactory.zoomTo(17);
+                //CameraUpdate zoom = CameraUpdateFactory.zoomTo(17);
                 updateMove = true;
                 map.moveCamera(center);
                 //map.animateCamera(zoom);

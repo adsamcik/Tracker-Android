@@ -186,7 +186,7 @@ public class TrackerService extends Service implements SensorEventListener {
         if (input == null) return;
 
         input = input.substring(1, input.length() - 1);
-        if (DataStore.saveData(input)) {
+        if (DataStore.saveData(input) > 0) {
             data.clear();
         } else {
             stopSelf();

@@ -34,7 +34,6 @@ import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -142,7 +141,7 @@ public class MainActivity extends FragmentActivity {
                             if (TrackerService.service != null)
                                 stopService(TrackerService.service);
                             changeCloudStatus(2);
-                            new LoadAndUploadTask().execute();
+                            new LoadAndUploadTask().execute(DataStore.getDataFileNames());
                         }
                     }
                 }
@@ -152,7 +151,7 @@ public class MainActivity extends FragmentActivity {
 
         powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
 
-        int sizeTemp = CountSavedData();
+        int sizeTemp = DataStore.sizeOfData();
         if (sizeTemp > 0) {
             changeCloudStatus(1);
             textApproxSize.setText(Extensions.humanReadableByteCount(sizeTemp, false));
@@ -197,7 +196,7 @@ public class MainActivity extends FragmentActivity {
             return;
         if (CheckAllTrackingPermissions()) {
             if (!TrackerService.isActive) {
-                trackerService.putExtra("approxSize", CountSavedData());
+                trackerService.putExtra("approxSize", DataStore.sizeOfData());
                 trackerService.putExtra("backTrack", backgroundTracking);
 
                 startService(trackerService);
