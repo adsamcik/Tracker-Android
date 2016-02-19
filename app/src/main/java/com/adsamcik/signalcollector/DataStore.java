@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
-import java.io.ObjectInputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -35,45 +34,12 @@ public class DataStore {
     public static final String KEY_FILE_ID = "saveFileID";
     public static final String KEY_SIZE = "totalSize";
 
-    public static final int MAX_FILESIZE = 5242880;
+    //5242880
+    public static final int MAX_FILE_SIZE = 48;
 
     private static Context context;
     private static boolean uploadRequested;
     private static long size;
-    private static String uploadCache;
-
-    private static AsyncHttpResponseHandler uploadResponse = new AsyncHttpResponseHandler() {
-        @Override
-        public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-            Intent intent = new Intent(Setting.UPLOAD_BROADCAST_TAG);
-            intent.putExtra("size", uploadCache.getBytes().length);
-            LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-            uploadCache = "";
-
-            intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-            if (!TrackerService.isActive || TrackerService.approxSize == 0)
-                intent.putExtra("cloudStatus", 0);
-            LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-
-            size = 0;
-        }
-
-        @Override
-        public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-            saveStringAppend(DATA_FILE, uploadCache.substring(1, uploadCache.length() - 1));
-            uploadCache = "";
-            Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-            intent.putExtra("cloudStatus", 1);
-            LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-
-            TrackerService.approxSize += size;
-            size = 0;
-
-            /*for (int i=0; i< headers.length; i++)
-                if(headers[i] != null) Log.d("response", "test " + headers[i].getName() + " " + headers[i].getValue());
-            Log.d("response", "Status " + statusCode + " message " + new String(responseBody));*/
-        }
-    };
 
     public static SharedPreferences getPreferences() {
         if (Setting.sharedPreferences == null) {
@@ -132,7 +98,7 @@ public class DataStore {
         return fileNames;
     }
 
-    public static void upload(String data) {
+    public static void upload(String data, final String name, final int size) {
         if (data.isEmpty()) return;
         String serialized = "{\"imei\":" + Extensions.getImei() +
                 ",\"device\":\"" + Build.MODEL +
@@ -144,8 +110,36 @@ public class DataStore {
         RequestParams rp = new RequestParams();
         rp.add("imei", Extensions.getImei());
         rp.add("data", serialized);
-        uploadCache = data;
-        new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, uploadResponse);
+        new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler() {
+
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                Intent intent = new Intent(Setting.UPLOAD_BROADCAST_TAG);
+                intent.putExtra("size", size);
+                LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+
+                intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
+                if (!TrackerService.isActive || TrackerService.approxSize == 0)
+                    intent.putExtra("cloudStatus", 0);
+                LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+
+                Log.d(TAG, "success " + name);
+            }
+
+            @Override
+            public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+                saveStringAppend(DATA_FILE, uploadCache.substring(1, uploadCache.length() - 1));
+                uploadCache = "";
+                Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
+                intent.putExtra("cloudStatus", 1);
+                LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+
+                TrackerService.approxSize += size;
+                size = 0;
+
+                Log.d(TAG, "failed " + statusCode + " " + uploadCache);
+            }
+        });
     }
 
     public static boolean saveString(String fileName, String data) {
@@ -161,9 +155,17 @@ public class DataStore {
         }
     }
 
-    public static boolean clearData(String fileName) {
+    public static boolean clearData() {
         try {
-            MainActivity.context.openFileOutput(fileName, Context.MODE_PRIVATE).close();
+            SharedPreferences sp = getPreferences();
+            if (sp == null)
+                return false;
+
+            int max = sp.getInt(KEY_SIZE, -1);
+            for (int i = 0; i <= max; i++)
+                MainActivity.context.deleteFile(DATA_FILE + i);
+
+            sp.edit().remove(KEY_SIZE).apply();
             return true;
         } catch (Exception e) {
             Log.d("noFile", "no saved data");
@@ -183,11 +185,13 @@ public class DataStore {
             return 0;
 
 
-        if (sizeOf(fileName) > MAX_FILESIZE)
+        if (sizeOf(fileName) > MAX_FILE_SIZE)
             sp.edit().putInt(KEY_FILE_ID, ++id).apply();
 
         int size = data.getBytes(Charset.defaultCharset()).length;
         sp.edit().putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
+
+        Log.d("save", "saved");
 
         return size;
     }
@@ -215,32 +219,13 @@ public class DataStore {
         }
     }
 
-    public static Object load(String fileName) {
-        try {
-            FileInputStream fis = context.openFileInput(fileName);
-            ObjectInputStream is = new ObjectInputStream(fis);
-            Object object = is.readObject();
-            is.close();
-            fis.close();
-            return object;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     @SuppressWarnings("unchecked")
-    public static <T> T LoadStringObject(String fileName, Class c) {
+    public static <T> T loadStringObject(String fileName, Class c) {
         String data = loadString(fileName);
         //field[] f = c.getDeclaredFields();
         try {
             Gson gson = new Gson();
             return (T) gson.fromJson(data, c);
-            //T object = (T) c.newInstance();
-
-            /*for (Field field : f) {
-                field.set(object, );
-            }*/
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -248,8 +233,11 @@ public class DataStore {
     }
 
     public static StringBuilder loadStringAsBuilder(String fileName) {
-        if (!exists(fileName))
+        if (!exists(fileName)) {
+            Log.w(TAG, "file " + fileName + " does not exist");
             return null;
+        }
+
         try {
             FileInputStream fis = context.openFileInput(fileName);
             InputStreamReader isr = new InputStreamReader(fis);
@@ -257,11 +245,11 @@ public class DataStore {
             String receiveString;
             StringBuilder stringBuilder = new StringBuilder();
 
-            while ((receiveString = br.readLine()) != null) {
+            while ((receiveString = br.readLine()) != null)
                 stringBuilder.append(receiveString);
-            }
 
             isr.close();
+            Log.d(TAG, fileName + " loaded size " + stringBuilder.toString());
             return stringBuilder;
         } catch (Exception e) {
             e.printStackTrace();
