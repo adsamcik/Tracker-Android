@@ -61,6 +61,7 @@
         android:translationZ="6dp" />
 
     <RelativeLayout
+        android:id="@+id/rl_play"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/textView_playLoginTitle"
@@ -92,5 +93,16 @@
             android:background="@drawable/games_quests_grey"
             android:contentDescription="@string/quests"/>
     </RelativeLayout>
+
+    <Button
+        android:id="@+id/textView_Clear"
+        style="?android:attr/colorButtonNormal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/rl_play"
+        android:backgroundTint="@color/colorAccent"
+        android:text="@string/settings_clear"
+        android:textSize="18sp"
+        android:translationZ="6dp" />
 
 </RelativeLayout>

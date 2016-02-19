@@ -10,6 +10,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
@@ -93,6 +94,13 @@ public class FragmentSettings extends Fragment {
             public void onClick(View v) {
                 PlayController.gamesController.showLeaderboard("CgkIw77dzcwdEAIQCw");
 
+            }
+        });
+
+        rootView.findViewById(R.id.textView_Clear).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                DataStore.clearAllData();
             }
         });
 

@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
+import android.os.Debug;
+import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -39,7 +41,6 @@ public class DataStore {
 
     private static Context context;
     private static boolean uploadRequested;
-    private static long size;
 
     public static SharedPreferences getPreferences() {
         if (Setting.sharedPreferences == null) {
@@ -110,7 +111,7 @@ public class DataStore {
         RequestParams rp = new RequestParams();
         rp.add("imei", Extensions.getImei());
         rp.add("data", serialized);
-        new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler() {
+        new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
 
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -123,21 +124,18 @@ public class DataStore {
                     intent.putExtra("cloudStatus", 0);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 
-                Log.d(TAG, "success " + name);
+                Log.d(TAG, "Uploaded " + name);
             }
 
             @Override
             public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-                saveStringAppend(DATA_FILE, uploadCache.substring(1, uploadCache.length() - 1));
-                uploadCache = "";
                 Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
                 intent.putExtra("cloudStatus", 1);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 
                 TrackerService.approxSize += size;
-                size = 0;
 
-                Log.d(TAG, "failed " + statusCode + " " + uploadCache);
+                Log.e(TAG, "Upload failed " + name + " code " + statusCode);
             }
         });
     }
@@ -155,22 +153,20 @@ public class DataStore {
         }
     }
 
-    public static boolean clearData() {
-        try {
-            SharedPreferences sp = getPreferences();
-            if (sp == null)
-                return false;
+    public static void deleteFile(String fileName) {
+        context.deleteFile(fileName);
+    }
 
-            int max = sp.getInt(KEY_SIZE, -1);
-            for (int i = 0; i <= max; i++)
-                MainActivity.context.deleteFile(DATA_FILE + i);
+    public static void clearAllData() {
+        SharedPreferences sp = getPreferences();
+        if (sp == null)
+            throw new RuntimeException("Data was no cleared! This is a bug.");
 
-            sp.edit().remove(KEY_SIZE).apply();
-            return true;
-        } catch (Exception e) {
-            Log.d("noFile", "no saved data");
-            return false;
-        }
+        int max = sp.getInt(KEY_SIZE, -1);
+        for (int i = 0; i <= max; i++)
+            context.deleteFile(DATA_FILE + i);
+
+        sp.edit().remove(KEY_SIZE).apply();
     }
 
     public static int saveData(String data) {
@@ -186,7 +182,7 @@ public class DataStore {
 
 
         if (sizeOf(fileName) > MAX_FILE_SIZE)
-            sp.edit().putInt(KEY_FILE_ID, ++id).apply();
+            sp.edit().putInt(KEY_FILE_ID, ++id).commit();
 
         int size = data.getBytes(Charset.defaultCharset()).length;
         sp.edit().putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
