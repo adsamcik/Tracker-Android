@@ -32,7 +32,7 @@ public class PlayController {
         a = activity;
     }
 
-    public static boolean InitializeActivityClient() {
+    public static boolean initializeActivityClient() {
         if (isPlayServiceAvailable()) {
             activityController = new ActivityController(c);
             gapiActivityClient = new GoogleApiClient.Builder(c)
@@ -50,7 +50,7 @@ public class PlayController {
         return false;
     }
 
-    public static boolean InitializeGamesClient(View v) {
+    public static boolean initializeGamesClient(View v) {
         if (isPlayServiceAvailable()) {
             gamesController = new GamesController(c, a);
             gapiGamesClient = new GoogleApiClient.Builder(c)
@@ -70,7 +70,7 @@ public class PlayController {
         return false;
     }
 
-    public static void DestroyGamesClient() {
+    public static void destroyGamesClient() {
         gamesController.logout();
         Games.signOut(gapiGamesClient);
         gapiGamesClient.disconnect();
@@ -79,7 +79,7 @@ public class PlayController {
         Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, false);
     }
 
-    public static void RegisterActivityReceiver(BroadcastReceiver receiver) {
+    public static void registerActivityReceiver(BroadcastReceiver receiver) {
         if (apiActivity) {
             //Filter the Intent and register broadcast receiver
             IntentFilter filter = new IntentFilter();
@@ -90,7 +90,7 @@ public class PlayController {
         }
     }
 
-    public static void UnregisterActivityReceiver(BroadcastReceiver receiver) {
+    public static void unregisterActivityReceiver(BroadcastReceiver receiver) {
         if (apiActivity) {
             registeredCount--;
             c.unregisterReceiver(receiver);

@@ -17,6 +17,7 @@ import com.google.gson.Gson;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
+import com.loopj.android.http.SyncHttpClient;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -41,6 +42,8 @@ public class DataStore {
 
     private static Context context;
     private static boolean uploadRequested;
+
+    private static int activeUploads = 0;
 
     public static SharedPreferences getPreferences() {
         if (Setting.sharedPreferences == null) {
@@ -80,8 +83,6 @@ public class DataStore {
                                     !activeNetwork.isRoaming()))) {
                 new LoadAndUploadTask().execute(getDataFileNames());
                 uploadRequested = false;
-                size = TrackerService.approxSize;
-                TrackerService.approxSize = 0;
                 return true;
             }
         }
@@ -96,10 +97,11 @@ public class DataStore {
         String[] fileNames = new String[maxID + 1];
         for (int i = 0; i <= maxID; i++)
             fileNames[i] = DATA_FILE + i;
+
         return fileNames;
     }
 
-    public static void upload(String data, final String name, final int size) {
+    public static void upload(String data, final String name, final long size) {
         if (data.isEmpty()) return;
         String serialized = "{\"imei\":" + Extensions.getImei() +
                 ",\"device\":\"" + Build.MODEL +
@@ -111,18 +113,16 @@ public class DataStore {
         RequestParams rp = new RequestParams();
         rp.add("imei", Extensions.getImei());
         rp.add("data", serialized);
-        new AsyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
-
+        activeUploads++;
+        new SyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-                Intent intent = new Intent(Setting.UPLOAD_BROADCAST_TAG);
-                intent.putExtra("size", size);
-                LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-
-                intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-                if (!TrackerService.isActive || TrackerService.approxSize == 0)
+                Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
+                if (--activeUploads == 0 && (!TrackerService.isActive || TrackerService.approxSize == 0))
                     intent.putExtra("cloudStatus", 0);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+
+                deleteFile(name);
 
                 Log.d(TAG, "Uploaded " + name);
             }
@@ -160,13 +160,13 @@ public class DataStore {
     public static void clearAllData() {
         SharedPreferences sp = getPreferences();
         if (sp == null)
-            throw new RuntimeException("Data was no cleared! This is a bug.");
+            throw new RuntimeException("Data was not cleared! This is a bug.");
 
-        int max = sp.getInt(KEY_SIZE, -1);
+        int max = sp.getInt(KEY_FILE_ID, -1);
         for (int i = 0; i <= max; i++)
             context.deleteFile(DATA_FILE + i);
 
-        sp.edit().remove(KEY_SIZE).apply();
+        sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).apply();
     }
 
     public static int saveData(String data) {
@@ -175,19 +175,21 @@ public class DataStore {
             return 0;
 
         int id = sp.getInt(KEY_FILE_ID, 0);
+
+        SharedPreferences.Editor edit = sp.edit();
+
+        if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE)
+            edit.putInt(KEY_FILE_ID, ++id);
+
         String fileName = DATA_FILE + id;
 
         if (!saveStringAppend(fileName, data))
             return 0;
 
-
-        if (sizeOf(fileName) > MAX_FILE_SIZE)
-            sp.edit().putInt(KEY_FILE_ID, ++id).commit();
-
         int size = data.getBytes(Charset.defaultCharset()).length;
-        sp.edit().putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
+        edit.putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
 
-        Log.d("save", "saved");
+        Log.d("save", "saved to " + fileName);
 
         return size;
     }
@@ -215,19 +217,6 @@ public class DataStore {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static <T> T loadStringObject(String fileName, Class c) {
-        String data = loadString(fileName);
-        //field[] f = c.getDeclaredFields();
-        try {
-            Gson gson = new Gson();
-            return (T) gson.fromJson(data, c);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     public static StringBuilder loadStringAsBuilder(String fileName) {
         if (!exists(fileName)) {
             Log.w(TAG, "file " + fileName + " does not exist");
@@ -245,7 +234,6 @@ public class DataStore {
                 stringBuilder.append(receiveString);
 
             isr.close();
-            Log.d(TAG, fileName + " loaded size " + stringBuilder.toString());
             return stringBuilder;
         } catch (Exception e) {
             e.printStackTrace();

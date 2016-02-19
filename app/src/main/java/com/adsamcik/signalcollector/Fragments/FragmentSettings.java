@@ -11,6 +11,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
@@ -72,10 +73,10 @@ public class FragmentSettings extends Fragment {
             @Override
             public void onClick(View v) {
                 if (!PlayController.apiGames)
-                    PlayController.InitializeGamesClient(rootView);
+                    PlayController.initializeGamesClient(rootView);
                 else {
                     textView_PlayLog.setText(R.string.settings_playGamesLogin);
-                    PlayController.DestroyGamesClient();
+                    PlayController.destroyGamesClient();
                 }
 
             }
@@ -101,6 +102,7 @@ public class FragmentSettings extends Fragment {
             @Override
             public void onClick(View v) {
                 DataStore.clearAllData();
+                ((MainActivity)getActivity()).changeCloudStatus(0);
             }
         });
 

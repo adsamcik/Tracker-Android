@@ -71,8 +71,8 @@ public class MainActivity extends FragmentActivity {
         } else {
             PlayController.setContext(context);
             PlayController.setActivity(this);
-            PlayController.InitializeGamesClient(findViewById(R.id.container));
-            PlayController.InitializeActivityClient();
+            PlayController.initializeGamesClient(findViewById(R.id.container));
+            PlayController.initializeActivityClient();
         }
     }
 
@@ -194,7 +194,7 @@ public class MainActivity extends FragmentActivity {
     public void toggleCollecting(boolean enable, boolean backgroundTracking) {
         if ((!TrackerService.isActive && saveStatus == 2) || TrackerService.isActive == enable)
             return;
-        if (CheckAllTrackingPermissions()) {
+        if (checkAllTrackingPermissions()) {
             if (!TrackerService.isActive) {
                 trackerService.putExtra("approxSize", DataStore.sizeOfData());
                 trackerService.putExtra("backTrack", backgroundTracking);
@@ -283,7 +283,7 @@ public class MainActivity extends FragmentActivity {
         toggleCollecting(true, false);
     }
 
-    boolean CheckAllTrackingPermissions() {
+    boolean checkAllTrackingPermissions() {
         if (Build.VERSION.SDK_INT > 22) {
             List<String> permissions = new ArrayList<>();
             if (ContextCompat.checkSelfPermission(instance, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)

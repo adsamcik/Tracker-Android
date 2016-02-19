@@ -65,7 +65,6 @@ public class TrackerService extends Service implements SensorEventListener {
     SensorManager mSensorManager;
     Sensor mPressure;
     BroadcastReceiver activityReceiver;
-    BroadcastReceiver uploadReceiver;
     float pressureValue;
     int currentActivity;
     boolean backgroundActivated = false;
@@ -218,9 +217,9 @@ public class TrackerService extends Service implements SensorEventListener {
         if (PlayController.c == null)
             PlayController.setContext(this);
         if (!PlayController.apiActivity)
-            PlayController.InitializeActivityClient();
+            PlayController.initializeActivityClient();
 
-        PlayController.RegisterActivityReceiver(activityReceiver);
+        PlayController.registerActivityReceiver(activityReceiver);
 
         //setContext
         locationListener = new LocationListener() {
@@ -271,7 +270,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
         wifiManager.startScan();
         registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
-        registerReceiver(uploadReceiver = new UploadReceiver(), new IntentFilter(Setting.UPLOAD_BROADCAST_TAG));
 
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
@@ -297,8 +295,7 @@ public class TrackerService extends Service implements SensorEventListener {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             locationManager.removeUpdates(locationListener);
         unregisterReceiver(wifiReceiver);
-        unregisterReceiver(uploadReceiver);
-        PlayController.UnregisterActivityReceiver(activityReceiver);
+        PlayController.unregisterActivityReceiver(activityReceiver);
         mSensorManager.unregisterListener(this);
         //LocalBroadcastManager.getInstance(MainActivity.instance).sendBroadcast();
         saveData();
@@ -349,14 +346,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-    }
-
-
-    private class UploadReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            approxSize -= intent.getLongExtra("size", 0);
-        }
     }
 
     private class WifiReceiver extends BroadcastReceiver {

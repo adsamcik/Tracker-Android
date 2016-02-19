@@ -90,7 +90,7 @@ public class IntroActivity extends AppIntro2 {
         if(slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable()) {
             PlayController.setContext(getApplicationContext());
             PlayController.setActivity(this);
-            PlayController.InitializeGamesClient(findViewById(android.R.id.content));
+            PlayController.initializeGamesClient(findViewById(android.R.id.content));
         }
     }
 
