@@ -37,6 +37,7 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
             TrackerService.approxSize -= size;
             DataStore.upload(builder.toString(), fileName, size);
             actualSize += size;
+            //Todo check if all files are uploaded under ASP.NET (1 out of 2 on wedos)
         }
 
         TrackerService.approxSize += actualSize - approxSize;

@@ -103,7 +103,7 @@ public class DataStore {
 
     public static void upload(String data, final String name, final long size) {
         if (data.isEmpty()) return;
-        String serialized = "{\"imei\":" + Extensions.getImei() +
+        String serialized = name + "{\"imei\":" + Extensions.getImei() +
                 ",\"device\":\"" + Build.MODEL +
                 "\",\"manufacturer\":\"" + Build.MANUFACTURER +
                 "\",\"api\":" + Build.VERSION.SDK_INT +
@@ -124,7 +124,7 @@ public class DataStore {
 
                 deleteFile(name);
 
-                Log.d(TAG, "Uploaded " + name);
+                Log.d(TAG, "Uploaded " + name + " code " + statusCode);
             }
 
             @Override

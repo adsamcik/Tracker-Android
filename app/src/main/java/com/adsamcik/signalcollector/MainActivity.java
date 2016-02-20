@@ -219,6 +219,7 @@ public class MainActivity extends FragmentActivity {
                 uploadFab.setImageResource(R.drawable.ic_cloud_done_black_48dp);
                 uploadFab.hide();
                 textApproxSize.setVisibility(View.GONE);
+                uploadAvailable = false;
                 cloudStatus = 0;
                 break;
             case 1:
@@ -226,6 +227,7 @@ public class MainActivity extends FragmentActivity {
                 if (!uploadFabHidden)
                     uploadFab.show();
                 textApproxSize.setVisibility(View.VISIBLE);
+                uploadAvailable = true;
                 cloudStatus = 1;
                 break;
             case 2:
@@ -244,7 +246,6 @@ public class MainActivity extends FragmentActivity {
         if (!show) {
             trackingFab.hide();
             uploadFab.hide();
-            uploadAvailable = cloudStatus != 0;
             uploadFabHidden = true;
         } else {
             trackingFab.show();
