@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">SignalCollector</string>
+    <string name="app_name">Signals</string>
     <string name="main_last_update">Last update: %1$s</string>
     <string name="main_wifi_count">WiFi in range: %1$d</string>
     <string name="main_signal_strength" tools:ignore="PluralsCandidate">Signal: %1$s %2$d dbm, %3$d asu</string>
