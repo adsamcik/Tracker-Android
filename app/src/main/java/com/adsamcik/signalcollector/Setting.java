@@ -12,7 +12,6 @@ public class Setting implements Serializable {
     //0-no auto upload;1-wifi autoUpload;2-autoUpload
     public static final String AUTO_UPLOAD = "autoUpload";
     public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
-    public static final String UPLOAD_BROADCAST_TAG = "UploadingData";
     public static SharedPreferences sharedPreferences;
 
     public static void Initialize(SharedPreferences sp) {

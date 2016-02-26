@@ -40,6 +40,10 @@ public class DataStore {
     private static Context context;
     private static boolean uploadRequested;
 
+    public static void setContext(Context c) {
+        context = c;
+    }
+
     public static SharedPreferences getPreferences() {
         if (Setting.sharedPreferences == null) {
             if (context != null)
@@ -50,10 +54,6 @@ public class DataStore {
             }
         }
         return Setting.sharedPreferences;
-    }
-
-    public static void setContext(Context c) {
-        context = c;
     }
 
     public static boolean requestUpload(Context c) {
