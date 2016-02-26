@@ -18,7 +18,6 @@ import android.view.InflateException;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
 
 import com.adsamcik.signalcollector.Network;
@@ -84,6 +83,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
                 }
             }
 
+            @SuppressWarnings("BooleanMethodIsAlwaysInverted")
             private boolean checkTileExists(int x, int y, int zoom) {
                 int minZoom = 10;
                 int maxZoom = 17;

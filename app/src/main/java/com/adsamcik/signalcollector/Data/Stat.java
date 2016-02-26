@@ -3,9 +3,10 @@ package com.adsamcik.signalcollector.Data;
 import java.util.List;
 
 public class Stat {
-    public String name, type;
-    public boolean showPosition;
-    public List<StatData> statData;
+    public final String name;
+    public final String type;
+    public final boolean showPosition;
+    public final List<StatData> statData;
 
     public Stat(String name, String type, boolean showPosition, List<StatData> statData) {
         this.name = name;

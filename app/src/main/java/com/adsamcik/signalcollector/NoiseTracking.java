@@ -7,9 +7,9 @@ import android.util.Log;
 
 public class NoiseTracking {
     public static double REFERENCE = 0.00002;
-    public static int SAMPLING = 44100;
-    static int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-    static AudioRecord audioRecorder = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, 2 * bufferSize);
+    public static final int SAMPLING = 44100;
+    static final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+    static final AudioRecord audioRecorder = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, 2 * bufferSize);
 
     public static void Record() {
         audioRecorder.startRecording();

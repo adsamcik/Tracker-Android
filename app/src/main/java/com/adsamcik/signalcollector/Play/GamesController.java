@@ -29,8 +29,8 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
     static final int REQUEST_ACHIEVEMENTS = 8955;
     private static final int RC_SIGN_IN = 9001;
     GoogleApiClient client;
-    Context context;
-    Activity activity;
+    final Context context;
+    final Activity activity;
     Button button;
     private boolean mResolvingConnectionFailure = false;
 

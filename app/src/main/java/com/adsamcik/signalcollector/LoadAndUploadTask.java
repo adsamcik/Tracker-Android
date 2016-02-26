@@ -1,11 +1,8 @@
 package com.adsamcik.signalcollector;
 
-import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.util.Log;
-
 import com.adsamcik.signalcollector.Services.TrackerService;
-
 import java.nio.charset.Charset;
 
 public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
@@ -27,8 +24,7 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 
             if (builder == null || builder.length() == 0) {
                 return null;
-            }
-            else {
+            } else {
                 DataStore.deleteFile(fileName);
                 builder.setCharAt(0, '[');
                 builder.append(']');
@@ -41,7 +37,7 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
         }
 
         TrackerService.approxSize += actualSize - approxSize;
-        if(TrackerService.approxSize > 0)
+        if (TrackerService.approxSize > 0)
             TrackerService.approxSize = 0;
         return null;
     }

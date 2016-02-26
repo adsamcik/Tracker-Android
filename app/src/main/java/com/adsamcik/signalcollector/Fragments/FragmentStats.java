@@ -41,11 +41,12 @@ public class FragmentStats extends Fragment {
     static final String USER_STAT_FILE = "user_stats_cache_file";
     public static int lastIndex = -1;
     static long lastRequest = 0;
+    final AsyncHttpClient client = new AsyncHttpClient();
     List<Stat> stats = new ArrayList<>();
-    AsyncHttpClient client = new AsyncHttpClient();
     FragmentStats instance;
     View v;
-    public AsyncHttpResponseHandler userStatsResponseHandler = new AsyncHttpResponseHandler() {
+
+    public final AsyncHttpResponseHandler userStatsResponseHandler = new AsyncHttpResponseHandler() {
         @Override
         public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
             if (responseBody != null && responseBody.length > 0)
@@ -65,7 +66,7 @@ public class FragmentStats extends Fragment {
 
         }
     };
-    public AsyncHttpResponseHandler generalStatsResponseHandler = new AsyncHttpResponseHandler() {
+    public final AsyncHttpResponseHandler generalStatsResponseHandler = new AsyncHttpResponseHandler() {
         @Override
         public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
             if (responseBody != null && responseBody.length > 0)

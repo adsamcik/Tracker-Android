@@ -13,7 +13,7 @@ import com.google.android.gms.location.ActivityRecognition;
 
 public class ActivityController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
     private GoogleApiClient client;
-    private Context context;
+    private final Context context;
 
     public ActivityController(Context context) {
         this.context = context;

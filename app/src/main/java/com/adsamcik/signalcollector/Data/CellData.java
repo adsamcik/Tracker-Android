@@ -16,8 +16,9 @@ import android.telephony.CellSignalStrengthWcdma;
 import java.io.Serializable;
 
 
+@SuppressWarnings("WeakerAccess")
 public class CellData implements Serializable {
-    public int type;
+    public final int type;
     //GSM
     public int cid;
     public int lac;
@@ -35,10 +36,10 @@ public class CellData implements Serializable {
     public int networkId;
     public int systemId;
     //global
-    public int dbm;
-    public int asu;
-    public int level;
-    public boolean isRegistered;
+    public final int dbm;
+    public final int asu;
+    public final int level;
+    public final boolean isRegistered;
 
 
     //GSM constructor

@@ -11,17 +11,20 @@ import com.adsamcik.signalcollector.WifiData;
 
 import java.io.Serializable;
 
+@SuppressWarnings("FieldCanBeLocal")
 public class Data implements Serializable {
     public CellData[] cell;
     public WifiData[] wifi;
-    public double longitude, latitude, altitude;
-    public float accuracy;
-    public long time;
-    private boolean wifiGathered;
-    private boolean cellGathered;
-    private String networkOperator;
-    private float pressure;
-    private int currentActivity;
+    public final double longitude;
+    public final double latitude;
+    public final double altitude;
+    public final float accuracy;
+    public final long time;
+    public boolean wifiGathered;
+    public boolean cellGathered;
+    public String networkOperator;
+    public final float pressure;
+    public final int currentActivity;
 
     public Data(long time, double longitude, double latitude, double altitude, float accuracy, CellInfo[] cell, ScanResult[] wifi, float pressure, String networkOperator, int currentActivity) {
         if (cell != null) {

@@ -128,7 +128,7 @@ public class MainActivity extends FragmentActivity {
         trackingFab.setOnClickListener(
                 new View.OnClickListener() {
                     public void onClick(View v) {
-                        toggleCollecting(!TrackerService.isActive, false);
+                        toggleCollecting(!TrackerService.isActive);
                     }
                 }
         );
@@ -191,13 +191,12 @@ public class MainActivity extends FragmentActivity {
         viewPager.setAdapter(adapter);
     }
 
-    public void toggleCollecting(boolean enable, boolean backgroundTracking) {
+    public void toggleCollecting(boolean enable) {
         if ((!TrackerService.isActive && saveStatus == 2) || TrackerService.isActive == enable)
             return;
         if (checkAllTrackingPermissions()) {
             if (!TrackerService.isActive) {
                 trackerService.putExtra("approxSize", DataStore.sizeOfData());
-                trackerService.putExtra("backTrack", backgroundTracking);
 
                 startService(trackerService);
                 TrackerService.service = trackerService;
@@ -281,7 +280,7 @@ public class MainActivity extends FragmentActivity {
             if (grantResult != PackageManager.PERMISSION_GRANTED)
                 return;
         }
-        toggleCollecting(true, false);
+        toggleCollecting(true);
     }
 
     boolean checkAllTrackingPermissions() {
@@ -331,7 +330,16 @@ public class MainActivity extends FragmentActivity {
 
     public class UpdateInfoReceiver extends BroadcastReceiver {
         public static final String BROADCAST_TAG = "signalCollectorUpdate";
-        TextView textTime, textWifiCount, textCurrentCell, textCellCount, textAccuracy, textLatitude, textLongitude, textAltitude, textPressure, textActivity;
+        final TextView textTime;
+        final TextView textWifiCount;
+        final TextView textCurrentCell;
+        final TextView textCellCount;
+        final TextView textAccuracy;
+        final TextView textLatitude;
+        final TextView textLongitude;
+        final TextView textAltitude;
+        final TextView textPressure;
+        final TextView textActivity;
 
         public UpdateInfoReceiver(TextView textTime, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textLatitude, TextView textLongitude, TextView textAltitude, TextView textPressure, TextView textActivity) {
             this.textTime = textTime;

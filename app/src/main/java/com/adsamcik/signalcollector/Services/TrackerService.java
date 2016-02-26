@@ -54,6 +54,7 @@ public class TrackerService extends Service implements SensorEventListener {
     public static long approxSize = 0;
     public final int UPDATE_TIME = 2000;
     public final float MIN_DISTANCE_M = 0;
+    final ArrayList<Data> data = new ArrayList<>();
     LocationListener locationListener;
     Notification notification;
     ScanResult[] wifiScanData;
@@ -70,11 +71,7 @@ public class TrackerService extends Service implements SensorEventListener {
     boolean backgroundActivated = false;
     boolean wifiEnabled = false;
     boolean closing = false;
-
     NotificationManager notificationManager;
-
-    ArrayList<Data> data = new ArrayList<>();
-
     PowerManager powerManager;
     PowerManager.WakeLock wakeLock;
 
