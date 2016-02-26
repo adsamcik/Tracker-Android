@@ -1,31 +1,40 @@
 package com.adsamcik.signalcollector;
 
+import android.content.Context;
+import android.content.Intent;
 import android.os.AsyncTask;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+
 import com.adsamcik.signalcollector.Services.TrackerService;
+
 import java.nio.charset.Charset;
 
 public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
     protected Void doInBackground(String... fileNames) {
-        if (fileNames.length == 0)
+        if (fileNames.length == 0) {
+            Log.e(DataStore.TAG, "No file names were entered");
             return null;
+        } else if (DataStore.getContext() == null) {
+            Log.e(DataStore.TAG, "DataStore context is null");
+            return null;
+        }
 
         long actualSize = 0;
         long approxSize = TrackerService.approxSize;
 
         for (String fileName : fileNames) {
-            Log.d(DataStore.TAG, "Loading " + fileName);
             if (fileName == null || fileName.trim().length() == 0) {
-                Log.w(DataStore.TAG, "Null or empty file name was in load and upload task.");
+                Log.w(DataStore.TAG, "Null or empty file name was in load and upload task");
                 continue;
             }
 
             StringBuilder builder = DataStore.loadStringAsBuilder(fileName);
 
             if (builder == null || builder.length() == 0) {
-                return null;
+                Log.w(DataStore.TAG, "File" + fileName + " did not exist or was empty");
+                continue;
             } else {
-                DataStore.deleteFile(fileName);
                 builder.setCharAt(0, '[');
                 builder.append(']');
             }
@@ -33,12 +42,19 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
             TrackerService.approxSize -= size;
             DataStore.upload(builder.toString(), fileName, size);
             actualSize += size;
-            //Todo check if all files are uploaded under ASP.NET (1 out of 2 on wedos)
         }
 
         TrackerService.approxSize += actualSize - approxSize;
-        if (TrackerService.approxSize > 0)
+        if (TrackerService.approxSize < 0)
             TrackerService.approxSize = 0;
+
+        Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
+        LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
+
+        if (!TrackerService.isActive || TrackerService.approxSize == 0) {
+            intent.putExtra("cloudStatus", 0);
+        }
+
         return null;
     }
 }

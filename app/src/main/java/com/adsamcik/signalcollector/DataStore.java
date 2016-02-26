@@ -35,13 +35,17 @@ public class DataStore {
     public static final String KEY_SIZE = "totalSize";
 
     //1048576 1MB, 5242880 5MB
-    public static final int MAX_FILE_SIZE = 1048576;
+    public static final int MAX_FILE_SIZE = 2097152;
 
     private static Context context;
     private static boolean uploadRequested;
 
     public static void setContext(Context c) {
         context = c;
+    }
+
+    public static Context getContext() {
+        return context;
     }
 
     public static SharedPreferences getPreferences() {
@@ -98,7 +102,8 @@ public class DataStore {
 
     public static void upload(String data, final String name, final long size) {
         if (data.isEmpty()) return;
-        String serialized = name + "{\"imei\":" + Extensions.getImei() +
+
+        String serialized = "{\"imei\":" + Extensions.getImei() +
                 ",\"device\":\"" + Build.MODEL +
                 "\",\"manufacturer\":\"" + Build.MANUFACTURER +
                 "\",\"api\":" + Build.VERSION.SDK_INT +
@@ -111,14 +116,8 @@ public class DataStore {
         new SyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-                Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-                if (!TrackerService.isActive || TrackerService.approxSize == 0)
-                    intent.putExtra("cloudStatus", 0);
-                LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-
                 deleteFile(name);
-
-                Log.d(TAG, "Uploaded " + name + " code " + statusCode);
+                Log.d(TAG, "Uploaded " + name);
             }
 
             @Override
