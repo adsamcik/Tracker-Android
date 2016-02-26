@@ -34,13 +34,11 @@ public class DataStore {
     public static final String KEY_FILE_ID = "saveFileID";
     public static final String KEY_SIZE = "totalSize";
 
-    //5242880
-    public static final int MAX_FILE_SIZE = 48;
+    //1048576 1MB, 5242880 5MB
+    public static final int MAX_FILE_SIZE = 1048576;
 
     private static Context context;
     private static boolean uploadRequested;
-
-    private static int activeUploads = 0;
 
     public static SharedPreferences getPreferences() {
         if (Setting.sharedPreferences == null) {
@@ -110,12 +108,11 @@ public class DataStore {
         RequestParams rp = new RequestParams();
         rp.add("imei", Extensions.getImei());
         rp.add("data", serialized);
-        activeUploads++;
         new SyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
                 Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-                if (--activeUploads == 0 && (!TrackerService.isActive || TrackerService.approxSize == 0))
+                if (!TrackerService.isActive || TrackerService.approxSize == 0)
                     intent.putExtra("cloudStatus", 0);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 
