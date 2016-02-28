@@ -52,7 +52,6 @@ public class TrackerService extends Service implements SensorEventListener {
     public static boolean isActive = false;
     public static Intent service;
 
-    public static int currentFile;
     public static long approxSize = 0;
     public final int UPDATE_TIME = 2000;
     public final float MIN_DISTANCE_M = 0;
@@ -122,9 +121,6 @@ public class TrackerService extends Service implements SensorEventListener {
         wifiScanData = null;
         cellScanData = null;
 
-        if (approxSize > 2097152)
-            DataStore.requestUpload(getApplicationContext());
-
         if (backgroundActivated && powerManager.isPowerSaveMode())
             stopSelf();
 
@@ -167,17 +163,16 @@ public class TrackerService extends Service implements SensorEventListener {
 
     void saveData() {
         if (data.size() == 0) return;
-
         String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
-
-        if (input == null) return;
-
         input = input.substring(1, input.length() - 1);
-        if (DataStore.saveData(input) > 0) {
-            data.clear();
-        } else {
+
+        int result = DataStore.saveData(input);
+        if (result == 1)
             stopSelf();
-            Log.e(TAG, "Saving failed.");
+        else {
+            data.clear();
+            if (result == 2)
+                DataStore.requestUpload(getApplicationContext());
         }
     }
 

@@ -68,10 +68,11 @@ public class DataStore {
     }
 
     public static boolean updateAutoUploadState(Context c) {
+        //Unique opportunity to initialize shared preferences if null, so this is called first to ensure it's set.
         if (Setting.sharedPreferences == null)
             Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
 
-        int autoUpload = Setting.sharedPreferences.getInt(Setting.AUTO_UPLOAD, 1);
+        int autoUpload = getPreferences().getInt(Setting.AUTO_UPLOAD, 1);
         if (uploadRequested && autoUpload >= 1) {
             ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 
@@ -95,7 +96,6 @@ public class DataStore {
         String[] fileNames = new String[maxID + 1];
         for (int i = 0; i <= maxID; i++)
             fileNames[i] = DATA_FILE + i;
-
         return fileNames;
     }
 
@@ -116,7 +116,7 @@ public class DataStore {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
                 deleteFile(name);
-                Log.d(TAG, "Uploaded " + name);
+                Log.d(TAG, "Successfully uploaded " + name);
             }
 
             @Override
@@ -124,10 +124,8 @@ public class DataStore {
                 Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
                 intent.putExtra("cloudStatus", 1);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-
                 TrackerService.approxSize += size;
-
-                Log.e(TAG, "Upload failed " + name + " code " + statusCode);
+                Log.w(TAG, "Upload failed " + name + " code " + statusCode);
             }
         });
     }
@@ -163,25 +161,35 @@ public class DataStore {
         sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).apply();
     }
 
+    /**
+     * Saves data to file. File is determined automatically.
+     *
+     * @param data json array to be saved, without [ at the beginning
+     * @return returns state value 2 - new file, 1 - error during saving, 0 - no new file, saved successfully
+     */
     public static int saveData(String data) {
         SharedPreferences sp = getPreferences();
         int id = sp.getInt(KEY_FILE_ID, 0);
 
+        boolean newFile = false;
+
         SharedPreferences.Editor edit = sp.edit();
 
-        if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE)
+        if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
             edit.putInt(KEY_FILE_ID, ++id);
+            newFile = true;
+        }
 
         String fileName = DATA_FILE + id;
 
         if (!saveStringAppend(fileName, data))
-            return 0;
+            return 1;
 
         int size = data.getBytes(Charset.defaultCharset()).length;
         edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + size).apply();
 
         Log.d("save", "saved to " + fileName);
-        return size;
+        return newFile ? 2 : 0;
     }
 
     public static long recountDataSize() {
@@ -201,10 +209,18 @@ public class DataStore {
     }
 
     public static boolean saveStringAppend(String fileName, String data) {
+        StringBuilder sb = new StringBuilder(data);
+        if (sb.charAt(0) == '[')
+            sb.setCharAt(0, ',');
+        else
+            sb.insert(0, ',');
+
+        data = sb.toString();
+
         try {
             FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_APPEND);
             OutputStreamWriter osw = new OutputStreamWriter(outputStream);
-            osw.write("," + data);
+            osw.write(data);
             osw.close();
             return true;
         } catch (Exception e) {
