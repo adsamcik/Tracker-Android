@@ -53,8 +53,9 @@ public class DataStore {
             if (context != null)
                 Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
             else {
-                Log.e(TAG, Log.getStackTraceString(new Throwable("No shared preferences and null context")));
-                return null;
+                String errorString = "No shared preferences and null context";
+                Log.e(TAG, Log.getStackTraceString(new Throwable(errorString)));
+                throw new RuntimeException(errorString);
             }
         }
         return Setting.sharedPreferences;
@@ -89,10 +90,7 @@ public class DataStore {
     }
 
     static String[] getDataFileNames() {
-        SharedPreferences sp = getPreferences();
-        if (sp == null)
-            return null;
-        int maxID = sp.getInt(KEY_FILE_ID, 0);
+        int maxID = getPreferences().getInt(KEY_FILE_ID, 0);
         String[] fileNames = new String[maxID + 1];
         for (int i = 0; i <= maxID; i++)
             fileNames[i] = DATA_FILE + i;
@@ -152,9 +150,6 @@ public class DataStore {
 
     public static void clearAllData() {
         SharedPreferences sp = getPreferences();
-        if (sp == null)
-            throw new RuntimeException("Data was not cleared! This is a bug.");
-
         int max = sp.getInt(KEY_FILE_ID, -1);
         for (int i = 0; i <= max; i++)
             context.deleteFile(DATA_FILE + i);
@@ -164,8 +159,6 @@ public class DataStore {
 
     public static int saveData(String data) {
         SharedPreferences sp = getPreferences();
-        if (sp == null)
-            return 0;
 
         int id = sp.getInt(KEY_FILE_ID, 0);
 
@@ -188,9 +181,7 @@ public class DataStore {
     }
 
     public static int sizeOfData() {
-        SharedPreferences sp = getPreferences();
-        if (sp == null) return -1;
-        return sp.getInt(KEY_SIZE, 0);
+        return getPreferences().getInt(KEY_SIZE, 0);
     }
 
     public static int sizeOf(String fileName) {

@@ -49,11 +49,10 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
             TrackerService.approxSize = 0;
 
         Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-        LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
-
-        if (!TrackerService.isActive || TrackerService.approxSize == 0) {
+        if (!TrackerService.isActive || TrackerService.approxSize == 0)
             intent.putExtra("cloudStatus", 0);
-        }
+
+        LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
 
         return null;
     }

@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -46,14 +47,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
-    public static final String TAG = "SignalCollector-Tracker";
+    public static final String TAG = "SignalsTracker";
 
     public static boolean isActive = false;
     public static Intent service;
 
+    public static int currentFile;
     public static long approxSize = 0;
     public final int UPDATE_TIME = 2000;
     public final float MIN_DISTANCE_M = 0;
+
     final ArrayList<Data> data = new ArrayList<>();
     LocationListener locationListener;
     Notification notification;
@@ -66,11 +69,13 @@ public class TrackerService extends Service implements SensorEventListener {
     SensorManager mSensorManager;
     Sensor mPressure;
     BroadcastReceiver activityReceiver;
+
     float pressureValue;
     int currentActivity;
     boolean backgroundActivated = false;
     boolean wifiEnabled = false;
     boolean closing = false;
+
     NotificationManager notificationManager;
     PowerManager powerManager;
     PowerManager.WakeLock wakeLock;
@@ -103,20 +108,7 @@ public class TrackerService extends Service implements SensorEventListener {
                 if (cd.isRegistered) {
                     cellDbm = cd.dbm;
                     cellAsu = cd.asu;
-                    switch (cd.type) {
-                        case 0:
-                            cellType = "GSM";
-                            break;
-                        case 1:
-                            cellType = "CDMA";
-                            break;
-                        case 2:
-                            cellType = "WCDMA";
-                            break;
-                        case 3:
-                            cellType = "LTE";
-                            break;
-                    }
+                    cellType = cd.getType();
                 }
             }
             cellCount = d.cell.length;
@@ -275,6 +267,11 @@ public class TrackerService extends Service implements SensorEventListener {
 
         powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
+    }
+
+    public static void onUploadComplete(int maxId) {
+        SharedPreferences sp = DataStore.getPreferences();
+        int currentId = sp.getInt(DataStore.KEY_FILE_ID, 0);
     }
 
     @Override

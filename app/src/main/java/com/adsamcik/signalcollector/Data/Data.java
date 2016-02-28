@@ -7,8 +7,6 @@ import android.telephony.CellInfoGsm;
 import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
 
-import com.adsamcik.signalcollector.WifiData;
-
 import java.io.Serializable;
 
 @SuppressWarnings("FieldCanBeLocal")

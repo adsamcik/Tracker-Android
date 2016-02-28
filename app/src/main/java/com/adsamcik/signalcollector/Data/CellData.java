@@ -108,4 +108,19 @@ public class CellData implements Serializable {
         this.asu = cssw.getAsuLevel();
         this.level = cssw.getLevel();
     }
+
+    public String getType() {
+        switch (type) {
+            case 0:
+                return "GSM";
+            case 1:
+                return "CDMA";
+            case 2:
+                return "WCDMA";
+            case 3:
+                return "LTE";
+            default:
+                return "UNKNOWN";
+        }
+    }
 }
