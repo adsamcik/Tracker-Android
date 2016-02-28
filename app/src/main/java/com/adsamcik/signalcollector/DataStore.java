@@ -19,6 +19,7 @@ import com.loopj.android.http.SyncHttpClient;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -144,6 +145,11 @@ public class DataStore {
         }
     }
 
+    public static boolean moveFile(String fileName, String newFileName) {
+        String dir = context.getFilesDir().getPath();
+        return new File(dir, fileName).renameTo(new File(dir, newFileName));
+    }
+
     public static void deleteFile(String fileName) {
         context.deleteFile(fileName);
     }
@@ -159,7 +165,6 @@ public class DataStore {
 
     public static int saveData(String data) {
         SharedPreferences sp = getPreferences();
-
         int id = sp.getInt(KEY_FILE_ID, 0);
 
         SharedPreferences.Editor edit = sp.edit();
@@ -176,7 +181,14 @@ public class DataStore {
         edit.putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
 
         Log.d("save", "saved to " + fileName);
+        return size;
+    }
 
+    public static long recountDataSize() {
+        String[] fileNames = getDataFileNames();
+        long size = 0;
+        for (String fileName : fileNames)
+            size += sizeOf(fileName);
         return size;
     }
 
@@ -184,8 +196,8 @@ public class DataStore {
         return getPreferences().getInt(KEY_SIZE, 0);
     }
 
-    public static int sizeOf(String fileName) {
-        return loadString(fileName).getBytes(Charset.defaultCharset()).length;
+    public static long sizeOf(String fileName) {
+        return new File(context.getFilesDir().getPath(), fileName).length();
     }
 
     public static boolean saveStringAppend(String fileName, String data) {
