@@ -189,7 +189,7 @@ public class DataStore {
         int size = data.getBytes(Charset.defaultCharset()).length;
         edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + size).apply();
 
-        Log.d(TAG, "saved to " + fileName);
+        //Log.d(TAG, "saved to " + fileName);
         return newFile && id > 0 ? 2 : 0;
     }
 
