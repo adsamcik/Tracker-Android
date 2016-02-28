@@ -169,11 +169,10 @@ public class DataStore {
      */
     public static int saveData(String data) {
         SharedPreferences sp = getPreferences();
-        int id = sp.getInt(KEY_FILE_ID, 0);
-
-        boolean newFile = false;
-
         SharedPreferences.Editor edit = sp.edit();
+
+        int id = sp.getInt(KEY_FILE_ID, 0);
+        boolean newFile = false;
 
         if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
             edit.putInt(KEY_FILE_ID, ++id);
@@ -188,8 +187,8 @@ public class DataStore {
         int size = data.getBytes(Charset.defaultCharset()).length;
         edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + size).apply();
 
-        Log.d("save", "saved to " + fileName);
-        return newFile ? 2 : 0;
+        Log.d(TAG, "saved to " + fileName);
+        return newFile && id > 0 ? 2 : 0;
     }
 
     public static long recountDataSize() {
