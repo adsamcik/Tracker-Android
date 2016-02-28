@@ -128,7 +128,7 @@ public class DataStore {
                 intent.putExtra("cloudStatus", 1);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
                 TrackerService.approxSize += size;
-                uploadRequested = true;
+                requestUpload(context);
                 Log.w(TAG, "Upload failed " + name + " code " + statusCode);
             }
         });
