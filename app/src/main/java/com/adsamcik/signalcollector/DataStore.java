@@ -178,7 +178,7 @@ public class DataStore {
             return 0;
 
         int size = data.getBytes(Charset.defaultCharset()).length;
-        edit.putInt(KEY_SIZE, sp.getInt(KEY_SIZE, 0) + size).apply();
+        edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + size).apply();
 
         Log.d("save", "saved to " + fileName);
         return size;
@@ -192,8 +192,8 @@ public class DataStore {
         return size;
     }
 
-    public static int sizeOfData() {
-        return getPreferences().getInt(KEY_SIZE, 0);
+    public static long sizeOfData() {
+        return getPreferences().getLong(KEY_SIZE, 0);
     }
 
     public static long sizeOf(String fileName) {

@@ -280,7 +280,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        approxSize = intent.getIntExtra("approxSize", 0);
+        approxSize = intent.getLongExtra("approxSize", 0);
         backgroundActivated = intent.getBooleanExtra("backTrack", false);
         return super.onStartCommand(intent, flags, startId);
     }
