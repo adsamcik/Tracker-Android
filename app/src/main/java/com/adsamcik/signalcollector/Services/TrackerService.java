@@ -147,7 +147,7 @@ public class TrackerService extends Service implements SensorEventListener {
                 .setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
                 .setTicker("Collection started")  // the status text
                 .setWhen(System.currentTimeMillis())  // the time stamp
-                .setContentTitle("Signal collector")// the label of the entry
+                .setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
                         //.addAction(playPause.build())
                 .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
 
