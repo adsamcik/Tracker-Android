@@ -83,7 +83,7 @@ public class DataStore {
                             (autoUpload >= 2 &&
                                     activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE &&
                                     !activeNetwork.isRoaming()))) {
-                new LoadAndUploadTask().execute(getDataFileNames());
+                new LoadAndUploadTask().execute(getDataFileNames(false));
                 uploadRequested = false;
                 return true;
             }
@@ -91,8 +91,10 @@ public class DataStore {
         return false;
     }
 
-    static String[] getDataFileNames() {
+    static String[] getDataFileNames(boolean includeLast) {
         int maxID = getPreferences().getInt(KEY_FILE_ID, 0);
+        if (!includeLast)
+            maxID--;
         String[] fileNames = new String[maxID + 1];
         for (int i = 0; i <= maxID; i++)
             fileNames[i] = DATA_FILE + i;
@@ -194,10 +196,10 @@ public class DataStore {
     /**
      * Inspects all data files and returns the total size
      *
-     * @return  total size of data
+     * @return total size of data
      */
     public static long recountDataSize() {
-        String[] fileNames = getDataFileNames();
+        String[] fileNames = getDataFileNames(true);
         long size = 0;
         for (String fileName : fileNames)
             size += sizeOf(fileName);
@@ -207,16 +209,15 @@ public class DataStore {
     /**
      * Gets saved size of data.
      *
-     * @return  returns saved data size from shared preferences.
+     * @return returns saved data size from shared preferences.
      */
     public static long sizeOfData() {
         return getPreferences().getLong(KEY_SIZE, 0);
     }
 
     /**
-     *
-     * @param fileName  Name of file
-     * @return          Size of file
+     * @param fileName Name of file
+     * @return Size of file
      */
     public static long sizeOf(String fileName) {
         return new File(context.getFilesDir().getPath(), fileName).length();
@@ -225,9 +226,10 @@ public class DataStore {
 
     /**
      * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
-     * @param fileName  Name of file
-     * @param data      Json data to be saved
-     * @return          Success
+     *
+     * @param fileName Name of file
+     * @param data     Json data to be saved
+     * @return Success
      */
     public static boolean saveStringAppend(String fileName, String data) {
         StringBuilder sb = new StringBuilder(data);

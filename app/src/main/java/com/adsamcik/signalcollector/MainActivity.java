@@ -141,7 +141,7 @@ public class MainActivity extends FragmentActivity {
                             if (TrackerService.service != null)
                                 stopService(TrackerService.service);
                             changeCloudStatus(2);
-                            new LoadAndUploadTask().execute(DataStore.getDataFileNames());
+                            new LoadAndUploadTask().execute(DataStore.getDataFileNames(true));
                         }
                     }
                 }
