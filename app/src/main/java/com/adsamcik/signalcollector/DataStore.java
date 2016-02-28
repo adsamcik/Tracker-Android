@@ -191,6 +191,11 @@ public class DataStore {
         return newFile && id > 0 ? 2 : 0;
     }
 
+    /**
+     * Inspects all data files and returns the total size
+     *
+     * @return  total size of data
+     */
     public static long recountDataSize() {
         String[] fileNames = getDataFileNames();
         long size = 0;
@@ -199,14 +204,31 @@ public class DataStore {
         return size;
     }
 
+    /**
+     * Gets saved size of data.
+     *
+     * @return  returns saved data size from shared preferences.
+     */
     public static long sizeOfData() {
         return getPreferences().getLong(KEY_SIZE, 0);
     }
 
+    /**
+     *
+     * @param fileName  Name of file
+     * @return          Size of file
+     */
     public static long sizeOf(String fileName) {
         return new File(context.getFilesDir().getPath(), fileName).length();
     }
 
+
+    /**
+     * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
+     * @param fileName  Name of file
+     * @param data      Json data to be saved
+     * @return          Success
+     */
     public static boolean saveStringAppend(String fileName, String data) {
         StringBuilder sb = new StringBuilder(data);
         if (sb.charAt(0) == '[')
