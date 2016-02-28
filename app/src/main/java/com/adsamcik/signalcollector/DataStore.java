@@ -114,7 +114,8 @@ public class DataStore {
         RequestParams rp = new RequestParams();
         rp.add("imei", Extensions.getImei());
         rp.add("data", serialized);
-        new SyncHttpClient().post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
+        SyncHttpClient client = new SyncHttpClient();
+        client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
                 deleteFile(name);
@@ -127,6 +128,7 @@ public class DataStore {
                 intent.putExtra("cloudStatus", 1);
                 LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
                 TrackerService.approxSize += size;
+                uploadRequested = true;
                 Log.w(TAG, "Upload failed " + name + " code " + statusCode);
             }
         });
