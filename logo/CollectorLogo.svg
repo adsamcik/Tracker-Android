@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+        filter: url(#filter);
+      }
+
+      .cls-2 {
+        filter: url(#filter-2);
+      }
+
+      .cls-3 {
+        fill: #37c806;
+      }
+
+      .cls-3, .cls-4 {
+        fill-rule: evenodd;
+      }
+
+      .cls-4 {
+        fill: #bcbcbc;
+        filter: url(#filter-3);
+      }
+    </style>
+    <filter id="filter" x="0" y="0" width="512" height="512" filterUnits="userSpaceOnUse">
+      <feFlood result="flood" flood-color="#365fb3"/>
+      <feComposite result="composite" operator="in" in2="SourceGraphic"/>
+      <feBlend result="blend" in2="SourceGraphic"/>
+    </filter>
+    <filter id="filter-2" filterUnits="userSpaceOnUse">
+      <feOffset result="offset" dx="3.536" dy="3.536" in="SourceAlpha"/>
+      <feGaussianBlur result="blur" stdDeviation="3.162"/>
+      <feFlood result="flood" flood-opacity="0.32"/>
+      <feComposite result="composite" operator="in" in2="blur"/>
+      <feBlend result="blend" in="SourceGraphic"/>
+      <feFlood result="flood-2" flood-color="#00b33b"/>
+      <feComposite result="composite-2" operator="in" in2="SourceGraphic"/>
+      <feBlend result="blend-2" in2="blend"/>
+    </filter>
+    <filter id="filter-3" x="150.25" y="53" width="213.844" height="297.813" filterUnits="userSpaceOnUse">
+      <feFlood result="flood" flood-color="#00b33b"/>
+      <feComposite result="composite" operator="in" in2="SourceGraphic"/>
+      <feBlend result="blend" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <circle class="cls-1" cx="256" cy="256" r="256"/>
+  <g class="cls-2">
+    <path class="cls-3" d="M137,370.731H374a20,20,0,0,1,20,20V395a20,20,0,0,1-20,20H137a20,20,0,0,1-20-20v-4.269A20,20,0,0,1,137,370.731Z"/>
+    <g id="Symbol">
+      <path class="cls-4" d="M257.159,53.005a106.874,106.874,0,0,1,106.92,106.83c0,59-59.83,142.256-108.582,190.966C214.5,309.84,150.239,218.836,150.239,159.835A106.875,106.875,0,0,1,257.159,53.005ZM256.6,116.1a37.63,37.63,0,1,1-37.682,37.63A37.656,37.656,0,0,1,256.6,116.1Z"/>
+    </g>
+  </g>
+</svg>

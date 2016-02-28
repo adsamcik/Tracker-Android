@@ -24,16 +24,16 @@ public class IntroActivity extends AppIntro2 {
 
     @Override
     public void init(Bundle savedInstanceState) {
-        addSlide(AppIntroFragment.newInstance("Signal Collector", "Welcome [insert your name] to the exciting world of data collecting", R.drawable.logo512, Color.parseColor("#3F51B5")));
+        addSlide(AppIntroFragment.newInstance("Signal Collector", "Welcome [insert your name] to the exciting world of data collecting", R.drawable.ic_signals, Color.parseColor("#3F51B5")));
         if(Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {
-            addSlide(AppIntroFragment.newInstance("Permissions", "The app needs location to place data you collect into a map and phone permission to get identification number to distinguish your uploads from others.", R.drawable.ic_warning_black_48px, Color.parseColor("#3F51B5")));
+            addSlide(AppIntroFragment.newInstance("Permissions", "The app needs location to place data you collect into a map and phone permission to get identification number to distinguish your uploads from others.", R.drawable.ic_warning_24dp, Color.parseColor("#3F51B5")));
             askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.READ_PHONE_STATE}, 2);
         }
-        addSlide(AppIntroFragment.newInstance("Automatic tracking and uploading", "As long as all background services are running, the app can manage tracking and uploading by itself. You can change this in settings.", R.drawable.ic_my_location_black_48px, Color.parseColor("#3F51B5")));
-        addSlide(AppIntroFragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, IMEI (device identification), device manufacturer and model, time, android version", R.drawable.ic_collections_black_48px, Color.parseColor("#3F51B5")));
+        addSlide(AppIntroFragment.newInstance("Automatic tracking and uploading", "As long as all background services are running, the app can manage tracking and uploading by itself. You can change this in settings.", R.drawable.ic_satellite_24dp, Color.parseColor("#3F51B5")));
+        addSlide(AppIntroFragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, IMEI (device identification), device manufacturer and model, time, android version", R.drawable.ic_attachment_24dp, Color.parseColor("#3F51B5")));
 
         if(PlayController.isPlayServiceAvailable())
-            addSlide(AppIntroFragment.newInstance("Google Play Games", "If you login to google play games, you will have access to achievements and personal stats.", R.drawable.games_controller, Color.parseColor("#3F51B5")));
+            addSlide(AppIntroFragment.newInstance("Google Play Games", "If you login to google play games, you will have access to achievements and personal stats.", R.drawable.ic_games_controller, Color.parseColor("#3F51B5")));
 
         // Hide Skip/Done button.
         Window window = getWindow();

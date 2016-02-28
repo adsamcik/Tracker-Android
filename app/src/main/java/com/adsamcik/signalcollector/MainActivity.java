@@ -215,14 +215,14 @@ public class MainActivity extends FragmentActivity {
     public void changeCloudStatus(int status) {
         switch (status) {
             case 0:
-                uploadFab.setImageResource(R.drawable.ic_cloud_done_black_48dp);
+                uploadFab.setImageResource(R.drawable.ic_cloud_done_24dp);
                 uploadFab.hide();
                 textApproxSize.setVisibility(View.GONE);
                 uploadAvailable = false;
                 cloudStatus = 0;
                 break;
             case 1:
-                uploadFab.setImageResource(R.drawable.ic_cloud_upload_black_48dp);
+                uploadFab.setImageResource(R.drawable.ic_file_upload_24dp);
                 if (!uploadFabHidden)
                     uploadFab.show();
                 textApproxSize.setVisibility(View.VISIBLE);
@@ -230,11 +230,11 @@ public class MainActivity extends FragmentActivity {
                 cloudStatus = 1;
                 break;
             case 2:
-                uploadFab.setImageResource(R.drawable.ic_cloud_queue_black_48dp);
+                uploadFab.setImageResource(R.drawable.ic_cloud_upload_24dp);
                 cloudStatus = 2;
                 break;
             case 3:
-                uploadFab.setImageResource(R.drawable.ic_cloud_off_black_48dp);
+                uploadFab.setImageResource(R.drawable.ic_cloud_off_24dp);
                 cloudStatus = 3;
                 break;
 
@@ -262,13 +262,13 @@ public class MainActivity extends FragmentActivity {
     public void changeTrackerButton(int status) {
         switch (status) {
             case 0:
-                trackingFab.setImageResource(R.drawable.ic_play_arrow_black_48dp);
+                trackingFab.setImageResource(R.drawable.ic_play_arrow_24dp);
                 break;
             case 1:
-                trackingFab.setImageResource(R.drawable.ic_pause_black_48dp);
+                trackingFab.setImageResource(R.drawable.ic_pause_24dp);
                 break;
             case 2:
-                trackingFab.setImageResource(R.drawable.ic_loop_black_48dp);
+                trackingFab.setImageResource(R.drawable.ic_loop_24dp);
                 break;
 
         }

@@ -72,7 +72,7 @@
             android:layout_width="75dp"
             android:layout_height="75dp"
             android:layout_margin="15dp"
-            android:background="@drawable/games_achievements"
+            android:background="@drawable/ic_beenhere_24dp"
             android:contentDescription="@string/achievements"/>
 
         <ImageButton
@@ -81,7 +81,7 @@
             android:layout_height="75dp"
             android:layout_margin="15dp"
             android:layout_toEndOf="@id/ib_achievements"
-            android:background="@drawable/games_leaderboards"
+            android:visibility="gone"
             android:contentDescription="@string/leaderboards"/>
 
         <ImageButton
@@ -90,7 +90,7 @@
             android:layout_height="75dp"
             android:layout_margin="15dp"
             android:layout_toEndOf="@id/ib_leaderboards"
-            android:background="@drawable/games_quests_grey"
+            android:visibility="gone"
             android:contentDescription="@string/quests"/>
     </RelativeLayout>
 

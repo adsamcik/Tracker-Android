@@ -78,7 +78,6 @@ public class TrackerService extends Service implements SensorEventListener {
     private static boolean isAirplaneModeOn(Context context) {
         return Settings.Global.getInt(context.getContentResolver(),
                 Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
-
     }
 
     public void makeUseOfNewLocation(Location location) {
@@ -145,7 +144,7 @@ public class TrackerService extends Service implements SensorEventListener {
         //Notification.Action.Builder playPause = new Notification.Action.Builder(R.drawable.ic_stop_black_36dp, "Stop", PendingIntent.getActivity(this, 1, pause, 0));
         Intent intent = new Intent(this, MainActivity.class);
         Notification.Builder builder = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ic_icon)  // the status icon
+                .setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
                 .setTicker("Collection started")  // the status text
                 .setWhen(System.currentTimeMillis())  // the time stamp
                 .setContentTitle("Signal collector")// the label of the entry
@@ -243,10 +242,10 @@ public class TrackerService extends Service implements SensorEventListener {
         //Setup notification
         Intent intent = new Intent(this, MainActivity.class);
         notification = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ic_icon)  // the status icon
+                .setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
                 .setTicker("Collection started")  // the status text
                 .setWhen(System.currentTimeMillis())  // the time stamp
-                .setContentTitle("Signal collector")  // the label of the entry
+                .setContentTitle(getResources().getString(R.string.app_name))  // the label of the entry
                 .setContentText("Initializing")  // the contents of the entry
                 .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))  // The intent to send when the entry is clicked
                 .build();

@@ -95,7 +95,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 
         switchButton = (ImageButton) view.findViewById(R.id.btn_switch_type);
-        switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_black_48dp));
+        switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
         switchButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -135,9 +135,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
         map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 
         if (type.equals("Wifi"))
-            switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_black_24dp));
+            switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
         else
-            switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_black_24dp));
+            switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
 
     }
 

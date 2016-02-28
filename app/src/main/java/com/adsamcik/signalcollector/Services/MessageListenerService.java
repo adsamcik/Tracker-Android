@@ -59,7 +59,7 @@ public class MessageListenerService extends GcmListenerService {
 
         Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
         Notification.Builder notificationBuilder = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ic_icon)
+                .setSmallIcon(R.drawable.ic_notification_icon)
                 .setContentTitle(title)
                 .setContentText(message)
                 .setAutoCancel(true)
@@ -83,7 +83,7 @@ public class MessageListenerService extends GcmListenerService {
 
         Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
         Notification.Builder notificationBuilder = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ic_icon)
+                .setSmallIcon(R.drawable.ic_notification_icon)
                 .setContentTitle(title)
                 .setContentText(message)
                 .setAutoCancel(true)
