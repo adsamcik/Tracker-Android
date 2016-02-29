@@ -76,14 +76,6 @@ public class Extensions {
         return val == 2 || val == evalActivity;
     }
 
-    public static int CountSavedData() {
-        StringBuilder sb = DataStore.loadStringAsBuilder(DataStore.DATA_FILE);
-        if (sb != null)
-            return sb.toString().getBytes(Charset.defaultCharset()).length;
-        else
-            return 0;
-    }
-
     public static String EasierToReadNumber(int number) {
         StringBuilder sb = new StringBuilder(number);
         for (int i = sb.length(); i > 0; i-=3)
@@ -97,7 +89,11 @@ public class Extensions {
         return telephonyManager.getDeviceId();
     }
 
-    //Get the activity name
+    /**
+     * Returns activity as string
+     * @param type  type of activity (ENUM)
+     * @return      name of the activity
+     */
     public static String getActivityName(int type) {
         switch (type) {
             case DetectedActivity.IN_VEHICLE:

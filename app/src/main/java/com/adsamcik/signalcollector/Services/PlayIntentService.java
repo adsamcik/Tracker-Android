@@ -42,7 +42,7 @@ public class PlayIntentService extends IntentService {
             else if(confidence >= 85 && Extensions.canBackgroundTrack(this, Extensions.EvaluateActivity(detectedActivity.getType())))
             {
                 Intent trackerService = new Intent(this, TrackerService.class);
-                trackerService.putExtra("approxSize", Extensions.CountSavedData());
+                trackerService.putExtra("approxSize", DataStore.sizeOfData());
                 trackerService.putExtra("backTrack", true);
                 startService(trackerService);
                 TrackerService.service = trackerService;
