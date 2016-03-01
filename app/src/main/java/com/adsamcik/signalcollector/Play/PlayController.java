@@ -71,6 +71,7 @@ public class PlayController {
 	}
 
 	public static void destroyGamesClient() {
+		if(!isLogged()) return;
 		gamesController.logout();
 		Games.signOut(gapiGamesClient);
 		gapiGamesClient.disconnect();

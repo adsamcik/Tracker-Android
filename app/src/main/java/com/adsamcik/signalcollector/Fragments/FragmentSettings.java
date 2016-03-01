@@ -72,7 +72,7 @@ public class FragmentSettings extends Fragment {
 		textView_PlayLog.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				if(!PlayController.apiGames)
+				if(!PlayController.apiGames || !PlayController.isLogged())
 					PlayController.initializeGamesClient(rootView);
 				else {
 					textView_PlayLog.setText(R.string.settings_playGamesLogin);
