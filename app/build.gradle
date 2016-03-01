@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 23
-        versionCode 23
-        versionName "1.7.1"
+        versionCode 24
+        versionName "1.7.2"
     }
     buildTypes {
         release {
@@ -27,6 +27,7 @@ dependencies {
     compile 'com.android.support:design:23.2.0'
     compile 'com.google.code.gson:gson:2.6.1'
     compile 'com.github.paolorotolo:appintro:3.4.0'
+    compile 'ch.acra:acra:4.8.2'
     compile 'com.loopj.android:android-async-http:1.4.9'
     compile 'com.google.android.gms:play-services-maps:8.4.0'
     compile 'com.google.android.gms:play-services-location:8.4.0'

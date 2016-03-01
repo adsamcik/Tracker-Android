@@ -73,8 +73,9 @@ public class Extensions {
         if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive) return false;
         if(Setting.sharedPreferences == null) Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
         int val = Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1);
-        return val <= evalActivity;
+        return val != 0 && val <= evalActivity;
     }
+
 
     public static String EasierToReadNumber(int number) {
         StringBuilder sb = new StringBuilder(number);

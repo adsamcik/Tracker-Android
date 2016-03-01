@@ -34,6 +34,11 @@ import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
 
+import junit.framework.Assert;
+
+import org.acra.ACRA;
+import org.acra.annotation.ReportsCrashes;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,6 +84,7 @@ public class MainActivity extends FragmentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_main);
         context = getApplicationContext();
         DataStore.setContext(context);
