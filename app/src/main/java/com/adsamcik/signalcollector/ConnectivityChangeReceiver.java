@@ -6,8 +6,8 @@ import android.content.Intent;
 
 public class ConnectivityChangeReceiver extends BroadcastReceiver {
 
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        DataStore.updateAutoUploadState(context);
-    }
+	@Override
+	public void onReceive(Context context, Intent intent) {
+		DataStore.updateAutoUploadState(context);
+	}
 }

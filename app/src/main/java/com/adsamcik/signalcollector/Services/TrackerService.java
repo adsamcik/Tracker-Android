@@ -47,305 +47,305 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
-    public static final String TAG = "SignalsTracker";
+	public static final String TAG = "SignalsTracker";
 
-    public static boolean isActive = false;
-    public static Intent service;
+	public static boolean isActive = false;
+	public static Intent service;
 
-    public static long approxSize = 0;
-    public final int UPDATE_TIME = 2000;
-    public final float MIN_DISTANCE_M = 5;
+	public static long approxSize = 0;
+	public final int UPDATE_TIME = 2000;
+	public final float MIN_DISTANCE_M = 5;
 
-    final ArrayList<Data> data = new ArrayList<>();
-    LocationListener locationListener;
-    Notification notification;
-    ScanResult[] wifiScanData;
-    CellInfo[] cellScanData;
-    LocationManager locationManager;
-    TelephonyManager telephonyManager;
-    WifiManager wifiManager;
-    WifiReceiver wifiReceiver;
-    SensorManager mSensorManager;
-    Sensor mPressure;
-    BroadcastReceiver activityReceiver;
+	final ArrayList<Data> data = new ArrayList<>();
+	LocationListener locationListener;
+	Notification notification;
+	ScanResult[] wifiScanData;
+	CellInfo[] cellScanData;
+	LocationManager locationManager;
+	TelephonyManager telephonyManager;
+	WifiManager wifiManager;
+	WifiReceiver wifiReceiver;
+	SensorManager mSensorManager;
+	Sensor mPressure;
+	BroadcastReceiver activityReceiver;
 
-    float pressureValue;
-    int currentActivity;
-    boolean backgroundActivated = false;
-    boolean wifiEnabled = false;
-    boolean closing = false;
+	float pressureValue;
+	int currentActivity;
+	boolean backgroundActivated = false;
+	boolean wifiEnabled = false;
+	boolean closing = false;
 
-    NotificationManager notificationManager;
-    PowerManager powerManager;
-    PowerManager.WakeLock wakeLock;
+	NotificationManager notificationManager;
+	PowerManager powerManager;
+	PowerManager.WakeLock wakeLock;
 
-    private static boolean isAirplaneModeOn(Context context) {
-        return Settings.Global.getInt(context.getContentResolver(),
-                Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
-    }
+	private static boolean isAirplaneModeOn(Context context) {
+		return Settings.Global.getInt(context.getContentResolver(),
+				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
+	}
 
-    public void makeUseOfNewLocation(Location location) {
-        wakeLock.acquire();
-        wifiManager.startScan();
+	public void makeUseOfNewLocation(Location location) {
+		wakeLock.acquire();
+		wifiManager.startScan();
 
-        if (!isAirplaneModeOn(this)) {
-            List<CellInfo> cells = telephonyManager.getAllCellInfo();
-            if (cells != null)
-                cellScanData = cells.toArray(new CellInfo[cells.size()]);
-        }
+		if(!isAirplaneModeOn(this)) {
+			List<CellInfo> cells = telephonyManager.getAllCellInfo();
+			if(cells != null)
+				cellScanData = cells.toArray(new CellInfo[cells.size()]);
+		}
 
-        Data d = new Data(location.getTime(), location.getLongitude(), location.getLatitude(), location.getAltitude(), location.getAccuracy(), cellScanData, wifiScanData, pressureValue, telephonyManager.getNetworkOperatorName(), currentActivity);
-        data.add(d);
-        if (data.size() > 10)
-            saveData();
+		Data d = new Data(location.getTime(), location.getLongitude(), location.getLatitude(), location.getAltitude(), location.getAccuracy(), cellScanData, wifiScanData, pressureValue, telephonyManager.getNetworkOperatorName(), currentActivity);
+		data.add(d);
+		if(data.size() > 10)
+			saveData();
 
-        int cellCount = -1;
-        int cellDbm = 0, cellAsu = 0;
-        String cellType = "";
-        if (cellScanData != null) {
-            for (CellData cd : d.cell) {
-                if (cd.isRegistered) {
-                    cellDbm = cd.dbm;
-                    cellAsu = cd.asu;
-                    cellType = cd.getType();
-                }
-            }
-            cellCount = d.cell.length;
-        }
+		int cellCount = -1;
+		int cellDbm = 0, cellAsu = 0;
+		String cellType = "";
+		if(cellScanData != null) {
+			for(CellData cd : d.cell) {
+				if(cd.isRegistered) {
+					cellDbm = cd.dbm;
+					cellAsu = cd.asu;
+					cellType = cd.getType();
+				}
+			}
+			cellCount = d.cell.length;
+		}
 
-        int wifiCount = d.wifi == null ? -1 : d.wifi.length;
-        approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
-        sendUpdateInfoBroadcast(d.time, wifiCount, cellCount, cellDbm, cellAsu, cellType, d.longitude, d.latitude, d.altitude, d.accuracy, pressureValue, Extensions.getActivityName(currentActivity));
+		int wifiCount = d.wifi == null ? -1 : d.wifi.length;
+		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
+		sendUpdateInfoBroadcast(d.time, wifiCount, cellCount, cellDbm, cellAsu, cellType, d.longitude, d.latitude, d.altitude, d.accuracy, pressureValue, Extensions.getActivityName(currentActivity));
 
-        UpdateNotification(true, wifiCount, cellCount);
-        wifiScanData = null;
-        cellScanData = null;
+		UpdateNotification(true, wifiCount, cellCount);
+		wifiScanData = null;
+		cellScanData = null;
 
-        if (backgroundActivated && powerManager.isPowerSaveMode())
-            stopSelf();
+		if(backgroundActivated && powerManager.isPowerSaveMode())
+			stopSelf();
 
-        wakeLock.release();
-    }
+		wakeLock.release();
+	}
 
-    void UpdateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
-        //Intent pause = new Intent(this, TrackerService.class);
-        //Notification.Action.Builder playPause = new Notification.Action.Builder(R.drawable.ic_stop_black_36dp, "Stop", PendingIntent.getActivity(this, 1, pause, 0));
-        Intent intent = new Intent(this, MainActivity.class);
-        Notification.Builder builder = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
-                .setTicker("Collection started")  // the status text
-                .setWhen(System.currentTimeMillis())  // the time stamp
-                .setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
-                        //.addAction(playPause.build())
-                .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
+	void UpdateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
+		//Intent pause = new Intent(this, TrackerService.class);
+		//Notification.Action.Builder playPause = new Notification.Action.Builder(R.drawable.ic_stop_black_36dp, "Stop", PendingIntent.getActivity(this, 1, pause, 0));
+		Intent intent = new Intent(this, MainActivity.class);
+		Notification.Builder builder = new Notification.Builder(this)
+				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
+				.setTicker("Collection started")  // the status text
+				.setWhen(System.currentTimeMillis())  // the time stamp
+				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
+						//.addAction(playPause.build())
+				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
 
-        if (Build.VERSION.SDK_INT >= 23)
-            builder.setColor(getColor(R.color.colorPrimary));
-        else
-            //noinspection deprecation
-            builder.setColor(getResources().getColor(R.color.colorPrimary));
+		if(Build.VERSION.SDK_INT >= 23)
+			builder.setColor(getColor(R.color.colorPrimary));
+		else
+			//noinspection deprecation
+			builder.setColor(getResources().getColor(R.color.colorPrimary));
 
-        if (!gpsAvailable)
-            builder.setContentText("looking for GPS");
-        else {
-            if (wifiCount >= 0)
-                if (cellCount >= 0)
-                    builder.setContentText("Found " + wifiCount + " wifi and " + cellCount + " cell");
-                else
-                    builder.setContentText("Found " + wifiCount + " wifi");
-            else if (cellCount >= 0)
-                builder.setContentText("Found " + cellCount + " cell");
-        }
+		if(!gpsAvailable)
+			builder.setContentText("looking for GPS");
+		else {
+			if(wifiCount >= 0)
+				if(cellCount >= 0)
+					builder.setContentText("Found " + wifiCount + " wifi and " + cellCount + " cell");
+				else
+					builder.setContentText("Found " + wifiCount + " wifi");
+			else if(cellCount >= 0)
+				builder.setContentText("Found " + cellCount + " cell");
+		}
 
-        notification = builder.build();
-        notificationManager.notify(1, notification);
-    }
+		notification = builder.build();
+		notificationManager.notify(1, notification);
+	}
 
-    void saveData() {
-        if (data.size() == 0) return;
-        String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
-        input = input.substring(1, input.length() - 1);
+	void saveData() {
+		if(data.size() == 0) return;
+		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
+		input = input.substring(1, input.length() - 1);
 
-        int result = DataStore.saveData(input);
-        if (result == 1)
-            stopSelf();
-        else {
-            data.clear();
-            if (result == 2)
-                DataStore.requestUpload(getApplicationContext());
-        }
-    }
-
-
-    @Override
-    public void onCreate() {
-        approxSize = 0;
-        isActive = true;
-        sendStatusBroadcast(-1, 1);
-
-        DataStore.setContext(getApplicationContext());
-
-        activityReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (intent.getIntExtra("confidence", -1) > 85) {
-                    currentActivity = intent.getIntExtra("activity", -1);
-                    int evalActivity = Extensions.EvaluateActivity(currentActivity);
-                    if (backgroundActivated && evalActivity != 3 && (evalActivity == 0 || (Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1) > evalActivity)))
-                        stopSelf();
-                }
-            }
-        };
-
-        if (PlayController.c == null)
-            PlayController.setContext(this);
-        if (!PlayController.apiActivity)
-            PlayController.initializeActivityClient();
-
-        PlayController.registerActivityReceiver(activityReceiver);
-
-        //setContext
-        locationListener = new LocationListener() {
-            public void onLocationChanged(Location location) {
-                makeUseOfNewLocation(location);
-            }
-
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-                if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-                    UpdateNotification(false, 0, 0);
-            }
-
-            public void onProviderEnabled(String provider) {
-            }
-
-            public void onProviderDisabled(String provider) {
-            }
-        };
-
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
-        //Setup notification
-        Intent intent = new Intent(this, MainActivity.class);
-        notification = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
-                .setTicker("Collection started")  // the status text
-                .setWhen(System.currentTimeMillis())  // the time stamp
-                .setContentTitle(getResources().getString(R.string.app_name))  // the label of the entry
-                .setContentText("Initializing")  // the contents of the entry
-                .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))  // The intent to send when the entry is clicked
-                .build();
-
-        startForeground(1, notification);
-
-        UpdateNotification(false, 0, 0);
-
-        //Enable location update
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME, MIN_DISTANCE_M, locationListener);
-
-        wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-
-        wifiEnabled = wifiManager.isWifiEnabled();
-        if (!wifiEnabled)
-            wifiManager.setWifiEnabled(true);
-
-        wifiManager.startScan();
-        registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
-
-        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        if (mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
-            mPressure = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
-            mSensorManager.registerListener(this, mPressure, SensorManager.SENSOR_DELAY_UI);
-        }
-
-        powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
-    }
-
-    public static void onUploadComplete(int maxId) {
-        SharedPreferences sp = DataStore.getPreferences();
-        int currentId = sp.getInt(DataStore.KEY_FILE_ID, 0);
-        for (int i = maxId; i <= currentId; i++)
-            DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + (i - maxId));
-
-        sp.edit().putInt(DataStore.KEY_FILE_ID, currentId - maxId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
-    }
-
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        approxSize = intent.getLongExtra("approxSize", 0);
-        backgroundActivated = intent.getBooleanExtra("backTrack", false);
-        return super.onStartCommand(intent, flags, startId);
-    }
+		int result = DataStore.saveData(input);
+		if(result == 1)
+			stopSelf();
+		else {
+			data.clear();
+			if(result == 2)
+				DataStore.requestUpload(getApplicationContext());
+		}
+	}
 
 
-    @Override
-    public void onDestroy() {
-        closing = true;
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager.removeUpdates(locationListener);
-        unregisterReceiver(wifiReceiver);
-        PlayController.unregisterActivityReceiver(activityReceiver);
-        mSensorManager.unregisterListener(this);
-        //LocalBroadcastManager.getInstance(MainActivity.instance).sendBroadcast();
-        saveData();
-        if (!wifiEnabled)
-            wifiManager.setWifiEnabled(false);
-        stopForeground(true);
-        sendStatusBroadcast(-1, 0);
-        isActive = false;
-    }
+	@Override
+	public void onCreate() {
+		approxSize = 0;
+		isActive = true;
+		sendStatusBroadcast(-1, 1);
 
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+		DataStore.setContext(getApplicationContext());
 
-    private void sendStatusBroadcast(int cloudStatus, int trackerStatus) {
-        Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-        intent.putExtra("cloudStatus", cloudStatus);
-        intent.putExtra("trackerStatus", trackerStatus);
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-    }
+		activityReceiver = new BroadcastReceiver() {
+			@Override
+			public void onReceive(Context context, Intent intent) {
+				if(intent.getIntExtra("confidence", -1) > 85) {
+					currentActivity = intent.getIntExtra("activity", -1);
+					int evalActivity = Extensions.EvaluateActivity(currentActivity);
+					if(backgroundActivated && evalActivity != 3 && (evalActivity == 0 || (Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1) > evalActivity)))
+						stopSelf();
+				}
+			}
+		};
 
-    private void sendUpdateInfoBroadcast(long time, int wifiCount, int cellCount, int cellDbm,
-                                         int cellAsu, String cellType, double longitude, double latitude,
-                                         double altitude, double accuracy, float pressure, String activity) {
-        Intent intent = new Intent(MainActivity.UpdateInfoReceiver.BROADCAST_TAG);
-        intent.putExtra("time", time);
-        intent.putExtra("wifiCount", wifiCount);
-        intent.putExtra("cellCount", cellCount);
-        intent.putExtra("cellDbm", cellDbm);
-        intent.putExtra("cellAsu", cellAsu);
-        intent.putExtra("cellType", cellType);
-        intent.putExtra("longitude", longitude);
-        intent.putExtra("latitude", latitude);
-        intent.putExtra("altitude", altitude);
-        intent.putExtra("accuracy", (int) accuracy);
-        intent.putExtra("approxSize", approxSize);
-        intent.putExtra("pressure", pressure);
-        intent.putExtra("activity", activity);
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-    }
+		if(PlayController.c == null)
+			PlayController.setContext(this);
+		if(!PlayController.apiActivity)
+			PlayController.initializeActivityClient();
 
-    @Override
-    public void onSensorChanged(SensorEvent event) {
-        pressureValue = event.values[0];
-    }
+		PlayController.registerActivityReceiver(activityReceiver);
 
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-    }
+		//setContext
+		locationListener = new LocationListener() {
+			public void onLocationChanged(Location location) {
+				makeUseOfNewLocation(location);
+			}
 
-    private class WifiReceiver extends BroadcastReceiver {
+			public void onStatusChanged(String provider, int status, Bundle extras) {
+				if(status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
+					UpdateNotification(false, 0, 0);
+			}
 
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            List<ScanResult> result = wifiManager.getScanResults();
-            wifiScanData = result.toArray(new ScanResult[result.size()]);
-        }
-    }
+			public void onProviderEnabled(String provider) {
+			}
+
+			public void onProviderDisabled(String provider) {
+			}
+		};
+
+		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+		telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+		//Setup notification
+		Intent intent = new Intent(this, MainActivity.class);
+		notification = new Notification.Builder(this)
+				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
+				.setTicker("Collection started")  // the status text
+				.setWhen(System.currentTimeMillis())  // the time stamp
+				.setContentTitle(getResources().getString(R.string.app_name))  // the label of the entry
+				.setContentText("Initializing")  // the contents of the entry
+				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))  // The intent to send when the entry is clicked
+				.build();
+
+		startForeground(1, notification);
+
+		UpdateNotification(false, 0, 0);
+
+		//Enable location update
+		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME, MIN_DISTANCE_M, locationListener);
+
+		wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+
+		wifiEnabled = wifiManager.isWifiEnabled();
+		if(!wifiEnabled)
+			wifiManager.setWifiEnabled(true);
+
+		wifiManager.startScan();
+		registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+
+		mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+		if(mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
+			mPressure = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
+			mSensorManager.registerListener(this, mPressure, SensorManager.SENSOR_DELAY_UI);
+		}
+
+		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
+	}
+
+	public static void onUploadComplete(int maxId) {
+		SharedPreferences sp = DataStore.getPreferences();
+		int currentId = sp.getInt(DataStore.KEY_FILE_ID, 0);
+		for(int i = maxId; i <= currentId; i++)
+			DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + (i - maxId));
+
+		sp.edit().putInt(DataStore.KEY_FILE_ID, currentId - maxId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
+	}
+
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		approxSize = intent.getLongExtra("approxSize", 0);
+		backgroundActivated = intent.getBooleanExtra("backTrack", false);
+		return super.onStartCommand(intent, flags, startId);
+	}
+
+
+	@Override
+	public void onDestroy() {
+		closing = true;
+		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+			locationManager.removeUpdates(locationListener);
+		unregisterReceiver(wifiReceiver);
+		PlayController.unregisterActivityReceiver(activityReceiver);
+		mSensorManager.unregisterListener(this);
+		//LocalBroadcastManager.getInstance(MainActivity.instance).sendBroadcast();
+		saveData();
+		if(!wifiEnabled)
+			wifiManager.setWifiEnabled(false);
+		stopForeground(true);
+		sendStatusBroadcast(-1, 0);
+		isActive = false;
+	}
+
+	@Nullable
+	@Override
+	public IBinder onBind(Intent intent) {
+		return null;
+	}
+
+	private void sendStatusBroadcast(int cloudStatus, int trackerStatus) {
+		Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
+		intent.putExtra("cloudStatus", cloudStatus);
+		intent.putExtra("trackerStatus", trackerStatus);
+		LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+	}
+
+	private void sendUpdateInfoBroadcast(long time, int wifiCount, int cellCount, int cellDbm,
+	                                     int cellAsu, String cellType, double longitude, double latitude,
+	                                     double altitude, double accuracy, float pressure, String activity) {
+		Intent intent = new Intent(MainActivity.UpdateInfoReceiver.BROADCAST_TAG);
+		intent.putExtra("time", time);
+		intent.putExtra("wifiCount", wifiCount);
+		intent.putExtra("cellCount", cellCount);
+		intent.putExtra("cellDbm", cellDbm);
+		intent.putExtra("cellAsu", cellAsu);
+		intent.putExtra("cellType", cellType);
+		intent.putExtra("longitude", longitude);
+		intent.putExtra("latitude", latitude);
+		intent.putExtra("altitude", altitude);
+		intent.putExtra("accuracy", (int) accuracy);
+		intent.putExtra("approxSize", approxSize);
+		intent.putExtra("pressure", pressure);
+		intent.putExtra("activity", activity);
+		LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+	}
+
+	@Override
+	public void onSensorChanged(SensorEvent event) {
+		pressureValue = event.values[0];
+	}
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+	}
+
+	private class WifiReceiver extends BroadcastReceiver {
+
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			List<ScanResult> result = wifiManager.getScanResults();
+			wifiScanData = result.toArray(new ScanResult[result.size()]);
+		}
+	}
 }
