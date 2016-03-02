@@ -182,15 +182,15 @@ public class MainActivity extends FragmentActivity {
 		}
 	}
 
-	public void setupUpdateReceiver(TextView textTime, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textLatitude, TextView textLongitude, TextView textAltitude, TextView textPressure, TextView textActivity) {
+	public void setupUpdateReceiver(TextView textTime, TextView textPosition, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textPressure, TextView textActivity) {
 		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
-		updateReceiver = new UpdateInfoReceiver(textTime, textWifiCount, textCurrentCell, textCellCount, textAccuracy, textLatitude, textLongitude, textAltitude, textPressure, textActivity);
+		updateReceiver = new UpdateInfoReceiver(textTime, textPosition, textWifiCount, textCurrentCell, textCellCount, textAccuracy, textPressure, textActivity);
 		LocalBroadcastManager.getInstance(this).registerReceiver(updateReceiver, filter);
 	}
 
 	private void setupViewPager(ViewPager viewPager) {
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-		adapter.addFrag(new FragmentMain(), "MAIN");
+		adapter.addFrag(new FragmentMain(), "DASHBOARD");
 		adapter.addFrag(new FragmentMap(), "MAP");
 		adapter.addFrag(new FragmentStats(), "STATS");
 		adapter.addFrag(new FragmentSettings(), "SETTINGS");
@@ -337,25 +337,21 @@ public class MainActivity extends FragmentActivity {
 	public class UpdateInfoReceiver extends BroadcastReceiver {
 		public static final String BROADCAST_TAG = "signalCollectorUpdate";
 		final TextView textTime;
+		final TextView textPosition;
 		final TextView textWifiCount;
 		final TextView textCurrentCell;
 		final TextView textCellCount;
 		final TextView textAccuracy;
-		final TextView textLatitude;
-		final TextView textLongitude;
-		final TextView textAltitude;
 		final TextView textPressure;
 		final TextView textActivity;
 
-		public UpdateInfoReceiver(TextView textTime, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textLatitude, TextView textLongitude, TextView textAltitude, TextView textPressure, TextView textActivity) {
+		public UpdateInfoReceiver(TextView textTime, TextView textPosition, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textPressure, TextView textActivity) {
 			this.textTime = textTime;
 			this.textWifiCount = textWifiCount;
 			this.textCurrentCell = textCurrentCell;
 			this.textCellCount = textCellCount;
+			this.textPosition = textPosition;
 			this.textAccuracy = textAccuracy;
-			this.textLatitude = textLatitude;
-			this.textLongitude = textLongitude;
-			this.textAltitude = textAltitude;
 			this.textPressure = textPressure;
 			this.textActivity = textActivity;
 		}
@@ -376,23 +372,21 @@ public class MainActivity extends FragmentActivity {
 
 			int cellCount = intent.getIntExtra("cellCount", -1);
 			if(cellCount >= 0) {
-				textCurrentCell.setText(String.format(res.getString(R.string.main_signal_strength), intent.getStringExtra("cellType"), intent.getIntExtra("cellDbm", -1), intent.getIntExtra("cellAsu", -1)));
+				textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), intent.getStringExtra("cellType"), intent.getIntExtra("cellDbm", -1), intent.getIntExtra("cellAsu", -1)));
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), cellCount));
 			}
 
 
 			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), intent.getIntExtra("accuracy", -1)));
 
-			textLatitude.setText(String.format(res.getString(R.string.main_latitude), intent.getDoubleExtra("latitude", -1)));
-			textLongitude.setText(String.format(res.getString(R.string.main_longitude), intent.getDoubleExtra("longitude", -1)));
-			textAltitude.setText(String.format(res.getString(R.string.main_altitude), (int) intent.getDoubleExtra("altitude", -1)));
+			textPosition.setText(String.format(res.getString(R.string.main_position), intent.getDoubleExtra("latitude", -1), intent.getDoubleExtra("longitude", -1), (int) intent.getDoubleExtra("altitude", -1)));
 
 			float pressure = intent.getFloatExtra("pressure", -1);
 			if(pressure > 0) {
 				textPressure.setText(String.format(res.getString(R.string.main_pressure), pressure));
 			}
 
-			textActivity.setText("Activity " + intent.getStringExtra("activity"));
+			textActivity.setText(String.format(res.getString(R.string.main_activity), intent.getStringExtra("activity")));
 		}
 	}
 

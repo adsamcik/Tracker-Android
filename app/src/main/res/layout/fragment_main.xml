@@ -9,73 +9,99 @@
     tools:context=".Fragments.FragmentMain">
 
     <TextView
-        android:id="@+id/textTime"
+        android:id="@+id/textTimeTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
-        android:text="COLLECTED TIME"
+        android:text="@string/main_last_update_title"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <TextView
-        android:id="@+id/textLatitude"
+        android:id="@+id/textTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@+id/textTimeTitle"
+        android:text=""
+        android:padding="@dimen/main_data_padding"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
+    <TextView
+        android:id="@+id/textPositionTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_below="@+id/textTime"
-        android:text="LATITUDE"
+        android:text="@string/main_position_title"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <TextView
-        android:id="@+id/textLongitude"
+        android:id="@+id/textPosition"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="LONGITUDE"
-        android:textAppearance="?android:attr/textAppearanceMedium"
         android:layout_alignParentStart="true"
-        android:layout_below="@+id/textLatitude" />
-
-    <TextView
-        android:id="@+id/textAltitude"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="ALTITUDE"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_alignParentStart="true"
-        android:layout_below="@+id/textLongitude" />
+        android:layout_below="@+id/textPositionTitle"
+        android:padding="@dimen/main_data_padding"
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceLarge" />
 
     <TextView
         android:id="@+id/textAccuracy"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="ACCURACY"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textAltitude" />
+        android:layout_alignParentStart="false"
+        android:layout_below="@+id/textPositionTitle"
+        android:padding="@dimen/main_data_padding"
+
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:gravity="end"
+        android:layout_alignParentEnd="true"/>
 
     <TextView
-        android:id="@+id/textWifi"
+        android:id="@+id/textWifiTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="WIFI COUNT"
+        android:text="@string/main_wifi_title"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textAccuracy"
+        android:layout_below="@+id/textPosition"
         android:layout_alignParentStart="true" />
+
+    <TextView
+        android:id="@+id/textWifiCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:padding="@dimen/main_data_padding"
+        android:layout_below="@+id/textWifiTitle"
+        android:layout_alignParentStart="true" />
+
+    <TextView
+        android:id="@+id/textCellTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/main_cell_title"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_centerVertical="true"
+        android:layout_below="@+id/textWifiCount" />
 
     <TextView
         android:id="@+id/textCurrentCell"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CELL STRENGTH"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_centerVertical="true"
-        android:layout_below="@+id/textWifi" />
-
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:padding="@dimen/main_data_padding"
+        android:layout_below="@+id/textCellTitle"
+        android:layout_alignParentStart="true" />
     <TextView
-        android:id="@+id/textCellCount"
+        android:id="@+id/textCells"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CELL COUNT"
-        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:padding="@dimen/main_data_padding"
         android:layout_below="@+id/textCurrentCell"
         android:layout_alignParentStart="true" />
 
@@ -85,8 +111,7 @@
         android:layout_height="wrap_content"
         android:text="PRESSURE"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textCellCount"
-        android:layout_alignStart="@+id/textWifi" />
+        android:layout_below="@+id/textCells"/>
 
     <TextView
         android:id="@+id/textActivity"
@@ -94,7 +119,6 @@
         android:layout_height="wrap_content"
         android:text="ACTIVITY"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textPressure"
-        android:layout_alignStart="@+id/textWifi" />
+        android:layout_below="@+id/textPressure"/>
 
 </RelativeLayout>
