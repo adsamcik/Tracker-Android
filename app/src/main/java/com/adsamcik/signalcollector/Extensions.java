@@ -131,7 +131,7 @@ public class Extensions {
 		int minute = (int) coordinate;
 		coordinate = (coordinate - minute) * 60;
 		int second = (int) coordinate;
-		return degree + "° " + minute + "' " + second + "\"";
+		return String.format("%02d", degree) + "° " + String.format("%02d", minute) + "' " + String.format("%02d", second) + "\"";
 	}
 
 }
