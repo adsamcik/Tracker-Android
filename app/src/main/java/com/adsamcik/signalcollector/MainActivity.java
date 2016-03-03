@@ -60,7 +60,6 @@ public class MainActivity extends FragmentActivity {
 	PowerManager powerManager;
 	FloatingActionButton trackingFab, uploadFab;
 	TextView textApproxSize;
-	Intent trackerService;
 
 	UpdateInfoReceiver updateReceiver;
 	StatusReceiver statusReceiver;
@@ -152,9 +151,6 @@ public class MainActivity extends FragmentActivity {
 					}
 				}
 		);
-
-		trackerService = new Intent(instance, TrackerService.class);
-
 		powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
 
 		long sizeTemp = DataStore.sizeOfData();
@@ -203,8 +199,8 @@ public class MainActivity extends FragmentActivity {
 			return;
 		if(checkAllTrackingPermissions()) {
 			if(!TrackerService.isActive) {
+				Intent trackerService = new Intent(instance, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
-
 				startService(trackerService);
 				TrackerService.service = trackerService;
 			} else {
