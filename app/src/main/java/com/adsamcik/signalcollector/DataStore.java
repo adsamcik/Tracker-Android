@@ -62,21 +62,33 @@ public class DataStore {
 		return Setting.sharedPreferences;
 	}
 
+	public static SharedPreferences getPreferences(Context c) {
+		if(Setting.sharedPreferences == null) {
+			if(c != null)
+				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
+			else if(context != null)
+				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
+			else {
+				String errorString = "No shared preferences and null context";
+				Log.e(TAG, Log.getStackTraceString(new Throwable(errorString)));
+				throw new RuntimeException(errorString);
+			}
+		}
+		return Setting.sharedPreferences;
+	}
+
+
 	public static boolean requestUpload(Context c) {
 		uploadRequested = true;
 		return updateAutoUploadState(c);
 	}
 
 	public static boolean updateAutoUploadState(Context c) {
-		//Unique opportunity to initialize shared preferences if null, so this is called first to ensure it's set.
-		if(Setting.sharedPreferences == null)
-			Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
-
-		int autoUpload = getPreferences().getInt(Setting.AUTO_UPLOAD, 1);
+		int autoUpload = getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
 		if(uploadRequested && autoUpload >= 1) {
 			ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-
 			NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+
 			if(activeNetwork != null &&
 					activeNetwork.isConnectedOrConnecting() &&
 					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||

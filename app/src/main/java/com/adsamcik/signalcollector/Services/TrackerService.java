@@ -54,7 +54,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public static long approxSize = 0;
 	public final int UPDATE_TIME = 2000;
-	public final float MIN_DISTANCE_M = 5;
+	public final float MIN_DISTANCE_M = 0;
 
 	final ArrayList<Data> data = new ArrayList<>();
 	LocationListener locationListener;
