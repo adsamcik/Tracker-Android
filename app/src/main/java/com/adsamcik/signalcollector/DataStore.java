@@ -64,10 +64,10 @@ public class DataStore {
 
 	public static SharedPreferences getPreferences(Context c) {
 		if(Setting.sharedPreferences == null) {
-			if(c != null)
+			if(context != null)
 				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
-			else if(context != null)
-				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
+			else if(c != null)
+				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
 			else {
 				String errorString = "No shared preferences and null context";
 				Log.e(TAG, Log.getStackTraceString(new Throwable(errorString)));
