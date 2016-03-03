@@ -33,6 +33,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -105,7 +106,7 @@ public class FragmentStats extends Fragment {
 
 		if(showIndex) {
 			TextView rowNum = new TextView(c);
-			rowNum.setText(Integer.toString(index));
+			rowNum.setText(String.format("%d", index));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			rowNum.setTextSize(15);
 			row.addView(rowNum);

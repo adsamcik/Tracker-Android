@@ -216,6 +216,7 @@ public class DataStore {
 		long size = 0;
 		for(String fileName : fileNames)
 			size += sizeOf(fileName);
+		getPreferences().edit().putLong(KEY_SIZE, size);
 		return size;
 	}
 

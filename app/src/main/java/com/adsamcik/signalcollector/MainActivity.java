@@ -142,10 +142,8 @@ public class MainActivity extends FragmentActivity {
 		);
 		powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
 
-		long sizeTemp = DataStore.sizeOfData();
-		if(sizeTemp > 0) {
+		if(DataStore.recountDataSize() > 0) {
 			changeCloudStatus(1);
-			textApproxSize.setText(Extensions.humanReadableByteCount(sizeTemp, false));
 		} else
 			changeCloudStatus(0);
 
