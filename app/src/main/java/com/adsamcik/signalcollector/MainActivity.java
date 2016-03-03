@@ -189,11 +189,12 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	private void setupViewPager(ViewPager viewPager) {
+		Resources res = getResources();
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-		adapter.addFrag(new FragmentMain(), "DASHBOARD");
-		adapter.addFrag(new FragmentMap(), "MAP");
-		adapter.addFrag(new FragmentStats(), "STATS");
-		adapter.addFrag(new FragmentSettings(), "SETTINGS");
+		adapter.addFrag(new FragmentMain(), res.getString(R.string.menu_dashboard));
+		adapter.addFrag(new FragmentMap(), res.getString(R.string.menu_map));
+		adapter.addFrag(new FragmentStats(), res.getString(R.string.menu_stats));
+		adapter.addFrag(new FragmentSettings(), res.getString(R.string.menu_settings));
 		viewPager.setAdapter(adapter);
 	}
 
