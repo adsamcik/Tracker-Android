@@ -53,7 +53,7 @@ public class FragmentMain extends Fragment {
 	}
 
 	void setCollected(Resources r, long collected) {
-		textCollected.setText(String.format(r.getString(R.string.main_collected), Extensions.humanReadableByteCount(collected, false)));
+		textCollected.setText(String.format(r.getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
 	@Override
