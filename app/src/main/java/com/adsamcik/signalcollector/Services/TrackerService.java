@@ -58,7 +58,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	final ArrayList<Data> data = new ArrayList<>();
 	LocationListener locationListener;
-	Notification notification;
 	ScanResult[] wifiScanData;
 	CellInfo[] cellScanData;
 	LocationManager locationManager;
@@ -142,7 +141,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		builder.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
 		if(!gpsAvailable)
-			builder.setContentText("looking for GPS");
+			builder.setContentText("Looking for GPS");
 		else {
 			if(wifiCount >= 0)
 				if(cellCount >= 0)
@@ -153,8 +152,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				builder.setContentText("Found " + cellCount + " cell");
 		}
 
-		notification = builder.build();
-		notificationManager.notify(1, notification);
+		notificationManager.notify(1, builder.build());
 	}
 
 	void saveData() {
@@ -224,7 +222,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		//Setup notification
 		Intent intent = new Intent(this, MainActivity.class);
-		notification = new Notification.Builder(this)
+		Notification n = new Notification.Builder(this)
 				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
 				.setTicker("Collection started")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
@@ -233,7 +231,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))  // The intent to send when the entry is clicked
 				.build();
 
-		startForeground(1, notification);
+		startForeground(1, n);
 
 		UpdateNotification(false, 0, 0);
 
