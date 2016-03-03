@@ -12,8 +12,8 @@
         android:id="@+id/trackerHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#424242"
-        android:elevation="2dp"
+        android:background="@color/cardBackground"
+        android:elevation="@dimen/main_card_elevation"
         android:padding="@dimen/main_data_padding">
 
         <TextView
@@ -61,9 +61,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/trackerHeader"
-        android:layout_marginTop="10dp"
-        android:background="#424242"
-        android:elevation="2dp"
+        android:layout_marginTop="@dimen/main_card_spacing"
+        android:background="@color/cardBackground"
+        android:elevation="@dimen/main_card_elevation"
         android:padding="@dimen/main_data_padding"
         >
 
@@ -92,9 +92,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/trackerWifi"
-        android:layout_marginTop="10dp"
-        android:background="#424242"
-        android:elevation="2dp"
+        android:layout_marginTop="@dimen/main_card_spacing"
+        android:background="@color/cardBackground"
+        android:elevation="@dimen/main_card_elevation"
         android:padding="@dimen/main_data_padding">
 
         <TextView
@@ -130,9 +130,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/trackerCells"
-        android:layout_marginTop="10dp"
-        android:background="#424242"
-        android:elevation="2dp"
+        android:layout_marginTop="@dimen/main_card_spacing"
+        android:background="@color/cardBackground"
+        android:elevation="@dimen/main_card_elevation"
         android:padding="@dimen/main_data_padding">
 
         <TextView
