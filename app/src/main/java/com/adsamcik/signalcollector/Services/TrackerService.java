@@ -139,11 +139,7 @@ public class TrackerService extends Service implements SensorEventListener {
 						//.addAction(playPause.build())
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
 
-		if(Build.VERSION.SDK_INT >= 23)
-			builder.setColor(getColor(R.color.colorPrimary));
-		else
-			//noinspection deprecation
-			builder.setColor(getResources().getColor(R.color.colorPrimary));
+		builder.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
 		if(!gpsAvailable)
 			builder.setContentText("looking for GPS");
