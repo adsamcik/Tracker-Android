@@ -176,6 +176,8 @@ public class MainActivity extends FragmentActivity {
 			Intent intent = new Intent(this, RegistrationIntentService.class);
 			startService(intent);
 		}
+
+		DataStore.updateAutoUploadState(context);
 	}
 
 	public void setupUpdateReceiver(TextView textTime, TextView textPosition, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textPressure, TextView textActivity) {
