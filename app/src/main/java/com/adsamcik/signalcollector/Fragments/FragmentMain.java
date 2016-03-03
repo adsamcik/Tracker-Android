@@ -15,6 +15,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
@@ -43,10 +44,16 @@ public class FragmentMain extends Fragment {
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
 		textCollected = (TextView) view.findViewById(R.id.textCollected);
 
+		setCollected(getResources(), DataStore.sizeOfData());
+
 		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
 		receiver = new UpdateInfoReceiver();
 		LocalBroadcastManager.getInstance(getContext()).registerReceiver(receiver, filter);
 		return view;
+	}
+
+	void setCollected(Resources r, long collected) {
+		textCollected.setText(String.format(r.getString(R.string.main_collected), Extensions.humanReadableByteCount(collected, false)));
 	}
 
 	@Override
@@ -63,14 +70,13 @@ public class FragmentMain extends Fragment {
 			Resources res = getResources();
 			if(activity.getCloudStatus() == 0) activity.changeCloudStatus(1);
 
-			textCollected.setText(Extensions.humanReadableByteCount(intent.getLongExtra("approxSize", 0), false));
+			setCollected(res, intent.getLongExtra("approxSize", 0));
 
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", intent.getLongExtra("time", 0))));
 
 			int wifiCount = intent.getIntExtra("wifiCount", -1);
-			if(wifiCount >= 0) {
+			if(wifiCount >= 0)
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), wifiCount));
-			}
 
 			int cellCount = intent.getIntExtra("cellCount", -1);
 			if(cellCount >= 0) {
