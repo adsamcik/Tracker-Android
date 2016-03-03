@@ -43,7 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends FragmentActivity {
-	public static final String TAG = "SignalCollector";
+	public static final String TAG = "Signals";
 
 	public static MainActivity instance;
 	public static Context context;
