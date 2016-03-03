@@ -37,6 +37,7 @@ import com.adsamcik.signalcollector.Data.CellData;
 import com.adsamcik.signalcollector.Data.Data;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
+import com.adsamcik.signalcollector.Fragments.FragmentMain;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
@@ -314,7 +315,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private void sendUpdateInfoBroadcast(long time, int wifiCount, int cellCount, int cellDbm,
 	                                     int cellAsu, String cellType, double longitude, double latitude,
 	                                     double altitude, double accuracy, float pressure, String activity) {
-		Intent intent = new Intent(MainActivity.UpdateInfoReceiver.BROADCAST_TAG);
+		Intent intent = new Intent(FragmentMain.UpdateInfoReceiver.BROADCAST_TAG);
 		intent.putExtra("time", time);
 		intent.putExtra("wifiCount", wifiCount);
 		intent.putExtra("cellCount", cellCount);

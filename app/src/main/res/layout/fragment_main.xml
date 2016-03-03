@@ -1,124 +1,154 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:paddingBottom="@dimen/activity_vertical_margin"
-    android:paddingLeft="@dimen/activity_horizontal_margin"
-    android:paddingRight="@dimen/activity_horizontal_margin"
-    android:paddingTop="@dimen/activity_vertical_margin"
-    tools:context=".Fragments.FragmentMain">
+                xmlns:tools="http://schemas.android.com/tools"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingBottom="@dimen/activity_vertical_margin"
+                android:paddingLeft="@dimen/activity_horizontal_margin"
+                android:paddingRight="@dimen/activity_horizontal_margin"
+                android:paddingTop="@dimen/activity_vertical_margin"
+                tools:context=".Fragments.FragmentMain">
 
-    <TextView
-        android:id="@+id/textTimeTitle"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:id="@+id/trackerHeader"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:text="@string/main_last_update_title"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:background="#424242"
+        android:elevation="2dp"
+        android:padding="@dimen/main_data_padding">
 
-    <TextView
-        android:id="@+id/textTime"
-        android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/textTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+        <TextView
+            android:id="@+id/textActivity"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="false"
+            android:layout_alignParentStart="false"
+            android:layout_centerVertical="true"
+            android:gravity="bottom"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+        <TextView
+            android:id="@+id/textAccuracy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBottom="@+id/textPosition"
+            android:gravity="bottom"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+        <TextView
+            android:id="@+id/textPosition"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:gravity="end"
+            android:lineSpacingExtra="7dp"
+            android:text="@string/main_position"
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/trackerWifi"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_toEndOf="@+id/textTimeTitle"
-        android:text=""
+        android:layout_below="@+id/trackerHeader"
+        android:layout_marginTop="10dp"
+        android:background="#424242"
+        android:elevation="2dp"
         android:padding="@dimen/main_data_padding"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
+        >
 
-    <TextView
-        android:id="@+id/textPositionTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_below="@+id/textTime"
-        android:text="@string/main_position_title"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <TextView
+            android:id="@+id/textWifiTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:text="@string/main_wifi_title"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:textColor="#9e9e9e"
+            android:textStyle="bold"/>
 
-    <TextView
-        android:id="@+id/textPosition"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_below="@+id/textPositionTitle"
-        android:padding="@dimen/main_data_padding"
-        android:text=""
-        android:textAppearance="?android:attr/textAppearanceLarge" />
+        <TextView
+            android:id="@+id/textWifiCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/textWifiTitle"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceLarge"/>
+    </RelativeLayout>
 
-    <TextView
-        android:id="@+id/textAccuracy"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:id="@+id/trackerCells"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="false"
-        android:layout_below="@+id/textPositionTitle"
-        android:padding="@dimen/main_data_padding"
+        android:layout_below="@+id/trackerWifi"
+        android:layout_marginTop="10dp"
+        android:background="#424242"
+        android:elevation="2dp"
+        android:padding="@dimen/main_data_padding">
 
-        android:text=""
-        android:textAppearance="?android:attr/textAppearanceLarge"
-        android:gravity="end"
-        android:layout_alignParentEnd="true"/>
+        <TextView
+            android:id="@+id/textCellTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/main_cell_title"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:textColor="#9e9e9e"
+            android:textIsSelectable="false"
+            android:textStyle="bold"/>
 
-    <TextView
-        android:id="@+id/textWifiTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/main_wifi_title"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textPosition"
-        android:layout_alignParentStart="true" />
+        <TextView
+            android:id="@+id/textCurrentCell"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/textCellTitle"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceLarge"/>
 
-    <TextView
-        android:id="@+id/textWifiCount"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textAppearance="?android:attr/textAppearanceLarge"
-        android:padding="@dimen/main_data_padding"
-        android:layout_below="@+id/textWifiTitle"
-        android:layout_alignParentStart="true" />
+        <TextView
+            android:id="@+id/textCells"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/textCurrentCell"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceLarge"/>
+    </RelativeLayout>
 
-    <TextView
-        android:id="@+id/textCellTitle"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:id="@+id/trackerOther"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/main_cell_title"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_centerVertical="true"
-        android:layout_below="@+id/textWifiCount" />
+        android:layout_below="@+id/trackerCells"
+        android:layout_marginTop="10dp"
+        android:background="#424242"
+        android:elevation="2dp"
+        android:padding="@dimen/main_data_padding">
 
-    <TextView
-        android:id="@+id/textCurrentCell"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textAppearance="?android:attr/textAppearanceLarge"
-        android:padding="@dimen/main_data_padding"
-        android:layout_below="@+id/textCellTitle"
-        android:layout_alignParentStart="true" />
-    <TextView
-        android:id="@+id/textCells"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textAppearance="?android:attr/textAppearanceLarge"
-        android:padding="@dimen/main_data_padding"
-        android:layout_below="@+id/textCurrentCell"
-        android:layout_alignParentStart="true" />
+        <TextView
+            android:id="@+id/textPressure"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PRESSURE"
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
 
-    <TextView
-        android:id="@+id/textPressure"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="PRESSURE"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textCells"/>
-
-    <TextView
-        android:id="@+id/textActivity"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="ACTIVITY"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_below="@+id/textPressure"/>
+        <TextView
+            android:id="@+id/textCollected"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/textPressure"
+            android:text="COLLECTED"
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+    </RelativeLayout>
 
 </RelativeLayout>

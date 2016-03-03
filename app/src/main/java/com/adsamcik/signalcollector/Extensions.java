@@ -119,4 +119,13 @@ public class Extensions {
 		return "N/A";
 	}
 
+	public static String coordsToString(double coordinate) {
+		int degree = (int) coordinate;
+		coordinate = (coordinate - degree) * 60;
+		int minute = (int) coordinate;
+		coordinate = (coordinate - minute) * 60;
+		int second = (int) coordinate;
+		return degree + "° " + minute + "' " + second + "\"";
+	}
+
 }

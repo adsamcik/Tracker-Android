@@ -10,7 +10,7 @@
     <string name="main_last_update">%1$s</string>
 
     <string name="main_position_title">Position:</string>
-    <string name="main_position">Lat: %1$f\nLon: %2$f\nAlt: %3$d m</string>
+    <string name="main_position">N %1$s\nW %2$s\nAlt: %3$d m</string>
 
     <string name="main_wifi_title">WiFi:</string>
     <string name="main_wifi_count">Count: %1$d</string>

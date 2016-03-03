@@ -61,7 +61,6 @@ public class MainActivity extends FragmentActivity {
 	FloatingActionButton trackingFab, uploadFab;
 	TextView textApproxSize;
 
-	UpdateInfoReceiver updateReceiver;
 	StatusReceiver statusReceiver;
 
 	boolean uploadFabHidden = false, uploadAvailable = false;
@@ -180,10 +179,8 @@ public class MainActivity extends FragmentActivity {
 		DataStore.updateAutoUploadState(context);
 	}
 
-	public void setupUpdateReceiver(TextView textTime, TextView textPosition, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textPressure, TextView textActivity) {
-		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
-		updateReceiver = new UpdateInfoReceiver(textTime, textPosition, textWifiCount, textCurrentCell, textCellCount, textAccuracy, textPressure, textActivity);
-		LocalBroadcastManager.getInstance(this).registerReceiver(updateReceiver, filter);
+	public void updateSize(long size) {
+		textApproxSize.setText(Extensions.humanReadableByteCount(size, true));
 	}
 
 	private void setupViewPager(ViewPager viewPager) {
@@ -209,6 +206,10 @@ public class MainActivity extends FragmentActivity {
 				stopService(TrackerService.service);
 			}
 		}
+	}
+
+	public int getCloudStatus() {
+		return cloudStatus;
 	}
 
 	/**
@@ -312,7 +313,6 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		LocalBroadcastManager.getInstance(this).unregisterReceiver(updateReceiver);
 		LocalBroadcastManager.getInstance(this).unregisterReceiver(statusReceiver);
 	}
 
@@ -330,62 +330,6 @@ public class MainActivity extends FragmentActivity {
 		public void onReceive(Context context, Intent intent) {
 			changeCloudStatus(intent.getIntExtra("cloudStatus", -1));
 			changeTrackerButton(intent.getIntExtra("trackerStatus", -1));
-		}
-	}
-
-	public class UpdateInfoReceiver extends BroadcastReceiver {
-		public static final String BROADCAST_TAG = "signalCollectorUpdate";
-		final TextView textTime;
-		final TextView textPosition;
-		final TextView textWifiCount;
-		final TextView textCurrentCell;
-		final TextView textCellCount;
-		final TextView textAccuracy;
-		final TextView textPressure;
-		final TextView textActivity;
-
-		public UpdateInfoReceiver(TextView textTime, TextView textPosition, TextView textWifiCount, TextView textCurrentCell, TextView textCellCount, TextView textAccuracy, TextView textPressure, TextView textActivity) {
-			this.textTime = textTime;
-			this.textWifiCount = textWifiCount;
-			this.textCurrentCell = textCurrentCell;
-			this.textCellCount = textCellCount;
-			this.textPosition = textPosition;
-			this.textAccuracy = textAccuracy;
-			this.textPressure = textPressure;
-			this.textActivity = textActivity;
-		}
-
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			Resources res = getResources();
-			if(cloudStatus == 0) changeCloudStatus(1);
-
-			textApproxSize.setText(Extensions.humanReadableByteCount(intent.getLongExtra("approxSize", 0), false));
-
-			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", intent.getLongExtra("time", 0))));
-
-			int wifiCount = intent.getIntExtra("wifiCount", -1);
-			if(wifiCount >= 0) {
-				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), wifiCount));
-			}
-
-			int cellCount = intent.getIntExtra("cellCount", -1);
-			if(cellCount >= 0) {
-				textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), intent.getStringExtra("cellType"), intent.getIntExtra("cellDbm", -1), intent.getIntExtra("cellAsu", -1)));
-				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), cellCount));
-			}
-
-
-			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), intent.getIntExtra("accuracy", -1)));
-
-			textPosition.setText(String.format(res.getString(R.string.main_position), intent.getDoubleExtra("latitude", -1), intent.getDoubleExtra("longitude", -1), (int) intent.getDoubleExtra("altitude", -1)));
-
-			float pressure = intent.getFloatExtra("pressure", -1);
-			if(pressure > 0) {
-				textPressure.setText(String.format(res.getString(R.string.main_pressure), pressure));
-			}
-
-			textActivity.setText(String.format(res.getString(R.string.main_activity), intent.getStringExtra("activity")));
 		}
 	}
 
