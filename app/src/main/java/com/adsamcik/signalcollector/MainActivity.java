@@ -95,7 +95,7 @@ public class MainActivity extends FragmentActivity {
 		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
 		viewPager.setAdapter(adapter);
 
-		viewPager.setOffscreenPageLimit(2);
+		viewPager.setOffscreenPageLimit(3);
 
 		viewPager.addOnPageChangeListener(
 				new ViewPager.OnPageChangeListener() {
