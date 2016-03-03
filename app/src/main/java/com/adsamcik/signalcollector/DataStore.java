@@ -8,6 +8,7 @@ import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Looper;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -40,7 +41,7 @@ public class DataStore {
 	private static Context context;
 	private static boolean uploadRequested;
 
-	public static void setContext(Context c) {
+	public static void setContext(@NonNull Context c) {
 		context = c;
 	}
 
@@ -48,6 +49,13 @@ public class DataStore {
 		return context;
 	}
 
+
+	/**
+	 * Get shared preferences
+	 * This function can crash if shared preferences were not set for DataStore or Setting before.
+	 *
+	 * @return Shared preferences from Setting.sharedPreferences
+	 */
 	public static SharedPreferences getPreferences() {
 		if(Setting.sharedPreferences == null) {
 			if(context != null)
@@ -61,28 +69,44 @@ public class DataStore {
 		return Setting.sharedPreferences;
 	}
 
-	public static SharedPreferences getPreferences(Context c) {
+	/**
+	 * Get shared preferences
+	 * This function should never crash. Initializes preferences if needed.
+	 *
+	 * @param c Non-null context
+	 * @return Shared preferences from Setting.sharedPreferences
+	 */
+	public static SharedPreferences getPreferences(@NonNull Context c) {
 		if(Setting.sharedPreferences == null) {
 			if(context != null)
 				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
-			else if(c != null)
+			else
 				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
-			else {
-				String errorString = "No shared preferences and null context";
-				Log.e(TAG, Log.getStackTraceString(new Throwable(errorString)));
-				throw new RuntimeException(errorString);
-			}
 		}
 		return Setting.sharedPreferences;
 	}
 
 
-	public static boolean requestUpload(Context c) {
+	/**
+	 * Requests upload
+	 * Call this when you want to auto-upload
+	 *
+	 * @param c Non-null context
+	 * @return Upload started
+	 */
+	public static boolean requestUpload(@NonNull Context c) {
 		uploadRequested = true;
 		return updateAutoUploadState(c);
 	}
 
-	public static boolean updateAutoUploadState(Context c) {
+	/**
+	 * Checks if auto-upload is possible
+	 * Call only on network change/settings change
+	 *
+	 * @param c Non-null context
+	 * @return Upload started
+	 */
+	public static boolean updateAutoUploadState(@NonNull Context c) {
 		int autoUpload = getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
 		if(uploadRequested && autoUpload >= 1) {
 			ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -102,6 +126,12 @@ public class DataStore {
 		return false;
 	}
 
+	/**
+	 * Generates array of all data files
+	 *
+	 * @param includeLast   Include last file (last file is almost always not complete)
+	 * @return              Returns data file names
+	 */
 	static String[] getDataFileNames(boolean includeLast) {
 		int maxID = getPreferences().getInt(KEY_FILE_ID, 0);
 		if(!includeLast)
@@ -112,6 +142,13 @@ public class DataStore {
 		return fileNames;
 	}
 
+	/**
+	 * Uploads data to server.
+	 *
+	 * @param data  json array of Data
+	 * @param name  name of file where the data is saved (Function will clear the file afterwards)
+	 * @param size  size of data uploaded
+	 */
 	public static void upload(String data, final String name, final long size) {
 		if(data.isEmpty()) return;
 
@@ -145,6 +182,13 @@ public class DataStore {
 		});
 	}
 
+	/**
+	 * Saves string to file
+	 *
+	 * @param fileName  file name
+	 * @param data      string data
+	 * @return          success
+	 */
 	public static boolean saveString(String fileName, String data) {
 		try {
 			FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_PRIVATE);
@@ -158,15 +202,30 @@ public class DataStore {
 		}
 	}
 
+	/**
+	 * Move file
+	 *
+	 * @param fileName      original file name
+	 * @param newFileName   new file name
+	 * @return              success
+	 */
 	public static boolean moveFile(String fileName, String newFileName) {
 		String dir = context.getFilesDir().getPath();
 		return new File(dir, fileName).renameTo(new File(dir, newFileName));
 	}
 
+	/**
+	 * Delete file
+	 *
+	 * @param fileName      file name
+	 */
 	public static void deleteFile(String fileName) {
 		context.deleteFile(fileName);
 	}
 
+	/**
+	 * Clears all data files
+	 */
 	public static void clearAllData() {
 		SharedPreferences sp = getPreferences();
 		int max = sp.getInt(KEY_FILE_ID, -1);
@@ -266,6 +325,12 @@ public class DataStore {
 		}
 	}
 
+	/**
+	 * Load string file as StringBuilder
+	 *
+	 * @param fileName  file name
+	 * @return          content of file as StringBuilder
+	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
 		if(!exists(fileName)) {
 			Log.w(TAG, "file " + fileName + " does not exist");
@@ -290,6 +355,12 @@ public class DataStore {
 		}
 	}
 
+	/**
+	 * Converts loadStringAsBuilder to string and handles nulls
+	 *
+	 * @param fileName  file name
+	 * @return          content of file (empty if file has no content or does not exists)
+	 */
 	public static String loadString(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
 		if(sb != null)
@@ -298,11 +369,23 @@ public class DataStore {
 			return "";
 	}
 
+	/**
+	 * Checks if file exists
+	 *
+	 * @param fileName  file name
+	 * @return          existance of file
+	 */
 	public static boolean exists(String fileName) {
 		return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
 	}
 
 
+	/**
+	 * Converts array to json using reflection
+	 *
+	 * @param array     array
+	 * @return          json array
+	 */
 	public static String arrayToJSON(Object[] array) {
 		if(array == null || array.length == 0)
 			return "";
@@ -323,6 +406,12 @@ public class DataStore {
 		return out;
 	}
 
+	/**
+	 * Converts objects to json using reflection. Can handle most used primitive types, strings, arrays and other objects.
+	 *
+	 * @param o     object
+	 * @return      json object
+	 */
 	public static String objectToJSON(Object o) {
 		if(o == null) return "";
 		Class c = o.getClass();
