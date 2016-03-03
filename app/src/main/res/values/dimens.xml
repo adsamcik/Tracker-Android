@@ -3,6 +3,6 @@
     <dimen name="activity_horizontal_margin">16dp</dimen>
     <dimen name="activity_vertical_margin">16dp</dimen>
     <dimen name="main_data_padding">15dp</dimen>
-    <dimen name="main_card_elevation">2dp</dimen>
+    <dimen name="main_card_elevation">3dp</dimen>
     <dimen name="main_card_spacing">10dp</dimen>
 </resources>
