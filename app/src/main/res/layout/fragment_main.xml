@@ -17,7 +17,7 @@
         android:padding="@dimen/main_data_padding">
 
         <TextView
-            android:id="@+id/textCollected"
+            android:id="@+id/textTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
@@ -25,7 +25,7 @@
             android:textAppearance="?android:attr/textAppearanceMedium"/>
 
         <TextView
-            android:id="@+id/textTime"
+            android:id="@+id/textAccuracy"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="false"
@@ -36,7 +36,7 @@
             android:textAppearance="?android:attr/textAppearanceMedium"/>
 
         <TextView
-            android:id="@+id/textAccuracy"
+            android:id="@+id/textCollected"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignBottom="@+id/textPosition"
@@ -51,7 +51,7 @@
             android:layout_alignParentEnd="true"
             android:gravity="end"
             android:lineSpacingExtra="7dp"
-            android:text="@string/main_position_placeholder"
+            android:text=""
             android:textAppearance="?android:attr/textAppearanceMedium"/>
 
     </RelativeLayout>
