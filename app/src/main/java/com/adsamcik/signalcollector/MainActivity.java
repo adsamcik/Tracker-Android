@@ -22,9 +22,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
-import android.text.format.DateFormat;
 import android.view.View;
-import android.widget.TextView;
 
 import com.adsamcik.signalcollector.Fragments.FragmentMain;
 import com.adsamcik.signalcollector.Fragments.FragmentMap;
@@ -33,11 +31,6 @@ import com.adsamcik.signalcollector.Fragments.FragmentStats;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
-
-import junit.framework.Assert;
-
-import org.acra.ACRA;
-import org.acra.annotation.ReportsCrashes;
 
 import java.util.ArrayList;
 import java.util.List;

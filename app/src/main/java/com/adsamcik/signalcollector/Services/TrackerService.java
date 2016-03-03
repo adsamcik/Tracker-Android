@@ -21,7 +21,6 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -31,7 +30,6 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.CellInfo;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.Data.CellData;
 import com.adsamcik.signalcollector.Data.Data;

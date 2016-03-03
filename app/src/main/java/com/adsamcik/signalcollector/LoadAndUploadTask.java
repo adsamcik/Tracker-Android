@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector;
 
-import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.support.v4.content.LocalBroadcastManager;
