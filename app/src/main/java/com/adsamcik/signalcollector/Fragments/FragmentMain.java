@@ -22,7 +22,7 @@ import com.adsamcik.signalcollector.R;
 public class FragmentMain extends Fragment {
 	final String activity_name = "MainActivity";
 	MainActivity activity;
-	TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity;
+	TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 	BroadcastReceiver receiver;
 
 	@Nullable
@@ -41,6 +41,7 @@ public class FragmentMain extends Fragment {
 		textTime = (TextView) view.findViewById(R.id.textTime);
 		textPressure = (TextView) view.findViewById(R.id.textPressure);
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
+		textCollected = (TextView) view.findViewById(R.id.textCollected);
 
 		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
 		receiver = new UpdateInfoReceiver();
@@ -62,7 +63,7 @@ public class FragmentMain extends Fragment {
 			Resources res = getResources();
 			if(activity.getCloudStatus() == 0) activity.changeCloudStatus(1);
 
-			activity.updateSize(intent.getLongExtra("approxSize", 0));
+			textCollected.setText(Extensions.humanReadableByteCount(intent.getLongExtra("approxSize", 0), false));
 
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", intent.getLongExtra("time", 0))));
 

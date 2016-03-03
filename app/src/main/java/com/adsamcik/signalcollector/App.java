@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector;
 
 import android.app.Application;
-import android.util.Log;
 
 import org.acra.ACRA;
 import org.acra.annotation.ReportsCrashes;

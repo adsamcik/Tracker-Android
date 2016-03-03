@@ -59,7 +59,6 @@ public class MainActivity extends FragmentActivity {
 	static int saveStatus;
 	PowerManager powerManager;
 	FloatingActionButton trackingFab, uploadFab;
-	TextView textApproxSize;
 
 	StatusReceiver statusReceiver;
 
@@ -125,8 +124,6 @@ public class MainActivity extends FragmentActivity {
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
 
-		textApproxSize = (TextView) findViewById(R.id.textApproxSize);
-
 		//Onclick
 		trackingFab = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
 		trackingFab.setOnClickListener(
@@ -179,10 +176,6 @@ public class MainActivity extends FragmentActivity {
 		DataStore.updateAutoUploadState(context);
 	}
 
-	public void updateSize(long size) {
-		textApproxSize.setText(Extensions.humanReadableByteCount(size, true));
-	}
-
 	private void setupViewPager(ViewPager viewPager) {
 		Resources res = getResources();
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
@@ -223,7 +216,6 @@ public class MainActivity extends FragmentActivity {
 			case 0:
 				uploadFab.setImageResource(R.drawable.ic_cloud_done_24dp);
 				uploadFab.hide();
-				textApproxSize.setVisibility(View.GONE);
 				uploadAvailable = false;
 				cloudStatus = 0;
 				break;
@@ -231,7 +223,6 @@ public class MainActivity extends FragmentActivity {
 				uploadFab.setImageResource(R.drawable.ic_file_upload_24dp);
 				if(!uploadFabHidden)
 					uploadFab.show();
-				textApproxSize.setVisibility(View.VISIBLE);
 				uploadAvailable = true;
 				cloudStatus = 1;
 				break;

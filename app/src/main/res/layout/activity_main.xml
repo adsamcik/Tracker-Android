@@ -45,18 +45,6 @@
             app:backgroundTint="@color/colorPrimary"
             app:layout_anchorGravity="bottom|right|end" />
 
-        <TextView
-            android:id="@+id/textApproxSize"
-            android:layout_width="140dp"
-            android:layout_height="wrap_content"
-            android:layout_alignBottom="@+id/upload_fab"
-            android:layout_alignTop="@+id/upload_fab"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:layout_toStartOf="@+id/upload_fab"
-            android:gravity="center_vertical|end"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
         <android.support.design.widget.FloatingActionButton
             android:id="@+id/upload_fab"
             android:layout_width="wrap_content"

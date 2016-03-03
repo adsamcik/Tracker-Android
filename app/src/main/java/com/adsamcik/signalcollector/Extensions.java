@@ -12,8 +12,6 @@ import android.view.ViewConfiguration;
 import com.adsamcik.signalcollector.Services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
-import java.nio.charset.Charset;
-
 public class Extensions {
 	private static TelephonyManager telephonyManager;
 
