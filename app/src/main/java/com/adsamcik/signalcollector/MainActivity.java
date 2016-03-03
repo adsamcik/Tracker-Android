@@ -87,7 +87,15 @@ public class MainActivity extends FragmentActivity {
 		// Set up the viewPager with the sections adapter.
 		final ViewPager viewPager = (ViewPager) findViewById(R.id.container);
 
-		setupViewPager(viewPager);
+		Resources r = getResources();
+		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
+		adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
+		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
+		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
+		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
+		viewPager.setAdapter(adapter);
+
+		viewPager.setOffscreenPageLimit(2);
 
 		viewPager.addOnPageChangeListener(
 				new ViewPager.OnPageChangeListener() {
@@ -165,16 +173,6 @@ public class MainActivity extends FragmentActivity {
 		}
 
 		DataStore.updateAutoUploadState(context);
-	}
-
-	private void setupViewPager(ViewPager viewPager) {
-		Resources res = getResources();
-		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-		adapter.addFrag(new FragmentMain(), res.getString(R.string.menu_dashboard));
-		adapter.addFrag(new FragmentMap(), res.getString(R.string.menu_map));
-		adapter.addFrag(new FragmentStats(), res.getString(R.string.menu_stats));
-		adapter.addFrag(new FragmentSettings(), res.getString(R.string.menu_settings));
-		viewPager.setAdapter(adapter);
 	}
 
 	public void toggleCollecting(boolean enable) {
