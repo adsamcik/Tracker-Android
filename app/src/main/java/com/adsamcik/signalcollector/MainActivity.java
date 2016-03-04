@@ -197,7 +197,7 @@ public class MainActivity extends FragmentActivity {
 		switch(status) {
 			case 0:
 				if(item == 0) {
-					fabTwo.setImageResource(R.drawable.ic_cloud_done_24dp);
+					//fabTwo.setImageResource(R.drawable.ic_cloud_done_24dp);
 					fabTwo.hide();
 				}
 				uploadAvailable = false;
