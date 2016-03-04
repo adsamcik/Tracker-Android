@@ -106,7 +106,7 @@ public class FragmentStats extends Fragment {
 
 		if(showIndex) {
 			TextView rowNum = new TextView(c);
-			rowNum.setText(String.format("%d", index));
+			rowNum.setText(String.format(Locale.UK, "%d", index));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			rowNum.setTextSize(15);
 			row.addView(rowNum);
