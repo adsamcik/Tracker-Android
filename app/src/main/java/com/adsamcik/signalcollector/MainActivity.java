@@ -126,7 +126,7 @@ public class MainActivity extends FragmentActivity {
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
 
-		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 199, 199, 199));
+		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
 		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
 
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);

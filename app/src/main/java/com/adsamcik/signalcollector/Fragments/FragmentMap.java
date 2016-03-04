@@ -174,6 +174,15 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
 
+		if(checkLocationPermission()) {
+			locationListener.followMyPosition = true;
+			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
+			CameraPosition.Builder builder = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16);
+			map.moveCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
+		}
+
+		changeMapOverlay(type);
+
 		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
 
 		if(fabTwo != null)
