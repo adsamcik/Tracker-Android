@@ -12,6 +12,8 @@ import android.view.ViewConfiguration;
 import com.adsamcik.signalcollector.Services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
+import java.util.Locale;
+
 public class Extensions {
 	private static TelephonyManager telephonyManager;
 
@@ -24,7 +26,7 @@ public class Extensions {
 		if(bytes < unit) return bytes + " B";
 		int exp = (int) (Math.log(bytes) / Math.log(unit));
 		String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
-		return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
+		return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit, exp), pre);
 	}
 
 	public static String humanReadableByteCount(long bytes) {
@@ -32,7 +34,7 @@ public class Extensions {
 		if(bytes < unit) return bytes + " B";
 		int exp = (int) (Math.log(bytes) / Math.log(unit));
 		String pre = "KMGTPE".charAt(exp - 1) + "i";
-		return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
+		return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit, exp), pre);
 	}
 
 	public static int getNavBarHeight(Context c) {
@@ -137,7 +139,7 @@ public class Extensions {
 		int minute = (int) coordinate;
 		coordinate = (coordinate - minute) * 60;
 		int second = (int) coordinate;
-		return String.format("%02d", degree) + "° " + String.format("%02d", minute) + "' " + String.format("%02d", second) + "\"";
+		return String.format(Locale.ENGLISH, "%02d", degree) + "° " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\"";
 	}
 
 }

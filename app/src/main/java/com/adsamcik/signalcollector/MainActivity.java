@@ -23,6 +23,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
 import android.view.View;
+import android.widget.ImageButton;
 
 import com.adsamcik.signalcollector.Fragments.FragmentMain;
 import com.adsamcik.signalcollector.Fragments.FragmentMap;
@@ -31,8 +32,6 @@ import com.adsamcik.signalcollector.Fragments.FragmentStats;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
-
-import junit.framework.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,11 +52,12 @@ public class MainActivity extends FragmentActivity {
 	//2 - Save in progress
 	static int saveStatus;
 	PowerManager powerManager;
-	FloatingActionButton trackingFab, uploadFab;
+	FloatingActionButton fabOne, fabTwo;
 
 	StatusReceiver statusReceiver;
+	ViewPager viewPager;
 
-	boolean uploadFabHidden = false, uploadAvailable = false;
+	boolean uploadAvailable = false;
 
 	@Override
 	protected void onStart() {
@@ -87,7 +87,7 @@ public class MainActivity extends FragmentActivity {
 		PlayController.setActivity(this);
 
 		// Set up the viewPager with the sections adapter.
-		final ViewPager viewPager = (ViewPager) findViewById(R.id.container);
+		viewPager = (ViewPager) findViewById(R.id.container);
 
 		Resources r = getResources();
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
@@ -113,7 +113,7 @@ public class MainActivity extends FragmentActivity {
 							((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(1)).SetActive(position == 1);
 
 						if(position == 0 || prevPos == 0)
-							enableFabs(position == 0);
+							updateFabs(position);
 
 						prevPos = position;
 					}
@@ -128,34 +128,15 @@ public class MainActivity extends FragmentActivity {
 		tabLayout.setupWithViewPager(viewPager);
 
 		//Onclick
-		trackingFab = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
-		trackingFab.setOnClickListener(
-				new View.OnClickListener() {
-					public void onClick(View v) {
-						toggleCollecting(!TrackerService.isActive);
-					}
-				}
-		);
+		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
+		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
 
-		uploadFab = (FloatingActionButton) findViewById(R.id.upload_fab);
-		uploadFab.setOnClickListener(
-				new View.OnClickListener() {
-					public void onClick(View v) {
-						if(cloudStatus == 1) {
-							if(TrackerService.service != null)
-								stopService(TrackerService.service);
-							changeCloudStatus(2);
-							new LoadAndUploadTask().execute(DataStore.getDataFileNames(true));
-						}
-					}
-				}
-		);
 		powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
 
 		if(DataStore.recountDataSize() > 0) {
-			changeCloudStatus(1);
+			setCloudStatus(1);
 		} else
-			changeCloudStatus(0);
+			setCloudStatus(0);
 
 
 		IntentFilter filter = new IntentFilter(StatusReceiver.BROADCAST_TAG);
@@ -202,45 +183,39 @@ public class MainActivity extends FragmentActivity {
 	 * 2 - Syncing data
 	 * 3 - Cloud error
 	 */
-	public void changeCloudStatus(int status) {
-		if(uploadFab == null)
+	public void setCloudStatus(int status) {
+		if(fabTwo == null)
 			throw new RuntimeException("upload fab is null. This should not happen.");
+
+		int item = viewPager.getCurrentItem();
 		switch(status) {
 			case 0:
-				uploadFab.setImageResource(R.drawable.ic_cloud_done_24dp);
-				uploadFab.hide();
+				if(item == 0) {
+					fabTwo.setImageResource(R.drawable.ic_cloud_done_24dp);
+					fabTwo.hide();
+				}
 				uploadAvailable = false;
 				cloudStatus = 0;
 				break;
 			case 1:
-				uploadFab.setImageResource(R.drawable.ic_file_upload_24dp);
-				if(!uploadFabHidden)
-					uploadFab.show();
+				if(item == 0) {
+					fabTwo.setImageResource(R.drawable.ic_file_upload_24dp);
+					fabTwo.show();
+				}
 				uploadAvailable = true;
 				cloudStatus = 1;
 				break;
 			case 2:
-				uploadFab.setImageResource(R.drawable.ic_cloud_upload_24dp);
+				if(item == 0)
+					fabTwo.setImageResource(R.drawable.ic_cloud_upload_24dp);
 				cloudStatus = 2;
 				break;
 			case 3:
-				uploadFab.setImageResource(R.drawable.ic_cloud_off_24dp);
+				if(item == 0)
+					fabTwo.setImageResource(R.drawable.ic_cloud_off_24dp);
 				cloudStatus = 3;
 				break;
 
-		}
-	}
-
-	public void enableFabs(boolean show) {
-		if(!show) {
-			trackingFab.hide();
-			uploadFab.hide();
-			uploadFabHidden = true;
-		} else {
-			trackingFab.show();
-			if(uploadAvailable)
-				uploadFab.show();
-			uploadFabHidden = false;
 		}
 	}
 
@@ -250,17 +225,59 @@ public class MainActivity extends FragmentActivity {
 	 * 2 - saving icon
 	 */
 	public void changeTrackerButton(int status) {
-		switch(status) {
+		if(viewPager.getCurrentItem() == 0) {
+			switch(status) {
+				case 0:
+					fabOne.setImageResource(R.drawable.ic_play_arrow_24dp);
+					break;
+				case 1:
+					fabOne.setImageResource(R.drawable.ic_pause_24dp);
+					break;
+				case 2:
+					fabOne.setImageResource(R.drawable.ic_loop_24dp);
+					break;
+
+			}
+		}
+	}
+
+	/**
+	 * Handles fab updating (showing/hiding, icons, listeners)
+	 *
+	 * @param index current tab index
+	 */
+	public void updateFabs(final int index) {
+		switch(index) {
 			case 0:
-				trackingFab.setImageResource(R.drawable.ic_play_arrow_24dp);
+				fabOne.show();
+				changeTrackerButton(TrackerService.isActive ? 1 : 0);
+				fabOne.setOnClickListener(
+						new View.OnClickListener() {
+							public void onClick(View v) {
+								toggleCollecting(!TrackerService.isActive);
+							}
+						}
+				);
+
+				setCloudStatus(cloudStatus);
+				fabTwo.setOnClickListener(
+						new View.OnClickListener() {
+							public void onClick(View v) {
+								if(cloudStatus == 1) {
+									setCloudStatus(2);
+									new LoadAndUploadTask().execute(DataStore.getDataFileNames(true));
+								}
+							}
+						}
+				);
 				break;
 			case 1:
-				trackingFab.setImageResource(R.drawable.ic_pause_24dp);
+				((FragmentMap)((ViewPagerAdapter)viewPager.getAdapter()).getItem(index)).initializeFABs(fabOne, fabTwo);
 				break;
-			case 2:
-				trackingFab.setImageResource(R.drawable.ic_loop_24dp);
+			default:
+				fabOne.hide();
+				fabTwo.hide();
 				break;
-
 		}
 	}
 
@@ -312,7 +329,7 @@ public class MainActivity extends FragmentActivity {
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
-			changeCloudStatus(intent.getIntExtra("cloudStatus", -1));
+			setCloudStatus(intent.getIntExtra("cloudStatus", -1));
 			changeTrackerButton(intent.getIntExtra("trackerStatus", -1));
 		}
 	}

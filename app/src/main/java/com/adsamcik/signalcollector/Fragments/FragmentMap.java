@@ -9,6 +9,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
@@ -35,14 +36,16 @@ import com.google.android.gms.maps.model.UrlTileProvider;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
+	public static final String[] availableTypes = {"Wifi", "Cell"};
 	public static View view;
 	public SupportMapFragment mMapFragment;
 	public GoogleMap map;
 	public String type = "Wifi";
 	public TileProvider tileProvider;
-	public ImageButton switchButton;
+	public FloatingActionButton switchButton;
 	public UpdateInfoReceiver updateReceiver;
 	public boolean permissions = false;
 	boolean isActive = false;
@@ -69,8 +72,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			@Override
 			public URL getTileUrl(int x, int y, int zoom) {
 
-    /* Define the URL pattern for the tile images */
-				String s = String.format(Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, type);
+				String s = String.format(Locale.UK, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, type);
 
 				if(!checkTileExists(x, y, zoom)) {
 					return null;
@@ -92,16 +94,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 			}
 		};
-
-
-		switchButton = (ImageButton) view.findViewById(R.id.btn_switch_type);
-		switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
-		switchButton.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				ChangeMapOverlay(type.equals("Wifi") ? "Cell" : "Wifi");
-			}
-		});
 
 		view.findViewById(R.id.map).setOnDragListener(new View.OnDragListener() {
 			@Override
@@ -129,22 +121,41 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		}
 	}
 
-	private void ChangeMapOverlay(String type) {
+	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		fabOne.show();
+		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
+
+		switchButton = fabTwo;
+		fabTwo.show();
+		fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+		fabTwo.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				changeMapOverlay(type);
+			}
+		});
+	}
+
+	private void changeMapOverlay(String type) {
 		this.type = type;
 		map.clear();
 		map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 
-		if(type.equals("Wifi"))
-			switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
-		else
-			switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
-
+		switch(type) {
+			case "Wifi":
+				switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+			case "Cell":
+				switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
+		}
 	}
 
 	@Override
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
-		ChangeMapOverlay(type);
+
+		if(switchButton != null)
+			changeMapOverlay(type);
+
 		if(isActive) {
 			SetActive(true);
 			updateReceiver = new UpdateInfoReceiver();

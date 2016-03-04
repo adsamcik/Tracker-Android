@@ -68,7 +68,7 @@ public class FragmentMain extends Fragment {
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			Resources res = getResources();
-			if(activity.getCloudStatus() == 0) activity.changeCloudStatus(1);
+			if(activity.getCloudStatus() == 0) activity.setCloudStatus(1);
 
 			setCollected(res, intent.getLongExtra("approxSize", 0));
 

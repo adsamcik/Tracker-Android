@@ -102,7 +102,7 @@ public class FragmentSettings extends Fragment {
 			@Override
 			public void onClick(View v) {
 				DataStore.clearAllData();
-				((MainActivity) getActivity()).changeCloudStatus(0);
+				((MainActivity) getActivity()).setCloudStatus(0);
 			}
 		});
 
