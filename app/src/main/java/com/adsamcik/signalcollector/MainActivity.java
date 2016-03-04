@@ -32,6 +32,8 @@ import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
 
+import junit.framework.Assert;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -201,6 +203,8 @@ public class MainActivity extends FragmentActivity {
 	 * 3 - Cloud error
 	 */
 	public void changeCloudStatus(int status) {
+		if(uploadFab == null)
+			throw new RuntimeException("upload fab is null. This should not happen.");
 		switch(status) {
 			case 0:
 				uploadFab.setImageResource(R.drawable.ic_cloud_done_24dp);

@@ -53,7 +53,13 @@ public class Extensions {
 		return result;
 	}
 
-	//0-still, 1-foot, 2-vehicle
+	/**
+	 * 0 still/default
+	 * 1 foot
+	 * 2 vehicle
+	 * 3 tilting
+	 */
+
 	public static int EvaluateActivity(int val) {
 		switch(val) {
 			case DetectedActivity.STILL:

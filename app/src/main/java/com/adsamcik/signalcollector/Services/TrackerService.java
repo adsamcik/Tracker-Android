@@ -30,6 +30,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.CellInfo;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.Data.CellData;
 import com.adsamcik.signalcollector.Data.Data;
@@ -161,7 +162,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		int result = DataStore.saveData(input);
 		if(result == 1)
-			stopSelf();
+			throw new RuntimeException("Could not save data");
 		else {
 			data.clear();
 			if(result == 2)
@@ -184,7 +185,8 @@ public class TrackerService extends Service implements SensorEventListener {
 				if(intent.getIntExtra("confidence", -1) > 85) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.EvaluateActivity(currentActivity);
-					if(backgroundActivated && evalActivity != 3 && (evalActivity == 0 || (Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1) > evalActivity)))
+					int backTrackVal = Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1);
+					if(backgroundActivated && (backTrackVal > evalActivity || backTrackVal == 0))
 						stopSelf();
 				}
 			}
@@ -271,10 +273,11 @@ public class TrackerService extends Service implements SensorEventListener {
 		if(intent == null) {
 			approxSize = DataStore.recountDataSize();
 			backgroundActivated = true;
+			Log.d(TAG, "null intent");
 		}
 		else {
 			approxSize = intent.getLongExtra("approxSize", 0);
-			backgroundActivated = intent.getBooleanExtra("backTrack", true);
+			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}
 		return super.onStartCommand(intent, flags, startId);
 	}
