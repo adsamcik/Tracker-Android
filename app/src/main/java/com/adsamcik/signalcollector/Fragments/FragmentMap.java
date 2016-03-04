@@ -2,13 +2,17 @@ package com.adsamcik.signalcollector.Fragments;
 
 
 import android.Manifest;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.location.Criteria;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
+import android.os.Looper;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
@@ -19,7 +23,6 @@ import android.view.InflateException;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageButton;
 
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
@@ -40,16 +43,28 @@ import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public static final String[] availableTypes = {"Wifi", "Cell"};
+	public static int typeIndex = 0;
 	public static View view;
 	public SupportMapFragment mMapFragment;
 	public GoogleMap map;
 	public String type = "Wifi";
 	public TileProvider tileProvider;
-	public FloatingActionButton switchButton;
-	public UpdateInfoReceiver updateReceiver;
+	public FloatingActionButton fabTwo, fabOne;
 	public boolean permissions = false;
 	boolean isActive = false;
 
+	LocationManager locationManager;
+	UpdateLocationListener locationListener;
+
+
+	boolean checkLocationPermission() {
+		if(ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+			return true;
+		} else {
+			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
+			return false;
+		}
+	}
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -67,12 +82,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 		mMapFragment.getMapAsync(this);
 
-		//noinspection BooleanMethodIsAlwaysInverted,BooleanMethodIsAlwaysInverted,BooleanMethodIsAlwaysInverted,BooleanMethodIsAlwaysInverted,BooleanMethodIsAlwaysInverted,BooleanMethodIsAlwaysInverted,BooleanMethodIsAlwaysInverted
+		locationListener = new UpdateLocationListener();
+		locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
+
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
 			public URL getTileUrl(int x, int y, int zoom) {
 
-				String s = String.format(Locale.UK, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, type);
+				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, type);
 
 				if(!checkTileExists(x, y, zoom)) {
 					return null;
@@ -95,43 +112,45 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			}
 		};
 
-		view.findViewById(R.id.map).setOnDragListener(new View.OnDragListener() {
-			@Override
-			public boolean onDrag(View v, DragEvent event) {
-				Log.d("drag", "drag");
-				return false;
-			}
-		});
-
 		return view;
 	}
 
-	public void SetActive(boolean active) {
-		isActive = active;
-		if(map != null) {
-			if(active)
-				LocalBroadcastManager.getInstance(getContext()).registerReceiver(updateReceiver = new UpdateInfoReceiver(), new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG));
-			else {
-				LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(updateReceiver);
-				updateReceiver.Cleanup();
-			}
-
-			if(ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-				map.setMyLocationEnabled(active);
-		}
+	public void onLeave() {
+		isActive = false;
+		if(checkLocationPermission())
+			locationManager.removeUpdates(locationListener);
 	}
 
 	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		isActive = true;
+		this.fabOne = fabOne;
+		this.fabTwo = fabTwo;
+
+		if(checkLocationPermission())
+			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
+
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
+		fabOne.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				if(checkLocationPermission()) {
+					locationListener.followMyPosition = true;
+					Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
+					locationListener.moveTo(l.getLatitude(), l.getLongitude());
+				}
+			}
+		});
 
-		switchButton = fabTwo;
 		fabTwo.show();
 		fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
 		fabTwo.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				changeMapOverlay(type);
+				if(++typeIndex == availableTypes.length)
+					typeIndex = 0;
+
+				changeMapOverlay(type = availableTypes[typeIndex]);
 			}
 		});
 	}
@@ -143,9 +162,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		switch(type) {
 			case "Wifi":
-				switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+				fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+				break;
 			case "Cell":
-				switchButton.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
+				fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
+				break;
 		}
 	}
 
@@ -153,45 +174,60 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
 
-		if(switchButton != null)
+		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
+
+		if(fabTwo != null)
 			changeMapOverlay(type);
+	}
 
-		if(isActive) {
-			SetActive(true);
-			updateReceiver = new UpdateInfoReceiver();
-			LocalBroadcastManager.getInstance(getContext()).registerReceiver(updateReceiver, new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG));
+	public class UpdateLocationListener implements LocationListener {
+		LatLng position;
+		boolean followMyPosition = false;
+
+		public GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
+			@Override
+			public void onCameraChange(CameraPosition cameraPosition) {
+				if(followMyPosition && position != cameraPosition.target)
+					followMyPosition = false;
+			}
+		};
+
+
+		@Override
+		public void onLocationChanged(Location location) {
+			if(followMyPosition && map != null) {
+				moveTo(location.getLatitude(), location.getLongitude());
+			}
 		}
-	}
 
-	@Override
-	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-		if(requestCode == 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-			SetActive(this.permissions = true);
-	}
+		public void moveTo(double latitude, double longitude) {
+			moveTo(new LatLng(latitude, longitude));
+		}
 
-	public class UpdateInfoReceiver extends BroadcastReceiver {
-		public static final String BROADCAST_TAG = "signalCollectorUpdate";
-		boolean updateMove = false;
-		boolean updatePosition = false;
+		public void moveTo(LatLng latlng) {
+			position = latlng;
+			if(map != null) {
+				CameraPosition.Builder builder = CameraPosition.builder().target(latlng);
+				if(map.getCameraPosition().zoom < 16)
+					builder.zoom(16);
+				map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
+				//map.moveCamera(center);
 
-		public UpdateInfoReceiver() {
-			map.setOnMyLocationButtonClickListener(new GoogleMap.OnMyLocationButtonClickListener() {
-				@Override
-				public boolean onMyLocationButtonClick() {
-					updatePosition = true;
-					updateMove = true;
-					return false;
-				}
-			});
+			}
+		}
 
-			map.setOnCameraChangeListener(new GoogleMap.OnCameraChangeListener() {
-				@Override
-				public void onCameraChange(CameraPosition cameraPosition) {
-					if(!updateMove)
-						updatePosition = false;
-					updateMove = false;
-				}
-			});
+		@Override
+		public void onStatusChanged(String provider, int status, Bundle extras) {
+
+		}
+
+		@Override
+		public void onProviderEnabled(String provider) {
+
+		}
+
+		@Override
+		public void onProviderDisabled(String provider) {
 
 		}
 
@@ -199,16 +235,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			map.setOnCameraChangeListener(null);
 			map.setOnMyLocationButtonClickListener(null);
 		}
-
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			if(updatePosition && map != null) {
-				CameraUpdate center = CameraUpdateFactory.newLatLng(new LatLng(intent.getDoubleExtra("latitude", 0), intent.getDoubleExtra("longitude", 0)));
-				//CameraUpdate zoom = CameraUpdateFactory.zoomTo(17);
-				updateMove = true;
-				map.moveCamera(center);
-				//map.animateCamera(zoom);
-			}
-		}
 	}
+
 }

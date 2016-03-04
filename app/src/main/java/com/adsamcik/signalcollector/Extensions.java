@@ -141,5 +141,4 @@ public class Extensions {
 		int second = (int) coordinate;
 		return String.format(Locale.ENGLISH, "%02d", degree) + "° " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\"";
 	}
-
 }

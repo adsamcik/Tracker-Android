@@ -199,7 +199,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		PlayController.registerActivityReceiver(activityReceiver);
 
-		//setContext
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
 				makeUseOfNewLocation(location);

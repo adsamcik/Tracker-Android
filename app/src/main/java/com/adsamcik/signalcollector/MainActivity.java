@@ -6,7 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
@@ -23,7 +25,6 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
 import android.view.View;
-import android.widget.ImageButton;
 
 import com.adsamcik.signalcollector.Fragments.FragmentMain;
 import com.adsamcik.signalcollector.Fragments.FragmentMap;
@@ -109,12 +110,10 @@ public class MainActivity extends FragmentActivity {
 
 					@Override
 					public void onPageSelected(int position) {
-						if(position == 1 || prevPos == 1)
-							((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(1)).SetActive(position == 1);
+						if(prevPos == 1)
+							((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(1)).onLeave();
 
-						if(position == 0 || prevPos == 0)
-							updateFabs(position);
-
+						updateFabs(position);
 						prevPos = position;
 					}
 
@@ -127,9 +126,14 @@ public class MainActivity extends FragmentActivity {
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
 
-		//Onclick
+		ColorStateList csl = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
+		fabOne.setBackgroundResource(R.color.colorPrimary);
+		fabOne.setImageTintList(csl);
+
 		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
+		fabTwo.setBackgroundTintList(csl);
+		fabTwo.setImageTintList(ColorStateList.valueOf(Color.argb(255, 54, 95, 179)));
 
 		powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
 
@@ -272,7 +276,7 @@ public class MainActivity extends FragmentActivity {
 				);
 				break;
 			case 1:
-				((FragmentMap)((ViewPagerAdapter)viewPager.getAdapter()).getItem(index)).initializeFABs(fabOne, fabTwo);
+				((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initializeFABs(fabOne, fabTwo);
 				break;
 			default:
 				fabOne.hide();
