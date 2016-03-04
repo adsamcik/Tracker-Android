@@ -33,7 +33,10 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
@@ -155,6 +158,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		changeMapOverlay(typeIndex);
 	}
 
+	//ToDo when map is cleared, so is my position etc. just clear the variable that was added
 	private void changeMapOverlay(int index) {
 		if(map == null) {
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
@@ -165,7 +169,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		if(index != typeIndex) {
 			typeIndex = index;
 			map.clear();
-			map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+			TileOverlay to = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		}
 
 		if(fabTwo != null) {
@@ -190,6 +194,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
 			map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
 			locationListener.position = cp.target;
+			locationListener.userCircle = map.addCircle(new CircleOptions().fillColor(Color.argb(255, 255, 255, 255)).center(cp.target).radius(l.getAccuracy()));
 		}
 
 		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
@@ -199,6 +204,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public class UpdateLocationListener implements LocationListener {
 		LatLng position;
 		boolean followMyPosition = false;
+		Circle userCircle;
 
 		public GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
 			@Override
@@ -208,12 +214,17 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			}
 		};
 
-
 		@Override
 		public void onLocationChanged(Location location) {
+			LatLng latlng = new LatLng(location.getLatitude(), location.getLongitude());
 			if(followMyPosition && map != null) {
-				moveTo(location.getLatitude(), location.getLongitude());
+				moveTo(latlng);
 			}
+
+			map.addCircle(new CircleOptions().fillColor(Color.argb(100, 54, 95, 179)).center(latlng).radius(location.getAccuracy())).setZIndex(10);
+
+			userCircle.setCenter(latlng);
+			userCircle.setRadius(100000);
 		}
 
 		public void moveTo(@NonNull double latitude, @NonNull double longitude) {
