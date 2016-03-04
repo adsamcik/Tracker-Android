@@ -43,11 +43,10 @@ import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public static final String[] availableTypes = {"Wifi", "Cell"};
-	public static int typeIndex = 0;
+	public static int typeIndex = -1;
 	public static View view;
 	public SupportMapFragment mMapFragment;
 	public GoogleMap map;
-	public String type = "Wifi";
 	public TileProvider tileProvider;
 	public FloatingActionButton fabTwo, fabOne;
 	public boolean permissions = false;
@@ -89,7 +88,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			@Override
 			public URL getTileUrl(int x, int y, int zoom) {
 
-				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, type);
+				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, availableTypes[typeIndex]);
 
 				if(!checkTileExists(x, y, zoom)) {
 					return null;
@@ -147,26 +146,35 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		fabTwo.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				if(++typeIndex == availableTypes.length)
-					typeIndex = 0;
-
-				changeMapOverlay(type = availableTypes[typeIndex]);
+				changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1);
 			}
 		});
+
+		changeMapOverlay(typeIndex);
 	}
 
-	private void changeMapOverlay(String type) {
-		this.type = type;
-		map.clear();
-		map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+	private void changeMapOverlay(int index) {
+		if(map == null) {
+			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
+			return;
+		} else if(index < 0 || index >= availableTypes.length)
+			throw new RuntimeException("Index is out of range");
 
-		switch(type) {
-			case "Wifi":
-				fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
-				break;
-			case "Cell":
-				fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
-				break;
+		if(index != typeIndex) {
+			typeIndex = index;
+			map.clear();
+			map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+		}
+
+		if(fabTwo != null) {
+			switch(availableTypes[typeIndex]) {
+				case "Wifi":
+					fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+					break;
+				case "Cell":
+					fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
+					break;
+			}
 		}
 	}
 
@@ -181,12 +189,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			map.moveCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
 		}
 
-		changeMapOverlay(type);
-
 		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
-
-		if(fabTwo != null)
-			changeMapOverlay(type);
+		changeMapOverlay(0);
 	}
 
 	public class UpdateLocationListener implements LocationListener {
