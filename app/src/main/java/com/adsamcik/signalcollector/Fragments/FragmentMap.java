@@ -13,6 +13,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Looper;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
@@ -136,6 +137,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 				if(checkLocationPermission()) {
 					locationListener.followMyPosition = true;
 					Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
+					Log.d("tag", l.getLatitude() + " " + l.getLongitude() + " ");
 					locationListener.moveTo(l.getLatitude(), l.getLongitude());
 				}
 			}
@@ -185,8 +187,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		if(checkLocationPermission()) {
 			locationListener.followMyPosition = true;
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
-			CameraPosition.Builder builder = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16);
-			map.moveCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
+			CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
+			map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
+			locationListener.position = cp.target;
 		}
 
 		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
@@ -213,20 +216,20 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			}
 		}
 
-		public void moveTo(double latitude, double longitude) {
+		public void moveTo(@NonNull double latitude, @NonNull double longitude) {
 			moveTo(new LatLng(latitude, longitude));
 		}
 
-		public void moveTo(LatLng latlng) {
-			position = latlng;
-			if(map != null) {
+		public void moveTo(@NonNull LatLng latlng) {
+			if(map != null && (position.latitude != latlng.latitude || position.longitude != latlng.longitude)) {
 				CameraPosition.Builder builder = CameraPosition.builder().target(latlng);
-				if(map.getCameraPosition().zoom < 16)
-					builder.zoom(16);
+				float zoom = map.getCameraPosition().zoom;
+				builder.zoom(map.getCameraPosition().zoom < 16 ? 16 : zoom);
 				map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
 				//map.moveCamera(center);
-
+				position = latlng;
 			}
+
 		}
 
 		@Override
