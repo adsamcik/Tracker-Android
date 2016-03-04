@@ -126,14 +126,16 @@ public class MainActivity extends FragmentActivity {
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
 
-		ColorStateList csl = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
+		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 199, 199, 199));
+		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
+
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
-		fabOne.setBackgroundResource(R.color.colorPrimary);
-		fabOne.setImageTintList(csl);
+		fabOne.setBackgroundTintList(secondary);
+		fabOne.setImageTintList(primary);
 
 		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
-		fabTwo.setBackgroundTintList(csl);
-		fabTwo.setImageTintList(ColorStateList.valueOf(Color.argb(255, 54, 95, 179)));
+		fabTwo.setBackgroundTintList(primary);
+		fabTwo.setImageTintList(secondary);
 
 		powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
 
