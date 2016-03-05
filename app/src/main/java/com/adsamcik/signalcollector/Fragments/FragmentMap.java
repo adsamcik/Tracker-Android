@@ -255,10 +255,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			moveTo(position);
 		}
 
-		public void moveTo(@NonNull double latitude, @NonNull double longitude) {
-			moveTo(new LatLng(latitude, longitude));
-		}
-
 		public void moveTo(@NonNull LatLng latlng) {
 			float zoom = map.getCameraPosition().zoom;
 			moveTo(latlng,
