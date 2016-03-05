@@ -259,7 +259,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	}
 
 	public static void onUploadComplete(int maxId) {
-		SharedPreferences sp = DataStore.getPreferences();
+		SharedPreferences sp = Setting.getPreferences();
 		int currentId = sp.getInt(DataStore.KEY_FILE_ID, 0);
 		for(int i = maxId; i <= currentId; i++)
 			DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + (i - maxId));

@@ -50,7 +50,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public TileProvider tileProvider;
 	public FloatingActionButton fabTwo, fabOne;
 	public boolean permissions = false;
-	boolean isActive = false;
 
 	LocationManager locationManager;
 	UpdateLocationListener locationListener;
@@ -119,14 +118,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	}
 
 	public void onLeave() {
-		isActive = false;
 		if(checkLocationPermission())
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 	}
 
 	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		isActive = true;
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
@@ -262,7 +259,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 							zoom > 17 ? 17 : zoom);
 		}
 
-		public void moveTo(@NonNull LatLng latlng, @NonNull float zoom) {
+		public void moveTo(@NonNull LatLng latlng, float zoom) {
 			CameraPosition cPos = map.getCameraPosition();
 			if(map != null && (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude))
 				map.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));

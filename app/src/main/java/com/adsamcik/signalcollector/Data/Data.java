@@ -9,7 +9,7 @@ import android.telephony.CellInfoWcdma;
 
 import java.io.Serializable;
 
-@SuppressWarnings("FieldCanBeLocal")
+@SuppressWarnings({"FieldCanBeLocal", "unused"})
 public class Data implements Serializable {
 	public CellData[] cell;
 	public WifiData[] wifi;

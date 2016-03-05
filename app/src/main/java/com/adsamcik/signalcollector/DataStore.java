@@ -7,7 +7,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Looper;
-import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -49,44 +48,6 @@ public class DataStore {
 		return context;
 	}
 
-
-	/**
-	 * Get shared preferences
-	 * This function can crash if shared preferences were not set for DataStore or Setting before.
-	 *
-	 * @return Shared preferences from Setting.sharedPreferences
-	 */
-	public static SharedPreferences getPreferences() {
-		if(Setting.sharedPreferences == null) {
-			if(context != null)
-				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
-			else {
-				String errorString = "No shared preferences and null context";
-				Log.e(TAG, Log.getStackTraceString(new Throwable(errorString)));
-				throw new RuntimeException(errorString);
-			}
-		}
-		return Setting.sharedPreferences;
-	}
-
-	/**
-	 * Get shared preferences
-	 * This function should never crash. Initializes preferences if needed.
-	 *
-	 * @param c Non-null context
-	 * @return Shared preferences from Setting.sharedPreferences
-	 */
-	public static SharedPreferences getPreferences(@NonNull Context c) {
-		if(Setting.sharedPreferences == null) {
-			if(context != null)
-				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
-			else
-				Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
-		}
-		return Setting.sharedPreferences;
-	}
-
-
 	/**
 	 * Requests upload
 	 * Call this when you want to auto-upload
@@ -107,7 +68,7 @@ public class DataStore {
 	 * @return Upload started
 	 */
 	public static boolean updateAutoUploadState(@NonNull Context c) {
-		int autoUpload = getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
+		int autoUpload = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
 		if(uploadRequested && autoUpload >= 1) {
 			ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 			NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -133,7 +94,7 @@ public class DataStore {
 	 * @return              Returns data file names
 	 */
 	static String[] getDataFileNames(boolean includeLast) {
-		int maxID = getPreferences().getInt(KEY_FILE_ID, 0);
+		int maxID = Setting.getPreferences().getInt(KEY_FILE_ID, 0);
 		if(!includeLast)
 			maxID--;
 		String[] fileNames = new String[maxID + 1];
@@ -227,7 +188,7 @@ public class DataStore {
 	 * Clears all data files
 	 */
 	public static void clearAllData() {
-		SharedPreferences sp = getPreferences();
+		SharedPreferences sp = Setting.getPreferences();
 		int max = sp.getInt(KEY_FILE_ID, -1);
 		for(int i = 0; i <= max; i++)
 			context.deleteFile(DATA_FILE + i);
@@ -242,7 +203,7 @@ public class DataStore {
 	 * @return returns state value 2 - new file, 1 - error during saving, 0 - no new file, saved successfully
 	 */
 	public static int saveData(String data) {
-		SharedPreferences sp = getPreferences();
+		SharedPreferences sp = Setting.getPreferences();
 		SharedPreferences.Editor edit = sp.edit();
 
 		int id = sp.getInt(KEY_FILE_ID, 0);
@@ -275,7 +236,7 @@ public class DataStore {
 		long size = 0;
 		for(String fileName : fileNames)
 			size += sizeOf(fileName);
-		getPreferences().edit().putLong(KEY_SIZE, size);
+		Setting.getPreferences().edit().putLong(KEY_SIZE, size).apply();
 		return size;
 	}
 
@@ -285,7 +246,7 @@ public class DataStore {
 	 * @return returns saved data size from shared preferences.
 	 */
 	public static long sizeOfData() {
-		return getPreferences().getLong(KEY_SIZE, 0);
+		return Setting.getPreferences().getLong(KEY_SIZE, 0);
 	}
 
 	/**

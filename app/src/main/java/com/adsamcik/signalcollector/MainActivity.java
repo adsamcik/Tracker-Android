@@ -11,8 +11,6 @@ import android.content.res.Resources;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.PowerManager;
-import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.TabLayout;
@@ -40,25 +38,22 @@ import java.util.List;
 public class MainActivity extends FragmentActivity {
 	public static final String TAG = "Signals";
 
-	public static MainActivity instance;
+	private static MainActivity instance;
 	public static Context context;
 	//static boolean tracking = false;
 	//0 - Data are synced
 	//1 - Sync required
 	//2 - Sync in progress
 	//-1 - Error
-	static int cloudStatus;
+	private static int cloudStatus;
 	//0 - No save needed
 	//1 - Save required
 	//2 - Save in progress
-	static int saveStatus;
-	PowerManager powerManager;
-	FloatingActionButton fabOne, fabTwo;
+	private FloatingActionButton fabOne;
+	private FloatingActionButton fabTwo;
 
-	StatusReceiver statusReceiver;
-	ViewPager viewPager;
-
-	boolean uploadAvailable = false;
+	private StatusReceiver statusReceiver;
+	private ViewPager viewPager;
 
 	@Override
 	protected void onStart() {
@@ -81,7 +76,7 @@ public class MainActivity extends FragmentActivity {
 		setContentView(R.layout.activity_main);
 		context = getApplicationContext();
 		DataStore.setContext(context);
-		Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(context));
+		Setting.initializeSharedPreferences(context);
 		instance = this;
 
 		PlayController.setContext(context);
@@ -137,8 +132,6 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		powerManager = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
-
 		if(DataStore.recountDataSize() > 0) {
 			setCloudStatus(1);
 		} else
@@ -164,8 +157,8 @@ public class MainActivity extends FragmentActivity {
 		DataStore.updateAutoUploadState(context);
 	}
 
-	public void toggleCollecting(boolean enable) {
-		if((!TrackerService.isActive && saveStatus == 2) || TrackerService.isActive == enable)
+	private void toggleCollecting(boolean enable) {
+		if((!TrackerService.isActive) || TrackerService.isActive == enable)
 			return;
 		if(checkAllTrackingPermissions()) {
 			if(!TrackerService.isActive) {
@@ -200,7 +193,6 @@ public class MainActivity extends FragmentActivity {
 					//fabTwo.setImageResource(R.drawable.ic_cloud_done_24dp);
 					fabTwo.hide();
 				}
-				uploadAvailable = false;
 				cloudStatus = 0;
 				break;
 			case 1:
@@ -208,7 +200,6 @@ public class MainActivity extends FragmentActivity {
 					fabTwo.setImageResource(R.drawable.ic_file_upload_24dp);
 					fabTwo.show();
 				}
-				uploadAvailable = true;
 				cloudStatus = 1;
 				break;
 			case 2:
@@ -230,7 +221,7 @@ public class MainActivity extends FragmentActivity {
 	 * 1 - stop tracking icon
 	 * 2 - saving icon
 	 */
-	public void changeTrackerButton(int status) {
+	private void changeTrackerButton(int status) {
 		if(viewPager.getCurrentItem() == 0) {
 			switch(status) {
 				case 0:
@@ -252,7 +243,7 @@ public class MainActivity extends FragmentActivity {
 	 *
 	 * @param index current tab index
 	 */
-	public void updateFabs(final int index) {
+	private void updateFabs(final int index) {
 		switch(index) {
 			case 0:
 				fabOne.show();
@@ -296,7 +287,7 @@ public class MainActivity extends FragmentActivity {
 		toggleCollecting(true);
 	}
 
-	boolean checkAllTrackingPermissions() {
+	private boolean checkAllTrackingPermissions() {
 		if(Build.VERSION.SDK_INT > 22) {
 			List<String> permissions = new ArrayList<>();
 			if(ContextCompat.checkSelfPermission(instance, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)

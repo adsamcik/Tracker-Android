@@ -2,8 +2,6 @@ package com.adsamcik.signalcollector.Services;
 
 import android.app.IntentService;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -32,12 +30,8 @@ public class RegistrationIntentService extends IntentService {
 		super(TAG);
 	}
 
-	SharedPreferences sharedPreferences;
-
 	@Override
 	protected void onHandleIntent(Intent intent) {
-		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-
 		try {
 			// [START register_for_gcm]
 			// Initially this call goes out to the network to retrieve the token, subsequent calls

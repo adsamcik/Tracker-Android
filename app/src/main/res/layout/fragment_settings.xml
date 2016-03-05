@@ -85,7 +85,6 @@
             android:contentDescription="@string/leaderboards"/>
 
         <ImageButton
-            android:id="@+id/ib_quests"
             android:layout_width="75dp"
             android:layout_height="75dp"
             android:layout_margin="15dp"

@@ -43,7 +43,6 @@ public class FragmentStats extends Fragment {
 	public static int lastIndex = -1;
 	static long lastRequest = 0;
 	final AsyncHttpClient client = new AsyncHttpClient();
-	List<Stat> stats = new ArrayList<>();
 	FragmentStats instance;
 	View v;
 

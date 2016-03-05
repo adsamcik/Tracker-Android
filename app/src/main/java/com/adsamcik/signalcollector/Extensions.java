@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.preference.PreferenceManager;
 import android.telephony.TelephonyManager;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -21,6 +20,7 @@ public class Extensions {
 		telephonyManager = tm;
 	}
 
+	@SuppressWarnings("unused")
 	public static String humanReadableByteCount(long bytes, @SuppressWarnings("SameParameterValue") boolean si) {
 		int unit = si ? 1000 : 1024;
 		if(bytes < unit) return bytes + " B";
@@ -85,9 +85,7 @@ public class Extensions {
 
 	public static boolean canBackgroundTrack(Context c, int evalActivity) {
 		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive) return false;
-		if(Setting.sharedPreferences == null)
-			Setting.Initialize(PreferenceManager.getDefaultSharedPreferences(c));
-		int val = Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1);
+		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
 		return val != 0 && val <= evalActivity;
 	}
 

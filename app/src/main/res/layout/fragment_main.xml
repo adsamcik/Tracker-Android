@@ -52,7 +52,8 @@
             android:gravity="end"
             android:lineSpacingExtra="7dp"
             android:text=""
-            android:textAppearance="?android:attr/textAppearanceMedium"/>
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            tools:ignore="RelativeOverlap"/>
 
     </RelativeLayout>
 
@@ -126,7 +127,6 @@
     </RelativeLayout>
 
     <RelativeLayout
-        android:id="@+id/trackerOther"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/trackerCells"

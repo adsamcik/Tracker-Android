@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.Play;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -29,13 +28,11 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 	static final int REQUEST_ACHIEVEMENTS = 8955;
 	private static final int RC_SIGN_IN = 9001;
 	GoogleApiClient client;
-	final Context context;
 	final Activity activity;
 	Button button;
 	private boolean mResolvingConnectionFailure = false;
 
-	public GamesController(Context context, Activity a) {
-		this.context = context;
+	public GamesController(Activity a) {
 		this.activity = a;
 	}
 

@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.Services;
 import android.content.Intent;
 
 public class InstanceIDListenerService extends com.google.android.gms.iid.InstanceIDListenerService {
-	private static final String TAG = "InstanceIDLS";
 
 	/**
 	 * Called if InstanceID token is updated. This may occur if the security of

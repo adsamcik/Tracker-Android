@@ -52,7 +52,7 @@ public class PlayController {
 
 	public static boolean initializeGamesClient(View v) {
 		if(isPlayServiceAvailable()) {
-			gamesController = new GamesController(c, a);
+			gamesController = new GamesController(a);
 			gapiGamesClient = new GoogleApiClient.Builder(c)
 					.addApi(Games.API)
 					.addScope(Games.SCOPE_GAMES)
@@ -77,7 +77,7 @@ public class PlayController {
 		gapiGamesClient.disconnect();
 		gapiGamesClient = null;
 		apiGames = false;
-		Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, false);
+		Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, false).apply();
 	}
 
 	public static void registerActivityReceiver(BroadcastReceiver receiver) {

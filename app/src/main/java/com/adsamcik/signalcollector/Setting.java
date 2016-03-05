@@ -1,6 +1,9 @@
 package com.adsamcik.signalcollector;
 
+import android.content.Context;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 
 import java.io.Serializable;
 
@@ -14,8 +17,34 @@ public class Setting implements Serializable {
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static SharedPreferences sharedPreferences;
 
-	public static void Initialize(SharedPreferences sp) {
-		sharedPreferences = sp;
+	public static void initializeSharedPreferences(@NonNull Context c) {
+		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
+	}
+
+	/**
+	 * Get shared preferences
+	 * This function should never crash. Initializes preferences if needed.
+	 *
+	 * @param c Non-null context
+	 * @return  Shared preferences
+	 */
+	public static SharedPreferences getPreferences(@NonNull Context c) {
+		if(sharedPreferences == null)
+			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
+		return sharedPreferences;
+	}
+
+	/**
+	 * Get shared preferences
+	 * This function will crash if shared preferences were never initialized
+	 * Always prefer to send context if posssible.
+	 *
+	 * @return  Shared preferences
+	 */
+	public static SharedPreferences getPreferences() {
+		if(sharedPreferences == null)
+			throw new RuntimeException("Shared preferences are null");
+		return sharedPreferences;
 	}
 
 }

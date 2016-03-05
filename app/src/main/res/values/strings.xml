@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
 
     <string name="menu_dashboard">tracker</string>
@@ -8,13 +8,12 @@
 
     <string name="main_last_update">%1$s</string>
     <string name="main_position">N %1$s\nW %2$s\nAlt: %3$d m</string>
-    <string name="main_position_placeholder">\n\n</string>
 
     <string name="main_wifi_title">WiFi:</string>
     <string name="main_wifi_count">%1$d in range</string>
 
     <string name="main_cell_title">Signal:</string>
-    <string name="main_cell_current">%1$s %2$d dbm, %3$d asu</string>
+    <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
     <string name="main_cell_count">%1$d in range</string>
 
     <string name="main_accuracy">Accuracy %1$d m</string>
@@ -23,8 +22,6 @@
 
     <string name="main_collected">Collected %1$s</string>
 
-    <string name="play_games_sign_error_other">Signing error</string>
-    <string name="switch_map_type">Switch map type</string>
     <string name="achievements">Achievements</string>
     <string name="leaderboards">Leaderboards</string>
     <string name="quests">Quests</string>
