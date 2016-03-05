@@ -226,7 +226,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		LatLng position;
 		boolean followMyPosition = false;
 
-		public GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
+		public final GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
 			@Override
 			public void onCameraChange(CameraPosition cameraPosition) {
 				if(followMyPosition && touchWrapper.getTouchDown())

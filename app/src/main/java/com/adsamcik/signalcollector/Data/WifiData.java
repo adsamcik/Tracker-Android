@@ -5,6 +5,7 @@ import android.os.Build;
 
 import java.io.Serializable;
 
+@SuppressWarnings("unused")
 public class WifiData implements Serializable {
 	public final String BSSID;
 	public final String SSID;

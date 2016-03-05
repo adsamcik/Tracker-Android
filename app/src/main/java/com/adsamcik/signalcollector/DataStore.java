@@ -53,11 +53,10 @@ public class DataStore {
 	 * Call this when you want to auto-upload
 	 *
 	 * @param c Non-null context
-	 * @return Upload started
 	 */
-	public static boolean requestUpload(@NonNull Context c) {
+	public static void requestUpload(@NonNull Context c) {
 		uploadRequested = true;
-		return updateAutoUploadState(c);
+		updateAutoUploadState(c);
 	}
 
 	/**
@@ -148,18 +147,15 @@ public class DataStore {
 	 *
 	 * @param fileName  file name
 	 * @param data      string data
-	 * @return          success
 	 */
-	public static boolean saveString(String fileName, String data) {
+	public static void saveString(String fileName, String data) {
 		try {
 			FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_PRIVATE);
 			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
 			osw.write(data);
 			osw.close();
-			return true;
 		} catch(Exception e) {
 			e.printStackTrace();
-			return false;
 		}
 	}
 

@@ -72,7 +72,6 @@ public class TrackerService extends Service implements SensorEventListener {
 	int currentActivity;
 	boolean backgroundActivated = false;
 	boolean wifiEnabled = false;
-	boolean closing = false;
 
 	NotificationManager notificationManager;
 	PowerManager powerManager;
@@ -284,7 +283,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public void onDestroy() {
-		closing = true;
 		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
 		unregisterReceiver(wifiReceiver);
