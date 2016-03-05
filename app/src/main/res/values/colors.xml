@@ -7,4 +7,5 @@
     <color name="black">#64000000</color>
     <color name="login">#449944</color>
     <color name="logout">#A5000B</color>
+    <color name="colorUserAccuracy">#80365fb3</color>
 </resources>

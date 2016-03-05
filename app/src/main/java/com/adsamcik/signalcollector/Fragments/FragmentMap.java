@@ -3,9 +3,7 @@ package com.adsamcik.signalcollector.Fragments;
 
 import android.Manifest;
 import android.content.Context;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
@@ -17,9 +15,7 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
-import android.view.DragEvent;
 import android.view.InflateException;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,7 +23,6 @@ import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
-import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -122,6 +117,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		isActive = false;
 		if(checkLocationPermission())
 			locationManager.removeUpdates(locationListener);
+		locationListener.cleanup();
 	}
 
 	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
@@ -138,10 +134,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			@Override
 			public void onClick(View v) {
 				if(checkLocationPermission()) {
-					locationListener.followMyPosition = true;
-					Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
-					Log.d("tag", l.getLatitude() + " " + l.getLongitude() + " ");
-					locationListener.moveTo(l.getLatitude(), l.getLongitude());
+					locationListener.moveToMyPosition();
 				}
 			}
 		});
@@ -160,7 +153,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 	TileOverlay activeOverlay;
 
-	//ToDo when map is cleared, so is my position etc. just clear the variable that was added
 	private void changeMapOverlay(int index) {
 		if(map == null) {
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
@@ -197,37 +189,63 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
 			map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
 			locationListener.position = cp.target;
-			locationListener.userCircle = map.addCircle(new CircleOptions().fillColor(Color.argb(255, 255, 255, 255)).center(cp.target).radius(l.getAccuracy()));
+			DrawUserPosition(cp.target, l.getAccuracy());
 		}
 
 		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
 		changeMapOverlay(0);
 	}
 
+	Circle userRadius, userCenter;
+
+	void DrawUserPosition(LatLng latlng, float accuracy) {
+		if(userRadius == null) {
+			userRadius = map.addCircle(new CircleOptions()
+					.fillColor(ContextCompat.getColor(getContext(), R.color.colorUserAccuracy))
+					.center(latlng)
+					.radius(accuracy)
+					.zIndex(100)
+					.strokeWidth(0));
+			userCenter = map.addCircle(new CircleOptions()
+					.fillColor(ContextCompat.getColor(getContext(), R.color.colorPrimary))
+					.center(latlng)
+					.radius(5)
+					.zIndex(100)
+					.strokeWidth(5)
+					.strokeColor(Color.WHITE));
+		} else {
+			userRadius.setCenter(latlng);
+			userRadius.setRadius(accuracy);
+			userCenter.setCenter(latlng);
+		}
+	}
+
 	public class UpdateLocationListener implements LocationListener {
 		LatLng position;
 		boolean followMyPosition = false;
-		Circle userCircle;
 
 		public GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
 			@Override
 			public void onCameraChange(CameraPosition cameraPosition) {
-				if(followMyPosition && position != cameraPosition.target)
+				if(followMyPosition && Math.abs(position.longitude - cameraPosition.target.longitude) > 0.000001 && Math.abs(position.latitude - cameraPosition.target.latitude) > 0.000001)
 					followMyPosition = false;
+
+				if(map.getCameraPosition().zoom > 17)
+					map.animateCamera(CameraUpdateFactory.zoomTo(17));
 			}
 		};
 
 		@Override
 		public void onLocationChanged(Location location) {
-			LatLng latlng = new LatLng(location.getLatitude(), location.getLongitude());
-			if(followMyPosition && map != null) {
-				moveTo(latlng);
-			}
+			position = new LatLng(location.getLatitude(), location.getLongitude());
+			DrawUserPosition(position, location.getAccuracy());
+			if(followMyPosition && map != null)
+				moveTo(position);
+		}
 
-			map.addCircle(new CircleOptions().fillColor(Color.argb(100, 54, 95, 179)).center(latlng).radius(location.getAccuracy())).setZIndex(10);
-
-			userCircle.setCenter(latlng);
-			userCircle.setRadius(100000);
+		public void moveToMyPosition() {
+			followMyPosition = true;
+			moveTo(position);
 		}
 
 		public void moveTo(@NonNull double latitude, @NonNull double longitude) {
@@ -235,15 +253,16 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		}
 
 		public void moveTo(@NonNull LatLng latlng) {
-			if(map != null && (position.latitude != latlng.latitude || position.longitude != latlng.longitude)) {
-				CameraPosition.Builder builder = CameraPosition.builder().target(latlng);
-				float zoom = map.getCameraPosition().zoom;
-				builder.zoom(map.getCameraPosition().zoom < 16 ? 16 : zoom);
-				map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
-				//map.moveCamera(center);
-				position = latlng;
-			}
+			float zoom = map.getCameraPosition().zoom;
+			moveTo(latlng,
+					zoom < 16 ? 16 :
+							zoom > 17 ? 17 : zoom);
+		}
 
+		public void moveTo(@NonNull LatLng latlng, @NonNull float zoom) {
+			CameraPosition cPos = map.getCameraPosition();
+			if(map != null && (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude))
+				map.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
 		}
 
 		@Override
@@ -261,7 +280,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		}
 
-		public void Cleanup() {
+		public void cleanup() {
 			map.setOnCameraChangeListener(null);
 			map.setOnMyLocationButtonClickListener(null);
 		}
