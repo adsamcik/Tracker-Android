@@ -24,6 +24,12 @@ public class TouchWrapper extends FrameLayout {
 		super(context, attrs, defStyleAttr, defStyleRes);
 	}
 
+	public boolean getTouchDown() {
+		boolean touched = mMapIsTouched;
+		mMapIsTouched = false;
+		return touched;
+	}
+
 	@Override
 	public boolean dispatchTouchEvent(MotionEvent ev) {
 		switch(ev.getAction()) {
@@ -32,7 +38,7 @@ public class TouchWrapper extends FrameLayout {
 				break;
 
 			case MotionEvent.ACTION_UP:
-				mMapIsTouched = false;
+				//mMapIsTouched = false;
 				break;
 		}
 

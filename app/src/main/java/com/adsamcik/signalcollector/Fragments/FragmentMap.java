@@ -232,7 +232,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		public GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
 			@Override
 			public void onCameraChange(CameraPosition cameraPosition) {
-				if(followMyPosition && touchWrapper.mMapIsTouched)
+				if(followMyPosition && touchWrapper.getTouchDown())
 					followMyPosition = false;
 
 				if(map.getCameraPosition().zoom > 17)
