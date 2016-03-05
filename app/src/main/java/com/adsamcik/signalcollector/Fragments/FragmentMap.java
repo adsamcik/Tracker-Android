@@ -158,6 +158,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		changeMapOverlay(typeIndex);
 	}
 
+	TileOverlay activeOverlay;
+
 	//ToDo when map is cleared, so is my position etc. just clear the variable that was added
 	private void changeMapOverlay(int index) {
 		if(map == null) {
@@ -166,10 +168,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		} else if(index < 0 || index >= availableTypes.length)
 			throw new RuntimeException("Index is out of range");
 
-		if(index != typeIndex) {
+		if(index != typeIndex || activeOverlay == null) {
 			typeIndex = index;
-			map.clear();
-			TileOverlay to = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+			if(activeOverlay != null)
+				activeOverlay.remove();
+			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		}
 
 		if(fabTwo != null) {
