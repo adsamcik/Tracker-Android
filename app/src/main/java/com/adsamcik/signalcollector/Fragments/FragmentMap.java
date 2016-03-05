@@ -23,6 +23,7 @@ import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.TouchWrapper;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -54,6 +55,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	LocationManager locationManager;
 	UpdateLocationListener locationListener;
 
+	TouchWrapper touchWrapper;
+
 
 	boolean checkLocationPermission() {
 		if(ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -71,8 +74,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			if(parent != null)
 				parent.removeView(view);
 		}
+
 		try {
 			view = inflater.inflate(R.layout.fragment_map, container, false);
+			touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
 		} catch(InflateException e) {
 		/* map is already there, just return view as it is */
 		}
@@ -227,7 +232,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		public GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
 			@Override
 			public void onCameraChange(CameraPosition cameraPosition) {
-				if(followMyPosition && Math.abs(position.longitude - cameraPosition.target.longitude) > 0.000001 && Math.abs(position.latitude - cameraPosition.target.latitude) > 0.000001)
+				if(followMyPosition && touchWrapper.mMapIsTouched)
 					followMyPosition = false;
 
 				if(map.getCameraPosition().zoom > 17)
@@ -239,7 +244,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		public void onLocationChanged(Location location) {
 			position = new LatLng(location.getLatitude(), location.getLongitude());
 			DrawUserPosition(position, location.getAccuracy());
-			if(followMyPosition && map != null)
+			if(touchWrapper.mMapIsTouched)
+				followMyPosition = false;
+			else if(followMyPosition && map != null)
 				moveTo(position);
 		}
 
