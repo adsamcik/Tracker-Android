@@ -73,6 +73,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	boolean backgroundActivated = false;
 	boolean wifiEnabled = false;
 
+	int saveAttemptsFailed = 0;
+
 	NotificationManager notificationManager;
 	PowerManager powerManager;
 	PowerManager.WakeLock wakeLock;
@@ -134,7 +136,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				.setTicker("Collection started")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
-						//.addAction(playPause.build())
+				//.addAction(playPause.build())
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
 
 		builder.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
@@ -160,9 +162,11 @@ public class TrackerService extends Service implements SensorEventListener {
 		input = input.substring(1, input.length() - 1);
 
 		int result = DataStore.saveData(input);
-		if(result == 1)
-			throw new RuntimeException("Could not save data");
-		else {
+		if(result == 1) {
+			saveAttemptsFailed++;
+			if(saveAttemptsFailed >= 5)
+				stopSelf();
+		} else {
 			data.clear();
 			if(result == 2)
 				DataStore.requestUpload(getApplicationContext());
@@ -272,8 +276,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			approxSize = DataStore.recountDataSize();
 			backgroundActivated = true;
 			Log.d(TAG, "null intent");
-		}
-		else {
+		} else {
 			approxSize = intent.getLongExtra("approxSize", 0);
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}

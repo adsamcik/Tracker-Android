@@ -34,6 +34,7 @@ import com.adsamcik.signalcollector.Services.TrackerService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class MainActivity extends FragmentActivity {
 	public static final String TAG = "Signals";
@@ -263,6 +264,7 @@ public class MainActivity extends FragmentActivity {
 								if(cloudStatus == 1) {
 									setCloudStatus(2);
 									new LoadAndUploadTask().execute(DataStore.getDataFileNames(true));
+									Setting.getPreferences(context).edit().putInt(DataStore.KEY_FILE_ID, Setting.getPreferences(context).getInt(DataStore.KEY_FILE_ID, -1) + 1).commit();
 								}
 							}
 						}

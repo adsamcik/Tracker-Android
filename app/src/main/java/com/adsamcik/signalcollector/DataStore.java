@@ -89,8 +89,8 @@ public class DataStore {
 	/**
 	 * Generates array of all data files
 	 *
-	 * @param includeLast   Include last file (last file is almost always not complete)
-	 * @return              Returns data file names
+	 * @param includeLast Include last file (last file is almost always not complete)
+	 * @return Returns data file names
 	 */
 	static String[] getDataFileNames(boolean includeLast) {
 		int maxID = Setting.getPreferences().getInt(KEY_FILE_ID, 0);
@@ -105,9 +105,9 @@ public class DataStore {
 	/**
 	 * Uploads data to server.
 	 *
-	 * @param data  json array of Data
-	 * @param name  name of file where the data is saved (Function will clear the file afterwards)
-	 * @param size  size of data uploaded
+	 * @param data json array of Data
+	 * @param name name of file where the data is saved (Function will clear the file afterwards)
+	 * @param size size of data uploaded
 	 */
 	public static void upload(String data, final String name, final long size) {
 		if(data.isEmpty()) return;
@@ -145,8 +145,8 @@ public class DataStore {
 	/**
 	 * Saves string to file
 	 *
-	 * @param fileName  file name
-	 * @param data      string data
+	 * @param fileName file name
+	 * @param data     string data
 	 */
 	public static void saveString(String fileName, String data) {
 		try {
@@ -162,9 +162,9 @@ public class DataStore {
 	/**
 	 * Move file
 	 *
-	 * @param fileName      original file name
-	 * @param newFileName   new file name
-	 * @return              success
+	 * @param fileName    original file name
+	 * @param newFileName new file name
+	 * @return success
 	 */
 	public static boolean moveFile(String fileName, String newFileName) {
 		String dir = context.getFilesDir().getPath();
@@ -174,7 +174,7 @@ public class DataStore {
 	/**
 	 * Delete file
 	 *
-	 * @param fileName      file name
+	 * @param fileName file name
 	 */
 	public static void deleteFile(String fileName) {
 		context.deleteFile(fileName);
@@ -218,7 +218,6 @@ public class DataStore {
 		int size = data.getBytes(Charset.defaultCharset()).length;
 		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + size).apply();
 
-		//Log.d(TAG, "saved to " + fileName);
 		return newFile && id > 0 ? 2 : 0;
 	}
 
@@ -269,24 +268,24 @@ public class DataStore {
 			sb.insert(0, ',');
 
 		data = sb.toString();
-
+		FileOutputStream outputStream;
 		try {
-			FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_APPEND);
-			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
-			osw.write(data);
-			osw.close();
+			outputStream = context.openFileOutput(fileName, Context.MODE_APPEND);
+			outputStream.write(data.getBytes());
+			outputStream.close();
 			return true;
 		} catch(Exception e) {
 			e.printStackTrace();
 			return false;
 		}
+
 	}
 
 	/**
 	 * Load string file as StringBuilder
 	 *
-	 * @param fileName  file name
-	 * @return          content of file as StringBuilder
+	 * @param fileName file name
+	 * @return content of file as StringBuilder
 	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
 		if(!exists(fileName)) {
@@ -315,8 +314,8 @@ public class DataStore {
 	/**
 	 * Converts loadStringAsBuilder to string and handles nulls
 	 *
-	 * @param fileName  file name
-	 * @return          content of file (empty if file has no content or does not exists)
+	 * @param fileName file name
+	 * @return content of file (empty if file has no content or does not exists)
 	 */
 	public static String loadString(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
@@ -329,8 +328,8 @@ public class DataStore {
 	/**
 	 * Checks if file exists
 	 *
-	 * @param fileName  file name
-	 * @return          existance of file
+	 * @param fileName file name
+	 * @return existance of file
 	 */
 	public static boolean exists(String fileName) {
 		return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
@@ -340,8 +339,8 @@ public class DataStore {
 	/**
 	 * Converts array to json using reflection
 	 *
-	 * @param array     array
-	 * @return          json array
+	 * @param array array
+	 * @return json array
 	 */
 	public static String arrayToJSON(Object[] array) {
 		if(array == null || array.length == 0)
@@ -366,8 +365,8 @@ public class DataStore {
 	/**
 	 * Converts objects to json using reflection. Can handle most used primitive types, strings, arrays and other objects.
 	 *
-	 * @param o     object
-	 * @return      json object
+	 * @param o object
+	 * @return json object
 	 */
 	public static String objectToJSON(Object o) {
 		if(o == null) return "";
