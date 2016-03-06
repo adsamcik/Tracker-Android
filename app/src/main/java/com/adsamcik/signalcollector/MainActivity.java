@@ -22,6 +22,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
 
 import com.adsamcik.signalcollector.Fragments.FragmentMain;
@@ -83,17 +84,16 @@ public class MainActivity extends FragmentActivity {
 		PlayController.setContext(context);
 		PlayController.setActivity(this);
 
+		Resources r = getResources();
+
 		// Set up the viewPager with the sections adapter.
 		viewPager = (ViewPager) findViewById(R.id.container);
-
-		Resources r = getResources();
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
 		adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
 		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
 		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
 		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
 		viewPager.setAdapter(adapter);
-
 		viewPager.setOffscreenPageLimit(3);
 
 		viewPager.addOnPageChangeListener(
@@ -133,11 +133,12 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
+		updateFabs(0);
+
 		if(DataStore.recountDataSize() > 0) {
 			setCloudStatus(1);
 		} else
 			setCloudStatus(0);
-
 
 		IntentFilter filter = new IntentFilter(StatusReceiver.BROADCAST_TAG);
 		statusReceiver = new StatusReceiver();
@@ -159,7 +160,7 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	private void toggleCollecting(boolean enable) {
-		if((!TrackerService.isActive) || TrackerService.isActive == enable)
+		if(TrackerService.isActive == enable)
 			return;
 		if(checkAllTrackingPermissions()) {
 			if(!TrackerService.isActive) {
