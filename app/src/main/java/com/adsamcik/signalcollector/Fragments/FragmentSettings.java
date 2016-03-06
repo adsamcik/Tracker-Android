@@ -34,15 +34,15 @@ public class FragmentSettings extends Fragment {
 		automaticTracking.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 			@Override
 			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-				Setting.sharedPreferences.edit().putInt(Setting.BACKGROUND_TRACKING, position).apply();
+				Setting.getPreferences().edit().putInt(Setting.BACKGROUND_TRACKING, position).apply();
 			}
 
 			@Override
 			public void onNothingSelected(AdapterView<?> parent) {
-				parent.setSelection(Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1));
+				parent.setSelection(Setting.getPreferences().getInt(Setting.BACKGROUND_TRACKING, 1));
 			}
 		});
-		automaticTracking.setSelection(Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1));
+		automaticTracking.setSelection(Setting.getPreferences().getInt(Setting.BACKGROUND_TRACKING, 1));
 
 		automaticUpload = (Spinner) rootView.findViewById(R.id.spinner_automaticUpload);
 		adapter = ArrayAdapter.createFromResource(getContext(),
@@ -54,15 +54,15 @@ public class FragmentSettings extends Fragment {
 		automaticUpload.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 			@Override
 			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-				Setting.sharedPreferences.edit().putInt(Setting.AUTO_UPLOAD, position).apply();
+				Setting.getPreferences().edit().putInt(Setting.AUTO_UPLOAD, position).apply();
 			}
 
 			@Override
 			public void onNothingSelected(AdapterView<?> parent) {
-				parent.setSelection(Setting.sharedPreferences.getInt(Setting.AUTO_UPLOAD, 1));
+				parent.setSelection(Setting.getPreferences().getInt(Setting.AUTO_UPLOAD, 1));
 			}
 		});
-		automaticUpload.setSelection(Setting.sharedPreferences.getInt(Setting.AUTO_UPLOAD, 1));
+		automaticUpload.setSelection(Setting.getPreferences().getInt(Setting.AUTO_UPLOAD, 1));
 
 		textView_PlayLog = (TextView) rootView.findViewById(R.id.textView_playLoginText);
 

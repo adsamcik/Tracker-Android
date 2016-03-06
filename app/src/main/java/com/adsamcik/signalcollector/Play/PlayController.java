@@ -77,7 +77,7 @@ public class PlayController {
 		gapiGamesClient.disconnect();
 		gapiGamesClient = null;
 		apiGames = false;
-		Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, false).apply();
+		Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, false).apply();
 	}
 
 	public static void registerActivityReceiver(BroadcastReceiver receiver) {

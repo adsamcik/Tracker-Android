@@ -15,7 +15,7 @@ public class Setting implements Serializable {
 	//0-no auto upload;1-wifi autoUpload;2-autoUpload
 	public static final String AUTO_UPLOAD = "autoUpload";
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
-	public static SharedPreferences sharedPreferences;
+	static SharedPreferences sharedPreferences;
 
 	public static void initializeSharedPreferences(@NonNull Context c) {
 		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);

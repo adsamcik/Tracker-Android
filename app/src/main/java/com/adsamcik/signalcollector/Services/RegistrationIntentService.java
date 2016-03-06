@@ -54,7 +54,7 @@ public class RegistrationIntentService extends IntentService {
 			Log.d(TAG, "Failed to complete token refresh", e);
 			// If an exception happens while fetching the new token or updating our registration data
 			// on a third-party server, this ensures that we'll attempt the update at a later time.
-			Setting.sharedPreferences.edit().putBoolean(Setting.SENT_TOKEN_TO_SERVER, false).apply();
+			Setting.getPreferences(this).edit().putBoolean(Setting.SENT_TOKEN_TO_SERVER, false).apply();
 		}
 		// Notify UI that registration has completed, so the progress indicator can be hidden.
 		Intent registrationComplete = new Intent(REGISTRATION_COMPLETE);
@@ -71,7 +71,7 @@ public class RegistrationIntentService extends IntentService {
 		ahc.post(Network.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-				Setting.sharedPreferences.edit().putBoolean(Setting.SENT_TOKEN_TO_SERVER, true).apply();
+				Setting.getPreferences(getApplicationContext()).edit().putBoolean(Setting.SENT_TOKEN_TO_SERVER, true).apply();
 			}
 
 			@Override

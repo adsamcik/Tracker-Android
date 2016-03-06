@@ -58,7 +58,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 			new AsyncHttpClient().post(Network.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
 				@Override
 				public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-					Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, true).apply();
+					Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, true).apply();
 				}
 
 				@Override
@@ -124,7 +124,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 	public void onConnected(Bundle bundle) {
 		PlayController.apiGames = true;
 		updateUI(true);
-		if(!Setting.sharedPreferences.getBoolean(Setting.REGISTERED_USER, false)) {
+		if(!Setting.getPreferences().getBoolean(Setting.REGISTERED_USER, false)) {
 			Log.d("TAG", "Registering");
 			AsyncHttpClient hac = new AsyncHttpClient();
 			RequestParams rp = new RequestParams();
@@ -135,7 +135,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 			hac.post(Network.URL_USER_REGISTRATION, rp, new AsyncHttpResponseHandler() {
 				@Override
 				public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-					Setting.sharedPreferences.edit().putBoolean(Setting.REGISTERED_USER, true).apply();
+					Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, true).apply();
 				}
 
 				@Override

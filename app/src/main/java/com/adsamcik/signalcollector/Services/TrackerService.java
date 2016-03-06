@@ -188,7 +188,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				if(intent.getIntExtra("confidence", -1) > 85) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.EvaluateActivity(currentActivity);
-					int backTrackVal = Setting.sharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1);
+					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
 					if(backgroundActivated && (backTrackVal > evalActivity || backTrackVal == 0))
 						stopSelf();
 				}
