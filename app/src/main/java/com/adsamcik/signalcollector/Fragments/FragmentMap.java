@@ -188,10 +188,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		if(checkLocationPermission()) {
 			locationListener.followMyPosition = true;
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
-			CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
-			map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
-			locationListener.position = cp.target;
-			DrawUserPosition(cp.target, l.getAccuracy());
+			Log.d("tag", l + " wtf");
+			if(l != null) {
+				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
+				map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
+				locationListener.position = cp.target;
+				DrawUserPosition(cp.target, l.getAccuracy());
+			}
 		}
 
 		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
@@ -249,7 +252,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		public void moveToMyPosition() {
 			followMyPosition = true;
-			moveTo(position);
+			if(position != null)
+				moveTo(position);
 		}
 
 		public void moveTo(@NonNull LatLng latlng) {
