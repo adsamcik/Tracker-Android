@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:padding="10dp">
 
     <TextView
         android:id="@+id/textView_trackingOptions"
@@ -18,7 +18,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/textView_trackingOptions"
         android:layout_marginBottom="5dp"
-        android:padding="15dp" />
+        android:padding="10dp"/>
 
     <TextView
         android:id="@+id/textView_automaticUpload"
@@ -35,73 +35,52 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/textView_automaticUpload"
         android:layout_marginBottom="5dp"
-        android:padding="15dp" />
+        android:padding="10dp"/>
 
     <TextView
-        android:id="@+id/textView_playLoginTitle"
+        android:id="@+id/play_loginTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/spinner_automaticUpload"
-        android:paddingBottom="15dp"
         android:paddingTop="15dp"
         android:text="@string/settings_playGames"
         android:textSize="18sp" />
 
     <Button
-        android:id="@+id/textView_playLoginText"
-        style="?android:attr/colorButtonNormal"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignEnd="@+id/textView_playLoginTitle"
-        android:layout_alignTop="@+id/textView_playLoginTitle"
-        android:backgroundTint="@color/login"
+        style="@style/SettingsButton"
+        android:id="@+id/play_loginButton"
+        android:layout_below="@id/play_loginTitle"
         android:text="@string/settings_playGamesLogin"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:translationZ="6dp" />
+        />
 
-    <RelativeLayout
-        android:id="@+id/rl_play"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/textView_playLoginTitle"
-        android:layout_centerHorizontal="true">
-
-        <ImageButton
-            android:id="@+id/ib_achievements"
-            android:layout_width="75dp"
-            android:layout_height="75dp"
-            android:layout_margin="15dp"
-            android:background="@drawable/ic_beenhere_24dp"
-            android:contentDescription="@string/achievements"/>
-
-        <ImageButton
-            android:id="@+id/ib_leaderboards"
-            android:layout_width="75dp"
-            android:layout_height="75dp"
-            android:layout_margin="15dp"
-            android:layout_toEndOf="@id/ib_achievements"
-            android:visibility="gone"
-            android:contentDescription="@string/leaderboards"/>
-
-        <ImageButton
-            android:layout_width="75dp"
-            android:layout_height="75dp"
-            android:layout_margin="15dp"
-            android:layout_toEndOf="@id/ib_leaderboards"
-            android:visibility="gone"
-            android:contentDescription="@string/quests"/>
-    </RelativeLayout>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="@color/cardBackground"
+        android:layout_below="@id/play_loginButton"/>
 
     <Button
-        android:id="@+id/textView_Clear"
-        style="?android:attr/colorButtonNormal"
-        android:layout_width="wrap_content"
+        style="@style/SettingsButton"
+        android:text="@string/achievements"
+        android:layout_below="@+id/play_loginButton"
+        android:id="@+id/play_achievements"
+        />
+
+    <TextView
+        android:id="@+id/other_title"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/rl_play"
+        android:layout_below="@+id/play_achievements"
+        android:paddingTop="15dp"
+        android:text="@string/other"
+        android:textSize="18sp"/>
+
+    <Button
+        android:id="@+id/other_clear"
+        style="@style/SettingsButton"
+        android:layout_below="@+id/other_title"
         android:backgroundTint="@color/colorAccent"
         android:text="@string/settings_clear"
-        android:textSize="18sp"
-        android:translationZ="6dp" />
+        />
 
 </RelativeLayout>

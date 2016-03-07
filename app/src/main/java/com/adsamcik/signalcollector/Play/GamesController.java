@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.Play;
 import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -42,7 +43,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 	}
 
 	public GamesController setUI(View v) {
-		button = (Button) v.findViewById(R.id.textView_playLoginText);
+		button = (Button) v.findViewById(R.id.play_loginButton);
 		updateUI(client.isConnected());
 		return this;
 	}
@@ -73,31 +74,13 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 		if(connected) {
 			if(button != null) {
 				button.setText(R.string.settings_playGamesLogout);
-				button.setBackgroundTintList(new ColorStateList(
-						new int[][]{
-								new int[]{android.R.attr.state_pressed},
-								new int[]{android.R.attr.state_enabled}
-						},
-						new int[]{
-								Color.rgb(165, 50, 50),
-								Color.rgb(165, 11, 11)
-						}
-				));
+				button.setTextColor(Color.rgb(255, 110, 110));
 
 			}
 		} else {
 			if(button != null) {
 				button.setText(R.string.settings_playGamesLogin);
-				button.setBackgroundTintList(new ColorStateList(
-						new int[][]{
-								new int[]{android.R.attr.state_pressed},
-								new int[]{android.R.attr.state_enabled}
-						},
-						new int[]{
-								Color.rgb(100, 153, 100),
-								Color.rgb(68, 153, 68)
-						}
-				));
+				button.setTextColor(Color.rgb(110,255,110));
 			}
 		}
 	}

@@ -25,4 +25,6 @@
     <string name="achievements">Achievements</string>
     <string name="leaderboards">Leaderboards</string>
     <string name="quests">Quests</string>
+
+    <string name="other">Other</string>
 </resources>
