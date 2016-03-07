@@ -39,6 +39,7 @@ public class DataStore {
 
 	private static Context context;
 	private static boolean uploadRequested;
+	public static int uploadsInProgress;
 
 	public static void setContext(@NonNull Context c) {
 		context = c;
@@ -112,6 +113,8 @@ public class DataStore {
 	public static void upload(String data, final String name, final long size) {
 		if(data.isEmpty()) return;
 
+		uploadsInProgress++;
+
 		String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
@@ -127,6 +130,7 @@ public class DataStore {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 				deleteFile(name);
+				uploadsInProgress--;
 				Log.d(TAG, "Successfully uploaded " + name);
 			}
 
@@ -137,6 +141,7 @@ public class DataStore {
 				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 				TrackerService.approxSize += size;
 				requestUpload(context);
+				uploadsInProgress--;
 				Log.w(TAG, "Upload failed " + name + " code " + statusCode);
 			}
 		});

@@ -15,7 +15,10 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 			Log.e(DataStore.TAG, "No file names were entered");
 			return null;
 		} else if(DataStore.getContext() == null) {
-			Log.e(DataStore.TAG, "DataStore context is null.");
+			Log.e(DataStore.TAG, "DataStore context is null");
+			return null;
+		} else if(DataStore.uploadsInProgress > 0) {
+			Log.w(DataStore.TAG, "Upload already in progress");
 			return null;
 		}
 
