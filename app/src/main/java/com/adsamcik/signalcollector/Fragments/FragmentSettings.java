@@ -107,7 +107,7 @@ public class FragmentSettings extends Fragment {
 				((MainActivity) getActivity()).setCloudStatus(0);
 			}
 		});
-		
+
 		return rootView;
 
 	}

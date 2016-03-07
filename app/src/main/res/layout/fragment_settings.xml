@@ -10,7 +10,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/settings_automaticTracking"
-        android:textSize="18sp" />
+        android:textSize="18sp"
+        android:textColor="@color/textSecondary"/>
 
     <Spinner
         android:id="@+id/spinner_trackingOptions"
@@ -27,7 +28,8 @@
         android:layout_below="@+id/spinner_trackingOptions"
         android:paddingTop="15dp"
         android:text="@string/settings_automaticUpload"
-        android:textSize="18sp" />
+        android:textSize="18sp"
+        android:textColor="@color/textSecondary"/>
 
     <Spinner
         android:id="@+id/spinner_automaticUpload"
@@ -35,7 +37,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/textView_automaticUpload"
         android:layout_marginBottom="5dp"
-        android:padding="10dp"/>
+        android:padding="10dp" />
 
     <TextView
         android:id="@+id/play_loginTitle"
@@ -44,7 +46,8 @@
         android:layout_below="@+id/spinner_automaticUpload"
         android:paddingTop="15dp"
         android:text="@string/settings_playGames"
-        android:textSize="18sp" />
+        android:textSize="18sp"
+        android:textColor="@color/textSecondary"/>
 
     <Button
         style="@style/SettingsButton"
@@ -73,7 +76,8 @@
         android:layout_below="@+id/play_achievements"
         android:paddingTop="15dp"
         android:text="@string/other"
-        android:textSize="18sp"/>
+        android:textSize="18sp"
+        android:textColor="@color/textSecondary"/>
 
     <Button
         android:id="@+id/other_clear"

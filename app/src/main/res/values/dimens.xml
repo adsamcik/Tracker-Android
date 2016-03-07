@@ -5,4 +5,5 @@
     <dimen name="main_data_padding">15dp</dimen>
     <dimen name="main_card_elevation">3dp</dimen>
     <dimen name="main_card_spacing">10dp</dimen>
+    <dimen name="main_info_font_size">17sp</dimen>
 </resources>
