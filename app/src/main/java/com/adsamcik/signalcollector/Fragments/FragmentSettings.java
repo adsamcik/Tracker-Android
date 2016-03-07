@@ -107,23 +107,7 @@ public class FragmentSettings extends Fragment {
 				((MainActivity) getActivity()).setCloudStatus(0);
 			}
 		});
-
-		rootView.findViewById(R.id.textView_trackingOptions).setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				new AlertDialog.Builder(getContext(),  16974374)
-						.setAdapter(adapterTracking, new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog, int which) {
-								dialog.dismiss();
-							}
-						})
-						.setCancelable(true)
-						.setTitle("Automatic tracking")
-						.show();
-			}
-		});
-
+		
 		return rootView;
 
 	}
