@@ -10,6 +10,7 @@ import com.adsamcik.signalcollector.Services.TrackerService;
 import java.nio.charset.Charset;
 
 public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
+	static boolean isUploading = false;
 	protected Void doInBackground(String... fileNames) {
 		if(fileNames.length == 0) {
 			Log.e(DataStore.TAG, "No file names were entered");
@@ -17,10 +18,12 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 		} else if(DataStore.getContext() == null) {
 			Log.e(DataStore.TAG, "DataStore context is null");
 			return null;
-		} else if(DataStore.uploadsInProgress > 0) {
+		} else if(isUploading) {
 			Log.w(DataStore.TAG, "Upload already in progress");
 			return null;
 		}
+
+		isUploading = true;
 
 		long actualSize = 0;
 		long approxSize = TrackerService.approxSize;
@@ -58,6 +61,8 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 		LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
 
 		TrackerService.onUploadComplete(fileNames.length - 1);
+
+		isUploading = false;
 		return null;
 	}
 }
