@@ -9,6 +9,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -58,12 +59,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 
 	boolean checkLocationPermission() {
-		if(ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+		if(ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
-		} else {
+		else
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
-			return false;
-		}
+		return false;
 	}
 
 	@Override

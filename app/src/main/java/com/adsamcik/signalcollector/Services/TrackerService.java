@@ -21,6 +21,7 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -226,12 +227,12 @@ public class TrackerService extends Service implements SensorEventListener {
 		//Setup notification
 		Intent intent = new Intent(this, MainActivity.class);
 		Notification n = new Notification.Builder(this)
-				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
-				.setTicker("Collection started")  // the status text
-				.setWhen(System.currentTimeMillis())  // the time stamp
-				.setContentTitle(getResources().getString(R.string.app_name))  // the label of the entry
-				.setContentText("Initializing")  // the contents of the entry
-				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))  // The intent to send when the entry is clicked
+				.setSmallIcon(R.drawable.ic_notification_icon)
+				.setTicker("Collection started")
+				.setWhen(System.currentTimeMillis())
+				.setContentTitle(getResources().getString(R.string.app_name))
+				.setContentText("Initializing")
+				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))
 				.build();
 
 		startForeground(1, n);
