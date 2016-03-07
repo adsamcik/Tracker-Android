@@ -261,13 +261,20 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 	}
 
-	public static void onUploadComplete(int maxId) {
+	public static void onUploadComplete(int maxUploadId) {
 		SharedPreferences sp = Setting.getPreferences();
-		int currentId = sp.getInt(DataStore.KEY_FILE_ID, 0);
-		for(int i = maxId; i <= currentId; i++)
-			DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + (i - maxId));
+		int maxId = sp.getInt(DataStore.KEY_FILE_ID, 0);
+		int currentId = 0;
 
-		sp.edit().putInt(DataStore.KEY_FILE_ID, currentId - maxId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
+		//Split in two to save a bit of power
+		for(int i = 0; i <= maxUploadId; i++)
+			if(DataStore.exists(DataStore.DATA_FILE + i))
+				DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
+
+		for(int i = maxUploadId; i <= maxId; i++)
+			DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
+
+		sp.edit().putInt(DataStore.KEY_FILE_ID, currentId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
 	}
 
 	@Override
