@@ -25,8 +25,7 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 
 		isUploading = true;
 
-		long actualSize = 0;
-		long approxSize = TrackerService.approxSize;
+		TrackerService.approxSize = DataStore.sizeOfData();
 
 		for(String fileName : fileNames) {
 			if(fileName == null || fileName.trim().length() == 0) {
@@ -45,19 +44,15 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 			}
 
 			long size = builder.toString().getBytes(Charset.defaultCharset()).length;
-			TrackerService.approxSize -= size;
 			DataStore.upload(builder.toString(), fileName, size);
-			actualSize += size;
 		}
 
-		TrackerService.approxSize += actualSize - approxSize;
 		if(TrackerService.approxSize < 0)
 			TrackerService.approxSize = 0;
 
 		Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-		if(!TrackerService.isActive || TrackerService.approxSize == 0)
+		if(TrackerService.approxSize == 0)
 			intent.putExtra("cloudStatus", 0);
-
 		LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
 
 		TrackerService.onUploadComplete(fileNames.length - 1);

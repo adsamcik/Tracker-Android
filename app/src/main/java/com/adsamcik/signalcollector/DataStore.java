@@ -127,6 +127,7 @@ public class DataStore {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 				deleteFile(name);
+				TrackerService.approxSize -= size;
 				Log.d(TAG, "Successfully uploaded " + name);
 			}
 
@@ -135,7 +136,6 @@ public class DataStore {
 				Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
 				intent.putExtra("cloudStatus", 1);
 				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-				TrackerService.approxSize += size;
 				requestUpload(context);
 				Log.w(TAG, "Upload failed " + name + " code " + statusCode);
 			}
