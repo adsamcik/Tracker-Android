@@ -349,12 +349,11 @@ public class DataStore {
 		String data;
 		for(Object anArray : array) {
 			data = objectToJSON(anArray);
-			if(!data.equals("")) {
+			if(!data.equals(""))
 				out += data + ",";
-			}
 		}
 
-		if(out.equals("["))
+		if(out.length() == 1)
 			return "";
 
 		out = out.substring(0, out.length() - 1);

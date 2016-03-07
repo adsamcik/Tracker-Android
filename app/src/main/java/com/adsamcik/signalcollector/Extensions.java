@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.ViewConfiguration;
@@ -86,11 +87,12 @@ public class Extensions {
 	public static boolean canBackgroundTrack(Context c, int evalActivity) {
 		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive) return false;
 		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
-		return val != 0 && val <= evalActivity;
+		Log.d("TAG", "Eval " + evalActivity + " saved val " + val);
+		return val != 0 && ((val == 1 && evalActivity == 2) || (val == 2 && evalActivity <= 2));
 	}
 
 
-	public static String EasierToReadNumber(int number) {
+	public static String easierToReadNumber(int number) {
 		StringBuilder sb = new StringBuilder(number);
 		for(int i = sb.length(); i > 0; i -= 3)
 			sb.insert(i, " ");

@@ -33,6 +33,8 @@ import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
 
+import junit.framework.Assert;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
