@@ -67,15 +67,15 @@ public class Extensions {
 		switch(val) {
 			case DetectedActivity.STILL:
 				return 0;
-			case DetectedActivity.ON_BICYCLE:
-				return 1;
-			case DetectedActivity.IN_VEHICLE:
-				return 1;
 			case DetectedActivity.RUNNING:
-				return 2;
+				return 1;
 			case DetectedActivity.ON_FOOT:
-				return 2;
+				return 1;
 			case DetectedActivity.WALKING:
+				return 1;
+			case DetectedActivity.ON_BICYCLE:
+				return 2;
+			case DetectedActivity.IN_VEHICLE:
 				return 2;
 			case DetectedActivity.TILTING:
 				return 3;
@@ -88,7 +88,7 @@ public class Extensions {
 		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive) return false;
 		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
 		Log.d("TAG", "Eval " + evalActivity + " saved val " + val);
-		return val != 0 && ((val == 1 && evalActivity == 2) || (val == 2 && evalActivity <= 2));
+		return val != 0 && (val == evalActivity || val > evalActivity);
 	}
 
 
