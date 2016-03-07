@@ -63,7 +63,7 @@ public class MainActivity extends FragmentActivity {
 	protected void onStart() {
 		super.onStart();
 
-		if(!Setting.sharedPreferences.getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
+		if(!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			startActivity(new Intent(this, IntroActivity.class));
 		} else {
 			PlayController.setContext(context);
@@ -161,6 +161,11 @@ public class MainActivity extends FragmentActivity {
 		DataStore.updateAutoUploadState(context);
 	}
 
+	/**
+	 * Enables or disables collecting service
+	 *
+	 * @param enable    ensures intended action
+	 */
 	private void toggleCollecting(boolean enable) {
 		if(TrackerService.isActive == enable)
 			return;

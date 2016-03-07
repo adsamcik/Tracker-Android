@@ -80,7 +80,7 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onDonePressed() {
-		Setting.sharedPreferences.edit().putBoolean(Setting.HAS_BEEN_LAUNCHED, true).apply();
+		Setting.getPreferences(this).edit().putBoolean(Setting.HAS_BEEN_LAUNCHED, true).apply();
 		startActivity(new Intent(this, MainActivity.class));
 	}
 
