@@ -47,7 +47,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
+	static long lockedUntil;
+	final static int lockTimeInMinutes = 30;
+	final static int lockTimeInMilliseconds = lockTimeInMinutes * 60000;
 	public static final String TAG = "SignalsTracker";
+
+	static TrackerService instance;
 
 	public static boolean isActive = false;
 	public static Intent service;
@@ -78,6 +83,15 @@ public class TrackerService extends Service implements SensorEventListener {
 	NotificationManager notificationManager;
 	PowerManager powerManager;
 	PowerManager.WakeLock wakeLock;
+
+	public static boolean isAutoLocked() {
+		return System.currentTimeMillis() > lockedUntil;
+	}
+
+	public static void setAutoLock() {
+		if(instance.backgroundActivated)
+			lockedUntil = System.currentTimeMillis() + lockTimeInMilliseconds;
+	}
 
 	private static boolean isAirplaneModeOn(Context context) {
 		return Settings.Global.getInt(context.getContentResolver(),
@@ -136,7 +150,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				.setTicker("Collection started")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
-				//.addAction(playPause.build())
+						//.addAction(playPause.build())
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
 
 		builder.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
@@ -176,6 +190,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public void onCreate() {
+		instance = this;
 		approxSize = 0;
 		isActive = true;
 		sendStatusBroadcast(-1, 1);
@@ -307,6 +322,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			wifiManager.setWifiEnabled(false);
 		stopForeground(true);
 		sendStatusBroadcast(-1, 0);
+		instance = null;
 		isActive = false;
 	}
 

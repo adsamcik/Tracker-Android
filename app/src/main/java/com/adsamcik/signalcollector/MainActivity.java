@@ -164,7 +164,7 @@ public class MainActivity extends FragmentActivity {
 	/**
 	 * Enables or disables collecting service
 	 *
-	 * @param enable    ensures intended action
+	 * @param enable ensures intended action
 	 */
 	private void toggleCollecting(boolean enable) {
 		if(TrackerService.isActive == enable)
@@ -260,6 +260,8 @@ public class MainActivity extends FragmentActivity {
 				fabOne.setOnClickListener(
 						new View.OnClickListener() {
 							public void onClick(View v) {
+								if(TrackerService.isActive)
+									TrackerService.setAutoLock();
 								toggleCollecting(!TrackerService.isActive);
 							}
 						}
