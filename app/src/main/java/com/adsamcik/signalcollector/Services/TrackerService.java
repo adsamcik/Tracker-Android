@@ -283,7 +283,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		if(intent == null) {
 			approxSize = DataStore.recountDataSize();
 			backgroundActivated = true;
-			Log.d(TAG, "null intent");
+			Log.d(TAG, "Tracker services started with null intent");
 		} else {
 			approxSize = intent.getLongExtra("approxSize", 0);
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);

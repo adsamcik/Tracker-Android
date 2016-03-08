@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 23
-        versionCode 31
-        versionName "1.7.9"
+        versionCode 32
+        versionName "1.7.10"
     }
     buildTypes {
         release {
