@@ -181,7 +181,13 @@ public class TrackerService extends Service implements SensorEventListener {
 		isActive = true;
 		sendStatusBroadcast(-1, 1);
 
-		DataStore.setContext(getApplicationContext());
+		Context appContext = getApplicationContext();
+		DataStore.setContext(appContext);
+
+		if(PlayController.c == null)
+			PlayController.setContext(appContext);
+		if(!PlayController.apiActivity)
+			PlayController.initializeActivityClient();
 
 		activityReceiver = new BroadcastReceiver() {
 			@Override
@@ -195,11 +201,6 @@ public class TrackerService extends Service implements SensorEventListener {
 				}
 			}
 		};
-
-		if(PlayController.c == null)
-			PlayController.setContext(this);
-		if(!PlayController.apiActivity)
-			PlayController.initializeActivityClient();
 
 		PlayController.registerActivityReceiver(activityReceiver);
 
@@ -296,8 +297,10 @@ public class TrackerService extends Service implements SensorEventListener {
 	public void onDestroy() {
 		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
+
 		unregisterReceiver(wifiReceiver);
 		PlayController.unregisterActivityReceiver(activityReceiver);
+
 		mSensorManager.unregisterListener(this);
 		//LocalBroadcastManager.getInstance(MainActivity.instance).sendBroadcast();
 		saveData();

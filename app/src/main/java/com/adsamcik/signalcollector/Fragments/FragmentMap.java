@@ -22,6 +22,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.TouchWrapper;
@@ -59,7 +60,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 
 	boolean checkLocationPermission() {
-		if(ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+		if(ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);

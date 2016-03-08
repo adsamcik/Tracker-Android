@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.util.Log;
 import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
@@ -14,8 +15,9 @@ import com.google.android.gms.games.Games;
 import com.google.android.gms.location.ActivityRecognition;
 
 public class PlayController {
+	public static final String TAG = "PLAY";
+
 	public static GoogleApiClient gapiActivityClient, gapiGamesClient;
-	public static int registeredCount = 0;
 	public static Context c;
 	public static Activity a;
 	public static boolean apiActivity = false;
@@ -47,6 +49,7 @@ public class PlayController {
 			apiActivity = true;
 			return true;
 		}
+		Log.w(TAG, "Play services not available");
 		return false;
 	}
 
@@ -67,6 +70,7 @@ public class PlayController {
 			apiGames = true;
 			return true;
 		}
+		Log.w(TAG, "Play services not available");
 		return false;
 	}
 
@@ -87,15 +91,14 @@ public class PlayController {
 			filter.addAction("SCActivity");
 
 			c.registerReceiver(receiver, filter);
-			registeredCount++;
 		}
+		else
+			Log.w(TAG, "Registration failed - play api not initialized");
 	}
 
 	public static void unregisterActivityReceiver(BroadcastReceiver receiver) {
-		if(apiActivity) {
-			registeredCount--;
+		if(apiActivity)
 			c.unregisterReceiver(receiver);
-		}
 	}
 
 	public static boolean isLogged() {
