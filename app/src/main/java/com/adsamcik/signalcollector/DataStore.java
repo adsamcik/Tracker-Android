@@ -93,7 +93,7 @@ public class DataStore {
 	 * @return Returns data file names
 	 */
 	static String[] getDataFileNames(boolean includeLast) {
-		int maxID = Setting.getPreferences().getInt(KEY_FILE_ID, 0);
+		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, 0);
 		if(!includeLast)
 			maxID--;
 		String[] fileNames = new String[maxID + 1];
