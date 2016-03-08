@@ -205,14 +205,17 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 	void DrawUserPosition(LatLng latlng, float accuracy) {
 		if(userRadius == null) {
+			Context c = getContext();
+			if(c == null)
+				c = getActivity().getApplicationContext();
 			userRadius = map.addCircle(new CircleOptions()
-					.fillColor(ContextCompat.getColor(getContext(), R.color.colorUserAccuracy))
+					.fillColor(ContextCompat.getColor(c, R.color.colorUserAccuracy))
 					.center(latlng)
 					.radius(accuracy)
 					.zIndex(100)
 					.strokeWidth(0));
 			userCenter = map.addCircle(new CircleOptions()
-					.fillColor(ContextCompat.getColor(getContext(), R.color.colorPrimary))
+					.fillColor(ContextCompat.getColor(c, R.color.colorPrimary))
 					.center(latlng)
 					.radius(5)
 					.zIndex(100)
