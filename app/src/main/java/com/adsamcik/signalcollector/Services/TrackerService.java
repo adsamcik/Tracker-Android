@@ -21,7 +21,6 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -184,7 +183,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
 
-		if(PlayController.c == null)
+		if(PlayController.context == null)
 			PlayController.setContext(appContext);
 		if(!PlayController.apiActivity)
 			PlayController.initializeActivityClient();

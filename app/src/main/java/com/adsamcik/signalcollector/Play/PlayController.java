@@ -18,8 +18,8 @@ public class PlayController {
 	public static final String TAG = "PLAY";
 
 	public static GoogleApiClient gapiActivityClient, gapiGamesClient;
-	public static Context c;
-	public static Activity a;
+	public static Context context;
+	public static Activity activity;
 	public static boolean apiActivity = false;
 	public static boolean apiGames = false;
 
@@ -27,14 +27,20 @@ public class PlayController {
 	public static GamesController gamesController;
 
 	public static void setContext(Context context) {
-		c = context;
+		PlayController.context = context;
 	}
 
 	public static void setActivity(Activity activity) {
-		a = activity;
+		PlayController.activity = activity;
 	}
 
 	public static boolean initializeActivityClient() {
+		return initializeActivityClient(context);
+	}
+
+	public static boolean initializeActivityClient(Context c) {
+		if(PlayController.context == null)
+			PlayController.context = c;
 		if(isPlayServiceAvailable()) {
 			activityController = new ActivityController(c);
 			gapiActivityClient = new GoogleApiClient.Builder(c)
@@ -55,8 +61,8 @@ public class PlayController {
 
 	public static boolean initializeGamesClient(View v) {
 		if(isPlayServiceAvailable()) {
-			gamesController = new GamesController(a);
-			gapiGamesClient = new GoogleApiClient.Builder(c)
+			gamesController = new GamesController(activity);
+			gapiGamesClient = new GoogleApiClient.Builder(context)
 					.addApi(Games.API)
 					.addScope(Games.SCOPE_GAMES)
 					.addConnectionCallbacks(gamesController)
@@ -90,7 +96,7 @@ public class PlayController {
 			IntentFilter filter = new IntentFilter();
 			filter.addAction("SCActivity");
 
-			c.registerReceiver(receiver, filter);
+			context.registerReceiver(receiver, filter);
 		}
 		else
 			Log.w(TAG, "Registration failed - play api not initialized");
@@ -98,7 +104,7 @@ public class PlayController {
 
 	public static void unregisterActivityReceiver(BroadcastReceiver receiver) {
 		if(apiActivity)
-			c.unregisterReceiver(receiver);
+			context.unregisterReceiver(receiver);
 	}
 
 	public static boolean isLogged() {
@@ -108,6 +114,6 @@ public class PlayController {
 	//Check for Google play services available on device
 	public static boolean isPlayServiceAvailable() {
 		GoogleApiAvailability gaa = GoogleApiAvailability.getInstance();
-		return gaa != null && gaa.isGooglePlayServicesAvailable(c) == ConnectionResult.SUCCESS;
+		return gaa != null && gaa.isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS;
 	}
 }
