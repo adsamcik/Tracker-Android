@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector;
 
 import android.Manifest;
+import android.app.ActionBar;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -24,6 +25,8 @@ import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 
 import com.adsamcik.signalcollector.Fragments.FragmentMain;
 import com.adsamcik.signalcollector.Fragments.FragmentMap;
@@ -126,6 +129,10 @@ public class MainActivity extends FragmentActivity {
 
 		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
 		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
+
+		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+		lp.setMargins(0, 0, 0, Extensions.getNavBarHeight(context) + Extensions.dpToPx(context, 25));
+		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
 
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
 		fabOne.setBackgroundTintList(secondary);
