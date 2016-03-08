@@ -59,6 +59,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	TouchWrapper touchWrapper;
 
 
+	/**
+	 * Check if permission to access fine location is granted
+	 * If not and is android 6, than it prompts you to enable it
+	 *
+	 * @return  is permission available atm
+	 */
 	boolean checkLocationPermission() {
 		if(ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
@@ -124,6 +130,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		locationListener.cleanup();
 	}
 
+	/**
+	 * Initializes fabs for Map fragment
+	 *
+	 * @param fabOne    fabOne (lower)
+	 * @param fabTwo    fabTwo (above fabOne)
+	 */
 	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
@@ -156,6 +168,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 	TileOverlay activeOverlay;
 
+	/**
+	 * Change map overlay
+	 *
+	 * @param index new overlay string index
+	 */
 	private void changeMapOverlay(int index) {
 		if(map == null) {
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
@@ -204,6 +221,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 	Circle userRadius, userCenter;
 
+	/**
+	 * Draws user accuracy radius and location
+	 * Is automatically initialized if no circle exists
+	 *
+	 * @param latlng    Latitude and longitude
+	 * @param accuracy  Accuracy
+	 */
 	void DrawUserPosition(LatLng latlng, float accuracy) {
 		if(userRadius == null) {
 			Context c = getContext();
@@ -269,7 +293,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		public void moveTo(@NonNull LatLng latlng, float zoom) {
 			CameraPosition cPos = map.getCameraPosition();
-			if(map != null && (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude))
+			if(cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude)
 				map.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
 		}
 
