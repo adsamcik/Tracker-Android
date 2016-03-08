@@ -1,9 +1,11 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.Receivers;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+
+import com.adsamcik.signalcollector.DataStore;
 
 public class ConnectivityChangeReceiver extends BroadcastReceiver {
 
