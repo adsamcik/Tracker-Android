@@ -3,7 +3,9 @@ package com.adsamcik.signalcollector;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.support.annotation.NonNull;
 import android.telephony.TelephonyManager;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -38,23 +40,31 @@ public class Extensions {
 		return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit, exp), pre);
 	}
 
-	public static int getNavBarHeight(Context c) {
-		int result = 0;
-		boolean hasMenuKey = ViewConfiguration.get(c).hasPermanentMenuKey();
-		boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
-
-		if(!hasMenuKey && !hasBackKey) {
-			//The device has a navigation bar
-			Resources resources = c.getResources();
-
-			int orientation = resources.getConfiguration().orientation;
-			int resourceId = resources.getIdentifier(orientation == Configuration.ORIENTATION_PORTRAIT ? "navigation_bar_height" : "navigation_bar_width", "dimen", "android");
-
-			if(resourceId > 0)
-				return c.getResources().getDimensionPixelSize(resourceId);
-		}
-		return result;
+	public static int getNavBarHeight(@NonNull Context c) {
+		Resources r = c.getResources();
+		int resourceId = r.getIdentifier("navigation_bar_height", "dimen", "android");
+		if(resourceId > 0)
+			return r.getDimensionPixelSize(resourceId);
+		return 0;
 	}
+
+	public static int dpToPx(@NonNull Context c, int dp) {
+		DisplayMetrics displayMetrics = c.getResources().getDisplayMetrics();
+		int px = Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
+		return px;
+	}
+
+	public static int pxToDp(@NonNull Context c, int px) {
+		DisplayMetrics displayMetrics = c.getResources().getDisplayMetrics();
+		int dp = Math.round(px / (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
+		return dp;
+	}
+
+	public static int ptToPx(@NonNull Context c, int pt) {
+		final float scale = c.getResources().getDisplayMetrics().density;
+		return (int) (pt * scale + 0.5f);
+	}
+
 
 	/**
 	 * 0 still/default
