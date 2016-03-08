@@ -43,7 +43,7 @@ public class Setting implements Serializable {
 	 */
 	public static SharedPreferences getPreferences() {
 		if(sharedPreferences == null)
-			throw new RuntimeException("Shared preferences are null");
+			throw new RuntimeException("Shared preferences are null and no context was provided");
 		return sharedPreferences;
 	}
 
