@@ -85,7 +85,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	PowerManager.WakeLock wakeLock;
 
 	public static boolean isAutoLocked() {
-		return System.currentTimeMillis() > lockedUntil;
+		return System.currentTimeMillis() < lockedUntil;
 	}
 
 	public static void setAutoLock() {
@@ -206,11 +206,13 @@ public class TrackerService extends Service implements SensorEventListener {
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				if(intent.getIntExtra("confidence", -1) > 85) {
+				Log.d(TAG, "confidence " + intent.getIntExtra("confidence", -1) + " bg activated " + backgroundActivated);
+				if(intent.getIntExtra("confidence", -1) > 85 && backgroundActivated) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.EvaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
-					if(backgroundActivated && ((backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0))
+					Log.d(TAG, "eval activity " + evalActivity + " saved " + backTrackVal);
+					if(evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0)
 						stopSelf();
 				}
 			}

@@ -140,7 +140,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
-		if(checkLocationPermission())
+		if(checkLocationPermission() && locationManager != null)
 			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 
 		fabOne.show();

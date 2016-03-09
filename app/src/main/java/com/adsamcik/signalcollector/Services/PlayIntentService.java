@@ -44,24 +44,7 @@ public class PlayIntentService extends IntentService {
 				trackerService.putExtra("backTrack", true);
 				startService(trackerService);
 				TrackerService.service = trackerService;
-				//Log.d(TAG, "Started service");
-				//Log.d(TAG, "Most Probable Name : " + mostProbableName + " type " + detectedActivity.getType());
-				//Log.d(TAG, "Confidence : " + confidence);
 			}
-
-			//Log.d(TAG, "Most Probable Name : " + mostProbableName + " type " + detectedActivity.getType());
-			//Log.d(TAG, "Confidence : " + confidence);
-
-			//Fire the intent with activity name & confidence
-	        /*Intent i = new Intent("SCActivity");
-            i.putExtra("activityName", mostProbableName);
-            i.putExtra("confidence", confidence);
-            i.putExtra("activity", detectedActivity.getType());
-
-            //Send Broadcast to be listen in MainActivity
-            */
-
-
 		} else {
 			Log.d(TAG, "Intent had no data returned");
 		}
