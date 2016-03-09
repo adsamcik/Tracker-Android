@@ -25,6 +25,7 @@ import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
@@ -131,7 +132,7 @@ public class MainActivity extends FragmentActivity {
 		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-		lp.setMargins(0, 0, 0, Extensions.getNavBarHeight(context) + Extensions.dpToPx(context, 25));
+		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25));
 		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
 
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);

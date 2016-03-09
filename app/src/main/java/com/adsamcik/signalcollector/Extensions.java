@@ -3,13 +3,16 @@ package com.adsamcik.signalcollector;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.os.Build;
 import android.support.annotation.NonNull;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.ViewConfiguration;
+import android.view.WindowManager;
 
 import com.adsamcik.signalcollector.Services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
@@ -46,6 +49,33 @@ public class Extensions {
 		if(resourceId > 0)
 			return r.getDimensionPixelSize(resourceId);
 		return 0;
+	}
+
+	public static boolean hasNavBar(WindowManager windowManager) {
+		boolean hasSoftwareKeys;
+
+		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+			Display d = c.getWindowManager().getDefaultDisplay();
+
+			DisplayMetrics realDisplayMetrics = new DisplayMetrics();
+			d.getRealMetrics(realDisplayMetrics);
+
+			int realHeight = realDisplayMetrics.heightPixels;
+			int realWidth = realDisplayMetrics.widthPixels;
+
+			DisplayMetrics displayMetrics = new DisplayMetrics();
+			d.getMetrics(displayMetrics);
+
+			int displayHeight = displayMetrics.heightPixels;
+			int displayWidth = displayMetrics.widthPixels;
+
+			hasSoftwareKeys = (realWidth - displayWidth) > 0 || (realHeight - displayHeight) > 0;
+		} else {
+			boolean hasMenuKey = ViewConfiguration.get(c).hasPermanentMenuKey();
+			boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
+			hasSoftwareKeys = !hasMenuKey && !hasBackKey;
+		}
+		return hasSoftwareKeys;
 	}
 
 	public static int dpToPx(@NonNull Context c, int dp) {
