@@ -21,7 +21,7 @@
         android:layout_below="@+id/tracking_title"
         android:paddingTop="15dp"
         android:textSize="18sp"
-        android:textColor="@color/textSecondary"/>
+        android:textColor="@color/colorPrimary"/>
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -71,7 +71,7 @@
         android:layout_below="@+id/autoupload_title"
         android:paddingTop="15dp"
         android:textSize="18sp"
-        android:textColor="@color/textSecondary"/>
+        android:textColor="@color/colorPrimary"/>
 
     <RelativeLayout
         android:layout_width="match_parent"

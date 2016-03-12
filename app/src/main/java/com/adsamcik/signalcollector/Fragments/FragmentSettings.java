@@ -21,11 +21,13 @@ import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 
+import org.w3c.dom.Text;
+
 public class FragmentSettings extends Fragment {
 	String[] mTrackingString, mAutoupString;
 	ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
 	ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
-	TextView textView_PlayLog;
+	TextView textView_PlayLog, mAutoupDesc, mTrackDesc;
 
 	SharedPreferences mSharedPreferences;
 
@@ -50,6 +52,7 @@ public class FragmentSettings extends Fragment {
 			default:
 				return;
 		}
+		mTrackDesc.setText(mTrackingString[select]);
 		if(mTrackingSelected != null)
 			mTrackingSelected.setImageTintList(mDefaultState);
 		selected.setImageTintList(mSelectedState);
@@ -72,6 +75,7 @@ public class FragmentSettings extends Fragment {
 			default:
 				return;
 		}
+		mAutoupDesc.setText(mAutoupString[select]);
 		if(mAutoupSelected != null)
 			mAutoupSelected.setImageTintList(mDefaultState);
 		selected.setImageTintList(mSelectedState);
@@ -89,6 +93,9 @@ public class FragmentSettings extends Fragment {
 
 		mTrackingString = resources.getStringArray(R.array.background_tracking_options);
 		mAutoupString = resources.getStringArray(R.array.automatic_upload_options);
+
+		mAutoupDesc = (TextView) rootView.findViewById(R.id.autoupload_description);
+		mTrackDesc = (TextView) rootView.findViewById(R.id.tracking_description);
 
 		mTrackingNone = (ImageView) rootView.findViewById(R.id.tracking_none);
 		mTrackingNone.setOnClickListener(new View.OnClickListener() {
