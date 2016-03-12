@@ -50,7 +50,8 @@ public class FragmentSettings extends Fragment {
 			default:
 				return;
 		}
-		mTrackingSelected.setImageTintList(mDefaultState);
+		if(mTrackingSelected != null)
+			mTrackingSelected.setImageTintList(mDefaultState);
 		selected.setImageTintList(mSelectedState);
 		mTrackingSelected = selected;
 	}
@@ -71,7 +72,8 @@ public class FragmentSettings extends Fragment {
 			default:
 				return;
 		}
-		mAutoupSelected.setImageTintList(mDefaultState);
+		if(mAutoupSelected != null)
+			mAutoupSelected.setImageTintList(mDefaultState);
 		selected.setImageTintList(mSelectedState);
 		mAutoupSelected = selected;
 	}
@@ -84,9 +86,6 @@ public class FragmentSettings extends Fragment {
 
 		mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, getContext().getTheme());
 		mDefaultState = ResourcesCompat.getColorStateList(resources, R.color.default_value, getContext().getTheme());
-
-		updateTracking(mSharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1));
-		updateAutoup(mSharedPreferences.getInt(Setting.AUTO_UPLOAD, 1));
 
 		mTrackingString = resources.getStringArray(R.array.background_tracking_options);
 		mAutoupString = resources.getStringArray(R.array.automatic_upload_options);
@@ -114,50 +113,32 @@ public class FragmentSettings extends Fragment {
 		});
 
 		mAutoupDisabled = (ImageView) rootView.findViewById(R.id.autoupload_disabled);
+		mAutoupDisabled.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				updateAutoup(0);
+			}
+		});
 		mAutoupWifi = (ImageView) rootView.findViewById(R.id.autoupload_wifi);
+		mAutoupWifi.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				updateAutoup(1);
+			}
+		});
 		mAutoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
-
-		automaticTracking = (Spinner) rootView.findViewById(R.id.spinner_trackingOptions);
-		final ArrayAdapter<CharSequence> adapterTracking = ArrayAdapter.createFromResource(getContext(),
-				R.array.background_tracking_options, android.R.layout.simple_spinner_item);
-// Specify the layout to use when the list of choices appears
-		adapterTracking.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-// Apply the adapter to the spinner
-		automaticTracking.setAdapter(adapterTracking);
-		automaticTracking.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+		mAutoupAlways.setOnClickListener(new View.OnClickListener() {
 			@Override
-			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-				Setting.getPreferences().edit().putInt(Setting.BACKGROUND_TRACKING, position).apply();
-			}
-
-			@Override
-			public void onNothingSelected(AdapterView<?> parent) {
-				parent.setSelection(Setting.getPreferences().getInt(Setting.BACKGROUND_TRACKING, 1));
+			public void onClick(View v) {
+				updateAutoup(2);
 			}
 		});
-		automaticTracking.setSelection(Setting.getPreferences().getInt(Setting.BACKGROUND_TRACKING, 1));
 
-		automaticUpload = (Spinner) rootView.findViewById(R.id.spinner_automaticUpload);
-		final ArrayAdapter<CharSequence> adapterAutoUpload = ArrayAdapter.createFromResource(getContext(),
-				R.array.automatic_upload, android.R.layout.simple_spinner_item);
-// Specify the layout to use when the list of choices appears
-		adapterAutoUpload.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-// Apply the adapter to the spinner
-		automaticUpload.setAdapter(adapterAutoUpload);
-		automaticUpload.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-			@Override
-			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-				Setting.getPreferences().edit().putInt(Setting.AUTO_UPLOAD, position).apply();
-			}
-
-			@Override
-			public void onNothingSelected(AdapterView<?> parent) {
-				parent.setSelection(Setting.getPreferences().getInt(Setting.AUTO_UPLOAD, 1));
-			}
-		});
-		automaticUpload.setSelection(Setting.getPreferences().getInt(Setting.AUTO_UPLOAD, 1));
+		updateTracking(mSharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1));
+		updateAutoup(mSharedPreferences.getInt(Setting.AUTO_UPLOAD, 1));
 
 		textView_PlayLog = (TextView) rootView.findViewById(R.id.play_loginButton);
+
 
 		if(PlayController.gamesController != null)
 			PlayController.gamesController.setUI(rootView);
