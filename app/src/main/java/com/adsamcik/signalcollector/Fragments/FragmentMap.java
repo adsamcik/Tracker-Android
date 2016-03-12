@@ -155,7 +155,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		});
 
 		fabTwo.show();
-		fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
 		fabTwo.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {

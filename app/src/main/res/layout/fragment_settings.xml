@@ -1,49 +1,114 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="10dp">
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                android:orientation="vertical"
+                android:padding="10dp">
 
     <TextView
-        android:id="@+id/textView_trackingOptions"
+        android:id="@+id/tracking_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/settings_automaticTracking"
         android:textSize="18sp"
         android:textColor="@color/textSecondary"/>
 
-    <Spinner
-        android:id="@+id/spinner_trackingOptions"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/textView_trackingOptions"
-        android:layout_marginBottom="5dp"
-        android:padding="10dp"/>
-
     <TextView
-        android:id="@+id/textView_automaticUpload"
+        android:id="@+id/tracking_description"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/spinner_trackingOptions"
+        android:layout_below="@+id/tracking_title"
+        android:paddingTop="15dp"
+        android:textSize="18sp"
+        android:textColor="@color/textSecondary"/>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/tracking_layout"
+        android:layout_below="@id/tracking_description"
+        android:gravity="center">
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_margin="10dp"
+            android:id="@+id/tracking_none"
+            android:tint="@color/textSecondary"
+            android:src="@drawable/ic_close_black_24dp"/>
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:id="@+id/tracking_onfoot"
+            android:layout_margin="10dp"
+            android:layout_toEndOf="@id/tracking_none"
+            android:tint="@color/textSecondary"
+            android:src="@drawable/ic_directions_walk_black_24dp"/>
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_toEndOf="@id/tracking_onfoot"
+            android:layout_margin="10dp"
+            android:id="@+id/tracking_always"
+            android:tint="@color/textSecondary"
+            android:src="@drawable/ic_directions_car_black_24dp"/>
+    </RelativeLayout>
+
+    <TextView
+        android:id="@+id/autoupload_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/tracking_layout"
         android:paddingTop="15dp"
         android:text="@string/settings_automaticUpload"
         android:textSize="18sp"
         android:textColor="@color/textSecondary"/>
 
-    <Spinner
-        android:id="@+id/spinner_automaticUpload"
-        android:layout_width="fill_parent"
+    <TextView
+        android:id="@+id/autoupload_description"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/textView_automaticUpload"
-        android:layout_marginBottom="5dp"
-        android:padding="10dp" />
+        android:layout_below="@+id/autoupload_title"
+        android:paddingTop="15dp"
+        android:textSize="18sp"
+        android:textColor="@color/textSecondary"/>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/autoupload_layout"
+        android:layout_below="@id/autoupload_description"
+        android:gravity="center">
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_margin="10dp"
+            android:id="@+id/autoupload_disabled"
+            android:tint="@color/textSecondary"
+            android:src="@drawable/ic_close_black_24dp"/>
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:id="@+id/autoupload_wifi"
+            android:layout_margin="10dp"
+            android:layout_toEndOf="@id/autoupload_disabled"
+            android:tint="@color/textSecondary"
+            android:src="@drawable/ic_network_wifi_24dp"/>
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_toEndOf="@id/autoupload_wifi"
+            android:layout_margin="10dp"
+            android:id="@+id/autoupload_always"
+            android:tint="@color/textSecondary"
+            android:src="@drawable/ic_autorenew_black_24dp"/>
+    </RelativeLayout>
 
     <TextView
         android:id="@+id/play_loginTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/spinner_automaticUpload"
+        android:layout_below="@+id/autoupload_layout"
         android:paddingTop="15dp"
         android:text="@string/settings_playGames"
         android:textSize="18sp"

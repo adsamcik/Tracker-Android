@@ -7,10 +7,10 @@
         <item>Always</item>
     </string-array>
     <string name="settings_automaticUpload">Automatic upload</string>
-    <string-array name="automatic_upload">
+    <string-array name="automatic_upload_options">
         <item>Disabled</item>
         <item>Wifi only</item>
-        <item>Cell or Wifi</item>
+        <item>Always</item>
     </string-array>
     <string name="settings_playGames">Google Play Games</string>
     <string name="settings_playGamesLogin">Login</string>
