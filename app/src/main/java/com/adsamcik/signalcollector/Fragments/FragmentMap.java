@@ -74,6 +74,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	}
 
 	@Override
+	public void onAttach(Context context) {
+		super.onAttach(context);
+
+		locationListener = new UpdateLocationListener();
+		locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
+	}
+
+	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		if(view != null) {
 			ViewGroup parent = (ViewGroup) view.getParent();
@@ -90,9 +98,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 		mMapFragment.getMapAsync(this);
-
-		locationListener = new UpdateLocationListener();
-		locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
