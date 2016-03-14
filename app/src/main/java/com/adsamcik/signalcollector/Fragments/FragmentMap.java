@@ -30,10 +30,13 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
@@ -63,7 +66,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * Check if permission to access fine location is granted
 	 * If not and is android 6, than it prompts you to enable it
 	 *
-	 * @return  is permission available atm
+	 * @return is permission available atm
 	 */
 	boolean checkLocationPermission() {
 		if(ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
@@ -95,6 +98,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		} catch(InflateException e) {
 		/* map is already there, just return view as it is */
 		}
+
+		Log.d("TAG", "called");
 
 		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 		mMapFragment.getMapAsync(this);
@@ -138,8 +143,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	/**
 	 * Initializes fabs for Map fragment
 	 *
-	 * @param fabOne    fabOne (lower)
-	 * @param fabTwo    fabTwo (above fabOne)
+	 * @param fabOne fabOne (lower)
+	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		this.fabOne = fabOne;
@@ -211,7 +216,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		if(checkLocationPermission()) {
 			locationListener.followMyPosition = true;
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
-			Log.d("tag", l + " wtf");
 			if(l != null) {
 				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
 				map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
@@ -224,14 +228,15 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		changeMapOverlay(0);
 	}
 
-	Circle userRadius, userCenter;
+	Circle userRadius;
+	Marker userCenter;
 
 	/**
 	 * Draws user accuracy radius and location
 	 * Is automatically initialized if no circle exists
 	 *
-	 * @param latlng    Latitude and longitude
-	 * @param accuracy  Accuracy
+	 * @param latlng   Latitude and longitude
+	 * @param accuracy Accuracy
 	 */
 	void DrawUserPosition(LatLng latlng, float accuracy) {
 		if(userRadius == null) {
@@ -244,17 +249,17 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 					.radius(accuracy)
 					.zIndex(100)
 					.strokeWidth(0));
-			userCenter = map.addCircle(new CircleOptions()
-					.fillColor(ContextCompat.getColor(c, R.color.colorPrimary))
-					.center(latlng)
-					.radius(5)
-					.zIndex(100)
-					.strokeWidth(5)
-					.strokeColor(Color.WHITE));
+
+			userCenter = map.addMarker(new MarkerOptions()
+					.flat(true)
+					.position(latlng)
+					.icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_user_location))
+					.anchor(0.5f, 0.5f)
+			);
 		} else {
 			userRadius.setCenter(latlng);
 			userRadius.setRadius(accuracy);
-			userCenter.setCenter(latlng);
+			userCenter.setPosition(latlng);
 		}
 	}
 
@@ -318,7 +323,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		}
 
 		public void cleanup() {
-			map.setOnCameraChangeListener(null);
+			//map.setOnCameraChangeListener(null);
 			map.setOnMyLocationButtonClickListener(null);
 		}
 	}
