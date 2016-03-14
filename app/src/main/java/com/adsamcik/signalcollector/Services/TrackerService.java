@@ -248,11 +248,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-		//Setup notification
-		Notification n = updateNotification(false, -1, -1);
-
-		startForeground(1, n);
-
 		//Enable location update
 		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME, MIN_DISTANCE_M, locationListener);
@@ -302,6 +297,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			approxSize = intent.getLongExtra("approxSize", 0);
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}
+		startForeground(1, updateNotification(false, -1, -1));
 		return super.onStartCommand(intent, flags, startId);
 	}
 
