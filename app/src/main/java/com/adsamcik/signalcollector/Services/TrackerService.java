@@ -28,6 +28,8 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationCompatBase;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.CellInfo;
@@ -145,23 +147,20 @@ public class TrackerService extends Service implements SensorEventListener {
 	}
 
 	Notification updateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
-		Intent stopIntent = new Intent(this, NotificationReceiver.class);
-		PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-		Notification.Action.Builder stopAction;
-		if(Build.VERSION.SDK_INT >= 23)
-			stopAction = new Notification.Action.Builder(Icon.createWithResource(getApplicationContext(),R.drawable.ic_battery_alert_black_24dp), "Stop till reacharge", stop);
-		else
-			stopAction = new Notification.Action.Builder(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);
 		Intent intent = new Intent(this, MainActivity.class);
-		Notification.Builder builder = new Notification.Builder(this)
+		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
 				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
 				.setTicker("Collection started")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
-				.addAction(stopAction.build())
-				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
+				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
+				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
-		builder.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
+		if(backgroundActivated) {
+			Intent stopIntent = new Intent(this, NotificationReceiver.class);
+			PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+			builder.addAction(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);
+		}
 
 		if(!gpsAvailable)
 			builder.setContentText("Looking for GPS");
