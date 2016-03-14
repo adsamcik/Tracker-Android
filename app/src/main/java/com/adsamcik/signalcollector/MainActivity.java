@@ -145,9 +145,9 @@ public class MainActivity extends FragmentActivity {
 
 		updateFabs(0);
 
-		if(DataStore.recountDataSize() > 0) {
+		if(DataStore.recountDataSize() > 0)
 			setCloudStatus(1);
-		} else
+		else
 			setCloudStatus(0);
 
 		IntentFilter filter = new IntentFilter(StatusReceiver.BROADCAST_TAG);
@@ -179,6 +179,7 @@ public class MainActivity extends FragmentActivity {
 			return;
 		if(checkAllTrackingPermissions()) {
 			if(!TrackerService.isActive) {
+				Setting.isStopped = false;
 				Intent trackerService = new Intent(instance, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				startService(trackerService);

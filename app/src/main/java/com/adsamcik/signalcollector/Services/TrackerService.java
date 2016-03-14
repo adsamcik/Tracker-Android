@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Icon;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -21,6 +22,7 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -40,6 +42,7 @@ import com.adsamcik.signalcollector.Fragments.FragmentMain;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.Receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.Setting;
 
 import java.nio.charset.Charset;
@@ -131,7 +134,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
 		sendUpdateInfoBroadcast(d.time, wifiCount, cellCount, cellDbm, cellAsu, cellType, d.longitude, d.latitude, d.altitude, d.accuracy, pressureValue, Extensions.getActivityName(currentActivity));
 
-		UpdateNotification(true, wifiCount, cellCount);
+		notificationManager.notify(1, updateNotification(true, wifiCount, cellCount));
 		wifiScanData = null;
 		cellScanData = null;
 
@@ -141,16 +144,21 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.release();
 	}
 
-	void UpdateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
-		//Intent pause = new Intent(this, TrackerService.class);
-		//Notification.Action.Builder playPause = new Notification.Action.Builder(R.drawable.ic_stop_black_36dp, "Stop", PendingIntent.getActivity(this, 1, pause, 0));
+	Notification updateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
+		Intent stopIntent = new Intent(this, NotificationReceiver.class);
+		PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+		Notification.Action.Builder stopAction;
+		if(Build.VERSION.SDK_INT >= 23)
+			stopAction = new Notification.Action.Builder(Icon.createWithResource(getApplicationContext(),R.drawable.ic_battery_alert_black_24dp), "Stop till reacharge", stop);
+		else
+			stopAction = new Notification.Action.Builder(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);
 		Intent intent = new Intent(this, MainActivity.class);
 		Notification.Builder builder = new Notification.Builder(this)
 				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
 				.setTicker("Collection started")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
-						//.addAction(playPause.build())
+				.addAction(stopAction.build())
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)); // The intent to send when the entry is clicked
 
 		builder.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
@@ -167,7 +175,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				builder.setContentText("Found " + cellCount + " cell");
 		}
 
-		notificationManager.notify(1, builder.build());
+		return builder.build();
 	}
 
 	void saveData() {
@@ -227,7 +235,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
 				if(status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					UpdateNotification(false, 0, 0);
+					notificationManager.notify(1, updateNotification(false, 0, 0));
 			}
 
 			public void onProviderEnabled(String provider) {
@@ -242,19 +250,9 @@ public class TrackerService extends Service implements SensorEventListener {
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
 		//Setup notification
-		Intent intent = new Intent(this, MainActivity.class);
-		Notification n = new Notification.Builder(this)
-				.setSmallIcon(R.drawable.ic_notification_icon)
-				.setTicker("Collection started")
-				.setWhen(System.currentTimeMillis())
-				.setContentTitle(getResources().getString(R.string.app_name))
-				.setContentText("Initializing")
-				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0))
-				.build();
+		Notification n = updateNotification(false, -1, -1);
 
 		startForeground(1, n);
-
-		UpdateNotification(false, 0, 0);
 
 		//Enable location update
 		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)

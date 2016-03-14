@@ -116,7 +116,7 @@ public class Extensions {
 	}
 
 	public static boolean canBackgroundTrack(Context c, int evalActivity) {
-		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive) return false;
+		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive || Setting.isStopped) return false;
 		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}

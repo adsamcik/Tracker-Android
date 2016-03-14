@@ -17,6 +17,12 @@ public class Setting implements Serializable {
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	private static SharedPreferences sharedPreferences;
 
+	public static boolean isStopped = false;
+
+	public static void recharging() {
+		isStopped = false;
+	}
+
 	public static void initializeSharedPreferences(@NonNull Context c) {
 		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
 	}
