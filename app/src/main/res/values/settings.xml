@@ -4,7 +4,7 @@
     <string-array name="background_tracking_options">
         <item>Disabled</item>
         <item>On foot</item>
-        <item>Always</item>
+        <item>On foot or in vehicle</item>
     </string-array>
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
