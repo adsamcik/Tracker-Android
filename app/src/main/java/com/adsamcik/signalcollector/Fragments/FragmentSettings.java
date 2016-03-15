@@ -1,11 +1,15 @@
 package com.adsamcik.signalcollector.Fragments;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.res.ResourcesCompat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -182,8 +186,23 @@ public class FragmentSettings extends Fragment {
 		rootView.findViewById(R.id.other_clear).setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				DataStore.clearAllData();
-				((MainActivity) getActivity()).setCloudStatus(0);
+				AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
+				alertDialogBuilder.setPositiveButton("I'm sure", new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						DataStore.clearAllData();
+						((MainActivity) getActivity()).setCloudStatus(0);
+					}
+				})
+				.setNegativeButton("Not really", new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+
+					}
+				})
+				.setMessage("Are you sure you want to clear your collected data, which are not yet uploaded?");
+
+				alertDialogBuilder.create().show();
 			}
 		});
 
