@@ -19,6 +19,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/tracking_title"
         android:textSize="18sp"
+        android:gravity="center"
         android:textColor="@color/colorPrimary"/>
 
     <RelativeLayout
@@ -68,6 +69,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/autoupload_title"
         android:textSize="18sp"
+        android:gravity="center"
         android:textColor="@color/colorPrimary"/>
 
     <RelativeLayout
