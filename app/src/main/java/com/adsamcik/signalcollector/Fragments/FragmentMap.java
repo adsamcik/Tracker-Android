@@ -42,9 +42,12 @@ import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Locale;
+
+import cz.msebera.android.httpclient.protocol.HTTP;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public static final String[] availableTypes = {"Wifi", "Cell"};
@@ -99,24 +102,23 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		/* map is already there, just return view as it is */
 		}
 
-		Log.d("TAG", "called");
-
 		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 		mMapFragment.getMapAsync(this);
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
 			public URL getTileUrl(int x, int y, int zoom) {
-
 				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, availableTypes[typeIndex]);
 
 				if(!checkTileExists(x, y, zoom)) {
 					return null;
 				}
-
 				try {
-					return new URL(s);
-				} catch(MalformedURLException e) {
+					URL u = new URL(s);
+					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
+					huc.setRequestMethod("HEAD");
+					return huc.getResponseCode() == 200 ? u : null;
+				} catch(Exception e) {
 					throw new AssertionError(e);
 				}
 			}
@@ -134,6 +136,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		return view;
 	}
 
+	/**
+	 * This function should be called when fragment is left
+	 */
 	public void onLeave() {
 		if(checkLocationPermission())
 			locationManager.removeUpdates(locationListener);
