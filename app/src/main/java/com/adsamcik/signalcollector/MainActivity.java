@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector;
 
 import android.Manifest;
-import android.app.ActionBar;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -23,9 +22,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
@@ -37,11 +34,8 @@ import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.Services.RegistrationIntentService;
 import com.adsamcik.signalcollector.Services.TrackerService;
 
-import junit.framework.Assert;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class MainActivity extends FragmentActivity {
 	public static final String TAG = "Signals";
@@ -158,7 +152,7 @@ public class MainActivity extends FragmentActivity {
 		if(TrackerService.isActive)
 			changeTrackerButton(1);
 
-		Extensions.Initialize((TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE));
+		Extensions.initialize((TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE));
 
 		if(PlayController.isPlayServiceAvailable()) {
 			// Start IntentService to register this application with GCM.

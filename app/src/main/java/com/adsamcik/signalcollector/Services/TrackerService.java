@@ -11,7 +11,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.drawable.Icon;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -22,14 +21,12 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationCompatBase;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.CellInfo;
@@ -216,7 +213,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				Log.d(TAG, "confidence " + intent.getIntExtra("confidence", -1) + " bg activated " + backgroundActivated);
 				if(intent.getIntExtra("confidence", -1) > 85 && backgroundActivated) {
 					currentActivity = intent.getIntExtra("activity", -1);
-					int evalActivity = Extensions.EvaluateActivity(currentActivity);
+					int evalActivity = Extensions.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
 					Log.d(TAG, "eval activity " + evalActivity + " saved " + backTrackVal);
 					if(evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0)

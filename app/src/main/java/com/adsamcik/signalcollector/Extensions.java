@@ -22,7 +22,11 @@ import java.util.Locale;
 public class Extensions {
 	private static TelephonyManager telephonyManager;
 
-	public static void Initialize(TelephonyManager tm) {
+	public static boolean isInitialized() {
+		return telephonyManager != null;
+	}
+
+	public static void initialize(TelephonyManager tm) {
 		telephonyManager = tm;
 	}
 
@@ -94,7 +98,7 @@ public class Extensions {
 	 * 3 tilting
 	 */
 
-	public static int EvaluateActivity(int val) {
+	public static int evaluateActivity(int val) {
 		switch(val) {
 			case DetectedActivity.STILL:
 				return 0;
@@ -116,7 +120,8 @@ public class Extensions {
 	}
 
 	public static boolean canBackgroundTrack(Context c, int evalActivity) {
-		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive || Setting.isStopped) return false;
+		if(evalActivity == 3 || evalActivity == 0 || TrackerService.isActive || Setting.isStopped)
+			return false;
 		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}

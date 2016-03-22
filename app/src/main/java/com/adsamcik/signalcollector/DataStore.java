@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.v4.content.LocalBroadcastManager;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Services.TrackerService;
@@ -111,6 +112,8 @@ public class DataStore {
 	 */
 	public static void upload(String data, final String name, final long size) {
 		if(data.isEmpty()) return;
+		if(!Extensions.isInitialized())
+			Extensions.initialize((TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE));
 
 		String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +

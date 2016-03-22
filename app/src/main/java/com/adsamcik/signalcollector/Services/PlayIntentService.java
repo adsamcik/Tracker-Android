@@ -38,7 +38,7 @@ public class PlayIntentService extends IntentService {
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
 				sendBroadcast(i);
-			} else if(confidence >= 85 && Extensions.canBackgroundTrack(this, Extensions.EvaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked()) {
+			} else if(confidence >= 85 && Extensions.canBackgroundTrack(this, Extensions.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked()) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);
