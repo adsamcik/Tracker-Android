@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.Services;
 
 import android.app.IntentService;
 import android.content.Intent;
+import android.os.PowerManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.DataStore;
@@ -11,6 +12,7 @@ import com.google.android.gms.location.DetectedActivity;
 
 public class PlayIntentService extends IntentService {
 	private static final String TAG = PlayIntentService.class.getSimpleName();
+	PowerManager powerManager;
 
 	public PlayIntentService() {
 		super("PlayIntentService");
@@ -20,6 +22,7 @@ public class PlayIntentService extends IntentService {
 	public void onCreate() {
 		super.onCreate();
 		DataStore.setContext(getApplicationContext());
+		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 	}
 
 	@Override
@@ -38,7 +41,7 @@ public class PlayIntentService extends IntentService {
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
 				sendBroadcast(i);
-			} else if(confidence >= 85 && Extensions.canBackgroundTrack(this, Extensions.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked()) {
+			} else if(confidence >= 85 && Extensions.canBackgroundTrack(this, Extensions.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);

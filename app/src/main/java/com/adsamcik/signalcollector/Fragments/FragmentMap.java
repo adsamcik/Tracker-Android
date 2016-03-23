@@ -140,7 +140,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if(checkLocationPermission())
+		if(checkLocationPermission() && locationManager != null)
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 	}
