@@ -16,4 +16,7 @@
     <string name="settings_playGamesLogin">Login</string>
     <string name="settings_playGamesLogout">Logout</string>
     <string name="settings_clear">Clear tracked data</string>
+    <string name="alert_clear_text">Are you sure you want to clear your collected data, which are not yet uploaded?</string>
+    <string name="alert_clear_confirm">I\'m sure</string>
+    <string name="alert_clear_cancel">Not really</string>
 </resources>

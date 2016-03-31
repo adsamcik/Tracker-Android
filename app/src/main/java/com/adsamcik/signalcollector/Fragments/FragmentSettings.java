@@ -189,20 +189,20 @@ public class FragmentSettings extends Fragment {
             @Override
             public void onClick(View v) {
                 AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
-                alertDialogBuilder.setPositiveButton("I'm sure", new DialogInterface.OnClickListener() {
+                alertDialogBuilder.setPositiveButton(Resources.getSystem().getText(R.string.alert_clear_confirm), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         DataStore.clearAllData();
                         ((MainActivity) getActivity()).setCloudStatus(0);
                     }
                 })
-                        .setNegativeButton("Not really", new DialogInterface.OnClickListener() {
+                        .setNegativeButton(Resources.getSystem().getText(R.string.alert_clear_cancel), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
 
                             }
                         })
-                        .setMessage("Are you sure you want to clear your collected data, which are not yet uploaded?");
+                        .setMessage(Resources.getSystem().getText(R.string.alert_clear_text));
 
                 alertDialogBuilder.create().show();
             }
