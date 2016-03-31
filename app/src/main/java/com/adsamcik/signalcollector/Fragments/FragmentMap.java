@@ -71,10 +71,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 *
 	 * @return is permission available atm
 	 */
-	boolean checkLocationPermission() {
+	boolean checkLocationPermission(boolean request) {
 		if(ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
-		else
+		else if(request)
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
 		return false;
 	}
@@ -143,7 +143,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if(checkLocationPermission() && locationManager != null)
+		if(checkLocationPermission(false) && locationManager != null)
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 	}
@@ -158,7 +158,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
-		if(checkLocationPermission() && locationManager != null)
+		if(checkLocationPermission(true) && locationManager != null)
 			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 
 		fabOne.show();
@@ -166,9 +166,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		fabOne.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				if(checkLocationPermission()) {
+				if(checkLocationPermission(true))
 					locationListener.moveToMyPosition();
-				}
 			}
 		});
 
@@ -221,7 +220,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
 
-		if(checkLocationPermission()) {
+		if(checkLocationPermission(false)) {
 			locationListener.followMyPosition = true;
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
 			if(l != null) {
