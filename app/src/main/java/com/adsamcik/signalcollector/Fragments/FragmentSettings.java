@@ -172,7 +172,8 @@ public class FragmentSettings extends Fragment {
             public void onClick(View v) {
                 if (PlayController.isLogged())
                     PlayController.gamesController.showAchievements();
-
+                else
+                    PlayController.initializeGamesClient(rootView);
             }
         });
 
