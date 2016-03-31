@@ -299,7 +299,6 @@ public class MainActivity extends FragmentActivity {
 			if(grantResult != PackageManager.PERMISSION_GRANTED)
 				return;
 		}
-		toggleCollecting(true);
 	}
 
 	private boolean checkAllTrackingPermissions() {
