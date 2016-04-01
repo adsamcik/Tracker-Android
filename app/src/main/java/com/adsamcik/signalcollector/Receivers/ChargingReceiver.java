@@ -9,6 +9,6 @@ import com.adsamcik.signalcollector.Setting;
 public class ChargingReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		Setting.recharging();
+		Setting.recharging(context);
 	}
 }

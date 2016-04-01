@@ -15,12 +15,15 @@ public class Setting implements Serializable {
 	//0-no auto upload;1-wifi autoUpload;2-autoUpload
 	public static final String AUTO_UPLOAD = "autoUpload";
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
+	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
 	private static SharedPreferences sharedPreferences;
 
-	public static boolean isStopped = false;
+	public static void stopTillRecharge(@NonNull Context c) {
+		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
+	}
 
-	public static void recharging() {
-		isStopped = false;
+	public static void recharging(@NonNull Context c) {
+		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, false).apply();
 	}
 
 	public static void initializeSharedPreferences(@NonNull Context c) {

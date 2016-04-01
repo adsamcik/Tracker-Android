@@ -173,7 +173,7 @@ public class MainActivity extends FragmentActivity {
 			return;
 		if(checkAllTrackingPermissions()) {
 			if(!TrackerService.isActive) {
-				Setting.isStopped = false;
+				Setting.getPreferences(context).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(instance, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				startService(trackerService);

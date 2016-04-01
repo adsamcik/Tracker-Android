@@ -12,7 +12,7 @@ public class BatteryStateReceiver extends BroadcastReceiver {
 	public void onReceive(Context context, Intent intent) {
 		switch(intent.getAction()) {
 			case Intent.ACTION_BATTERY_LOW:
-				Setting.isStopped = true;
+				Setting.stopTillRecharge(context);
 				if(TrackerService.isActive)
 					context.stopService(TrackerService.service);
 				break;

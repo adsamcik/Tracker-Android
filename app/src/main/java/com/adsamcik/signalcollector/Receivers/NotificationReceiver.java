@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.Setting;
 public class NotificationReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		Setting.isStopped = true;
+		Setting.stopTillRecharge(context);
 		context.stopService(TrackerService.service);
 	}
 }
