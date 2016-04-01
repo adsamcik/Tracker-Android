@@ -236,10 +236,10 @@ public class MainActivity extends FragmentActivity {
 	private void changeTrackerButton(int status) {
 		if(viewPager.getCurrentItem() == 0) {
 			switch(status) {
-				case 0:
+				case 1:
 					fabOne.setImageResource(R.drawable.ic_play_arrow_24dp);
 					break;
-				case 1:
+				case 0:
 					fabOne.setImageResource(R.drawable.ic_pause_24dp);
 					break;
 				case 2:
