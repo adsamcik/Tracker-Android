@@ -91,7 +91,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	}
 
 	public static void setAutoLock() {
-		if(instance.backgroundActivated)
+		if (instance.backgroundActivated)
 			lockedUntil = System.currentTimeMillis() + lockTimeInMilliseconds;
 	}
 
@@ -104,23 +104,23 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.acquire();
 		wifiManager.startScan();
 
-		if(!isAirplaneModeOn(this)) {
+		if (!isAirplaneModeOn(this)) {
 			List<CellInfo> cells = telephonyManager.getAllCellInfo();
-			if(cells != null)
+			if (cells != null)
 				cellScanData = cells.toArray(new CellInfo[cells.size()]);
 		}
 
 		Data d = new Data(location.getTime(), location.getLongitude(), location.getLatitude(), location.getAltitude(), location.getAccuracy(), cellScanData, wifiScanData, pressureValue, telephonyManager.getNetworkOperatorName(), currentActivity);
 		data.add(d);
-		if(data.size() > 10)
+		if (data.size() > 10)
 			saveData();
 
 		int cellCount = -1;
 		int cellDbm = 0, cellAsu = 0;
 		String cellType = "";
-		if(cellScanData != null) {
-			for(CellData cd : d.cell) {
-				if(cd.isRegistered) {
+		if (cellScanData != null) {
+			for (CellData cd : d.cell) {
+				if (cd.isRegistered) {
 					cellDbm = cd.dbm;
 					cellAsu = cd.asu;
 					cellType = cd.getType();
@@ -137,7 +137,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		wifiScanData = null;
 		cellScanData = null;
 
-		if(backgroundActivated && powerManager.isPowerSaveMode())
+		if (backgroundActivated && powerManager.isPowerSaveMode())
 			stopSelf();
 
 		wakeLock.release();
@@ -153,21 +153,21 @@ public class TrackerService extends Service implements SensorEventListener {
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
-		if(backgroundActivated) {
+		if (backgroundActivated) {
 			Intent stopIntent = new Intent(this, NotificationReceiver.class);
 			PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 			builder.addAction(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);
 		}
 
-		if(!gpsAvailable)
+		if (!gpsAvailable)
 			builder.setContentText("Looking for GPS");
 		else {
-			if(wifiCount >= 0)
-				if(cellCount >= 0)
+			if (wifiCount >= 0)
+				if (cellCount >= 0)
 					builder.setContentText("Found " + wifiCount + " wifi and " + cellCount + " cell");
 				else
 					builder.setContentText("Found " + wifiCount + " wifi");
-			else if(cellCount >= 0)
+			else if (cellCount >= 0)
 				builder.setContentText("Found " + cellCount + " cell");
 		}
 
@@ -175,18 +175,18 @@ public class TrackerService extends Service implements SensorEventListener {
 	}
 
 	void saveData() {
-		if(data.size() == 0) return;
+		if (data.size() == 0) return;
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
 
 		int result = DataStore.saveData(input);
-		if(result == 1) {
+		if (result == 1) {
 			saveAttemptsFailed++;
-			if(saveAttemptsFailed >= 5)
+			if (saveAttemptsFailed >= 5)
 				stopSelf();
 		} else {
 			data.clear();
-			if(result == 2)
+			if (result == 2)
 				DataStore.requestUpload(getApplicationContext());
 		}
 	}
@@ -202,21 +202,21 @@ public class TrackerService extends Service implements SensorEventListener {
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
 
-		if(PlayController.context == null)
-			PlayController.setContext(appContext);
-		if(!PlayController.apiActivity)
+		PlayController.setContext(appContext);
+		
+		if (!PlayController.apiActivity)
 			PlayController.initializeActivityClient();
 
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
 				Log.d(TAG, "confidence " + intent.getIntExtra("confidence", -1) + " bg activated " + backgroundActivated);
-				if(intent.getIntExtra("confidence", -1) > 85 && backgroundActivated) {
+				if (intent.getIntExtra("confidence", -1) > 85 && backgroundActivated) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
 					Log.d(TAG, "eval activity " + evalActivity + " saved " + backTrackVal);
-					if(evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0)
+					if (evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0)
 						stopSelf();
 				}
 			}
@@ -230,7 +230,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			}
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
-				if(status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
+				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
 					notificationManager.notify(1, updateNotification(false, 0, 0));
 			}
 
@@ -246,20 +246,20 @@ public class TrackerService extends Service implements SensorEventListener {
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
 		//Enable location update
-		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME, MIN_DISTANCE_M, locationListener);
 
 		wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
 
 		wifiEnabled = wifiManager.isWifiEnabled();
-		if(!wifiEnabled)
+		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(true);
 
 		wifiManager.startScan();
 		registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
 
 		mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-		if(mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
+		if (mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
 			mPressure = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
 			mSensorManager.registerListener(this, mPressure, SensorManager.SENSOR_DELAY_UI);
 		}
@@ -274,11 +274,11 @@ public class TrackerService extends Service implements SensorEventListener {
 		int currentId = 0;
 
 		//Split in two to save a bit of power
-		for(int i = 0; i <= maxUploadId; i++)
-			if(DataStore.exists(DataStore.DATA_FILE + i))
+		for (int i = 0; i <= maxUploadId; i++)
+			if (DataStore.exists(DataStore.DATA_FILE + i))
 				DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
 
-		for(int i = maxUploadId; i <= maxId; i++)
+		for (int i = maxUploadId; i <= maxId; i++)
 			DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
 
 		sp.edit().putInt(DataStore.KEY_FILE_ID, currentId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
@@ -286,7 +286,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		if(intent == null) {
+		if (intent == null) {
 			approxSize = DataStore.recountDataSize();
 			backgroundActivated = true;
 			Log.d(TAG, "Tracker services started with null intent");
@@ -301,7 +301,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public void onDestroy() {
-		if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
 
 		unregisterReceiver(wifiReceiver);
@@ -310,7 +310,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		mSensorManager.unregisterListener(this);
 		//LocalBroadcastManager.getInstance(MainActivity.instance).sendBroadcast();
 		saveData();
-		if(!wifiEnabled)
+		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(false);
 		stopForeground(true);
 		sendStatusBroadcast(-1, 0);

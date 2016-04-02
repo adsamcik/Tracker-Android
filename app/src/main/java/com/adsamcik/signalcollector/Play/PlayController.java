@@ -95,7 +95,6 @@ public class PlayController {
 			//Filter the Intent and register broadcast receiver
 			IntentFilter filter = new IntentFilter();
 			filter.addAction("SCActivity");
-
 			context.registerReceiver(receiver, filter);
 		}
 		else
