@@ -72,9 +72,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @return is permission available atm
 	 */
 	boolean checkLocationPermission(boolean request) {
-		if(ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+		if (ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
-		else if(request)
+		else if (request)
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
 		return false;
 	}
@@ -92,16 +92,16 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-		if(view != null) {
+		if (view != null) {
 			ViewGroup parent = (ViewGroup) view.getParent();
-			if(parent != null)
+			if (parent != null)
 				parent.removeView(view);
 		}
 
 		try {
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 			touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
-		} catch(InflateException e) {
+		} catch (InflateException e) {
 		/* map is already there, just return view as it is */
 		}
 
@@ -113,7 +113,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 			public URL getTileUrl(int x, int y, int zoom) {
 				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, availableTypes[typeIndex]);
 
-				if(!checkTileExists(x, y, zoom)) {
+				if (!checkTileExists(x, y, zoom)) {
 					return null;
 				}
 				try {
@@ -121,7 +121,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
 					huc.setRequestMethod("HEAD");
 					return huc.getResponseCode() == 200 ? u : null;
-				} catch(Exception e) {
+				} catch (Exception e) {
 					throw new AssertionError(e);
 				}
 			}
@@ -143,7 +143,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if(checkLocationPermission(false) && locationManager != null)
+		if (checkLocationPermission(false) && locationManager != null)
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 	}
@@ -158,7 +158,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
-		if(checkLocationPermission(true) && locationManager != null)
+		if (checkLocationPermission(true) && locationManager != null)
 			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 
 		fabOne.show();
@@ -166,7 +166,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		fabOne.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				if(checkLocationPermission(true))
+				if (checkLocationPermission(true))
 					locationListener.moveToMyPosition();
 			}
 		});
@@ -191,21 +191,21 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param index new overlay string index
 	 */
 	private void changeMapOverlay(int index) {
-		if(map == null) {
+		if (map == null) {
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
 			return;
-		} else if(index < 0 || index >= availableTypes.length)
+		} else if (index < 0 || index >= availableTypes.length)
 			throw new RuntimeException("Index is out of range");
 
-		if(index != typeIndex || activeOverlay == null) {
+		if (index != typeIndex || activeOverlay == null) {
 			typeIndex = index;
-			if(activeOverlay != null)
+			if (activeOverlay != null)
 				activeOverlay.remove();
 			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		}
 
-		if(fabTwo != null) {
-			switch(availableTypes[typeIndex]) {
+		if (fabTwo != null) {
+			switch (availableTypes[typeIndex]) {
 				case "Wifi":
 					fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
 					break;
@@ -220,10 +220,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
 
-		if(checkLocationPermission(false)) {
+		if (checkLocationPermission(false)) {
 			locationListener.followMyPosition = true;
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
-			if(l != null) {
+			if (l != null) {
 				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
 				map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
 				locationListener.position = cp.target;
@@ -246,9 +246,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param accuracy Accuracy
 	 */
 	void DrawUserPosition(LatLng latlng, float accuracy) {
-		if(userRadius == null) {
+		if (userRadius == null) {
 			Context c = getContext();
-			if(c == null)
+			if (c == null)
 				c = getActivity().getApplicationContext();
 			userRadius = map.addCircle(new CircleOptions()
 					.fillColor(ContextCompat.getColor(c, R.color.colorUserAccuracy))
@@ -277,10 +277,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		public final GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
 			@Override
 			public void onCameraChange(CameraPosition cameraPosition) {
-				if(followMyPosition && touchWrapper.getTouchDown())
+				if (followMyPosition && touchWrapper.getTouchDown())
 					followMyPosition = false;
 
-				if(map.getCameraPosition().zoom > 17)
+				if (map.getCameraPosition().zoom > 17)
 					map.animateCamera(CameraUpdateFactory.zoomTo(17));
 			}
 		};
@@ -289,15 +289,15 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		public void onLocationChanged(Location location) {
 			position = new LatLng(location.getLatitude(), location.getLongitude());
 			DrawUserPosition(position, location.getAccuracy());
-			if(touchWrapper.mMapIsTouched)
+			if (touchWrapper.mMapIsTouched)
 				followMyPosition = false;
-			else if(followMyPosition && map != null)
+			else if (followMyPosition && map != null)
 				moveTo(position);
 		}
 
 		public void moveToMyPosition() {
 			followMyPosition = true;
-			if(position != null)
+			if (position != null)
 				moveTo(position);
 		}
 
@@ -310,7 +310,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		public void moveTo(@NonNull LatLng latlng, float zoom) {
 			CameraPosition cPos = map.getCameraPosition();
-			if(cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude)
+			if (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude)
 				map.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
 		}
 
@@ -331,7 +331,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		public void cleanup() {
 			//map.setOnCameraChangeListener(null);
-			map.setOnMyLocationButtonClickListener(null);
+			if (map != null)
+				map.setOnMyLocationButtonClickListener(null);
 		}
 	}
 

@@ -203,7 +203,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		DataStore.setContext(appContext);
 
 		PlayController.setContext(appContext);
-		
+
 		if (!PlayController.apiActivity)
 			PlayController.initializeActivityClient();
 
