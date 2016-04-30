@@ -57,6 +57,8 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 
 		TrackerService.onUploadComplete(fileNames.length - 1);
 
+		DataStore.recountDataSize();
+
 		isUploading = false;
 		return null;
 	}
