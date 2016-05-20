@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.Fragments;
 
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -9,14 +8,10 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.res.ResourcesCompat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.ImageView;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
@@ -24,8 +19,6 @@ import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
-
-import org.w3c.dom.Text;
 
 public class FragmentSettings extends Fragment {
     String[] mTrackingString, mAutoupString;

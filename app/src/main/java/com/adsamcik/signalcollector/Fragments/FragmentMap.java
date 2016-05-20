@@ -4,12 +4,10 @@ package com.adsamcik.signalcollector.Fragments;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -43,11 +41,8 @@ import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Locale;
-
-import cz.msebera.android.httpclient.protocol.HTTP;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public static final String[] availableTypes = {"Wifi", "Cell"};
@@ -57,7 +52,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public GoogleMap map;
 	public TileProvider tileProvider;
 	public FloatingActionButton fabTwo, fabOne;
-	public boolean permissions = false;
 
 	LocationManager locationManager;
 	UpdateLocationListener locationListener;

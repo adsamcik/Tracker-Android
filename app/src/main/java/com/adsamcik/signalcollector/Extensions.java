@@ -1,17 +1,11 @@
 package com.adsamcik.signalcollector;
 
 import android.content.Context;
-import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.os.Build;
 import android.support.annotation.NonNull;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.Display;
-import android.view.KeyCharacterMap;
-import android.view.KeyEvent;
-import android.view.ViewConfiguration;
 import android.view.WindowManager;
 
 import com.adsamcik.signalcollector.Services.TrackerService;
@@ -75,14 +69,12 @@ public class Extensions {
 
 	public static int dpToPx(@NonNull Context c, int dp) {
 		DisplayMetrics displayMetrics = c.getResources().getDisplayMetrics();
-		int px = Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
-		return px;
+		return Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
 	}
 
 	public static int pxToDp(@NonNull Context c, int px) {
 		DisplayMetrics displayMetrics = c.getResources().getDisplayMetrics();
-		int dp = Math.round(px / (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
-		return dp;
+		return Math.round(px / (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
 	}
 
 	public static int ptToPx(@NonNull Context c, int pt) {

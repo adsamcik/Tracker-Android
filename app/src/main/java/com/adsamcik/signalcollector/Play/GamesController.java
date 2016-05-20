@@ -1,9 +1,7 @@
 package com.adsamcik.signalcollector.Play;
 
 import android.app.Activity;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
