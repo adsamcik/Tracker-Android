@@ -15,6 +15,7 @@ public class NoiseTracking {
 		audioRecorder.startRecording();
 	}
 
+
 	public static double getAmplitude() {
 		short[] buffer = new short[bufferSize];
 		audioRecorder.read(buffer, 0, bufferSize);
