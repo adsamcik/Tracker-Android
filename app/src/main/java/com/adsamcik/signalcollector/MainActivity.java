@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
@@ -61,7 +62,7 @@ public class MainActivity extends FragmentActivity {
 	protected void onStart() {
 		super.onStart();
 
-		if(!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
+		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			startActivity(new Intent(this, IntroActivity.class));
 		} else {
 			PlayController.setContext(context);
@@ -106,11 +107,14 @@ public class MainActivity extends FragmentActivity {
 
 					@Override
 					public void onPageSelected(int position) {
-						if(prevPos == 1)
+						if (prevPos == 1)
 							((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(1)).onLeave();
 
-						updateFabs(position);
-						prevPos = position;
+						if (!updateFabs(position)) {
+							viewPager.setCurrentItem(prevPos);
+							Snackbar.make(findViewById(R.id.container), "An error occured", 5);
+						} else
+							prevPos = position;
 					}
 
 					@Override
@@ -139,7 +143,7 @@ public class MainActivity extends FragmentActivity {
 
 		updateFabs(0);
 
-		if(DataStore.recountDataSize() > 0)
+		if (DataStore.recountDataSize() > 0)
 			setCloudStatus(1);
 		else
 			setCloudStatus(0);
@@ -149,12 +153,12 @@ public class MainActivity extends FragmentActivity {
 
 		LocalBroadcastManager.getInstance(this).registerReceiver(statusReceiver, filter);
 
-		if(TrackerService.isActive)
+		if (TrackerService.isActive)
 			changeTrackerButton(1);
 
 		Extensions.initialize((TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE));
 
-		if(PlayController.isPlayServiceAvailable()) {
+		if (PlayController.isPlayServiceAvailable()) {
 			// Start IntentService to register this application with GCM.
 			Intent intent = new Intent(this, RegistrationIntentService.class);
 			startService(intent);
@@ -169,10 +173,10 @@ public class MainActivity extends FragmentActivity {
 	 * @param enable ensures intended action
 	 */
 	private void toggleCollecting(boolean enable) {
-		if(TrackerService.isActive == enable)
+		if (TrackerService.isActive == enable)
 			return;
-		if(checkAllTrackingPermissions()) {
-			if(!TrackerService.isActive) {
+		if (checkAllTrackingPermissions()) {
+			if (!TrackerService.isActive) {
 				Setting.getPreferences(context).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(instance, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
@@ -195,32 +199,32 @@ public class MainActivity extends FragmentActivity {
 	 * 3 - Cloud error
 	 */
 	public void setCloudStatus(int status) {
-		if(fabTwo == null)
+		if (fabTwo == null)
 			throw new RuntimeException("upload fab is null. This should not happen.");
 
 		int item = viewPager.getCurrentItem();
-		switch(status) {
+		switch (status) {
 			case 0:
-				if(item == 0) {
+				if (item == 0) {
 					//fabTwo.setImageResource(R.drawable.ic_cloud_done_24dp);
 					fabTwo.hide();
 				}
 				cloudStatus = 0;
 				break;
 			case 1:
-				if(item == 0) {
+				if (item == 0) {
 					fabTwo.setImageResource(R.drawable.ic_file_upload_24dp);
 					fabTwo.show();
 				}
 				cloudStatus = 1;
 				break;
 			case 2:
-				if(item == 0)
+				if (item == 0)
 					fabTwo.setImageResource(R.drawable.ic_cloud_upload_24dp);
 				cloudStatus = 2;
 				break;
 			case 3:
-				if(item == 0)
+				if (item == 0)
 					fabTwo.setImageResource(R.drawable.ic_cloud_off_24dp);
 				cloudStatus = 3;
 				break;
@@ -234,8 +238,8 @@ public class MainActivity extends FragmentActivity {
 	 * 2 - saving icon
 	 */
 	private void changeTrackerButton(int status) {
-		if(viewPager.getCurrentItem() == 0) {
-			switch(status) {
+		if (viewPager.getCurrentItem() == 0) {
+			switch (status) {
 				case 0:
 					fabOne.setImageResource(R.drawable.ic_play_arrow_24dp);
 					break;
@@ -255,15 +259,15 @@ public class MainActivity extends FragmentActivity {
 	 *
 	 * @param index current tab index
 	 */
-	private void updateFabs(final int index) {
-		switch(index) {
+	private boolean updateFabs(final int index) {
+		switch (index) {
 			case 0:
 				fabOne.show();
 				changeTrackerButton(TrackerService.isActive ? 1 : 0);
 				fabOne.setOnClickListener(
 						new View.OnClickListener() {
 							public void onClick(View v) {
-								if(TrackerService.isActive)
+								if (TrackerService.isActive)
 									TrackerService.setAutoLock();
 								toggleCollecting(!TrackerService.isActive);
 							}
@@ -274,7 +278,7 @@ public class MainActivity extends FragmentActivity {
 				fabTwo.setOnClickListener(
 						new View.OnClickListener() {
 							public void onClick(View v) {
-								if(cloudStatus == 1) {
+								if (cloudStatus == 1) {
 									setCloudStatus(2);
 									new LoadAndUploadTask().execute(DataStore.getDataFileNames(true));
 									Setting.getPreferences(context).edit().putInt(DataStore.KEY_FILE_ID, Setting.getPreferences(context).getInt(DataStore.KEY_FILE_ID, -1) + 1).commit();
@@ -282,38 +286,37 @@ public class MainActivity extends FragmentActivity {
 							}
 						}
 				);
-				break;
+				return true;
 			case 1:
-				((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initializeFABs(fabOne, fabTwo);
-				break;
+				return ((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initializeFABs(fabOne, fabTwo);
 			default:
 				fabOne.hide();
 				fabTwo.hide();
-				break;
+				return true;
 		}
 	}
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-		for(int grantResult : grantResults) {
-			if(grantResult != PackageManager.PERMISSION_GRANTED)
+		for (int grantResult : grantResults) {
+			if (grantResult != PackageManager.PERMISSION_GRANTED)
 				return;
 		}
 	}
 
 	private boolean checkAllTrackingPermissions() {
-		if(Build.VERSION.SDK_INT > 22) {
+		if (Build.VERSION.SDK_INT > 22) {
 			List<String> permissions = new ArrayList<>();
-			if(ContextCompat.checkSelfPermission(instance, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+			if (ContextCompat.checkSelfPermission(instance, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
 
-			if(ContextCompat.checkSelfPermission(instance, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
+			if (ContextCompat.checkSelfPermission(instance, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(Manifest.permission.READ_PHONE_STATE);
 
 			//if (ContextCompat.checkSelfPermission(instance, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 			//    permissions.add(Manifest.permission.RECORD_AUDIO);
 
-			if(permissions.size() == 0)
+			if (permissions.size() == 0)
 				return true;
 
 			requestPermissions(permissions.toArray(new String[permissions.size()]), 0);
@@ -331,7 +334,7 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
-		if(requestCode == 9001 && resultCode == -1)
+		if (requestCode == 9001 && resultCode == -1)
 			PlayController.gapiGamesClient.connect();
 	}
 

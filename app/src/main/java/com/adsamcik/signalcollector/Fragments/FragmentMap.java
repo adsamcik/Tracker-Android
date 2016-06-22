@@ -45,6 +45,7 @@ import java.net.URL;
 import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
+	public static final String TAG = "SIGNALS_MAP";
 	public static final String[] availableTypes = {"Wifi", "Cell"};
 	public static int typeIndex = -1;
 	public static View view;
@@ -81,7 +82,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	@Override
 	public void onAttach(Context context) {
 		super.onAttach(context);
-		locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
 	}
 
 	@Override
@@ -105,11 +105,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
 			public URL getTileUrl(int x, int y, int zoom) {
+				//todo update path to tiles to new format zoom/x/y.png
 				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, availableTypes[typeIndex]);
 
-				if (!checkTileExists(x, y, zoom)) {
+				if (!checkTileExists(x, y, zoom))
 					return null;
-				}
+
 				try {
 					URL u = new URL(s);
 					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
@@ -126,7 +127,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 				int maxZoom = 17;
 
 				return !(zoom < minZoom || zoom > maxZoom);
-
 			}
 		};
 
@@ -137,8 +137,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if (checkLocationPermission(false) && locationManager != null)
-			locationManager.removeUpdates(locationListener);
+		if (checkLocationPermission(false)) {
+			if (locationManager == null)
+				Log.e(TAG, "location manager is null on leave");
+			else
+				locationManager.removeUpdates(locationListener);
+		}
 		locationListener.cleanup();
 	}
 
@@ -148,12 +152,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public void initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public boolean initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
-		if (checkLocationPermission(true) && locationManager != null)
-			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
+		if (checkLocationPermission(true)) {
+			if (locationManager == null)
+				locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
+			else
+				locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
+		} else
+			return false;
+
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
@@ -175,6 +185,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		});
 
 		changeMapOverlay(typeIndex);
+		return true;
 	}
 
 	TileOverlay activeOverlay;
