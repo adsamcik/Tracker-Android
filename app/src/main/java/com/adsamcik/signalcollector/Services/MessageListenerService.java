@@ -44,31 +44,12 @@ public class MessageListenerService extends GcmListenerService {
 				break;
 			case Achievement:
 				String id = data.getString("id");
-				sendAchievementNotification(title, message, id);
+				sendNotification(title, message);
 				PlayController.gamesController.earnAchievement(id);
 				break;
 		}
 		//Log.d(TAG, "From: " + from);
 		//Log.d(TAG, "Message: " + message);
-	}
-
-	private void sendAchievementNotification(String title, String message, String id) {
-		Intent intent = new Intent(this, MainActivity.class);
-		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-		PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
-
-		Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-		Notification.Builder notificationBuilder = new Notification.Builder(this)
-				.setSmallIcon(R.drawable.ic_notification_icon)
-				.setContentTitle(title)
-				.setContentText(message)
-				.setAutoCancel(true)
-				.setSound(defaultSoundUri)
-				.setContentIntent(pendingIntent);
-
-		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-
-		notificationManager.notify(notificationIndex++, notificationBuilder.build());
 	}
 
 	/**
