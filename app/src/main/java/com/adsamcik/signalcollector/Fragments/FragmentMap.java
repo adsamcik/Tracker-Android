@@ -227,6 +227,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		if (checkLocationPermission(false)) {
 			locationListener.followMyPosition = true;
+			if (locationManager == null)
+				locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
 			if (l != null) {
 				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
