@@ -14,6 +14,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
@@ -60,7 +61,7 @@ public class DataStore {
 		SharedPreferences sp = Setting.getPreferences(c);
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload != 0) {
-			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, DataStore.class));
+			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, UploadService.class));
 			if (autoUpload == 2) {
 				if (Build.VERSION.SDK_INT >= 24)
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
