@@ -113,7 +113,7 @@
             android:value="@string/GEO_API"/>
         <meta-data
             android:name="com.google.android.gms.games.APP_ID"
-            android:value="@string/google_app_id"/>
+            android:value="@string/google_app_id2"/>
     </application>
 
 </manifest>
