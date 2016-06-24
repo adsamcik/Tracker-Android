@@ -55,12 +55,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".Receivers.ConnectivityChangeReceiver">
-            <intent-filter>
-                <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
-            </intent-filter>
-        </receiver>
-
         <receiver android:name=".Receivers.ChargingReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
@@ -113,6 +107,9 @@
                 <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
             </intent-filter>
         </service>
+
+        <service android:name=".Services.UploadService"
+                 android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"

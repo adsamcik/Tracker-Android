@@ -10,6 +10,7 @@ public class BootReceiver extends BroadcastReceiver {
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		PlayController.initializeActivityClient(context);
+		if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED))
+			PlayController.initializeActivityClient(context);
 	}
 }

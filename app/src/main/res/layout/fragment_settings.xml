@@ -34,7 +34,8 @@
             android:layout_margin="10dp"
             android:id="@+id/tracking_none"
             android:tint="@color/textSecondary"
-            android:src="@drawable/ic_close_black_24dp"/>
+            android:src="@drawable/ic_close_black_24dp"
+            android:contentDescription="@string/settings_automaticUpload"/>
         <ImageView
             android:layout_width="50dp"
             android:layout_height="50dp"

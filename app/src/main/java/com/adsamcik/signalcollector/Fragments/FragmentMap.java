@@ -55,7 +55,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public FloatingActionButton fabTwo, fabOne;
 
 	LocationManager locationManager;
-	UpdateLocationListener locationListener;
+	final UpdateLocationListener locationListener;
 
 	TouchWrapper touchWrapper;
 
@@ -77,11 +77,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public FragmentMap() {
 		super();
 		locationListener = new UpdateLocationListener();
-	}
-
-	@Override
-	public void onAttach(Context context) {
-		super.onAttach(context);
 	}
 
 	@Override

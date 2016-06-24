@@ -1,5 +1,8 @@
 package com.adsamcik.signalcollector;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -13,6 +16,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Services.TrackerService;
+import com.google.android.gms.gcm.Task;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
 import com.loopj.android.http.SyncHttpClient;
@@ -36,7 +40,7 @@ public class DataStore {
 	public static final String KEY_SIZE = "totalSize";
 
 	//1048576 1MB, 5242880 5MB
-	public static final int MAX_FILE_SIZE = 2097152;
+	private static final int MAX_FILE_SIZE = 2097152;
 
 	private static Context context;
 	private static boolean uploadRequested;
@@ -56,35 +60,18 @@ public class DataStore {
 	 * @param c Non-null context
 	 */
 	public static void requestUpload(@NonNull Context c) {
-		uploadRequested = true;
-		updateAutoUploadState(c);
-	}
-
-	/**
-	 * Checks if auto-upload is possible
-	 * Call only on network change/settings change
-	 *
-	 * @param c Non-null context
-	 * @return Upload started
-	 */
-	public static boolean updateAutoUploadState(@NonNull Context c) {
 		int autoUpload = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
-		if(uploadRequested && autoUpload >= 1) {
-			ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-			NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-
-			if(activeNetwork != null &&
-					activeNetwork.isConnectedOrConnecting() &&
-					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||
-							(autoUpload >= 2 &&
-									activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE &&
-									!activeNetwork.isRoaming()))) {
-				new LoadAndUploadTask().execute(getDataFileNames(false));
-				uploadRequested = false;
-				return true;
-			}
+		if (uploadRequested && autoUpload >= 1) {
+			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, DataStore.class));
+			if (autoUpload == 2) {
+				if (Build.VERSION.SDK_INT >= 24)
+					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
+				else
+					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+			} else
+				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+			((JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 		}
-		return false;
 	}
 
 	/**
@@ -93,12 +80,12 @@ public class DataStore {
 	 * @param includeLast Include last file (last file is almost always not complete)
 	 * @return Returns data file names
 	 */
-	static String[] getDataFileNames(boolean includeLast) {
+	public static String[] getDataFileNames(boolean includeLast) {
 		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, 0);
-		if(!includeLast)
+		if (!includeLast)
 			maxID--;
 		String[] fileNames = new String[maxID + 1];
-		for(int i = 0; i <= maxID; i++)
+		for (int i = 0; i <= maxID; i++)
 			fileNames[i] = DATA_FILE + i;
 		return fileNames;
 	}
@@ -111,8 +98,8 @@ public class DataStore {
 	 * @param size size of data uploaded
 	 */
 	public static void upload(String data, final String name, final long size) {
-		if(data.isEmpty()) return;
-		if(!Extensions.isInitialized())
+		if (data.isEmpty()) return;
+		if (!Extensions.isInitialized())
 			Extensions.initialize((TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE));
 
 		String serialized = "{\"imei\":" + Extensions.getImei() +
@@ -157,7 +144,7 @@ public class DataStore {
 			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
 			osw.write(data);
 			osw.close();
-		} catch(Exception e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
@@ -179,7 +166,7 @@ public class DataStore {
 	 *
 	 * @param fileName file name
 	 */
-	public static void deleteFile(String fileName) {
+	private static void deleteFile(String fileName) {
 		context.deleteFile(fileName);
 	}
 
@@ -189,7 +176,7 @@ public class DataStore {
 	public static void clearAllData() {
 		SharedPreferences sp = Setting.getPreferences();
 		int max = sp.getInt(KEY_FILE_ID, -1);
-		for(int i = 0; i <= max; i++)
+		for (int i = 0; i <= max; i++)
 			context.deleteFile(DATA_FILE + i);
 
 		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).apply();
@@ -208,14 +195,14 @@ public class DataStore {
 		int id = sp.getInt(KEY_FILE_ID, 0);
 		boolean newFile = false;
 
-		if(sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
+		if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
 		}
 
 		String fileName = DATA_FILE + id;
 
-		if(!saveStringAppend(fileName, data))
+		if (!saveStringAppend(fileName, data))
 			return 1;
 
 		int size = data.getBytes(Charset.defaultCharset()).length;
@@ -232,7 +219,7 @@ public class DataStore {
 	public static long recountDataSize() {
 		String[] fileNames = getDataFileNames(true);
 		long size = 0;
-		for(String fileName : fileNames)
+		for (String fileName : fileNames)
 			size += sizeOf(fileName);
 		Setting.getPreferences().edit().putLong(KEY_SIZE, size).apply();
 		return size;
@@ -251,7 +238,7 @@ public class DataStore {
 	 * @param fileName Name of file
 	 * @return Size of file
 	 */
-	public static long sizeOf(String fileName) {
+	private static long sizeOf(String fileName) {
 		return new File(context.getFilesDir().getPath(), fileName).length();
 	}
 
@@ -263,9 +250,9 @@ public class DataStore {
 	 * @param data     Json data to be saved
 	 * @return Success
 	 */
-	public static boolean saveStringAppend(String fileName, String data) {
+	private static boolean saveStringAppend(String fileName, String data) {
 		StringBuilder sb = new StringBuilder(data);
-		if(sb.charAt(0) == '[')
+		if (sb.charAt(0) == '[')
 			sb.setCharAt(0, ',');
 		else
 			sb.insert(0, ',');
@@ -277,7 +264,7 @@ public class DataStore {
 			outputStream.write(data.getBytes());
 			outputStream.close();
 			return true;
-		} catch(Exception e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 			return false;
 		}
@@ -291,7 +278,7 @@ public class DataStore {
 	 * @return content of file as StringBuilder
 	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
-		if(!exists(fileName)) {
+		if (!exists(fileName)) {
 			Log.w(TAG, "file " + fileName + " does not exist");
 			return null;
 		}
@@ -303,12 +290,12 @@ public class DataStore {
 			String receiveString;
 			StringBuilder stringBuilder = new StringBuilder();
 
-			while((receiveString = br.readLine()) != null)
+			while ((receiveString = br.readLine()) != null)
 				stringBuilder.append(receiveString);
 
 			isr.close();
 			return stringBuilder;
-		} catch(Exception e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -322,7 +309,7 @@ public class DataStore {
 	 */
 	public static String loadString(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
-		if(sb != null)
+		if (sb != null)
 			return sb.toString();
 		else
 			return "";
@@ -346,17 +333,17 @@ public class DataStore {
 	 * @return json array
 	 */
 	public static String arrayToJSON(Object[] array) {
-		if(array == null || array.length == 0)
+		if (array == null || array.length == 0)
 			return "";
 		String out = "[";
 		String data;
-		for(Object anArray : array) {
+		for (Object anArray : array) {
 			data = objectToJSON(anArray);
-			if(!data.equals(""))
+			if (!data.equals(""))
 				out += data + ",";
 		}
 
-		if(out.length() == 1)
+		if (out.length() == 1)
 			return "";
 
 		out = out.substring(0, out.length() - 1);
@@ -371,50 +358,50 @@ public class DataStore {
 	 * @return json object
 	 */
 	public static String objectToJSON(Object o) {
-		if(o == null) return "";
+		if (o == null) return "";
 		Class c = o.getClass();
 		Field[] fields = c.getFields();
 		String out = "{";
-		for(Field field : fields) {
+		for (Field field : fields) {
 			try {
-				if(field == null || Modifier.isStatic(field.getModifiers()))
+				if (field == null || Modifier.isStatic(field.getModifiers()))
 					continue;
 				String typeName = field.getType().getSimpleName();
 				String data = "";
-				if(field.getType().isArray())
+				if (field.getType().isArray())
 					data = arrayToJSON((Object[]) field.get(o));
-				else if(typeName.equals("double"))
+				else if (typeName.equals("double"))
 					data = Double.toString(field.getDouble(o));
-				else if(typeName.equals("long"))
+				else if (typeName.equals("long"))
 					data = Long.toString(field.getLong(o));
-				else if(typeName.equals("float"))
+				else if (typeName.equals("float"))
 					data = Float.toString(field.getFloat(o));
-				else if(typeName.equals("String")) {
+				else if (typeName.equals("String")) {
 					String val = (String) field.get(o);
-					if(val != null)
+					if (val != null)
 						data = "\"" + val.replace("\"", "\\\"") + "\"";
-				} else if(typeName.equals("int")) {
+				} else if (typeName.equals("int")) {
 					int value = field.getInt(o);
-					if(value != 0)
+					if (value != 0)
 						data = Integer.toString(value);
-				} else if(typeName.equals("boolean"))
+				} else if (typeName.equals("boolean"))
 					data = Boolean.toString(field.getBoolean(o));
-				else if(!field.getType().isPrimitive())
+				else if (!field.getType().isPrimitive())
 					data = objectToJSON(field.get(o));
 				else
 					Log.e("type", "Unknown type " + typeName + " - " + field.getName());
 
-				if(!data.equals("")) {
+				if (!data.equals("")) {
 					out += "\"" + field.getName() + "\":";
 					out += data;
 					out += ",";
 				}
-			} catch(Exception e) {
+			} catch (Exception e) {
 				e.printStackTrace();
 				Log.e("Exception", field.getName() + " - " + e.getMessage());
 			}
 		}
-		if(out.length() <= 1) return "";
+		if (out.length() <= 1) return "";
 		out = out.substring(0, out.length() - 1);
 		out += "}";
 		return out;
