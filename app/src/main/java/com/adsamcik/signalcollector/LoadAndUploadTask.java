@@ -6,6 +6,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.nio.charset.Charset;
 
@@ -34,6 +35,7 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 			String fileName = files[index];
 			if (fileName == null || fileName.trim().length() == 0) {
 				Log.e(DataStore.TAG, "Null or empty file name was in load and upload task. This should not happen.");
+				FirebaseCrash.report(new Exception("Null or empty file name was in load and upload task. This should not happen."));
 				continue;
 			}
 
@@ -41,6 +43,7 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 
 			if (builder == null || builder.length() == 0) {
 				Log.e(DataStore.TAG, "File" + fileName + " did not exist or was empty. This should not happen.");
+				FirebaseCrash.report(new Exception("File" + fileName + " did not exist or was empty. This should not happen."));
 				continue;
 			} else {
 				builder.setCharAt(0, '[');

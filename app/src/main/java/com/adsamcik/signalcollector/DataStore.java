@@ -14,6 +14,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.google.firebase.crash.FirebaseCrash;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
 import com.loopj.android.http.SyncHttpClient;
@@ -123,7 +124,8 @@ public class DataStore {
 				intent.putExtra("cloudStatus", 1);
 				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 				requestUpload(context);
-				Log.w(TAG, "Upload failed " + name + " code " + statusCode);
+				FirebaseCrash.report(new Exception("Upload failed " + name + " code " + statusCode));
+				//Log.w(TAG, "Upload failed " + name + " code " + statusCode);
 			}
 		});
 	}
@@ -142,6 +144,7 @@ public class DataStore {
 			osw.close();
 		} catch (Exception e) {
 			e.printStackTrace();
+			FirebaseCrash.report(e);
 		}
 	}
 
@@ -262,6 +265,7 @@ public class DataStore {
 			return true;
 		} catch (Exception e) {
 			e.printStackTrace();
+			FirebaseCrash.report(e);
 			return false;
 		}
 
@@ -275,7 +279,8 @@ public class DataStore {
 	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
 		if (!exists(fileName)) {
-			Log.w(TAG, "file " + fileName + " does not exist");
+			Log.e(TAG, "file " + fileName + " does not exist");
+			FirebaseCrash.report(new Exception("file " + fileName + " does not exist"));
 			return null;
 		}
 
@@ -293,6 +298,7 @@ public class DataStore {
 			return stringBuilder;
 		} catch (Exception e) {
 			e.printStackTrace();
+			FirebaseCrash.report(e);
 			return null;
 		}
 	}

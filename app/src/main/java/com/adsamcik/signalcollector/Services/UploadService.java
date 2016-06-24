@@ -10,12 +10,13 @@ import android.util.Log;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.LoadAndUploadTask;
 import com.adsamcik.signalcollector.Setting;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class UploadService extends JobService {
 	LoadAndUploadTask task;
 
 	public boolean upload() {
-		Log.d("UploadService", "Upload started");
+		FirebaseCrash.log("Upload started");
 		Context c = getApplicationContext();
 		int autoUpload = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload >= 1) {
@@ -30,15 +31,17 @@ public class UploadService extends JobService {
 									!activeNetwork.isRoaming()))) {
 				task = new LoadAndUploadTask();
 				task.execute(DataStore.getDataFileNames(false));
+				FirebaseCrash.log("Upload successful");
 				return true;
 			}
 		}
+		FirebaseCrash.log("Upload failed");
 		return false;
 	}
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		Log.d("UploadService", "Job scheduled");
+		FirebaseCrash.log("Job scheduled");
 		return !upload();
 	}
 
@@ -46,6 +49,7 @@ public class UploadService extends JobService {
 	public boolean onStopJob(JobParameters jobParameters) {
 		if(task != null)
 			task.cancel(true);
+		FirebaseCrash.log("Job canceled");
 		return false;
 	}
 }
