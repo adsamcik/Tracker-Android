@@ -64,9 +64,7 @@ public class MainActivity extends FragmentActivity {
 	protected void onStart() {
 		super.onStart();
 
-		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
-			startActivity(new Intent(this, IntroActivity.class));
-		} else {
+		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			PlayController.setContext(context);
 			PlayController.setActivity(this);
 			PlayController.initializeGamesClient(findViewById(R.id.container));
@@ -83,6 +81,9 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(context);
 		Setting.initializeSharedPreferences(context);
 		instance = this;
+
+		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false))
+			startActivity(new Intent(this, IntroActivity.class));
 
 		PlayController.setContext(context);
 		PlayController.setActivity(this);
