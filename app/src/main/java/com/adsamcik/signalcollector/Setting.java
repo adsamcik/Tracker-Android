@@ -21,12 +21,20 @@ public class Setting implements Serializable {
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
 	private static SharedPreferences sharedPreferences;
 
-	public static void stopTillRecharge(@NonNull Context c) {
-		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
-	}
-
+	/**
+	 * Initialize shared preferences. It's usually good to call it.
+	 * @param c context
+	 */
 	public static void initializeSharedPreferences(@NonNull Context c) {
 		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
+	}
+
+	/**
+	 * Will stop tracking until phone is connected to charger
+	 * @param c context
+	 */
+	public static void stopTillRecharge(@NonNull Context c) {
+		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
 	}
 
 	/**
