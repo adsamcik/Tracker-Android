@@ -30,10 +30,11 @@ dependencies {
     compile 'com.android.support:support-v4:24.0.0'
     compile 'com.google.code.gson:gson:2.7'
     compile 'com.github.paolorotolo:appintro:4.0.0'
-    compile 'ch.acra:acra:4.9.0'
     compile 'com.loopj.android:android-async-http:1.4.9'
     compile 'com.google.android.gms:play-services-maps:9.0.2'
     compile 'com.google.android.gms:play-services-location:9.0.2'
     compile 'com.google.android.gms:play-services-games:9.0.2'
     compile 'com.google.android.gms:play-services-gcm:9.0.2'
+
+    compile 'com.google.firebase:firebase-crash:9.0.2'
 }
