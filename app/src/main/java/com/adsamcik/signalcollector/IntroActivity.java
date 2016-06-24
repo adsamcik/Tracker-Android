@@ -92,9 +92,6 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
-		AppIntro2Fragment fragment = (AppIntro2Fragment) newFragment;
-		setNavBarColor(String.format("#%06X", (0xFFFFFF & fragment.getDefaultBackgroundColor())));
-		//window.setStatusBarColor(Color.parseColor("#3f51B5"));
 		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable()) {
 			PlayController.setContext(getApplicationContext());
 			PlayController.setActivity(this);
