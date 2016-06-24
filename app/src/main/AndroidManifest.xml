@@ -96,11 +96,6 @@
         </service>
 
         <service
-            android:name="org.acra.sender.SenderService"
-            android:exported="false"
-            android:process=":acra"/>
-
-        <service
             android:name=".services.MessageListenerService"
             android:exported="false">
             <intent-filter>
