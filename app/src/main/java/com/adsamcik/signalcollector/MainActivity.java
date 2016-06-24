@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.services.RegistrationIntentService;
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -114,6 +115,7 @@ public class MainActivity extends FragmentActivity {
 						if (!updateFabs(position)) {
 							viewPager.setCurrentItem(prevPos);
 							Snackbar.make(findViewById(R.id.container), "An error occured", 5);
+							FirebaseCrash.log("Something went wrong when updating fabs.");
 						} else
 							prevPos = position;
 					}
@@ -165,7 +167,7 @@ public class MainActivity extends FragmentActivity {
 			startService(intent);
 		}
 
-		if(Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
+		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(context);
 	}
 

@@ -39,6 +39,7 @@ import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -134,7 +135,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public void onLeave() {
 		if (checkLocationPermission(false)) {
 			if (locationManager == null)
-				Log.e(TAG, "location manager is null on leave");
+				FirebaseCrash.log("Location manager is null on leave");
 			else
 				locationManager.removeUpdates(locationListener);
 		}
@@ -192,6 +193,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 */
 	private void changeMapOverlay(int index) {
 		if (map == null) {
+			FirebaseCrash.log("changeMapOverlay should not be called before map is initialized");
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
 			return;
 		} else if (index < 0 || index >= availableTypes.length)
