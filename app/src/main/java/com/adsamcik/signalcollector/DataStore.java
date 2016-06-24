@@ -57,7 +57,8 @@ public class DataStore {
 	 * @param c Non-null context
 	 */
 	public static void requestUpload(@NonNull Context c) {
-		int autoUpload = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
+		SharedPreferences sp = Setting.getPreferences(c);
+		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload != 0) {
 			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, DataStore.class));
 			if (autoUpload == 2) {
@@ -68,6 +69,7 @@ public class DataStore {
 			} else
 				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
 			((JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
+			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
 		}
 	}
 

@@ -1,10 +1,13 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.async;
 
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.MainActivity;
+import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -65,6 +68,8 @@ public class LoadAndUploadTask extends AsyncTask<String, Void, Void> {
 		TrackerService.onUploadComplete(fileNames.length - 1);
 
 		DataStore.recountDataSize();
+
+		Setting.getPreferences().edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
 
 		isUploading = false;
 		return null;

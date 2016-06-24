@@ -5,10 +5,9 @@ import android.app.job.JobService;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.DataStore;
-import com.adsamcik.signalcollector.LoadAndUploadTask;
+import com.adsamcik.signalcollector.async.LoadAndUploadTask;
 import com.adsamcik.signalcollector.Setting;
 import com.google.firebase.crash.FirebaseCrash;
 

@@ -27,6 +27,7 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
+import com.adsamcik.signalcollector.async.LoadAndUploadTask;
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
@@ -164,7 +165,8 @@ public class MainActivity extends FragmentActivity {
 			startService(intent);
 		}
 
-		DataStore.updateAutoUploadState(context);
+		if(Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
+			DataStore.requestUpload(context);
 	}
 
 	/**
