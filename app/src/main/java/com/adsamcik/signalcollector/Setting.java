@@ -25,10 +25,6 @@ public class Setting implements Serializable {
 		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
 	}
 
-	public static void recharging(@NonNull Context c) {
-		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, false).apply();
-	}
-
 	public static void initializeSharedPreferences(@NonNull Context c) {
 		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
 	}
