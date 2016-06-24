@@ -25,7 +25,6 @@ public class MessageListenerService extends GcmListenerService {
 	 * @param data Data bundle containing message data as key/value pairs.
 	 *             For Set of keys use data.keySet().
 	 */
-	// [START receive_message]
 	@Override
 	public void onMessageReceived(String from, Bundle data) {
 		if(PlayController.gapiGamesClient == null)
@@ -48,8 +47,6 @@ public class MessageListenerService extends GcmListenerService {
 				PlayController.gamesController.earnAchievement(id);
 				break;
 		}
-		//Log.d(TAG, "From: " + from);
-		//Log.d(TAG, "Message: " + message);
 	}
 
 	/**
