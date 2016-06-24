@@ -13,5 +13,5 @@
         android:paddingEnd="16dp"
         android:paddingStart="16dp"
         android:paddingTop="16dp"
-        tools:context=".Fragments.FragmentStats"/>
+        tools:context=".fragments.FragmentStats"/>
 </ScrollView>

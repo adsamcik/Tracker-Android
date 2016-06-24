@@ -43,25 +43,25 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar"/>
 
-        <receiver android:name=".Receivers.BatteryStateReceiver">
+        <receiver android:name=".receivers.BatteryStateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_BATTERY_LOW"/>
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".Receivers.BootReceiver">
+        <receiver android:name=".receivers.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".Receivers.ChargingReceiver">
+        <receiver android:name=".receivers.ChargingReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".Receivers.NotificationReceiver">
+        <receiver android:name=".receivers.NotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
@@ -79,16 +79,16 @@
         </receiver>
 
         <service
-            android:name=".Services.TrackerService"
+            android:name=".services.TrackerService"
             android:exported="false"/>
         <service
-            android:name=".Services.PlayIntentService"
+            android:name=".services.PlayIntentService"
             android:exported="false"/>
         <service
-            android:name=".Services.InstanceIDListenerService"
+            android:name=".services.InstanceIDListenerService"
             android:exported="false"/>
         <service
-            android:name=".Services.RegistrationIntentService"
+            android:name=".services.RegistrationIntentService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.android.gms.iid.InstanceID"/>
@@ -101,14 +101,14 @@
             android:process=":acra"/>
 
         <service
-            android:name=".Services.MessageListenerService"
+            android:name=".services.MessageListenerService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
             </intent-filter>
         </service>
 
-        <service android:name=".Services.UploadService"
+        <service android:name=".services.UploadService"
                  android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <meta-data

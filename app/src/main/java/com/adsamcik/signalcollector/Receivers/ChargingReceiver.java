@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Receivers;
+package com.adsamcik.signalcollector.receivers;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

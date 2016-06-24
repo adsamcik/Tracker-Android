@@ -27,13 +27,13 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
-import com.adsamcik.signalcollector.Fragments.FragmentMain;
-import com.adsamcik.signalcollector.Fragments.FragmentMap;
-import com.adsamcik.signalcollector.Fragments.FragmentSettings;
-import com.adsamcik.signalcollector.Fragments.FragmentStats;
-import com.adsamcik.signalcollector.Play.PlayController;
-import com.adsamcik.signalcollector.Services.RegistrationIntentService;
-import com.adsamcik.signalcollector.Services.TrackerService;
+import com.adsamcik.signalcollector.fragments.FragmentMain;
+import com.adsamcik.signalcollector.fragments.FragmentMap;
+import com.adsamcik.signalcollector.fragments.FragmentSettings;
+import com.adsamcik.signalcollector.fragments.FragmentStats;
+import com.adsamcik.signalcollector.play.PlayController;
+import com.adsamcik.signalcollector.services.RegistrationIntentService;
+import com.adsamcik.signalcollector.services.TrackerService;
 
 import java.util.ArrayList;
 import java.util.List;

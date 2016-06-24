@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Fragments;
+package com.adsamcik.signalcollector.fragments;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

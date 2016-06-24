@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Services;
+package com.adsamcik.signalcollector.services;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -10,7 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 
 import com.adsamcik.signalcollector.MainActivity;
-import com.adsamcik.signalcollector.Play.PlayController;
+import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.google.android.gms.gcm.GcmListenerService;
 

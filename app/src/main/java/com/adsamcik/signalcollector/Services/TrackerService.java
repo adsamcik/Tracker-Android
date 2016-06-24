@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Services;
+package com.adsamcik.signalcollector.services;
 
 import android.Manifest;
 import android.app.Notification;
@@ -33,15 +33,15 @@ import android.telephony.CellInfo;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Data.CellData;
-import com.adsamcik.signalcollector.Data.Data;
+import com.adsamcik.signalcollector.data.CellData;
+import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.Fragments.FragmentMain;
+import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.MainActivity;
-import com.adsamcik.signalcollector.Play.PlayController;
+import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Receivers.NotificationReceiver;
+import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.Setting;
 
 import java.nio.charset.Charset;

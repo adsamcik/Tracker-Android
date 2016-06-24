@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Fragments;
+package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;

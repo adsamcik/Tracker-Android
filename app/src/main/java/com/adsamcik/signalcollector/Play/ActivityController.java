@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Play;
+package com.adsamcik.signalcollector.play;
 
 import android.app.PendingIntent;
 import android.content.Context;
@@ -6,7 +6,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 
-import com.adsamcik.signalcollector.Services.PlayIntentService;
+import com.adsamcik.signalcollector.services.PlayIntentService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;

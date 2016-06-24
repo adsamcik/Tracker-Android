@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Data;
+package com.adsamcik.signalcollector.data;
 
 import android.net.wifi.ScanResult;
 import android.os.Build;

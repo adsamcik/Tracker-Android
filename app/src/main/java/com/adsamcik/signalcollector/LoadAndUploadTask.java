@@ -5,7 +5,7 @@ import android.os.AsyncTask;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Services.TrackerService;
+import com.adsamcik.signalcollector.services.TrackerService;
 
 import java.nio.charset.Charset;
 

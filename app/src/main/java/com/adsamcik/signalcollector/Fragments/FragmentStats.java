@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Fragments;
+package com.adsamcik.signalcollector.fragments;
 
 import android.content.Context;
 import android.graphics.Typeface;
@@ -16,11 +16,11 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.Data.Stat;
-import com.adsamcik.signalcollector.Data.StatData;
+import com.adsamcik.signalcollector.data.Stat;
+import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Network;
-import com.adsamcik.signalcollector.Play.PlayController;
+import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;

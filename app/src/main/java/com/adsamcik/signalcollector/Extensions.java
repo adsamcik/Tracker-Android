@@ -8,7 +8,7 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
 
-import com.adsamcik.signalcollector.Services.TrackerService;
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
 import java.util.Locale;

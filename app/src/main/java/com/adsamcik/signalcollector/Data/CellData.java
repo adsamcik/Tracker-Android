@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Data;
+package com.adsamcik.signalcollector.data;
 
 import android.telephony.CellIdentityCdma;
 import android.telephony.CellIdentityGsm;

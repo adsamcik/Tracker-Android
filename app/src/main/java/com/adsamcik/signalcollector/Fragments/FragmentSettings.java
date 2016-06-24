@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Fragments;
+package com.adsamcik.signalcollector.fragments;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -16,7 +16,7 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.MainActivity;
-import com.adsamcik.signalcollector.Play.PlayController;
+import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 

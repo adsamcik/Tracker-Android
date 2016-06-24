@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Play;
+package com.adsamcik.signalcollector.play;
 
 import android.app.Activity;
 import android.content.BroadcastReceiver;

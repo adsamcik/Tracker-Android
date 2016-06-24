@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.Data;
+package com.adsamcik.signalcollector.data;
 
 public class StatData {
 	public final String id;
