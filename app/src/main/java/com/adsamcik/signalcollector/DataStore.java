@@ -40,7 +40,6 @@ public class DataStore {
 	private static final int MAX_FILE_SIZE = 2097152;
 
 	private static Context context;
-	private static boolean uploadRequested;
 
 	public static void setContext(@NonNull Context c) {
 		context = c;
@@ -58,7 +57,7 @@ public class DataStore {
 	 */
 	public static void requestUpload(@NonNull Context c) {
 		int autoUpload = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
-		if (uploadRequested && autoUpload >= 1) {
+		if (autoUpload != 0) {
 			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, DataStore.class));
 			if (autoUpload == 2) {
 				if (Build.VERSION.SDK_INT >= 24)
