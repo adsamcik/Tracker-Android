@@ -182,20 +182,20 @@ public class FragmentSettings extends Fragment {
             @Override
             public void onClick(View v) {
                 AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
-                alertDialogBuilder.setPositiveButton(Resources.getSystem().getText(R.string.alert_clear_confirm), new DialogInterface.OnClickListener() {
+                alertDialogBuilder.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         DataStore.clearAllData();
                         ((MainActivity) getActivity()).setCloudStatus(0);
                     }
                 })
-                        .setNegativeButton(Resources.getSystem().getText(R.string.alert_clear_cancel), new DialogInterface.OnClickListener() {
+                        .setNegativeButton(getResources().getText(R.string.alert_clear_cancel), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
 
                             }
                         })
-                        .setMessage(Resources.getSystem().getText(R.string.alert_clear_text));
+                        .setMessage(getResources().getText(R.string.alert_clear_text));
 
                 alertDialogBuilder.create().show();
             }
