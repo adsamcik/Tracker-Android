@@ -2,6 +2,7 @@
   <dictionary name="adsamcik">
     <words>
       <w>imei</w>
+      <w>stringified</w>
     </words>
   </dictionary>
 </component>

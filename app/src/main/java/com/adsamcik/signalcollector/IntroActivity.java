@@ -53,6 +53,10 @@ public class IntroActivity extends AppIntro2 {
 		//setVibrateIntensity(30);
 	}
 
+	/**
+	 * Checks all required permissions
+	 * @return true if all permissions are granted
+	 */
 	boolean CheckAllTrackingPermissions() {
 		if(Build.VERSION.SDK_INT > 22) {
 			List<String> permissions = new ArrayList<>();

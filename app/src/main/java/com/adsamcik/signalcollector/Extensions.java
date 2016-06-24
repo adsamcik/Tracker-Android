@@ -160,6 +160,11 @@ public class Extensions {
 		return "N/A";
 	}
 
+	/**
+	 * Converts coordinate to string
+	 * @param coordinate
+	 * @return stringified coordinate
+	 */
 	public static String coordsToString(double coordinate) {
 		int degree = (int) coordinate;
 		coordinate = (coordinate - degree) * 60;
