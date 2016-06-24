@@ -25,7 +25,8 @@ public class IntroActivity extends AppIntro2 {
 	int slideNumber = 0;
 
 	@Override
-	public void init(Bundle savedInstanceState) {
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
 		addSlide(AppIntroFragment.newInstance("Signal Collector", "Welcome [insert your name] to the exciting world of data collecting", R.drawable.ic_signals, Color.parseColor("#3F51B5")));
 		if(Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {
 			addSlide(AppIntroFragment.newInstance("Permissions", "The app needs location to place data you collect into a map and phone permission to get identification number to distinguish your uploads from others.", R.drawable.ic_settings_applications_black_24dp, Color.parseColor("#3F64BB")));
@@ -103,5 +104,4 @@ public class IntroActivity extends AppIntro2 {
 			}
 		}
 	}
-
 }
