@@ -23,6 +23,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
@@ -35,6 +36,7 @@ import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -163,6 +165,8 @@ public class MainActivity extends FragmentActivity {
 
 		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(context);
+
+		//Log.d(TAG,  FirebaseInstanceId.getInstance().getToken());
 	}
 
 	/**

@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.play.PlayController;
@@ -34,7 +35,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			return;
 
 		String title = data.get("title");
-		String msg = message.getMessageId();
+		String msg = message.getNotification().getBody();
 
 		FirebaseCrash.log(title);
 		FirebaseCrash.log(msg);
@@ -48,6 +49,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 				PlayController.gamesController.earnAchievement(data.get("achievement-id"));
 				break;
 		}
+		Log.d(TAG, title + msg);
 	}
 
 	/**
