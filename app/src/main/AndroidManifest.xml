@@ -11,12 +11,7 @@
     <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="com.google.android.c2dm.permission.SEND"/>
-    <uses-permission android:name="com.adsamcik.signalcollector.permission.C2D_MESSAGE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-
-    <permission
-        android:name="com.adsamcik.signalcollector.permission.C2D_MESSAGE"
-        android:protectionLevel="signature"/>
 
     <application
         android:name=".App"
@@ -67,17 +62,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name="com.google.android.gms.gcm.GcmReceiver"
-            android:exported="true"
-            android:permission="com.google.android.c2dm.permission.SEND">
-            <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
-
-                <category android:name="com.adsamcik.signalcollector"/>
-            </intent-filter>
-        </receiver>
-
         <service
             android:name=".services.TrackerService"
             android:exported="false"/>
@@ -87,19 +71,12 @@
         <service
             android:name=".services.InstanceIDListenerService"
             android:exported="false"/>
-        <service
-            android:name=".services.RegistrationIntentService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.android.gms.iid.InstanceID"/>
-            </intent-filter>
-        </service>
 
         <service
             android:name=".services.MessageListenerService"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
 

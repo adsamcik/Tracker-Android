@@ -7,44 +7,45 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.Bundle;
 
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
-import com.google.android.gms.gcm.GcmListenerService;
+import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.messaging.FirebaseMessagingService;
+import com.google.firebase.messaging.RemoteMessage;
 
-public class MessageListenerService extends GcmListenerService {
-	private static final String TAG = "MyGcmListenerService";
+import java.util.Map;
+
+public class MessageListenerService extends FirebaseMessagingService {
+	private static final String TAG = "MessageListenerService";
 	static int notificationIndex = 1;
 
-	/**
-	 * Called when message is received.
-	 *
-	 * @param from SenderID of the sender.
-	 * @param data Data bundle containing message data as key/value pairs.
-	 *             For Set of keys use data.keySet().
-	 */
 	@Override
-	public void onMessageReceived(String from, Bundle data) {
+	public void onMessageReceived(RemoteMessage message){
 		if(PlayController.gapiGamesClient == null)
 			return;
 
-		String type = data.getString("type");
+		Map<String, String> data = message.getData();
+
+		String type = message.getMessageType();
+		FirebaseCrash.log(type);
 		if(type == null)
 			return;
 
-		String message = data.getString("message");
-		String title = data.getString("title");
+		String title = data.get("title");
+		String msg = message.getMessageId();
 
+		FirebaseCrash.log(title);
+		FirebaseCrash.log(msg);
+		message.getNotification().notify();
 		switch(MessageType.values()[Integer.parseInt(type)]) {
 			case Notification:
-				sendNotification(title, message);
+				sendNotification(title, msg);
 				break;
 			case Achievement:
-				String id = data.getString("id");
-				sendNotification(title, message);
-				PlayController.gamesController.earnAchievement(id);
+				sendNotification(title, msg);
+				PlayController.gamesController.earnAchievement(data.get("achievement-id"));
 				break;
 		}
 	}

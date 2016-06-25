@@ -33,7 +33,6 @@ import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.play.PlayController;
-import com.adsamcik.signalcollector.services.RegistrationIntentService;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -161,12 +160,6 @@ public class MainActivity extends FragmentActivity {
 			changeTrackerButton(1);
 
 		Extensions.initialize((TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE));
-
-		if (PlayController.isPlayServiceAvailable()) {
-			// Start IntentService to register this application with GCM.
-			Intent intent = new Intent(this, RegistrationIntentService.class);
-			startService(intent);
-		}
 
 		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(context);

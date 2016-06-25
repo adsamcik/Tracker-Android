@@ -1,19 +1,27 @@
 package com.adsamcik.signalcollector.services;
 
 import android.content.Intent;
+import android.util.Log;
 
-public class InstanceIDListenerService extends com.google.android.gms.iid.InstanceIDListenerService {
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.iid.FirebaseInstanceIdService;
+
+public class InstanceIDListenerService extends FirebaseInstanceIdService {
 
 	/**
 	 * Called if InstanceID token is updated. This may occur if the security of
-	 * the previous token had been compromised. This call is initiated by the
-	 * InstanceID provider.
+	 * the previous token had been compromised. Note that this is also called
+	 * when the InstanceID token is initially generated, so this is where
+	 * you retrieve the token.
 	 */
 	// [START refresh_token]
 	@Override
 	public void onTokenRefresh() {
-		// Fetch updated Instance ID token and notify our app's server of any changes (if applicable).
-		Intent intent = new Intent(this, RegistrationIntentService.class);
-		startService(intent);
+		// Get updated InstanceID token.
+		String refreshedToken = FirebaseInstanceId.getInstance().getToken();
+		Log.d("IIDL_SERVICE", "Refreshed token: " + refreshedToken);
+		// TODO: Implement this method to send any registration to your app's servers.
+		//sendRegistrationToServer(refreshedToken);
 	}
+
 }
