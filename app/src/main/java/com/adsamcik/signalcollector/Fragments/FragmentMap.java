@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -148,13 +149,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public boolean initializeFABs(FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public boolean initializeFABs(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
 		if (checkLocationPermission(true)) {
 			if (locationManager == null)
-				locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
+				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
 			else
 				locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 		} else

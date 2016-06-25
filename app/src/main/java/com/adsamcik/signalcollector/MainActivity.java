@@ -293,7 +293,7 @@ public class MainActivity extends FragmentActivity {
 				);
 				return true;
 			case 1:
-				return ((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initializeFABs(fabOne, fabTwo);
+				return ((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initializeFABs(this, fabOne, fabTwo);
 			default:
 				fabOne.hide();
 				fabTwo.hide();
