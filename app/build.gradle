@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 24
-        versionCode 47
-        versionName "2.0.0 Crashreports"
+        versionCode 48
+        versionName "2.0.0 Messenging"
     }
     buildTypes {
         release {
@@ -34,10 +34,10 @@ dependencies {
     compile 'com.google.android.gms:play-services-maps:9.0.2'
     compile 'com.google.android.gms:play-services-location:9.0.2'
     compile 'com.google.android.gms:play-services-games:9.0.2'
-    compile 'com.google.android.gms:play-services-gcm:9.0.2'
 
     compile 'com.google.firebase:firebase-core:9.0.2'
     compile 'com.google.firebase:firebase-crash:9.0.2'
+    compile 'com.google.firebase:firebase-messaging:9.0.2'
 }
 
 apply plugin: 'com.google.gms.google-services'
