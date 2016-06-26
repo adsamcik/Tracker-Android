@@ -306,16 +306,17 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		unregisterReceiver(wifiReceiver);
 		PlayController.unregisterActivityReceiver(activityReceiver);
-
 		mSensorManager.unregisterListener(this);
-		//LocalBroadcastManager.getInstance(MainActivity.instance).sendBroadcast();
+
+		isActive = false;
 		saveData();
 		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(false);
+		DataStore.cleanup();
+
 		stopForeground(true);
 		sendStatusBroadcast(-1, 0);
 		instance = null;
-		isActive = false;
 	}
 
 	@Nullable
