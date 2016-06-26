@@ -43,12 +43,12 @@ public class DataStore {
 
 	private static Context context;
 
-	public static void setContext(@NonNull Context c) {
-		context = c;
-	}
-
 	public static Context getContext() {
 		return context;
+	}
+
+	public static void setContext(@NonNull Context c) {
+		context = c;
 	}
 
 	/**
@@ -134,24 +134,6 @@ public class DataStore {
 	}
 
 	/**
-	 * Saves string to file
-	 *
-	 * @param fileName file name
-	 * @param data     string data
-	 */
-	public static void saveString(String fileName, String data) {
-		try {
-			FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_PRIVATE);
-			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
-			osw.write(data);
-			osw.close();
-		} catch (Exception e) {
-			e.printStackTrace();
-			FirebaseCrash.report(e);
-		}
-	}
-
-	/**
 	 * Move file
 	 *
 	 * @param fileName    original file name
@@ -171,6 +153,48 @@ public class DataStore {
 	private static void deleteFile(String fileName) {
 		context.deleteFile(fileName);
 	}
+
+	/**
+	 * Checks if file exists
+	 *
+	 * @param fileName file name
+	 * @return existance of file
+	 */
+	public static boolean exists(String fileName) {
+		return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
+	}
+
+	/**
+	 * Inspects all data files and returns the total size
+	 *
+	 * @return total size of data
+	 */
+	public static long recountDataSize() {
+		String[] fileNames = getDataFileNames(true);
+		long size = 0;
+		for (String fileName : fileNames)
+			size += sizeOf(fileName);
+		Setting.getPreferences().edit().putLong(KEY_SIZE, size).apply();
+		return size;
+	}
+
+	/**
+	 * Gets saved size of data.
+	 *
+	 * @return returns saved data size from shared preferences.
+	 */
+	public static long sizeOfData() {
+		return Setting.getPreferences().getLong(KEY_SIZE, 0);
+	}
+
+	/**
+	 * @param fileName Name of file
+	 * @return Size of file
+	 */
+	private static long sizeOf(String fileName) {
+		return new File(context.getFilesDir().getPath(), fileName).length();
+	}
+
 
 	/**
 	 * Clears all data files
@@ -213,37 +237,24 @@ public class DataStore {
 		return newFile && id > 0 ? 2 : 0;
 	}
 
+
 	/**
-	 * Inspects all data files and returns the total size
+	 * Saves string to file
 	 *
-	 * @return total size of data
+	 * @param fileName file name
+	 * @param data     string data
 	 */
-	public static long recountDataSize() {
-		String[] fileNames = getDataFileNames(true);
-		long size = 0;
-		for (String fileName : fileNames)
-			size += sizeOf(fileName);
-		Setting.getPreferences().edit().putLong(KEY_SIZE, size).apply();
-		return size;
+	public static void saveString(String fileName, String data) {
+		try {
+			FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_PRIVATE);
+			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
+			osw.write(data);
+			osw.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+			FirebaseCrash.report(e);
+		}
 	}
-
-	/**
-	 * Gets saved size of data.
-	 *
-	 * @return returns saved data size from shared preferences.
-	 */
-	public static long sizeOfData() {
-		return Setting.getPreferences().getLong(KEY_SIZE, 0);
-	}
-
-	/**
-	 * @param fileName Name of file
-	 * @return Size of file
-	 */
-	private static long sizeOf(String fileName) {
-		return new File(context.getFilesDir().getPath(), fileName).length();
-	}
-
 
 	/**
 	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
@@ -317,16 +328,6 @@ public class DataStore {
 			return sb.toString();
 		else
 			return "";
-	}
-
-	/**
-	 * Checks if file exists
-	 *
-	 * @param fileName file name
-	 * @return existance of file
-	 */
-	public static boolean exists(String fileName) {
-		return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
 	}
 
 
