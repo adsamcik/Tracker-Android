@@ -282,8 +282,7 @@ public class DataStore {
 	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
 		if (!exists(fileName)) {
-			Log.e(TAG, "file " + fileName + " does not exist");
-			FirebaseCrash.report(new Exception("file " + fileName + " does not exist"));
+			Log.w(TAG, "file " + fileName + " does not exist");
 			return null;
 		}
 
