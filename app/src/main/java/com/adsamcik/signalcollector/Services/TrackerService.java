@@ -276,10 +276,10 @@ public class TrackerService extends Service implements SensorEventListener {
 		//Split in two to save a bit of power
 		for (int i = 0; i <= maxUploadId; i++)
 			if (DataStore.exists(DataStore.DATA_FILE + i))
-				DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
+				DataStore.renameFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
 
 		for (int i = maxUploadId; i <= maxId; i++)
-			DataStore.moveFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
+			DataStore.renameFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
 
 		sp.edit().putInt(DataStore.KEY_FILE_ID, currentId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
 	}

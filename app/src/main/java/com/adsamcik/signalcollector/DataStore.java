@@ -31,7 +31,6 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -143,7 +142,7 @@ public class DataStore {
 	 * @param newFileName new file name
 	 * @return success
 	 */
-	public static boolean moveFile(String fileName, String newFileName) {
+	public static boolean renameFile(String fileName, String newFileName) {
 		String dir = context.getFilesDir().getPath();
 		return new File(dir, fileName).renameTo(new File(dir, newFileName));
 	}
@@ -183,13 +182,13 @@ public class DataStore {
 		for (int i = 0; i < files.length; i++) {
 			String name = files[i].getName();
 			if (name.startsWith(DATA_FILE)) {
-				moveFile(name, Integer.toString(i));
+				renameFile(name, Integer.toString(i));
 				renamedFiles.add(Integer.toString(i));
 			}
 		}
 
 		for (String item : renamedFiles)
-			moveFile(item, DATA_FILE + item);
+			renameFile(item, DATA_FILE + item);
 
 		Setting.getPreferences().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 	}
