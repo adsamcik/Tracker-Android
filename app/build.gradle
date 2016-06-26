@@ -10,6 +10,9 @@ android {
         targetSdkVersion 24
         versionCode 49
         versionName "2.0.0 Messenging"
+        jackOptions {
+            enabled true
+        }
     }
     buildTypes {
         release {
@@ -19,6 +22,10 @@ android {
     }
     dexOptions {
         incremental true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
