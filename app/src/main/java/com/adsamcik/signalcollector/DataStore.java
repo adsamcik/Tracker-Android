@@ -29,6 +29,9 @@ import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -69,7 +72,7 @@ public class DataStore {
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
 			} else
 				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
-			((JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
+			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
 		}
 	}
@@ -162,6 +165,33 @@ public class DataStore {
 	 */
 	public static boolean exists(String fileName) {
 		return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
+	}
+
+	/**
+	 * Handles any leftover files that could have been corrupted by some issue and reorders existing files
+	 */
+	public static void cleanup() {
+		if (TrackerService.isActive) {
+			Log.w(TAG, "cleanup cannot run when tracking is active");
+			FirebaseCrash.report(new Throwable("cleanup cannot run when tracking is active"));
+			return;
+		}
+		File[] files = context.getFilesDir().listFiles();
+
+		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
+		ArrayList<String> renamedFiles = new ArrayList<>();
+		for (int i = 0; i < files.length; i++) {
+			String name = files[i].getName();
+			if (name.startsWith(DATA_FILE)) {
+				moveFile(name, Integer.toString(i));
+				renamedFiles.add(Integer.toString(i));
+			}
+		}
+
+		for (String item : renamedFiles)
+			moveFile(item, DATA_FILE + item);
+
+		Setting.getPreferences().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 	}
 
 	/**
@@ -282,7 +312,6 @@ public class DataStore {
 			FirebaseCrash.report(e);
 			return false;
 		}
-
 	}
 
 	/**
