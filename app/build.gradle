@@ -8,11 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 24
-        versionCode 49
-        versionName "2.0.0 Messenging"
-        jackOptions {
-            enabled true
-        }
+        versionCode 50
+        versionName "2.0.0 bf1"
     }
     buildTypes {
         release {
@@ -22,10 +19,6 @@ android {
     }
     dexOptions {
         incremental true
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
@@ -48,4 +41,4 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
-
+apply plugin: 'me.tatarka.retrolambda'
