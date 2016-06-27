@@ -12,6 +12,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
@@ -83,18 +84,20 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-		if (view != null) {
-			ViewGroup parent = (ViewGroup) view.getParent();
-			if (parent != null)
-				parent.removeView(view);
-		}
+		view = inflater.inflate(R.layout.fragment_map, container, false);
+		FirebaseCrash.log("Created view");
+		return view;
+	}
 
-		try {
-			view = inflater.inflate(R.layout.fragment_map, container, false);
+	@Override
+	public void onCreate(@Nullable Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+
+		if (view == null) {
+			FirebaseCrash.report(new Throwable("Map view is null"));
+			return;
+		} else
 			touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
-		} catch (InflateException e) {
-		/* map is already there, just return view as it is */
-		}
 
 		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 		mMapFragment.getMapAsync(this);
@@ -126,8 +129,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 				return !(zoom < minZoom || zoom > maxZoom);
 			}
 		};
-
-		return view;
 	}
 
 	/**
