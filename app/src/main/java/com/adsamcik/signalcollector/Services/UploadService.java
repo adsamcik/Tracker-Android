@@ -14,39 +14,39 @@ import com.google.firebase.crash.FirebaseCrash;
 public class UploadService extends JobService {
 	LoadAndUploadTask task;
 
-	public boolean upload() {
-		FirebaseCrash.log("Upload started");
-		Context c = getApplicationContext();
-		int autoUpload = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
-		if (autoUpload >= 1) {
-			ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-			NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-
-			if (activeNetwork != null &&
-					activeNetwork.isConnectedOrConnecting() &&
-					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||
-							(autoUpload == 2 &&
-									activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE &&
-									!activeNetwork.isRoaming()))) {
-				task = new LoadAndUploadTask();
-				task.execute(DataStore.getDataFileNames(false));
-				FirebaseCrash.log("Upload successful");
-				return true;
-			}
+	public boolean upload(boolean autoUpload) {
+		if (canStart(autoUpload)) {
+			task = new LoadAndUploadTask();
+			task.execute(DataStore.getDataFileNames(!autoUpload));
+			return true;
 		}
-		FirebaseCrash.log("Upload failed");
 		return false;
+	}
+
+	boolean canStart(boolean autoUpload) {
+		Context c = getApplicationContext();
+		ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+		NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+
+		if (!autoUpload) {
+			return !activeNetwork.isRoaming();
+		} else {
+			int aVal = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
+			return activeNetwork != null && activeNetwork.isConnectedOrConnecting() &&
+					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||
+							(aVal == 2 && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE && !activeNetwork.isRoaming()));
+		}
 	}
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
 		FirebaseCrash.log("Job scheduled");
-		return !upload();
+		return !upload(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1);
 	}
 
 	@Override
 	public boolean onStopJob(JobParameters jobParameters) {
-		if(task != null)
+		if (task != null)
 			task.cancel(true);
 		FirebaseCrash.log("Job canceled");
 		return false;

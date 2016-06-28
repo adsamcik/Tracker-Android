@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Looper;
+import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.TelephonyManager;
@@ -39,6 +40,7 @@ public class DataStore {
 	public static final String DATA_FILE = "dataStore";
 	public static final String KEY_FILE_ID = "saveFileID";
 	public static final String KEY_SIZE = "totalSize";
+	public static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
 
 	//1048576 1MB, 5242880 5MB
 	private static final int MAX_FILE_SIZE = 2097152;
@@ -71,6 +73,9 @@ public class DataStore {
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
 			} else
 				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+			PersistableBundle pb = new PersistableBundle(1);
+			pb.putInt(KEY_IS_AUTOUPLOAD, 1);
+			jb.setExtras(pb);
 			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
 		}
