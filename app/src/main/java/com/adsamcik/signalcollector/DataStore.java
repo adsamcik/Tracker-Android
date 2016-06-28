@@ -44,8 +44,8 @@ public class DataStore {
 	public static final String KEY_SIZE = "totalSize";
 	public static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
 
-	//1048576 1MB, 5242880 5MB
-	private static final int MAX_FILE_SIZE = 2097152;
+	//1048576 1MB, 5242880 5MB, 2097152 2MB
+	private static final int MAX_FILE_SIZE = 1048576;
 
 	private static Context context;
 
@@ -94,7 +94,6 @@ public class DataStore {
 			jb.setExtras(pb);
 			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
-			Log.d("TAG", "exists " + exists("dataStore0"));
 		}
 	}
 
