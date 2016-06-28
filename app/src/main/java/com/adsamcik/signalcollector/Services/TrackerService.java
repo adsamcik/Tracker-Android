@@ -46,22 +46,26 @@ import com.adsamcik.signalcollector.Setting;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
-	static long lockedUntil;
+	//Constants
+	public static final String TAG = "SignalsTracker";
 	final static int lockTimeInMinutes = 30;
 	final static int lockTimeInMilliseconds = lockTimeInMinutes * 60000;
-	public static final String TAG = "SignalsTracker";
-
-	static TrackerService instance;
+	public final int UPDATE_TIME_MILLISEC = 2000;
+	public final float MIN_DISTANCE_M = 5;
 
 	public static boolean isActive = false;
 	public static Intent service;
 
 	public static long approxSize = 0;
-	public final int UPDATE_TIME = 2000;
-	public final float MIN_DISTANCE_M = 5;
+	static long lockedUntil;
+	static TrackerService instance;
+
+	Location wifiScanPos;
+	long wifiScanTime;
 
 	final ArrayList<Data> data = new ArrayList<>();
 	LocationListener locationListener;
@@ -102,7 +106,14 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public void makeUseOfNewLocation(Location location) {
 		wakeLock.acquire();
+		if (wifiScanData != null) {
+			float distTo = wifiScanPos.distanceTo(location);
+			if ((distTo > 3 * MIN_DISTANCE_M && wifiScanTime - (1.5f * Calendar.getInstance().getTimeInMillis()) > 0) || distTo > 80)
+				wifiScanData = null;
+		}
+
 		wifiManager.startScan();
+		wifiScanPos = location;
 
 		if (!isAirplaneModeOn(this)) {
 			List<CellInfo> cells = telephonyManager.getAllCellInfo();
@@ -247,7 +258,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		//Enable location update
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME, MIN_DISTANCE_M, locationListener);
+			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 
 		wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
 
@@ -367,6 +378,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		public void onReceive(Context context, Intent intent) {
 			List<ScanResult> result = wifiManager.getScanResults();
 			wifiScanData = result.toArray(new ScanResult[result.size()]);
+			wifiScanTime = Calendar.getInstance().getTimeInMillis();
 		}
 	}
 }
