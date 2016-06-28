@@ -168,22 +168,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
-		fabOne.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				if (checkLocationPermission(true))
-					locationListener.moveToMyPosition();
-			}
+		fabOne.setOnClickListener(v -> {
+			if (checkLocationPermission(true))
+				locationListener.moveToMyPosition();
 		});
 
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
-		fabTwo.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1);
-			}
-		});
+		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1));
 
 		changeMapOverlay(typeIndex);
 		return true;
@@ -287,15 +279,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		LatLng position;
 		boolean followMyPosition = false;
 
-		public final GoogleMap.OnCameraChangeListener cameraChangeListener = new GoogleMap.OnCameraChangeListener() {
-			@Override
-			public void onCameraChange(CameraPosition cameraPosition) {
-				if (followMyPosition && touchWrapper.getTouchDown())
-					followMyPosition = false;
+		public final GoogleMap.OnCameraChangeListener cameraChangeListener = cameraPosition -> {
+			if (followMyPosition && touchWrapper.getTouchDown())
+				followMyPosition = false;
 
-				if (map.getCameraPosition().zoom > 17)
-					map.animateCamera(CameraUpdateFactory.zoomTo(17));
-			}
+			if (map.getCameraPosition().zoom > 17)
+				map.animateCamera(CameraUpdateFactory.zoomTo(17));
 		};
 
 		@Override

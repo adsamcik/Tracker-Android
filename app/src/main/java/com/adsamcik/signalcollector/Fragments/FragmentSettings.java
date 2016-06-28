@@ -95,48 +95,18 @@ public class FragmentSettings extends Fragment {
         mTrackDesc = (TextView) rootView.findViewById(R.id.tracking_description);
 
         mTrackingNone = (ImageView) rootView.findViewById(R.id.tracking_none);
-        mTrackingNone.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateTracking(0);
-            }
-        });
+        mTrackingNone.setOnClickListener(v -> updateTracking(0));
         mTrackingOnFoot = (ImageView) rootView.findViewById(R.id.tracking_onfoot);
-        mTrackingOnFoot.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateTracking(1);
-            }
-        });
+        mTrackingOnFoot.setOnClickListener(v -> updateTracking(1));
         mTrackingAlways = (ImageView) rootView.findViewById(R.id.tracking_always);
-        mTrackingAlways.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateTracking(2);
-            }
-        });
+        mTrackingAlways.setOnClickListener(v -> updateTracking(2));
 
         mAutoupDisabled = (ImageView) rootView.findViewById(R.id.autoupload_disabled);
-        mAutoupDisabled.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateAutoup(0);
-            }
-        });
+        mAutoupDisabled.setOnClickListener(v -> updateAutoup(0));
         mAutoupWifi = (ImageView) rootView.findViewById(R.id.autoupload_wifi);
-        mAutoupWifi.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateAutoup(1);
-            }
-        });
+        mAutoupWifi.setOnClickListener(v -> updateAutoup(1));
         mAutoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
-        mAutoupAlways.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateAutoup(2);
-            }
-        });
+        mAutoupAlways.setOnClickListener(v -> updateAutoup(2));
 
         updateTracking(mSharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1));
         updateAutoup(mSharedPreferences.getInt(Setting.AUTO_UPLOAD, 1));
@@ -147,27 +117,21 @@ public class FragmentSettings extends Fragment {
         if (PlayController.gamesController != null)
             PlayController.gamesController.setUI(rootView);
 
-        textView_PlayLog.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!PlayController.apiGames || !PlayController.isLogged())
-                    PlayController.initializeGamesClient(rootView);
-                else {
-                    textView_PlayLog.setText(R.string.settings_playGamesLogin);
-                    PlayController.destroyGamesClient();
-                }
-
+        textView_PlayLog.setOnClickListener(v -> {
+            if (!PlayController.apiGames || !PlayController.isLogged())
+                PlayController.initializeGamesClient(rootView);
+            else {
+                textView_PlayLog.setText(R.string.settings_playGamesLogin);
+                PlayController.destroyGamesClient();
             }
+
         });
 
-        rootView.findViewById(R.id.play_achievements).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (PlayController.isLogged())
-                    PlayController.gamesController.showAchievements();
-                else
-                    PlayController.initializeGamesClient(rootView);
-            }
+        rootView.findViewById(R.id.play_achievements).setOnClickListener(v -> {
+            if (PlayController.isLogged())
+                PlayController.gamesController.showAchievements();
+            else
+                PlayController.initializeGamesClient(rootView);
         });
 
 		/*rootView.findViewById(R.id.ib_leaderboards).setOnClickListener(new View.OnClickListener() {
@@ -178,27 +142,18 @@ public class FragmentSettings extends Fragment {
 			}
 		});*/
 
-        rootView.findViewById(R.id.other_clear).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
-                alertDialogBuilder.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        DataStore.clearAllData();
-                        ((MainActivity) getActivity()).setCloudStatus(0);
-                    }
-                })
-                        .setNegativeButton(getResources().getText(R.string.alert_clear_cancel), new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
+        rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
+            AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
+            alertDialogBuilder.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> {
+                DataStore.clearAllData();
+                ((MainActivity) getActivity()).setCloudStatus(0);
+            })
+                    .setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
 
-                            }
-                        })
-                        .setMessage(getResources().getText(R.string.alert_clear_text));
+                    })
+                    .setMessage(getResources().getText(R.string.alert_clear_text));
 
-                alertDialogBuilder.create().show();
-            }
+            alertDialogBuilder.create().show();
         });
 
         return rootView;

@@ -266,23 +266,19 @@ public class MainActivity extends FragmentActivity {
 				fabOne.show();
 				changeTrackerButton(TrackerService.isActive ? 1 : 0);
 				fabOne.setOnClickListener(
-						new View.OnClickListener() {
-							public void onClick(View v) {
-								if (TrackerService.isActive)
-									TrackerService.setAutoLock();
-								toggleCollecting(!TrackerService.isActive);
-							}
+						v -> {
+							if (TrackerService.isActive)
+								TrackerService.setAutoLock();
+							toggleCollecting(!TrackerService.isActive);
 						}
 				);
 
 				setCloudStatus(cloudStatus);
 				fabTwo.setOnClickListener(
-						new View.OnClickListener() {
-							public void onClick(View v) {
-								if (cloudStatus == 1) {
-									setCloudStatus(2);
-									DataStore.requestUpload(context, false);
-								}
+						v -> {
+							if (cloudStatus == 1) {
+								setCloudStatus(2);
+								DataStore.requestUpload(context, false);
 							}
 						}
 				);

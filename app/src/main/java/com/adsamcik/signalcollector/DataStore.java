@@ -199,8 +199,8 @@ public class DataStore {
 		File[] files = context.getFilesDir().listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<String> renamedFiles = new ArrayList<>();
-		for (int i = 0; i < files.length; i++) {
-			String name = files[i].getName();
+		for (File file : files) {
+			String name = file.getName();
 			if (name.startsWith(DATA_FILE)) {
 				renameFile(name, Integer.toString(renamedFiles.size()));
 				renamedFiles.add(Integer.toString(renamedFiles.size()));
@@ -252,8 +252,8 @@ public class DataStore {
 		SharedPreferences sp = Setting.getPreferences();
 		File[] files = context.getFilesDir().listFiles();
 
-		for (int i = 0; i < files.length; i++) {
-			String name = files[i].getName();
+		for (File file : files) {
+			String name = file.getName();
 			if (name.startsWith(DATA_FILE))
 				deleteFile(name);
 		}
