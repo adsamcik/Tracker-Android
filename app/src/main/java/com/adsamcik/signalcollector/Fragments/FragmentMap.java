@@ -86,13 +86,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_map, container, false);
 		FirebaseCrash.log("Created view");
+		Log.d(TAG, "Created view");
 		return view;
 	}
 
 	@Override
-	public void onCreate(@Nullable Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
+	public void onStart() {
+		super.onStart();
 		if (view == null) {
 			FirebaseCrash.report(new Throwable("Map view is null"));
 			return;
@@ -151,6 +151,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public boolean initializeFABs(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		if(view == null)
+			return false;
+
 		this.fabOne = fabOne;
 		this.fabTwo = fabTwo;
 
@@ -195,7 +198,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 */
 	private void changeMapOverlay(int index) {
 		if (map == null) {
-			FirebaseCrash.log("changeMapOverlay should not be called before map is initialized");
+			FirebaseCrash.report(new Throwable("changeMapOverlay should not be called before map is initialized"));
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
 			return;
 		} else if (index < 0 || index >= availableTypes.length)
