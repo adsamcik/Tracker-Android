@@ -6,6 +6,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Looper;
 import android.os.PersistableBundle;
@@ -61,20 +63,35 @@ public class DataStore {
 	 *
 	 * @param c Non-null context
 	 */
-	public static void requestUpload(@NonNull Context c) {
+	public static void requestUpload(@NonNull Context c, boolean isBackground) {
 		SharedPreferences sp = Setting.getPreferences(c);
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
-		if (autoUpload != 0) {
+		if (autoUpload != 0 || !isBackground) {
 			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, UploadService.class));
-			if (autoUpload == 2) {
-				if (Build.VERSION.SDK_INT >= 24)
-					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
-				else
-					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-			} else
-				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+			if(!isBackground) {
+				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+				//todo implement roaming upload
+				if(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI)
+					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+				else {
+					if (Build.VERSION.SDK_INT >= 24)
+						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
+					else
+						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+				}
+			}
+			else {
+				if (autoUpload == 2) {
+					if (Build.VERSION.SDK_INT >= 24)
+						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
+					else
+						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+				} else
+					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+			}
 			PersistableBundle pb = new PersistableBundle(1);
-			pb.putInt(KEY_IS_AUTOUPLOAD, 1);
+			pb.putInt(KEY_IS_AUTOUPLOAD, isBackground ? 1 : 0);
 			jb.setExtras(pb);
 			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
@@ -133,7 +150,7 @@ public class DataStore {
 				Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
 				intent.putExtra("cloudStatus", 1);
 				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
-				requestUpload(context);
+				requestUpload(context, true);
 				FirebaseCrash.report(new Exception("Upload failed " + name + " code " + statusCode));
 				//Log.w(TAG, "Upload failed " + name + " code " + statusCode);
 			}

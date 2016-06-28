@@ -198,7 +198,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		} else {
 			data.clear();
 			if (result == 2)
-				DataStore.requestUpload(getApplicationContext());
+				DataStore.requestUpload(getApplicationContext(), true);
 		}
 	}
 
