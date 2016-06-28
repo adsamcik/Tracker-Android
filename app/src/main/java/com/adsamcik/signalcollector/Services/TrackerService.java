@@ -106,7 +106,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public void makeUseOfNewLocation(Location location) {
 		wakeLock.acquire();
-		if (wifiScanData != null) {
+		if (wifiScanData != null && location != null) {
 			float distTo = wifiScanPos.distanceTo(location);
 			if ((distTo > 3 * MIN_DISTANCE_M && wifiScanTime - (1.5f * Calendar.getInstance().getTimeInMillis()) > 0) || distTo > 80)
 				wifiScanData = null;
