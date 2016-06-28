@@ -163,6 +163,8 @@ public class MainActivity extends FragmentActivity {
 		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(context, true);
 
+		DataStore.getDataFileNames(true);
+
 		//Log.d(TAG,  FirebaseInstanceId.getInstance().getToken());
 	}
 
@@ -280,7 +282,6 @@ public class MainActivity extends FragmentActivity {
 								if (cloudStatus == 1) {
 									setCloudStatus(2);
 									DataStore.requestUpload(context, false);
-									Setting.getPreferences(context).edit().putInt(DataStore.KEY_FILE_ID, Setting.getPreferences(context).getInt(DataStore.KEY_FILE_ID, -1) + 1).commit();
 								}
 							}
 						}

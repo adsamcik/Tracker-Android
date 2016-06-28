@@ -68,11 +68,11 @@ public class DataStore {
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || !isBackground) {
 			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, UploadService.class));
-			if(!isBackground) {
+			if (!isBackground) {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
 				//todo implement roaming upload
-				if(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI)
+				if (activeNetwork.getType() == ConnectivityManager.TYPE_WIFI)
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
 				else {
 					if (Build.VERSION.SDK_INT >= 24)
@@ -80,8 +80,7 @@ public class DataStore {
 					else
 						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
 				}
-			}
-			else {
+			} else {
 				if (autoUpload == 2) {
 					if (Build.VERSION.SDK_INT >= 24)
 						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
@@ -95,6 +94,7 @@ public class DataStore {
 			jb.setExtras(pb);
 			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
+			Log.d("TAG", "exists " + exists("dataStore0"));
 		}
 	}
 
@@ -105,7 +105,7 @@ public class DataStore {
 	 * @return Returns data file names
 	 */
 	public static String[] getDataFileNames(boolean includeLast) {
-		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, 0);
+		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, -1);
 		if (!includeLast)
 			maxID--;
 		String[] fileNames = new String[maxID + 1];
@@ -198,14 +198,13 @@ public class DataStore {
 			return;
 		}
 		File[] files = context.getFilesDir().listFiles();
-
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<String> renamedFiles = new ArrayList<>();
 		for (int i = 0; i < files.length; i++) {
 			String name = files[i].getName();
 			if (name.startsWith(DATA_FILE)) {
-				renameFile(name, Integer.toString(i));
-				renamedFiles.add(Integer.toString(i));
+				renameFile(name, Integer.toString(renamedFiles.size()));
+				renamedFiles.add(Integer.toString(renamedFiles.size()));
 			}
 		}
 
@@ -252,9 +251,14 @@ public class DataStore {
 	 */
 	public static void clearAllData() {
 		SharedPreferences sp = Setting.getPreferences();
-		int max = sp.getInt(KEY_FILE_ID, -1);
-		for (int i = 0; i <= max; i++)
-			context.deleteFile(DATA_FILE + i);
+		File[] files = context.getFilesDir().listFiles();
+
+		for (int i = 0; i < files.length; i++) {
+			String name = files[i].getName();
+			if (name.startsWith(DATA_FILE))
+				deleteFile(name);
+		}
+
 
 		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).apply();
 	}
@@ -277,8 +281,10 @@ public class DataStore {
 			newFile = true;
 		}
 
+
 		String fileName = DATA_FILE + id;
 
+		Log.d(TAG, "saving to " + fileName);
 		if (!saveStringAppend(fileName, data))
 			return 1;
 
@@ -343,7 +349,7 @@ public class DataStore {
 	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
 		if (!exists(fileName)) {
-			Log.w(TAG, "file " + fileName + " does not exist");
+			Log.e(TAG, "file " + fileName + " does not exist");
 			return null;
 		}
 

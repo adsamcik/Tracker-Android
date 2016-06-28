@@ -35,7 +35,7 @@ public class UploadService extends JobService {
 					TrackerService.approxSize = DataStore.sizeOfData();
 
 					for (String fileName : files) {
-						if(!Thread.currentThread().isInterrupted()) {
+						if (!Thread.currentThread().isInterrupted()) {
 							if (fileName == null || fileName.trim().length() == 0) {
 								Log.e(DataStore.TAG, "Null or empty file name was in load and upload task. This should not happen.");
 								FirebaseCrash.report(new Exception("Null or empty file name was in load and upload task. This should not happen."));
@@ -56,8 +56,9 @@ public class UploadService extends JobService {
 							long size = builder.toString().getBytes(Charset.defaultCharset()).length;
 							if (canStart(autoUpload))
 								DataStore.upload(builder.toString(), fileName, size);
-						}
-						else
+							else
+								break;
+						} else
 							break;
 					}
 
@@ -69,8 +70,7 @@ public class UploadService extends JobService {
 						intent.putExtra("cloudStatus", 0);
 					LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
 
-					TrackerService.onUploadComplete(files.length - 1);
-
+					DataStore.cleanup();
 					DataStore.recountDataSize();
 
 					Setting.getPreferences().edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
@@ -105,7 +105,7 @@ public class UploadService extends JobService {
 
 	@Override
 	public boolean onStopJob(JobParameters jobParameters) {
-		if(thread.isAlive())
+		if (thread.isAlive())
 			thread.interrupt();
 		FirebaseCrash.log("Job canceled");
 		return false;

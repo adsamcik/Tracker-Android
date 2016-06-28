@@ -106,7 +106,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public void makeUseOfNewLocation(Location location) {
 		wakeLock.acquire();
-		if (wifiScanData != null && location != null) {
+		if (wifiScanData != null && wifiScanPos != null) {
 			float distTo = wifiScanPos.distanceTo(location);
 			if ((distTo > 3 * MIN_DISTANCE_M && wifiScanTime - (1.5f * Calendar.getInstance().getTimeInMillis()) > 0) || distTo > 80)
 				wifiScanData = null;
@@ -277,22 +277,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
-	}
-
-	public static void onUploadComplete(int maxUploadId) {
-		SharedPreferences sp = Setting.getPreferences();
-		int maxId = sp.getInt(DataStore.KEY_FILE_ID, 0);
-		int currentId = 0;
-
-		//Split in two to save a bit of power
-		for (int i = 0; i <= maxUploadId; i++)
-			if (DataStore.exists(DataStore.DATA_FILE + i))
-				DataStore.renameFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
-
-		for (int i = maxUploadId; i <= maxId; i++)
-			DataStore.renameFile(DataStore.DATA_FILE + i, DataStore.DATA_FILE + currentId++);
-
-		sp.edit().putInt(DataStore.KEY_FILE_ID, currentId).putLong(DataStore.KEY_SIZE, DataStore.recountDataSize()).apply();
 	}
 
 	@Override
