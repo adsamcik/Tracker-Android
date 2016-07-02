@@ -125,6 +125,8 @@ public class DataStore {
 		if (!Extensions.isInitialized())
 			Extensions.initialize((TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE));
 
+		FirebaseCrash.report(new Throwable("Uploading"));
+
 		String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
