@@ -73,6 +73,7 @@ public class UploadService extends JobService {
 				DataStore.recountDataSize();
 
 				Setting.getPreferences().edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
+				FirebaseCrash.log("Job finished");
 			});
 			thread.start();
 			return true;
@@ -81,6 +82,8 @@ public class UploadService extends JobService {
 	}
 
 	boolean canStart(boolean autoUpload) {
+		if(thread != null && thread.isAlive())
+			return false;
 		Context c = getApplicationContext();
 		ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -97,7 +100,7 @@ public class UploadService extends JobService {
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		FirebaseCrash.log("Job scheduled");
+		FirebaseCrash.log("Job scheduled (running? " + (canStart(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1) ? "true" : "false") + ")");
 		return !upload(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1);
 	}
 
