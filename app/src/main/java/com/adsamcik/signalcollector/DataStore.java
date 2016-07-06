@@ -141,6 +141,13 @@ public class DataStore {
 		rp.add("data", serialized);
 		SyncHttpClient client = new SyncHttpClient();
 		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
+			ConnectivityManager cm;
+			@Override
+			public void onStart() {
+				super.onStart();
+				cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+			}
+
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 				deleteFile(name);
@@ -154,8 +161,19 @@ public class DataStore {
 				intent.putExtra("cloudStatus", 1);
 				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 				requestUpload(context, true);
-				FirebaseCrash.report(new Exception("Upload failed " + name + " code " + statusCode));
-				//Log.w(TAG, "Upload failed " + name + " code " + statusCode);
+				FirebaseCrash.log("Upload failed " + name + " code " + statusCode);
+			}
+
+			@Override
+			public void onRetry(int retryNo) {
+				super.onRetry(retryNo);
+				if(!CheckConnection())
+					client.cancelAllRequests(true);
+			}
+
+			boolean CheckConnection() {
+				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+				return activeNetwork.isRoaming() || activeNetwork.getType() != ConnectivityManager.TYPE_WIFI;
 			}
 		});
 	}
