@@ -263,7 +263,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
 
 		wifiEnabled = wifiManager.isWifiEnabled();
-		if (!wifiEnabled)
+		if (!wifiEnabled && !wifiManager.isScanAlwaysAvailable())
 			wifiManager.setWifiEnabled(true);
 
 		wifiManager.startScan();

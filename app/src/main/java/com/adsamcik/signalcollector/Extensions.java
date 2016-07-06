@@ -118,7 +118,6 @@ public class Extensions {
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}
 
-
 	public static String easierToReadNumber(int number) {
 		StringBuilder sb = new StringBuilder(number);
 		for(int i = sb.length(); i > 0; i -= 3)
