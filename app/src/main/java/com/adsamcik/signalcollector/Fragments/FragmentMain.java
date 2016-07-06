@@ -21,10 +21,10 @@ import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
 
 public class FragmentMain extends Fragment {
-	final String activity_name = "MainActivity";
-	MainActivity activity;
-	TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
-	BroadcastReceiver receiver;
+	private final String activity_name = "MainActivity";
+	private MainActivity activity;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
+	private BroadcastReceiver receiver;
 
 	@Nullable
 	@Override

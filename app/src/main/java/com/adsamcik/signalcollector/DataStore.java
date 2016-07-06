@@ -57,7 +57,7 @@ public class DataStore {
 		context = c;
 	}
 
-	static boolean isSaveAllowed = true;
+	private static boolean isSaveAllowed = true;
 
 	/**
 	 * Requests upload
