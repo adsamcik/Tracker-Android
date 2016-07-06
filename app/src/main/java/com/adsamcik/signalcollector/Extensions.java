@@ -161,7 +161,7 @@ public class Extensions {
 
 	/**
 	 * Converts coordinate to string
-	 * @param coordinate
+	 * @param coordinate coordinate
 	 * @return stringified coordinate
 	 */
 	public static String coordsToString(double coordinate) {

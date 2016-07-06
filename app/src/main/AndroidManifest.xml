@@ -70,14 +70,16 @@
             android:exported="false"/>
 
         <service
-            android:name=".services.InstanceIDListenerService">
+            android:name=".services.InstanceIDListenerService"
+            tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
             </intent-filter>
         </service>
 
         <service
-            android:name=".services.MessageListenerService">
+            android:name=".services.MessageListenerService"
+            tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>

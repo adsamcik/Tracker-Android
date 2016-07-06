@@ -17,7 +17,6 @@ import android.widget.Toast;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.github.paolorotolo.appintro.AppIntro2;
 import com.github.paolorotolo.appintro.AppIntro2Fragment;
-import com.github.paolorotolo.appintro.AppIntroFragment;
 
 import java.util.ArrayList;
 import java.util.List;

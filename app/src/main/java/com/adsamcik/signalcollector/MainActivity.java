@@ -23,7 +23,6 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.telephony.TelephonyManager;
-import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
