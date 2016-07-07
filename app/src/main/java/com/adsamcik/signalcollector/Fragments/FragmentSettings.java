@@ -1,12 +1,14 @@
 package com.adsamcik.signalcollector.fragments;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.res.ResourcesCompat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +16,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
@@ -83,6 +86,15 @@ public class FragmentSettings extends Fragment {
         final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
         mSharedPreferences = Setting.getPreferences();
         final Resources resources = getResources();
+
+        Context c;
+        if((c = getContext()) != null) {
+            try {
+                ((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
+            }
+            catch (Exception e) {
+            }
+        }
 
         mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, getContext().getTheme());
         mDefaultState = ResourcesCompat.getColorStateList(resources, R.color.default_value, getContext().getTheme());

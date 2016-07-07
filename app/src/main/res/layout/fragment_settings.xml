@@ -151,4 +151,12 @@
         android:text="@string/settings_clear"
         />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/versionNum"
+        android:layout_below="@id/other_clear"
+        android:paddingTop="10dp"
+        />
+
 </RelativeLayout>
