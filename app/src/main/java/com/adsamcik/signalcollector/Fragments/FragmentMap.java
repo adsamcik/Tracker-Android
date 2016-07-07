@@ -84,18 +84,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_map, container, false);
 		FirebaseCrash.log("Created view");
-		Log.d(TAG, "Created view");
+		touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
 		return view;
 	}
 
 	@Override
 	public void onStart() {
 		super.onStart();
-		if (view == null) {
-			FirebaseCrash.report(new Throwable("Map view is null"));
-			return;
-		} else
-			touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
 
 		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 		mMapFragment.getMapAsync(this);
