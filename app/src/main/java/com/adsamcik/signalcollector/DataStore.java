@@ -64,6 +64,7 @@ public class DataStore {
 	 * Call this when you want to auto-upload
 	 *
 	 * @param c Non-null context
+	 * @param isBackground Is activated by background tracking
 	 */
 	public static void requestUpload(@NonNull Context c, boolean isBackground) {
 		SharedPreferences sp = Setting.getPreferences(c);
