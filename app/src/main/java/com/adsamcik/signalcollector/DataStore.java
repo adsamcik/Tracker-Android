@@ -14,6 +14,7 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.TelephonyManager;
+import android.util.Base64;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.services.TrackerService;
@@ -32,6 +33,8 @@ import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -63,7 +66,7 @@ public class DataStore {
 	 * Requests upload
 	 * Call this when you want to auto-upload
 	 *
-	 * @param c Non-null context
+	 * @param c            Non-null context
 	 * @param isBackground Is activated by background tracking
 	 */
 	public static void requestUpload(@NonNull Context c, boolean isBackground) {
@@ -75,7 +78,7 @@ public class DataStore {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
 				//todo implement roaming upload
-				if (activeNetwork.getType() == ConnectivityManager.TYPE_WIFI)
+				if (activeNetwork == null || activeNetwork.getType() == ConnectivityManager.TYPE_WIFI)
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
 				else {
 					if (Build.VERSION.SDK_INT >= 24)
@@ -108,6 +111,8 @@ public class DataStore {
 	 */
 	public static String[] getDataFileNames(boolean includeLast) {
 		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, -1);
+		if(maxID < 0)
+			return null;
 		if (!includeLast)
 			maxID--;
 		String[] fileNames = new String[maxID + 1];
@@ -128,8 +133,6 @@ public class DataStore {
 		if (!Extensions.isInitialized())
 			Extensions.initialize(context);
 
-		FirebaseCrash.report(new Throwable("Uploading"));
-
 		String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
@@ -139,10 +142,18 @@ public class DataStore {
 
 		RequestParams rp = new RequestParams();
 		rp.add("imei", Extensions.getImei());
-		rp.add("data", serialized);
+		//rp.add("data", serialized);
+		try {
+			Log.d(TAG, AES256.encryptMsg(serialized, AES256.generateKey()));
+			rp.add("data", AES256.encryptMsg(serialized, AES256.generateKey()));
+		} catch (Exception e) {
+			Log.d(TAG, e.getMessage());
+		}
+		//rp.add("data", serialized);
 		final SyncHttpClient client = new SyncHttpClient();
 		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
 			ConnectivityManager cm;
+
 			@Override
 			public void onStart() {
 				super.onStart();
@@ -150,7 +161,7 @@ public class DataStore {
 
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-				deleteFile(name);
+				//deleteFile(name);
 				TrackerService.approxSize -= size;
 				Log.d(TAG, "Successfully uploaded " + name);
 			}
@@ -162,13 +173,16 @@ public class DataStore {
 				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 				requestUpload(context, true);
 				FirebaseCrash.log("Upload failed " + name + " code " + statusCode);
+				Log.d(TAG, "Upload failed " + name + " code " + statusCode);
 			}
 
 			@Override
 			public void onRetry(int retryNo) {
 				super.onRetry(retryNo);
+				Log.d(TAG, "Retry " + Extensions.canUpload(context, background));
 				if (Extensions.canUpload(context, background))
 					client.cancelAllRequests(true);
+
 			}
 		});
 	}
@@ -234,6 +248,8 @@ public class DataStore {
 	 */
 	public static long recountDataSize() {
 		String[] fileNames = getDataFileNames(true);
+		if(fileNames == null)
+			return 0;
 		long size = 0;
 		for (String fileName : fileNames)
 			size += sizeOf(fileName);
@@ -265,7 +281,7 @@ public class DataStore {
 	public static void clearAllData() {
 		isSaveAllowed = false;
 		SharedPreferences sp = Setting.getPreferences();
-		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).apply();
+		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
 		File[] files = context.getFilesDir().listFiles();
 
 		for (File file : files) {
@@ -283,7 +299,7 @@ public class DataStore {
 	 * @return returns state value 2 - new file, 1 - error during saving, 0 - no new file, saved successfully
 	 */
 	public static int saveData(String data) {
-		if(!isSaveAllowed)
+		if (!isSaveAllowed)
 			return 1;
 		SharedPreferences sp = Setting.getPreferences();
 		SharedPreferences.Editor edit = sp.edit();

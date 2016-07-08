@@ -26,14 +26,16 @@ public class UploadService extends JobService {
 	 * @return true if started
 	 */
 	public boolean upload(final boolean background) {
-		if (canStart(background)) {
+		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
 				String[] files = DataStore.getDataFileNames(!background);
-				if (files.length == 0) {
+				if (files == null || files.length == 0) {
 					Log.e(DataStore.TAG, "No file names were entered");
+					FirebaseCrash.report(new Throwable("No file names were entered"));
 					return;
 				} else if (DataStore.getContext() == null) {
 					Log.e(DataStore.TAG, "DataStore context is null");
+					FirebaseCrash.report(new Throwable("DataStore context is null"));
 					return;
 				}
 
@@ -57,7 +59,7 @@ public class UploadService extends JobService {
 							builder.setCharAt(0, '[');
 							builder.append(']');
 						}
-
+						Log.d("TAG", "start " + canStart(background));
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
 						if (canStart(background))
 							DataStore.upload(builder.toString(), fileName, size, background);
@@ -88,23 +90,21 @@ public class UploadService extends JobService {
 	}
 
 	boolean canStart(boolean background) {
-		if (thread != null && thread.isAlive())
-			return false;
 		Context c = getApplicationContext();
 		return Extensions.canUpload(c, background);
 	}
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		FirebaseCrash.log("Job scheduled (running? " + (canStart(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1) ? "true" : "false") + ")");
-		return !upload(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1);
+		return upload(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1);
 	}
 
 	@Override
 	public boolean onStopJob(JobParameters jobParameters) {
-		if (thread.isAlive())
+		if (thread != null && thread.isAlive())
 			thread.interrupt();
-		FirebaseCrash.log("Job canceled");
+		DataStore.cleanup();
+		//FirebaseCrash.report(new Throwable("Job canceled"));
 		return false;
 	}
 }
