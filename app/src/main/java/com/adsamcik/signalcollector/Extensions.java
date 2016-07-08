@@ -26,7 +26,6 @@ public class Extensions {
 	public static void initialize(Context c) {
 		telephonyManager = (TelephonyManager) c.getSystemService(Context.TELEPHONY_SERVICE);
 		connectivityManager = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-		context = c;
 	}
 
 	@SuppressWarnings("unused")

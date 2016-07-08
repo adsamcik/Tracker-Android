@@ -20,10 +20,15 @@ import java.nio.charset.Charset;
 public class UploadService extends JobService {
 	Thread thread;
 
-	public boolean upload(final boolean autoUpload) {
-		if (canStart(autoUpload)) {
+	/**
+	 *
+	 * @param background background upload
+	 * @return true if started
+	 */
+	public boolean upload(final boolean background) {
+		if (canStart(background)) {
 			thread = new Thread(() -> {
-				String[] files = DataStore.getDataFileNames(!autoUpload);
+				String[] files = DataStore.getDataFileNames(!background);
 				if (files.length == 0) {
 					Log.e(DataStore.TAG, "No file names were entered");
 					return;
@@ -54,8 +59,8 @@ public class UploadService extends JobService {
 						}
 
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
-						if (canStart(autoUpload))
-							DataStore.upload(builder.toString(), fileName, size);
+						if (canStart(background))
+							DataStore.upload(builder.toString(), fileName, size, background);
 						else
 							break;
 					} else

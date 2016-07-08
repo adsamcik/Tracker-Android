@@ -157,7 +157,7 @@ public class MainActivity extends FragmentActivity {
 		if (TrackerService.isActive)
 			changeTrackerButton(1);
 
-		Extensions.initialize((TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE));
+		Extensions.initialize(context);
 
 		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(context, true);
