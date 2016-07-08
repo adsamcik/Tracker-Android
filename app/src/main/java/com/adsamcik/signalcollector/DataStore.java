@@ -123,10 +123,10 @@ public class DataStore {
 	 * @param name name of file where the data is saved (Function will clear the file afterwards)
 	 * @param size size of data uploaded
 	 */
-	public static void upload(String data, final String name, final long size) {
+	public static void upload(final String data, final String name, final long size, final boolean background) {
 		if (data.isEmpty()) return;
 		if (!Extensions.isInitialized())
-			Extensions.initialize((TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE));
+			Extensions.initialize(context);
 
 		FirebaseCrash.report(new Throwable("Uploading"));
 
@@ -140,13 +140,12 @@ public class DataStore {
 		RequestParams rp = new RequestParams();
 		rp.add("imei", Extensions.getImei());
 		rp.add("data", serialized);
-		SyncHttpClient client = new SyncHttpClient();
+		final SyncHttpClient client = new SyncHttpClient();
 		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
 			ConnectivityManager cm;
 			@Override
 			public void onStart() {
 				super.onStart();
-				cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
 			}
 
 			@Override
@@ -168,13 +167,8 @@ public class DataStore {
 			@Override
 			public void onRetry(int retryNo) {
 				super.onRetry(retryNo);
-				if(!CheckConnection())
+				if (Extensions.canUpload(context, background))
 					client.cancelAllRequests(true);
-			}
-
-			boolean CheckConnection() {
-				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-				return activeNetwork.isRoaming() || activeNetwork.getType() != ConnectivityManager.TYPE_WIFI;
 			}
 		});
 	}

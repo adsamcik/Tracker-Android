@@ -10,6 +10,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Setting;
 import com.google.firebase.crash.FirebaseCrash;
@@ -81,21 +82,11 @@ public class UploadService extends JobService {
 		return false;
 	}
 
-	boolean canStart(boolean autoUpload) {
-		if(thread != null && thread.isAlive())
+	boolean canStart(boolean background) {
+		if (thread != null && thread.isAlive())
 			return false;
 		Context c = getApplicationContext();
-		ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-		NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-
-		if (!autoUpload) {
-			return !activeNetwork.isRoaming();
-		} else {
-			int aVal = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
-			return activeNetwork != null && activeNetwork.isConnectedOrConnecting() &&
-					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||
-							(aVal == 2 && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE && !activeNetwork.isRoaming()));
-		}
+		return Extensions.canUpload(c, background);
 	}
 
 	@Override
