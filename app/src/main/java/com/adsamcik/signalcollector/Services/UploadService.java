@@ -29,6 +29,7 @@ public class UploadService extends JobService {
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
 				String[] files = DataStore.getDataFileNames(!background);
+
 				if (files == null || files.length == 0) {
 					Log.e(DataStore.TAG, "No file names were entered");
 					FirebaseCrash.report(new Throwable("No file names were entered"));
@@ -96,6 +97,7 @@ public class UploadService extends JobService {
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
+		Log.d("TAG", "ServiceStarted");
 		return upload(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1);
 	}
 

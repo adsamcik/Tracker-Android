@@ -142,14 +142,13 @@ public class DataStore {
 
 		RequestParams rp = new RequestParams();
 		rp.add("imei", Extensions.getImei());
-		//rp.add("data", serialized);
-		try {
+		/*try {
 			Log.d(TAG, AES256.encryptMsg(serialized, AES256.generateKey()));
 			rp.add("data", AES256.encryptMsg(serialized, AES256.generateKey()));
 		} catch (Exception e) {
 			Log.d(TAG, e.getMessage());
-		}
-		//rp.add("data", serialized);
+		}*/
+		rp.add("data", serialized);
 		final SyncHttpClient client = new SyncHttpClient();
 		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
 			ConnectivityManager cm;
@@ -281,7 +280,7 @@ public class DataStore {
 	public static void clearAllData() {
 		isSaveAllowed = false;
 		SharedPreferences sp = Setting.getPreferences();
-		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
+		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Setting.SCHEDULED_UPLOAD).apply();
 		File[] files = context.getFilesDir().listFiles();
 
 		for (File file : files) {
