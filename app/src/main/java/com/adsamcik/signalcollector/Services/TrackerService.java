@@ -69,7 +69,6 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final ArrayList<Data> data = new ArrayList<>();
 	private LocationListener locationListener;
 	private ScanResult[] wifiScanData;
-	private CellInfo[] cellScanData;
 	private LocationManager locationManager;
 	private TelephonyManager telephonyManager;
 	private WifiManager wifiManager;
@@ -111,22 +110,21 @@ public class TrackerService extends Service implements SensorEventListener {
 				wifiScanData = null;
 		}
 
+		Data d = new Data(location.getTime());
+
+		if (wifiScanData != null)
+			d.setWifi(wifiScanData, wifiScanTime);
+
 		wifiManager.startScan();
 		wifiScanPos = location;
 
-		if (!isAirplaneModeOn(this)) {
-			List<CellInfo> cells = telephonyManager.getAllCellInfo();
-			if (cells != null)
-				cellScanData = cells.toArray(new CellInfo[cells.size()]);
-		}
+		if (!isAirplaneModeOn(this))
+			d.setCell(telephonyManager.getNetworkOperator(), telephonyManager.getAllCellInfo());
 
-		Data d = new Data(location.getTime());
 		d.setLocation(location).setPressure(pressureValue).setActivity(currentActivity);
-		if(wifiScanData != null)
+		if (wifiScanData != null)
 			d.setWifi(wifiScanData, wifiScanTime);
 
-		if(cellScanData != null)
-			d.setCell(telephonyManager.getNetworkOperator(), cellScanData);
 		data.add(d);
 
 		if (data.size() > 10)
@@ -135,7 +133,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		int cellCount = -1;
 		int cellDbm = 0, cellAsu = 0;
 		String cellType = "";
-		if (cellScanData != null) {
+		if (d.cell != null) {
 			for (CellData cd : d.cell) {
 				if (cd.isRegistered) {
 					cellDbm = cd.dbm;
@@ -152,7 +150,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		notificationManager.notify(1, generateNotification(true, wifiCount, cellCount));
 		wifiScanData = null;
-		cellScanData = null;
 
 		if (backgroundActivated && powerManager.isPowerSaveMode())
 			stopSelf();
@@ -193,6 +190,12 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	private void saveData() {
 		if (data.size() == 0) return;
+
+		for (Data d : data) {
+
+
+		}
+
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
 

@@ -10,6 +10,7 @@ import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
 
 import java.io.Serializable;
+import java.util.List;
 
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
 public class Data implements Serializable {
@@ -59,17 +60,18 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	public Data setCell(String operator, @NonNull CellInfo[] data) {
-		CellData[] cellData = new CellData[data.length];
-		for (int i = 0; i < data.length; i++) {
-			if (data[i] instanceof CellInfoGsm)
-				cellData[i] = new CellData((CellInfoGsm) data[i]);
-			else if (data[i] instanceof CellInfoLte)
-				cellData[i] = new CellData((CellInfoLte) data[i]);
-			else if (data[i] instanceof CellInfoCdma)
-				cellData[i] = new CellData((CellInfoCdma) data[i]);
-			else if (data[i] instanceof CellInfoWcdma)
-				cellData[i] = new CellData((CellInfoWcdma) data[i]);
+	public Data setCell(String operator, @NonNull List<CellInfo> data) {
+		CellData[] cellData = new CellData[data.size()];
+		for (int i = 0; i < data.size(); i++) {
+			CellInfo c = data.get(i);
+			if (c instanceof CellInfoGsm)
+				cellData[i] = new CellData((CellInfoGsm) c);
+			else if (c instanceof CellInfoLte)
+				cellData[i] = new CellData((CellInfoLte) c);
+			else if (c instanceof CellInfoCdma)
+				cellData[i] = new CellData((CellInfoCdma) c);
+			else if (c instanceof CellInfoWcdma)
+				cellData[i] = new CellData((CellInfoWcdma) c);
 		}
 		setCell(operator, cellData);
 		return this;
