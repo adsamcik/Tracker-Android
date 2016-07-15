@@ -19,6 +19,14 @@ public class Setting implements Serializable {
 	public static final String AUTO_UPLOAD = "autoUpload";
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
+	public static final String STATS_VERSION = "statsVersion";
+
+	//Local tracking stats
+	public static final String TRACKING_STAT_DAY = "trackingStatDay";
+	public static final String TRACKING_WIFI_FOUND = "trackingWifiFound";
+	public static final String TRACKING_CELL_FOUND = "trackingCellFound";
+	public static final String TRACKING_LOCATIONS_FOUND = "trackingLocationsFound";
+
 	private static SharedPreferences sharedPreferences;
 
 	/**
