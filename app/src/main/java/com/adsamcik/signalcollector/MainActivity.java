@@ -57,18 +57,6 @@ public class MainActivity extends FragmentActivity {
 	private ViewPager viewPager;
 
 	@Override
-	protected void onStart() {
-		super.onStart();
-
-		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
-			PlayController.setContext(context);
-			PlayController.setActivity(this);
-			PlayController.initializeGamesClient(findViewById(R.id.container));
-			PlayController.initializeActivityClient();
-		}
-	}
-
-	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
@@ -84,13 +72,21 @@ public class MainActivity extends FragmentActivity {
 		PlayController.setContext(context);
 		PlayController.setActivity(this);
 
+		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
+			PlayController.setContext(context);
+			PlayController.setActivity(this);
+			PlayController.initializeGamesClient(findViewById(R.id.container));
+			PlayController.initializeActivityClient();
+		}
+
 		Resources r = getResources();
 
 		// Set up the viewPager with the sections adapter.
 		viewPager = (ViewPager) findViewById(R.id.container);
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
 		adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
-		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
+		if (PlayController.isLogged())
+			adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
 		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
 		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
 		viewPager.setAdapter(adapter);

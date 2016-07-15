@@ -1,5 +1,7 @@
 package com.adsamcik.signalcollector;
 
+import com.adsamcik.signalcollector.fragments.FragmentStats;
+
 public final class Network {
 	public static final String URL_WEB = "http://collector.adsamcik.xyz/";
 	public static final String URL_USER_REGISTRATION = URL_WEB + "register/user";

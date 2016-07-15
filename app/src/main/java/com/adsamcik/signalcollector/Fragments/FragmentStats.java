@@ -38,14 +38,15 @@ import java.util.Locale;
 import cz.msebera.android.httpclient.Header;
 
 public class FragmentStats extends Fragment {
-	static final String GENERAL_STAT_FILE = "general_stats_cache_file";
-	static final String USER_STAT_FILE = "user_stats_cache_file";
+	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
+	private static final String USER_STAT_FILE = "user_stats_cache_file";
 	public static int lastIndex = -1;
-	static long lastRequest = 0;
-	final AsyncHttpClient client = new AsyncHttpClient();
-	FragmentStats instance;
-	View v;
+	private static long lastRequest = 0;
+	private final AsyncHttpClient client = new AsyncHttpClient();
+	private FragmentStats instance;
+	private View v;
 
+	//todo Improve stats updating
 	public final AsyncHttpResponseHandler userStatsResponseHandler = new AsyncHttpResponseHandler() {
 		@Override
 		public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -109,7 +110,6 @@ public class FragmentStats extends Fragment {
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			rowNum.setTextSize(15);
 			row.addView(rowNum);
-
 		}
 
 		TextView textId = new TextView(c);
@@ -131,12 +131,16 @@ public class FragmentStats extends Fragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_stats, container, false);
+
+		//todo show notification when offline to let know that the stats might be outdated
 		instance = this;
 		v = view;
 		long time = System.currentTimeMillis();
 		time -= time % 600000;
 		time += 120000;
 		long diff = time - lastRequest;
+
+		//todo show local device stats
 		if(diff > 600000) {
 			if(PlayController.isLogged())
 				client.post(Network.URL_USER_STATS, new RequestParams("userID", PlayController.gamesController.getUserID()), userStatsResponseHandler);
