@@ -9,4 +9,14 @@ public final class Network {
 	public static final String URL_TILES = URL_WEB + "tiles/z%dx%dy%dt%s.png";
 	public static final String URL_USER_STATS = URL_WEB + "stats/userdata";
 	public static final String URL_STATS = URL_WEB + "data/stats.json";
+
+	//todo encryption
+	public static String encrypt(String data) {
+		throw new RuntimeException("NYI");
+	}
+
+	//todo decryption
+	public static String decrypt(String data) {
+		throw new RuntimeException("NYI");
+	}
 }
