@@ -42,9 +42,9 @@ import cz.msebera.android.httpclient.Header;
 
 public class DataStore {
 	public static final String TAG = "DATA-STORE";
-	public static final String DATA_FILE = "dataStore";
-	public static final String KEY_FILE_ID = "saveFileID";
-	public static final String KEY_SIZE = "totalSize";
+	private static final String DATA_FILE = "dataStore";
+	private static final String KEY_FILE_ID = "saveFileID";
+	private static final String KEY_SIZE = "totalSize";
 	public static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
 
 	//1048576 1MB, 5242880 5MB, 2097152 2MB
@@ -154,11 +154,6 @@ public class DataStore {
 			ConnectivityManager cm;
 
 			@Override
-			public void onStart() {
-				super.onStart();
-			}
-
-			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 				deleteFile(name);
 				TrackerService.approxSize -= size;
@@ -193,7 +188,7 @@ public class DataStore {
 	 * @param newFileName new file name
 	 * @return success
 	 */
-	public static boolean renameFile(String fileName, String newFileName) {
+	private static boolean renameFile(String fileName, String newFileName) {
 		String dir = context.getFilesDir().getPath();
 		return new File(dir, fileName).renameTo(new File(dir, newFileName));
 	}

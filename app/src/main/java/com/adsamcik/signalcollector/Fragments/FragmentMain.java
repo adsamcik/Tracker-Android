@@ -52,7 +52,7 @@ public class FragmentMain extends Fragment {
 		return view;
 	}
 
-	void setCollected(Resources r, long collected) {
+	private void setCollected(Resources r, long collected) {
 		textCollected.setText(String.format(r.getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 

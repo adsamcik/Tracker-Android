@@ -50,44 +50,44 @@ import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
 	//Constants
-	public static final String TAG = "SignalsTracker";
-	final static int lockTimeInMinutes = 30;
-	final static int lockTimeInMilliseconds = lockTimeInMinutes * 60000;
-	public final int UPDATE_TIME_MILLISEC = 2000;
-	public final float MIN_DISTANCE_M = 5;
+	private static final String TAG = "SignalsTracker";
+	private final static int LOCK_TIME_IN_MINUTES = 30;
+	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * 60000;
+	private final int UPDATE_TIME_MILLISEC = 2000;
+	private final float MIN_DISTANCE_M = 5;
 
 	public static boolean isActive = false;
 	public static Intent service;
 
 	public static long approxSize = 0;
-	static long lockedUntil;
-	static TrackerService instance;
+	private static long lockedUntil;
+	private static TrackerService instance;
 
-	Location wifiScanPos;
-	long wifiScanTime;
+	private Location wifiScanPos;
+	private long wifiScanTime;
 
-	final ArrayList<Data> data = new ArrayList<>();
-	LocationListener locationListener;
-	ScanResult[] wifiScanData;
-	CellInfo[] cellScanData;
-	LocationManager locationManager;
-	TelephonyManager telephonyManager;
-	WifiManager wifiManager;
-	WifiReceiver wifiReceiver;
-	SensorManager mSensorManager;
-	Sensor mPressure;
-	BroadcastReceiver activityReceiver;
+	private final ArrayList<Data> data = new ArrayList<>();
+	private LocationListener locationListener;
+	private ScanResult[] wifiScanData;
+	private CellInfo[] cellScanData;
+	private LocationManager locationManager;
+	private TelephonyManager telephonyManager;
+	private WifiManager wifiManager;
+	private WifiReceiver wifiReceiver;
+	private SensorManager mSensorManager;
+	private Sensor mPressure;
+	private BroadcastReceiver activityReceiver;
 
-	float pressureValue;
-	int currentActivity;
-	boolean backgroundActivated = false;
-	boolean wifiEnabled = false;
+	private float pressureValue;
+	private int currentActivity;
+	private boolean backgroundActivated = false;
+	private boolean wifiEnabled = false;
 
-	int saveAttemptsFailed = 0;
+	private int saveAttemptsFailed = 0;
 
-	NotificationManager notificationManager;
-	PowerManager powerManager;
-	PowerManager.WakeLock wakeLock;
+	private NotificationManager notificationManager;
+	private PowerManager powerManager;
+	private PowerManager.WakeLock wakeLock;
 
 	public static boolean isAutoLocked() {
 		return System.currentTimeMillis() < lockedUntil;
@@ -95,7 +95,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public static void setAutoLock() {
 		if (instance.backgroundActivated)
-			lockedUntil = System.currentTimeMillis() + lockTimeInMilliseconds;
+			lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
 	}
 
 	private static boolean isAirplaneModeOn(Context context) {
@@ -103,7 +103,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
 	}
 
-	public void makeUseOfNewLocation(Location location) {
+	private void makeUseOfNewLocation(Location location) {
 		wakeLock.acquire();
 		if (wifiScanData != null && wifiScanPos != null) {
 			float distTo = wifiScanPos.distanceTo(location);
@@ -160,7 +160,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.release();
 	}
 
-	Notification generateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
+	private Notification generateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
 				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
@@ -191,7 +191,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		return builder.build();
 	}
 
-	void saveData() {
+	private void saveData() {
 		if (data.size() == 0) return;
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);

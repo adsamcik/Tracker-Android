@@ -93,6 +93,7 @@ public class FragmentSettings extends Fragment {
                 ((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
             }
             catch (Exception e) {
+
             }
         }
 
