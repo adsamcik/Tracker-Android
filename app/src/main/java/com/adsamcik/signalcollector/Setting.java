@@ -7,15 +7,13 @@ import android.support.annotation.NonNull;
 
 import java.io.Serializable;
 
-public class Setting implements Serializable {
+public class Setting {
 	public static final int UPLOAD_JOB = 513;
 
 	public static final String SCHEDULED_UPLOAD = "uploadSCHEDULED";
 	public static final String SENT_TOKEN_TO_SERVER = "sentTokenToServer";
 	public static final String REGISTERED_USER = "playUserRegistered";
-	//0-no tracking; 1-onFoot tracking; 2-onFoot and vehicle tracking
 	public static final String BACKGROUND_TRACKING = "backgroundTracking";
-	//0-no auto upload;1-wifi autoUpload;2-autoUpload
 	public static final String AUTO_UPLOAD = "autoUpload";
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";

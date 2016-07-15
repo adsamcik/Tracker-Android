@@ -22,7 +22,6 @@ import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
-import android.telephony.TelephonyManager;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
@@ -283,7 +282,7 @@ public class MainActivity extends FragmentActivity {
 				);
 				return true;
 			case 1:
-				return ((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initializeFABs(this, fabOne, fabTwo);
+				return ((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initialize(this, fabOne, fabTwo);
 			default:
 				fabOne.hide();
 				fabTwo.hide();

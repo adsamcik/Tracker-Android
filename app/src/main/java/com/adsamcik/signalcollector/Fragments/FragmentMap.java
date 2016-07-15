@@ -46,24 +46,24 @@ import java.net.URL;
 import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback {
-	public static final String TAG = "SIGNALS_MAP";
-	public static final String[] availableTypes = {"Wifi", "Cell"};
-	public static int typeIndex = -1;
-	public static View view;
-	public SupportMapFragment mMapFragment;
-	public GoogleMap map;
-	public TileProvider tileProvider;
-	public FloatingActionButton fabTwo, fabOne;
+	private static final String TAG = "SIGNALS MAP";
+	private static final String[] availableTypes = {"Wifi", "Cell"};
+	private static int typeIndex = -1;
+	private static View view;
+	private SupportMapFragment mMapFragment;
+	private GoogleMap map;
+	private TileProvider tileProvider;
+	private FloatingActionButton fabTwo, fabOne;
 
-	LocationManager locationManager;
-	final UpdateLocationListener locationListener;
+	private LocationManager locationManager;
+	private final UpdateLocationListener locationListener;
 
-	TouchWrapper touchWrapper;
+	private TouchWrapper touchWrapper;
 
 
 	/**
 	 * Check if permission to access fine location is granted
-	 * If not and is android 6, than it prompts you to enable it
+	 * If not and is android 6 or newer, than it prompts you to enable it
 	 *
 	 * @return is permission available atm
 	 */
@@ -88,42 +88,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		return view;
 	}
 
-	@Override
-	public void onStart() {
-		super.onStart();
-
-		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-		mMapFragment.getMapAsync(this);
-
-		tileProvider = new UrlTileProvider(256, 256) {
-			@Override
-			public URL getTileUrl(int x, int y, int zoom) {
-				//todo update path to tiles to new format zoom/x/y.png
-				String s = String.format(Locale.ENGLISH, Network.URL_TILES + "z%dx%dy%dt%s.png", zoom, x, y, availableTypes[typeIndex]);
-
-				if (!checkTileExists(x, y, zoom))
-					return null;
-
-				try {
-					URL u = new URL(s);
-					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
-					huc.setRequestMethod("HEAD");
-					return huc.getResponseCode() == 200 ? u : null;
-				} catch (Exception e) {
-					throw new AssertionError(e);
-				}
-			}
-
-			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-			private boolean checkTileExists(int x, int y, int zoom) {
-				int minZoom = 10;
-				int maxZoom = 17;
-
-				return !(zoom < minZoom || zoom > maxZoom);
-			}
-		};
-	}
-
 	/**
 	 * This function should be called when fragment is left
 	 */
@@ -143,7 +107,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public boolean initializeFABs(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public boolean initialize(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		if(view == null)
 			return false;
 
@@ -170,7 +134,35 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
 		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1));
 
-		changeMapOverlay(typeIndex);
+		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
+		mMapFragment.getMapAsync(this);
+
+		tileProvider = new UrlTileProvider(256, 256) {
+			@Override
+			public URL getTileUrl(int x, int y, int zoom) {
+				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, availableTypes[typeIndex]);
+
+				if (!checkTileExists(x, y, zoom))
+					return null;
+
+				try {
+					URL u = new URL(s);
+					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
+					huc.setRequestMethod("HEAD");
+					return huc.getResponseCode() == 200 ? u : null;
+				} catch (Exception e) {
+					throw new AssertionError(e);
+				}
+			}
+
+			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
+			private boolean checkTileExists(int x, int y, int zoom) {
+				int minZoom = 10;
+				int maxZoom = 17;
+
+				return !(zoom < minZoom || zoom > maxZoom);
+			}
+		};
 		return true;
 	}
 
