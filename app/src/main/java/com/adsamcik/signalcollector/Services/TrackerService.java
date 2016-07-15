@@ -120,8 +120,15 @@ public class TrackerService extends Service implements SensorEventListener {
 				cellScanData = cells.toArray(new CellInfo[cells.size()]);
 		}
 
-		Data d = new Data(location.getTime(), location.getLongitude(), location.getLatitude(), location.getAltitude(), location.getAccuracy(), cellScanData, wifiScanData, pressureValue, telephonyManager.getNetworkOperatorName(), currentActivity);
+		Data d = new Data(location.getTime());
+		d.setLocation(location).setPressure(pressureValue).setActivity(currentActivity);
+		if(wifiScanData != null)
+			d.setWifi(wifiScanData, wifiScanTime);
+
+		if(cellScanData != null)
+			d.setCell(telephonyManager.getNetworkOperator(), cellScanData);
 		data.add(d);
+
 		if (data.size() > 10)
 			saveData();
 

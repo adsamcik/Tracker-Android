@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.data;
 
+import android.location.Location;
 import android.net.wifi.ScanResult;
+import android.support.annotation.NonNull;
 import android.telephony.CellInfo;
 import android.telephony.CellInfoCdma;
 import android.telephony.CellInfoGsm;
@@ -11,51 +13,71 @@ import java.io.Serializable;
 
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
 public class Data implements Serializable {
-	public CellData[] cell;
-	public WifiData[] wifi;
-	public final double longitude;
-	public final double latitude;
-	public final double altitude;
-	public final float accuracy;
 	public final long time;
-	public boolean wifiGathered;
-	public boolean cellGathered;
-	public String networkOperator;
-	public final float pressure;
-	public final int currentActivity;
 
-	public Data(long time, double longitude, double latitude, double altitude, float accuracy, CellInfo[] cell, ScanResult[] wifi, float pressure, String networkOperator, int currentActivity) {
-		if(cell != null) {
-			CellData[] cellData = new CellData[cell.length];
-			for(int i = 0; i < cell.length; i++) {
-				if(cell[i] instanceof CellInfoGsm)
-					cellData[i] = new CellData((CellInfoGsm) cell[i]);
-				else if(cell[i] instanceof CellInfoLte)
-					cellData[i] = new CellData((CellInfoLte) cell[i]);
-				else if(cell[i] instanceof CellInfoCdma)
-					cellData[i] = new CellData((CellInfoCdma) cell[i]);
-				else if(cell[i] instanceof CellInfoWcdma)
-					cellData[i] = new CellData((CellInfoWcdma) cell[i]);
-			}
-			this.cell = cellData;
-			this.cellGathered = true;
-			this.networkOperator = networkOperator;
-		}
+	public CellData[] cell = null;
+	public String networkOperator = null;
 
-		if(wifi != null) {
-			WifiData[] wifiData = new WifiData[wifi.length];
-			for(int i = 0; i < wifi.length; i++) {
-				wifiData[i] = new WifiData(wifi[i]);
-			}
-			this.wifi = wifiData;
-			this.wifiGathered = true;
-		}
+	public WifiData[] wifi = null;
+	public long wifiTime;
+
+	public double longitude;
+	public double latitude;
+	public double altitude;
+	public float accuracy;
+
+	public float pressure;
+	public int activity;
+
+	public Data(long time) {
 		this.time = time;
-		this.longitude = longitude;
-		this.latitude = latitude;
-		this.altitude = altitude;
-		this.accuracy = accuracy;
+	}
+
+	public Data setPressure(float pressure) {
 		this.pressure = pressure;
-		this.currentActivity = currentActivity;
+		return this;
+	}
+
+	public Data setLocation(@NonNull Location location) {
+		this.longitude = location.getLongitude();
+		this.latitude = location.getLatitude();
+		this.altitude = location.getAltitude();
+		this.accuracy = location.getAccuracy();
+		return this;
+	}
+
+	public Data setWifi(@NonNull ScanResult[] data, long time) {
+		wifi = new WifiData[data.length];
+		for(int i = 0; i < data.length; i++)
+			wifi[i] = new WifiData(data[i]);
+		this.wifiTime = time;
+		return this;
+	}
+
+	public Data setActivity(int activity) {
+		this.activity = activity;
+		return this;
+	}
+
+	public Data setCell(String operator, @NonNull CellInfo[] data) {
+		CellData[] cellData = new CellData[data.length];
+		for (int i = 0; i < data.length; i++) {
+			if (data[i] instanceof CellInfoGsm)
+				cellData[i] = new CellData((CellInfoGsm) data[i]);
+			else if (data[i] instanceof CellInfoLte)
+				cellData[i] = new CellData((CellInfoLte) data[i]);
+			else if (data[i] instanceof CellInfoCdma)
+				cellData[i] = new CellData((CellInfoCdma) data[i]);
+			else if (data[i] instanceof CellInfoWcdma)
+				cellData[i] = new CellData((CellInfoWcdma) data[i]);
+		}
+		setCell(operator, cellData);
+		return this;
+	}
+
+	public Data setCell(String operator, @NonNull CellData[] data) {
+		this.cell = data;
+		this.networkOperator = operator;
+		return this;
 	}
 }
