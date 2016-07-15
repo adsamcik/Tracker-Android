@@ -94,7 +94,7 @@ public class MainActivity extends FragmentActivity {
 
 		viewPager.addOnPageChangeListener(
 				new ViewPager.OnPageChangeListener() {
-					int prevPos = 0;
+					Class prevFragment = null;
 
 					@Override
 					public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
@@ -102,15 +102,17 @@ public class MainActivity extends FragmentActivity {
 
 					@Override
 					public void onPageSelected(int position) {
-						if (prevPos == 1)
-							((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(1)).onLeave();
+						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
+						if (prevFragment == FragmentMap.class)
+							((FragmentMap) adapter.getItem(1)).onLeave();
 
-						if (!updateFabs(position)) {
-							viewPager.setCurrentItem(prevPos);
-							Snackbar.make(findViewById(R.id.container), "An error occured", 5);
-							FirebaseCrash.log("Something went wrong when updating fabs.");
+						//noinspection unchecked
+						if (!onTabChange(adapter.getItem(position))) {
+							viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
+							Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
+							FirebaseCrash.log("Something went wrong on fragment initialization.");
 						} else
-							prevPos = position;
+							prevFragment = adapter.getItem(position).getClass();
 					}
 
 					@Override
@@ -137,7 +139,7 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		updateFabs(0);
+		onTabChange(adapter.getItem(0));
 
 		if (DataStore.recountDataSize() > 0)
 			setCloudStatus(1);
@@ -252,37 +254,40 @@ public class MainActivity extends FragmentActivity {
 	/**
 	 * Handles fab updating (showing/hiding, icons, listeners)
 	 *
-	 * @param index current tab index
+	 * @param f current fragment
+	 * @return success
 	 */
-	private boolean updateFabs(final int index) {
-		switch (index) {
-			case 0:
-				fabOne.show();
-				changeTrackerButton(TrackerService.isActive ? 1 : 0);
-				fabOne.setOnClickListener(
-						v -> {
-							if (TrackerService.isActive)
-								TrackerService.setAutoLock();
-							toggleCollecting(!TrackerService.isActive);
-						}
-				);
+	private boolean onTabChange(final Fragment f) {
+		Class c = f.getClass();
+		if(c == FragmentMain.class) {
+			fabOne.show();
+			changeTrackerButton(TrackerService.isActive ? 1 : 0);
+			fabOne.setOnClickListener(
+					v -> {
+						if (TrackerService.isActive)
+							TrackerService.setAutoLock();
+						toggleCollecting(!TrackerService.isActive);
+					}
+			);
 
-				setCloudStatus(cloudStatus);
-				fabTwo.setOnClickListener(
-						v -> {
-							if (cloudStatus == 1) {
-								setCloudStatus(2);
-								DataStore.requestUpload(context, false);
-							}
+			setCloudStatus(cloudStatus);
+			fabTwo.setOnClickListener(
+					v -> {
+						if (cloudStatus == 1) {
+							setCloudStatus(2);
+							DataStore.requestUpload(context, false);
 						}
-				);
-				return true;
-			case 1:
-				return ((FragmentMap) ((ViewPagerAdapter) viewPager.getAdapter()).getItem(index)).initialize(this, fabOne, fabTwo);
-			default:
-				fabOne.hide();
-				fabTwo.hide();
-				return true;
+					}
+			);
+			return true;
+		}
+		else if(c == FragmentMap.class) {
+			return ((FragmentMap) f).initialize(this, fabOne, fabTwo);
+		}
+		else {
+			fabOne.hide();
+			fabTwo.hide();
+			return true;
 		}
 	}
 
