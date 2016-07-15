@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -191,10 +192,20 @@ public class TrackerService extends Service implements SensorEventListener {
 	private void saveData() {
 		if (data.size() == 0) return;
 
+		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+		int wifiCount, cellCount;
+
+		//todo check date
+		wifiCount = sp.getInt(Setting.TRACKING_WIFI_FOUND, 0);
+		cellCount = sp.getInt(Setting.TRACKING_CELL_FOUND, 0);
 		for (Data d : data) {
-
-
+			if (d.wifi != null)
+				wifiCount += d.wifi.length;
+			if (d.cell != null)
+				cellCount += d.cell.length;
 		}
+
+		sp.edit().putInt(Setting.TRACKING_WIFI_FOUND, wifiCount).putInt(Setting.TRACKING_CELL_FOUND, cellCount).apply();
 
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
