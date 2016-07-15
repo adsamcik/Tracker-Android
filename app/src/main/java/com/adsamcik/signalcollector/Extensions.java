@@ -86,35 +86,6 @@ public class Extensions {
 		return (int) (pt * scale + 0.5f);
 	}
 
-
-	/**
-	 * 0 still/default
-	 * 1 foot
-	 * 2 vehicle
-	 * 3 tilting
-	 */
-
-	public static int evaluateActivity(int val) {
-		switch (val) {
-			case DetectedActivity.STILL:
-				return 0;
-			case DetectedActivity.RUNNING:
-				return 1;
-			case DetectedActivity.ON_FOOT:
-				return 1;
-			case DetectedActivity.WALKING:
-				return 1;
-			case DetectedActivity.ON_BICYCLE:
-				return 2;
-			case DetectedActivity.IN_VEHICLE:
-				return 2;
-			case DetectedActivity.TILTING:
-				return 3;
-			default:
-				return 0;
-		}
-	}
-
 	public static boolean canBackgroundTrack(@NonNull Context c, int evalActivity) {
 		if(!isInitialized())
 			initialize(c);
@@ -148,6 +119,33 @@ public class Extensions {
 		if (telephonyManager == null)
 			throw new NullPointerException("Extensions were not initialized, this is a bug.");
 		return telephonyManager.getDeviceId();
+	}
+
+	/**
+	 * 0 still/default
+	 * 1 foot
+	 * 2 vehicle
+	 * 3 tilting
+	 */
+	public static int evaluateActivity(int val) {
+		switch (val) {
+			case DetectedActivity.STILL:
+				return 0;
+			case DetectedActivity.RUNNING:
+				return 1;
+			case DetectedActivity.ON_FOOT:
+				return 1;
+			case DetectedActivity.WALKING:
+				return 1;
+			case DetectedActivity.ON_BICYCLE:
+				return 2;
+			case DetectedActivity.IN_VEHICLE:
+				return 2;
+			case DetectedActivity.TILTING:
+				return 3;
+			default:
+				return 0;
+		}
 	}
 
 	/**

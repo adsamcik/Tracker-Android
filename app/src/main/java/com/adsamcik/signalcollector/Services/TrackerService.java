@@ -143,7 +143,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
 		sendUpdateInfoBroadcast(d.time, wifiCount, cellCount, cellDbm, cellAsu, cellType, d.longitude, d.latitude, d.altitude, d.accuracy, pressureValue, Extensions.getActivityName(currentActivity));
 
-		notificationManager.notify(1, updateNotification(true, wifiCount, cellCount));
+		notificationManager.notify(1, generateNotification(true, wifiCount, cellCount));
 		wifiScanData = null;
 		cellScanData = null;
 
@@ -153,7 +153,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.release();
 	}
 
-	Notification updateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
+	Notification generateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
 				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
@@ -241,7 +241,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
 				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					notificationManager.notify(1, updateNotification(false, 0, 0));
+					notificationManager.notify(1, generateNotification(false, 0, 0));
 			}
 
 			public void onProviderEnabled(String provider) {
@@ -288,7 +288,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			approxSize = intent.getLongExtra("approxSize", 0);
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}
-		startForeground(1, updateNotification(false, -1, -1));
+		startForeground(1, generateNotification(false, -1, -1));
 		return super.onStartCommand(intent, flags, startId);
 	}
 
@@ -356,7 +356,6 @@ public class TrackerService extends Service implements SensorEventListener {
 	}
 
 	private class WifiReceiver extends BroadcastReceiver {
-
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			List<ScanResult> result = wifiManager.getScanResults();

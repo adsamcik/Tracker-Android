@@ -160,9 +160,9 @@ public class DataStore {
 
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-				//deleteFile(name);
+				deleteFile(name);
 				TrackerService.approxSize -= size;
-				Log.d(TAG, "Successfully uploaded " + name);
+				//Log.d(TAG, "Successfully uploaded " + name);
 			}
 
 			@Override
