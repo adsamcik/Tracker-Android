@@ -45,7 +45,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
 
-public class FragmentMap extends Fragment implements OnMapReadyCallback {
+public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final String TAG = "SIGNALS MAP";
 	private static final String[] availableTypes = {"Wifi", "Cell"};
 	private static int typeIndex = -1;
@@ -107,7 +107,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback {
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public boolean initialize(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		if(view == null)
 			return false;
 

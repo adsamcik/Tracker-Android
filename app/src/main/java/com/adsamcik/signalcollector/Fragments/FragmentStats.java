@@ -1,9 +1,11 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.util.JsonReader;
 import android.util.Log;
@@ -37,7 +39,7 @@ import java.util.Locale;
 
 import cz.msebera.android.httpclient.Header;
 
-public class FragmentStats extends Fragment {
+public class FragmentStats extends Fragment implements ITabFragment{
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
 	public static int lastIndex = -1;
@@ -310,5 +312,15 @@ public class FragmentStats extends Fragment {
 		}
 	}
 
+	@Override
+	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		//todo check if up to date
+		return true;
+	}
+
+	@Override
+	public void onLeave() {
+
+	}
 }
 

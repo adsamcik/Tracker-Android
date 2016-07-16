@@ -1,10 +1,14 @@
 package com.adsamcik.signalcollector;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Build;
 import android.support.annotation.NonNull;
+import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
@@ -13,6 +17,8 @@ import android.view.WindowManager;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class Extensions {
@@ -84,6 +90,26 @@ public class Extensions {
 	public static int ptToPx(@NonNull Context c, int pt) {
 		final float scale = c.getResources().getDisplayMetrics().density;
 		return (int) (pt * scale + 0.5f);
+	}
+
+	public static String[] checkTrackingPermissions(Context context) {
+		if (Build.VERSION.SDK_INT > 22) {
+			List<String> permissions = new ArrayList<>();
+			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION);
+
+			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
+				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
+
+			//if (ContextCompat.checkSelfPermission(instance, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+			//    permissions.add(Manifest.permission.RECORD_AUDIO);
+
+			if (permissions.size() == 0)
+				return null;
+
+			return permissions.toArray(new String[permissions.size()]);
+		}
+		return null;
 	}
 
 	public static boolean canBackgroundTrack(@NonNull Context c, int evalActivity) {

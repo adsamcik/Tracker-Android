@@ -1,12 +1,15 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.format.DateFormat;
@@ -19,8 +22,10 @@ import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.services.TrackerService;
 
-public class FragmentMain extends Fragment {
+public class FragmentMain extends Fragment implements ITabFragment {
 	private final String activity_name = "MainActivity";
 	private MainActivity activity;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
@@ -60,6 +65,62 @@ public class FragmentMain extends Fragment {
 	public void onDestroy() {
 		LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(receiver);
 		super.onDestroy();
+	}
+
+	/**
+	 * Enables or disables collecting service
+	 *
+	 * @param enable ensures intended action
+	 */
+	private void toggleCollecting(boolean enable) {
+		if (TrackerService.isActive == enable)
+			return;
+
+		String[] requiredPermissions = Extensions.checkTrackingPermissions(MainActivity.context);
+
+		if (requiredPermissions == null) {
+			if (!TrackerService.isActive) {
+				Setting.getPreferences(MainActivity.context).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
+				Intent trackerService = new Intent(MainActivity.context, TrackerService.class);
+				trackerService.putExtra("approxSize", DataStore.sizeOfData());
+				MainActivity.instance.startService(trackerService);
+				TrackerService.service = trackerService;
+			} else {
+				MainActivity.instance.stopService(TrackerService.service);
+			}
+		}
+		else if(Build.VERSION.SDK_INT >= 23){
+			MainActivity.instance.requestPermissions(requiredPermissions, 0);
+		}
+	}
+
+	@Override
+	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		fabOne.show();
+		changeTrackerButton(TrackerService.isActive ? 1 : 0);
+		fabOne.setOnClickListener(
+				v -> {
+					if (TrackerService.isActive)
+						TrackerService.setAutoLock();
+					toggleCollecting(!TrackerService.isActive);
+				}
+		);
+
+		setCloudStatus(cloudStatus);
+		fabTwo.setOnClickListener(
+				v -> {
+					if (cloudStatus == 1) {
+						setCloudStatus(2);
+						DataStore.requestUpload(context, false);
+					}
+				}
+		);
+		return true;
+	}
+
+	@Override
+	public void onLeave() {
+
 	}
 
 	public class UpdateInfoReceiver extends BroadcastReceiver {

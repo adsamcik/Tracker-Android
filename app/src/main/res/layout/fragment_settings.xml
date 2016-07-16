@@ -159,4 +159,36 @@
         android:paddingTop="10dp"
         />
 
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Track wifi"
+        android:id="@+id/switchTrackWifi"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"/>
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Track cell"
+        android:id="@+id/switchTrackCell"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"/>
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Track pressure"
+        android:id="@+id/switchTrackPressure"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"/>
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Track noise"
+        android:id="@+id/switchTrackNoise"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"/>
+
 </RelativeLayout>

@@ -1,11 +1,13 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.res.ResourcesCompat;
 import android.util.Log;
@@ -22,7 +24,7 @@ import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 
-public class FragmentSettings extends Fragment {
+public class FragmentSettings extends Fragment implements ITabFragment {
     String[] mTrackingString, mAutoupString;
     ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
     ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
@@ -170,4 +172,15 @@ public class FragmentSettings extends Fragment {
 
         return rootView;
     }
+
+	@Override
+	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		//todo think if something fits in here
+		return true;
+	}
+
+	@Override
+	public void onLeave() {
+
+	}
 }

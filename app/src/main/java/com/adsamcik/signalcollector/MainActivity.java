@@ -29,6 +29,7 @@ import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
+import com.adsamcik.signalcollector.fragments.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
@@ -39,7 +40,7 @@ import java.util.List;
 public class MainActivity extends FragmentActivity {
 	public static final String TAG = "Signals";
 
-	private static MainActivity instance;
+	public static MainActivity instance;
 	public static Context context;
 	//static boolean tracking = false;
 	//0 - Data are synced
@@ -94,7 +95,7 @@ public class MainActivity extends FragmentActivity {
 
 		viewPager.addOnPageChangeListener(
 				new ViewPager.OnPageChangeListener() {
-					Class prevFragment = null;
+					ITabFragment prevFragment = null;
 
 					@Override
 					public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
@@ -103,16 +104,16 @@ public class MainActivity extends FragmentActivity {
 					@Override
 					public void onPageSelected(int position) {
 						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-						if (prevFragment == FragmentMap.class)
-							((FragmentMap) adapter.getItem(1)).onLeave();
+						prevFragment.onLeave();
 
-						//noinspection unchecked
-						if (!onTabChange(adapter.getItem(position))) {
+						ITabFragment tf = (ITabFragment) adapter.getItem(position);
+
+						if (!tf.onEnter(MainActivity.instance, fabOne, fabTwo)) {
 							viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
 							Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
 							FirebaseCrash.log("Something went wrong on fragment initialization.");
 						} else
-							prevFragment = adapter.getItem(position).getClass();
+							prevFragment = (ITabFragment) adapter.getItem(position);
 					}
 
 					@Override
@@ -139,8 +140,6 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		onTabChange(adapter.getItem(0));
-
 		if (DataStore.recountDataSize() > 0)
 			setCloudStatus(1);
 		else
@@ -162,27 +161,6 @@ public class MainActivity extends FragmentActivity {
 		DataStore.getDataFileNames(true);
 
 		//Log.d(TAG,  FirebaseInstanceId.getInstance().getToken());
-	}
-
-	/**
-	 * Enables or disables collecting service
-	 *
-	 * @param enable ensures intended action
-	 */
-	private void toggleCollecting(boolean enable) {
-		if (TrackerService.isActive == enable)
-			return;
-		if (checkAllTrackingPermissions()) {
-			if (!TrackerService.isActive) {
-				Setting.getPreferences(context).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
-				Intent trackerService = new Intent(instance, TrackerService.class);
-				trackerService.putExtra("approxSize", DataStore.sizeOfData());
-				startService(trackerService);
-				TrackerService.service = trackerService;
-			} else {
-				stopService(TrackerService.service);
-			}
-		}
 	}
 
 	public int getCloudStatus() {
@@ -251,72 +229,12 @@ public class MainActivity extends FragmentActivity {
 		}
 	}
 
-	/**
-	 * Handles fab updating (showing/hiding, icons, listeners)
-	 *
-	 * @param f current fragment
-	 * @return success
-	 */
-	private boolean onTabChange(final Fragment f) {
-		Class c = f.getClass();
-		if(c == FragmentMain.class) {
-			fabOne.show();
-			changeTrackerButton(TrackerService.isActive ? 1 : 0);
-			fabOne.setOnClickListener(
-					v -> {
-						if (TrackerService.isActive)
-							TrackerService.setAutoLock();
-						toggleCollecting(!TrackerService.isActive);
-					}
-			);
-
-			setCloudStatus(cloudStatus);
-			fabTwo.setOnClickListener(
-					v -> {
-						if (cloudStatus == 1) {
-							setCloudStatus(2);
-							DataStore.requestUpload(context, false);
-						}
-					}
-			);
-			return true;
-		}
-		else if(c == FragmentMap.class) {
-			return ((FragmentMap) f).initialize(this, fabOne, fabTwo);
-		}
-		else {
-			fabOne.hide();
-			fabTwo.hide();
-			return true;
-		}
-	}
-
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
 		for (int grantResult : grantResults) {
 			if (grantResult != PackageManager.PERMISSION_GRANTED)
 				return;
 		}
-	}
-
-	private boolean checkAllTrackingPermissions() {
-		if (Build.VERSION.SDK_INT > 22) {
-			List<String> permissions = new ArrayList<>();
-			if (ContextCompat.checkSelfPermission(instance, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-				permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
-
-			if (ContextCompat.checkSelfPermission(instance, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
-				permissions.add(Manifest.permission.READ_PHONE_STATE);
-
-			//if (ContextCompat.checkSelfPermission(instance, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-			//    permissions.add(Manifest.permission.RECORD_AUDIO);
-
-			if (permissions.size() == 0)
-				return true;
-
-			requestPermissions(permissions.toArray(new String[permissions.size()]), 0);
-		}
-		return false;
 	}
 
 
