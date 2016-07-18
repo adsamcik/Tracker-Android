@@ -40,6 +40,7 @@ import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.data.WifiData;
+import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 
@@ -61,6 +62,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	public static Intent service;
 
 	public static long approxSize = 0;
+
+	public static ICallback onNewDataFound;
 	public static Data dataEcho;
 
 	private static long lockedUntil;
@@ -130,6 +133,8 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		data.add(d);
 		dataEcho = d;
+		if(onNewDataFound != null)
+			onNewDataFound.OnTrue();
 
 		if (data.size() > 10)
 			saveData();

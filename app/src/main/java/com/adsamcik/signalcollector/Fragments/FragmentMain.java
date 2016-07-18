@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
@@ -17,6 +16,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
@@ -25,17 +25,25 @@ import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.data.CellData;
+import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private final String activity_name = "MainActivity";
+	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 	private BroadcastReceiver receiver;
 
 	private FloatingActionButton fabTrack, fabUp;
 
+	public FragmentMain setFabs(FloatingActionButton fabTrack, FloatingActionButton fabUp) {
+		this.fabTrack = fabTrack;
+		this.fabUp = fabUp;
+		return this;
+	}
 
 	@Nullable
 	@Override
@@ -54,26 +62,25 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
 		textCollected = (TextView) view.findViewById(R.id.textCollected);
 
-		setCollected(getResources(), DataStore.sizeOfData());
+		layoutMain = (RelativeLayout) view.findViewById(R.id.layout_main);
+		layoutWifi = (RelativeLayout) view.findViewById(R.id.layout_wifi);
+		layoutCell = (RelativeLayout) view.findViewById(R.id.layout_cells);
+		layoutOther = (RelativeLayout) view.findViewById(R.id.layout_other);
 
+		layoutWifi.setVisibility(View.GONE);
+		layoutCell.setVisibility(View.GONE);
+		layoutOther.setVisibility(View.GONE);
+
+		setCollected(DataStore.sizeOfData());
+
+		onEnter(MainActivity.instance, fabTrack, fabUp);
 		return view;
 	}
 
-
-	@Override
-	public void onResume() {
-		super.onResume();
-		onEnter(MainActivity.instance, fabTrack, fabUp);
-	}
-
-	@Override
-	public void onPause() {
-		super.onPause();
-		onLeave();
-	}
-
-	private void setCollected(Resources r, long collected) {
-		textCollected.setText(String.format(r.getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
+	private void setCollected(long collected) {
+		if (Network.cloudStatus == 0 && collected > 0)
+			setCloudStatus(1);
+		textCollected.setText(String.format(MainActivity.instance.getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
 	/**
@@ -167,21 +174,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		Network.cloudStatus = status;
 	}
 
-	private void RecountData() {
-		Log.d("Signals", "Data " + DataStore.recountDataSize());
-		if (DataStore.recountDataSize() > 0)
-			setCloudStatus(1);
-		else
-			setCloudStatus(0);
-	}
-
 	@Override
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 
 		fabTrack.show();
-		RecountData();
 
 		changeTrackerButton(TrackerService.isActive ? 1 : 0);
 		fabTrack.setOnClickListener(
@@ -192,20 +190,18 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
-		if (receiver == null)
-			receiver = new UpdateInfoReceiver();
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
 
 		DataStore.onDataChanged = new ICallback() {
 			@Override
 			public void OnTrue() {
-				setCloudStatus(1);
+				setCollected(TrackerService.approxSize);
 			}
 
 			@Override
 			public void OnFalse() {
-				setCloudStatus(0);
+				setCollected(TrackerService.approxSize);
 			}
 		};
 
@@ -217,10 +213,23 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			@Override
 			public void OnFalse() {
-				RecountData();
+				setCollected(DataStore.recountDataSize());
 			}
 		};
 
+		TrackerService.onNewDataFound = new ICallback() {
+			@Override
+			public void OnTrue() {
+				UpdateData();
+			}
+
+			@Override
+			public void OnFalse() {
+
+			}
+		};
+
+		UpdateData();
 		return true;
 	}
 
@@ -231,39 +240,44 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.onUpload = null;
 	}
 
-	public class UpdateInfoReceiver extends BroadcastReceiver {
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			Resources res = getResources();
-			if (Network.cloudStatus == 0) setCloudStatus(1);
+	void UpdateData() {
+		Resources res = MainActivity.instance.getResources();
+		Data d = TrackerService.dataEcho;
+		setCollected(TrackerService.approxSize);
 
-			setCollected(res, intent.getLongExtra("approxSize", 0));
+		if(d != null) {
+			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
 
-			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", intent.getLongExtra("time", 0))));
+			if (d.wifi != null) {
+				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
+				layoutWifi.setVisibility(View.VISIBLE);
+			} else
+				layoutWifi.setVisibility(View.GONE);
 
-			int wifiCount = intent.getIntExtra("wifiCount", -1);
-			if (wifiCount >= 0)
-				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), wifiCount));
-
-			int cellCount = intent.getIntExtra("cellCount", -1);
-			if (cellCount >= 0) {
-				textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), intent.getStringExtra("cellType"), intent.getIntExtra("cellDbm", -1), intent.getIntExtra("cellAsu", -1)));
-				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), cellCount));
-			}
+			if (d.cell != null) {
+				CellData active = d.getActiveCell();
+				textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
+				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cell.length));
+				layoutCell.setVisibility(View.VISIBLE);
+			} else
+				layoutCell.setVisibility(View.GONE);
 
 
-			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), intent.getIntExtra("accuracy", -1)));
+			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), d.accuracy));
 
 			textPosition.setText(String.format(res.getString(R.string.main_position),
-					Extensions.coordsToString(intent.getDoubleExtra("latitude", -1)),
-					Extensions.coordsToString(intent.getDoubleExtra("longitude", -1)),
-					(int) intent.getDoubleExtra("altitude", -1)));
+					Extensions.coordsToString(d.latitude),
+					Extensions.coordsToString(d.longitude),
+					(int) d.altitude));
 
-			float pressure = intent.getFloatExtra("pressure", -1);
-			if (pressure >= 0)
-				textPressure.setText(String.format(res.getString(R.string.main_pressure), pressure));
+			if (d.pressure > 0) {
+				textPressure.setText(String.format(res.getString(R.string.main_pressure), d.pressure));
+				layoutOther.setVisibility(View.VISIBLE);
+			} else
+				layoutOther.setVisibility(View.GONE);
 
-			textActivity.setText(String.format(res.getString(R.string.main_activity), intent.getStringExtra("activity")));
+			textActivity.setText(String.format(res.getString(R.string.main_activity), Extensions.getActivityName(d.activity)));
 		}
 	}
+
 }

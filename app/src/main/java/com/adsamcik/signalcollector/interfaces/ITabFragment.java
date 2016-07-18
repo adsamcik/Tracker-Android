@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.support.design.widget.FloatingActionButton;
 
 public interface ITabFragment {
+
 	/**
 	 * Called when entering the tab
 	 * @return if tab successfully loaded

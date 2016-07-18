@@ -36,6 +36,7 @@ public class MainActivity extends FragmentActivity {
 	public static MainActivity instance;
 	public static Context context;
 
+
 	private FloatingActionButton fabOne;
 	private FloatingActionButton fabTwo;
 
@@ -83,7 +84,7 @@ public class MainActivity extends FragmentActivity {
 		viewPager.setOffscreenPageLimit(3);
 
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-		adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
+		adapter.addFrag(new FragmentMain().setFabs(fabOne, fabTwo), r.getString(R.string.menu_dashboard));
 		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
 		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
 		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
@@ -120,8 +121,6 @@ public class MainActivity extends FragmentActivity {
 
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
-
-		((ITabFragment) ((ViewPagerAdapter) viewPager.getAdapter()).mFragmentList.get(0)).onEnter(this, fabOne, fabTwo);
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25));

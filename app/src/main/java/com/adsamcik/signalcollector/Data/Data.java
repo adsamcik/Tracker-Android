@@ -83,7 +83,7 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	public CellData GetActiveCell() {
+	public CellData getActiveCell() {
 		for (CellData cd : cell) {
 			if (cd.isRegistered)
 				return cd;

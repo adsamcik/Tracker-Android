@@ -9,7 +9,7 @@
                 tools:context=".fragments.FragmentMain">
 
     <RelativeLayout
-        android:id="@+id/trackerHeader"
+        android:id="@+id/layout_main"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/cardBackground"
@@ -58,10 +58,10 @@
     </RelativeLayout>
 
     <RelativeLayout
-        android:id="@+id/trackerWifi"
+        android:id="@+id/layout_wifi"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/trackerHeader"
+        android:layout_below="@+id/layout_main"
         android:layout_marginTop="@dimen/main_card_spacing"
         android:background="@color/cardBackground"
         android:elevation="@dimen/main_card_elevation"
@@ -89,10 +89,10 @@
     </RelativeLayout>
 
     <RelativeLayout
-        android:id="@+id/trackerCells"
+        android:id="@+id/layout_cells"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/trackerWifi"
+        android:layout_below="@+id/layout_wifi"
         android:layout_marginTop="@dimen/main_card_spacing"
         android:background="@color/cardBackground"
         android:elevation="@dimen/main_card_elevation"
@@ -127,9 +127,10 @@
     </RelativeLayout>
 
     <RelativeLayout
+        android:id="@+id/layout_other"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/trackerCells"
+        android:layout_below="@+id/layout_cells"
         android:layout_marginTop="@dimen/main_card_spacing"
         android:background="@color/cardBackground"
         android:elevation="@dimen/main_card_elevation"
