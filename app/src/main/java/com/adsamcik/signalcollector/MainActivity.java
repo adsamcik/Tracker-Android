@@ -67,20 +67,31 @@ public class MainActivity extends FragmentActivity {
 
 		Resources r = getResources();
 
+		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
+		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
+
+		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
+		fabOne.setBackgroundTintList(secondary);
+		fabOne.setImageTintList(primary);
+
+		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
+		fabTwo.setBackgroundTintList(primary);
+		fabTwo.setImageTintList(secondary);
+
 		// Set up the viewPager with the sections adapter.
 		viewPager = (ViewPager) findViewById(R.id.container);
+		viewPager.setOffscreenPageLimit(3);
+
 		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
 		adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
-		if (PlayController.isLogged())
-			adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
+		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
 		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
 		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
 		viewPager.setAdapter(adapter);
-		viewPager.setOffscreenPageLimit(3);
 
 		viewPager.addOnPageChangeListener(
 				new ViewPager.OnPageChangeListener() {
-					ITabFragment prevFragment = null;
+					ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
 
 					@Override
 					public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
@@ -89,8 +100,7 @@ public class MainActivity extends FragmentActivity {
 					@Override
 					public void onPageSelected(int position) {
 						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-						if (prevFragment != null)
-							prevFragment.onLeave();
+						prevFragment.onLeave();
 
 						ITabFragment tf = (ITabFragment) adapter.getItem(position);
 
@@ -108,23 +118,14 @@ public class MainActivity extends FragmentActivity {
 				}
 		);
 
+		((ITabFragment) adapter.mFragmentList.get(0)).onEnter(this, fabOne, fabTwo);
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
-
-		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
-		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25));
 		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
 
-		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
-		fabOne.setBackgroundTintList(secondary);
-		fabOne.setImageTintList(primary);
-
-		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
-		fabTwo.setBackgroundTintList(primary);
-		fabTwo.setImageTintList(secondary);
 
 		Extensions.initialize(context);
 

@@ -13,6 +13,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -154,6 +155,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	private void RecountData() {
+		Log.d("Signals", "Data " + DataStore.recountDataSize());
 		if (DataStore.recountDataSize() > 0)
 			setCloudStatus(1);
 		else
@@ -178,7 +180,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		);
 
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
-		LocalBroadcastManager.getInstance(getContext()).registerReceiver(receiver, filter);
+		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
 
 		DataStore.onDataChanged = new ICallback() {
 			@Override
