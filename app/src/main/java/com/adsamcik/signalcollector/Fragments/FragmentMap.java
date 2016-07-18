@@ -135,35 +135,37 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
 		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1));
 
-		mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-		mMapFragment.getMapAsync(this);
+		if(mMapFragment == null) {
+			mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
+			mMapFragment.getMapAsync(this);
 
-		tileProvider = new UrlTileProvider(256, 256) {
-			@Override
-			public URL getTileUrl(int x, int y, int zoom) {
-				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, availableTypes[typeIndex]);
+			tileProvider = new UrlTileProvider(256, 256) {
+				@Override
+				public URL getTileUrl(int x, int y, int zoom) {
+					String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, availableTypes[typeIndex]);
 
-				if (!checkTileExists(x, y, zoom))
-					return null;
+					if (!checkTileExists(x, y, zoom))
+						return null;
 
-				try {
-					URL u = new URL(s);
-					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
-					huc.setRequestMethod("HEAD");
-					return huc.getResponseCode() == 200 ? u : null;
-				} catch (Exception e) {
-					throw new AssertionError(e);
+					try {
+						URL u = new URL(s);
+						HttpURLConnection huc = (HttpURLConnection) u.openConnection();
+						huc.setRequestMethod("HEAD");
+						return huc.getResponseCode() == 200 ? u : null;
+					} catch (Exception e) {
+						throw new AssertionError(e);
+					}
 				}
-			}
 
-			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-			private boolean checkTileExists(int x, int y, int zoom) {
-				int minZoom = 10;
-				int maxZoom = 17;
+				@SuppressWarnings("BooleanMethodIsAlwaysInverted")
+				private boolean checkTileExists(int x, int y, int zoom) {
+					int minZoom = 10;
+					int maxZoom = 17;
 
-				return !(zoom < minZoom || zoom > maxZoom);
-			}
-		};
+					return !(zoom < minZoom || zoom > maxZoom);
+				}
+			};
+		}
 		return true;
 	}
 
