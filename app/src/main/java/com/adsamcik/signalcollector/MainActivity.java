@@ -99,7 +99,7 @@ public class MainActivity extends FragmentActivity {
 							Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
 							FirebaseCrash.log("Something went wrong on fragment initialization.");
 						} else
-							prevFragment = (ITabFragment) adapter.getItem(position);
+							prevFragment = tf;
 					}
 
 					@Override
