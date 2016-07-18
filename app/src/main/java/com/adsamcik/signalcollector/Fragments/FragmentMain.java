@@ -197,30 +197,24 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.onDataChanged = new ICallback() {
 			@Override
 			public void OnTrue() {
-				activity.runOnUiThread(new Runnable() {
-					@Override
-					public void run() {
-						setCollected(TrackerService.approxSize);
-					}
-				});
-
+				activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
 			}
 
 			@Override
 			public void OnFalse() {
-				setCollected(TrackerService.approxSize);
+				activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
 			}
 		};
 
 		DataStore.onUpload = new ICallback() {
 			@Override
 			public void OnTrue() {
-				setCloudStatus(2);
+				activity.runOnUiThread(() -> setCloudStatus(2));
 			}
 
 			@Override
 			public void OnFalse() {
-				setCollected(DataStore.recountDataSize());
+				activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData()));
 			}
 		};
 
