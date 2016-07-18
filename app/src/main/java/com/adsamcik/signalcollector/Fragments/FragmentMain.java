@@ -176,19 +176,44 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		);
 
 		setCloudStatus(Network.cloudStatus);
-		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
+		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(getContext()).registerReceiver(receiver, filter);
+
+		DataStore.onDataChanged = new ICallback() {
+			@Override
+			public void OnTrue() {
+				setCloudStatus(1);
+			}
+
+			@Override
+			public void OnFalse() {
+				setCloudStatus(0);
+			}
+		};
+
+		DataStore.onUpload = new ICallback() {
+			@Override
+			public void OnTrue() {
+				setCloudStatus(2);
+			}
+
+			@Override
+			public void OnFalse() {
+				RecountData();
+			}
+		};
+
 		return true;
 	}
 
 	@Override
 	public void onLeave() {
 		LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(receiver);
+		DataStore.onDataChanged = null;
+		DataStore.onUpload = null;
 	}
 
 	class UpdateInfoReceiver extends BroadcastReceiver {
-		public static final String BROADCAST_TAG = "SignalsUpdate";
-
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			Resources res = getResources();
@@ -221,30 +246,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				textPressure.setText(String.format(res.getString(R.string.main_pressure), pressure));
 
 			textActivity.setText(String.format(res.getString(R.string.main_activity), intent.getStringExtra("activity")));
-		}
-	}
-
-	class TrackedFileChangedCallback implements ICallback {
-		@Override
-		public void OnTrue() {
-			setCloudStatus(1);
-		}
-
-		@Override
-		public void OnFalse() {
-			setCloudStatus(0);
-		}
-	}
-
-	class UploadCallback implements ICallback {
-		@Override
-		public void OnTrue() {
-			setCloudStatus(2);
-		}
-
-		@Override
-		public void OnFalse() {
-			RecountData();
 		}
 	}
 }

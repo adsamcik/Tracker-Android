@@ -25,6 +25,8 @@ public class Setting {
 	public static final String TRACKING_CELL_FOUND = "trackingCellFound";
 	public static final String TRACKING_LOCATIONS_FOUND = "trackingLocationsFound";
 
+	public static final String BROADCAST_UPDATE_INFO = "SignalsUpdate";
+
 	private static SharedPreferences sharedPreferences;
 
 	/**

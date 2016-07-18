@@ -64,7 +64,27 @@ public class DataStore {
 
 	private static boolean isSaveAllowed = true;
 
-	private static ICallback onDataChanged;
+	public static ICallback onDataChanged;
+	public static ICallback onUpload;
+
+
+	/**
+	 * Generates array of all data files
+	 *
+	 * @param includeLast Include last file (last file is almost always not complete)
+	 * @return Returns data file names
+	 */
+	public static String[] getDataFileNames(boolean includeLast) {
+		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, -1);
+		if (maxID < 0)
+			return null;
+		if (!includeLast)
+			maxID--;
+		String[] fileNames = new String[maxID + 1];
+		for (int i = 0; i <= maxID; i++)
+			fileNames[i] = DATA_FILE + i;
+		return fileNames;
+	}
 
 	/**
 	 * Requests upload
@@ -105,24 +125,6 @@ public class DataStore {
 			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
 		}
-	}
-
-	/**
-	 * Generates array of all data files
-	 *
-	 * @param includeLast Include last file (last file is almost always not complete)
-	 * @return Returns data file names
-	 */
-	public static String[] getDataFileNames(boolean includeLast) {
-		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, -1);
-		if(maxID < 0)
-			return null;
-		if (!includeLast)
-			maxID--;
-		String[] fileNames = new String[maxID + 1];
-		for (int i = 0; i <= maxID; i++)
-			fileNames[i] = DATA_FILE + i;
-		return fileNames;
 	}
 
 	/**
@@ -233,6 +235,12 @@ public class DataStore {
 
 		Setting.getPreferences().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 		isSaveAllowed = true;
+		if (onDataChanged != null) {
+			if (renamedFiles.size() > 0)
+				onDataChanged.OnTrue();
+			else
+				onDataChanged.OnFalse();
+		}
 	}
 
 	/**
@@ -242,7 +250,7 @@ public class DataStore {
 	 */
 	public static long recountDataSize() {
 		String[] fileNames = getDataFileNames(true);
-		if(fileNames == null)
+		if (fileNames == null)
 			return 0;
 		long size = 0;
 		for (String fileName : fileNames)
@@ -284,6 +292,8 @@ public class DataStore {
 				deleteFile(name);
 		}
 		isSaveAllowed = true;
+		if (onDataChanged != null)
+			onDataChanged.OnFalse();
 	}
 
 	/**
@@ -304,6 +314,8 @@ public class DataStore {
 		if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
+			if (onDataChanged != null)
+				onDataChanged.OnTrue();
 		}
 
 

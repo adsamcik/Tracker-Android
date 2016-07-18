@@ -89,7 +89,8 @@ public class MainActivity extends FragmentActivity {
 					@Override
 					public void onPageSelected(int position) {
 						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-						prevFragment.onLeave();
+						if (prevFragment != null)
+							prevFragment.onLeave();
 
 						ITabFragment tf = (ITabFragment) adapter.getItem(position);
 
