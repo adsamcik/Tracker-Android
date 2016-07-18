@@ -15,7 +15,6 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
@@ -41,6 +40,7 @@ public class MainActivity extends FragmentActivity {
 	private FloatingActionButton fabTwo;
 
 	private ViewPager viewPager;
+
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -118,9 +118,10 @@ public class MainActivity extends FragmentActivity {
 				}
 		);
 
-		((ITabFragment) adapter.mFragmentList.get(0)).onEnter(this, fabOne, fabTwo);
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
+
+		((ITabFragment) ((ViewPagerAdapter) viewPager.getAdapter()).mFragmentList.get(0)).onEnter(this, fabOne, fabTwo);
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25));

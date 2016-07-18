@@ -36,6 +36,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	private FloatingActionButton fabTrack, fabUp;
 
+
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -55,8 +56,20 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		setCollected(getResources(), DataStore.sizeOfData());
 
-		receiver = new UpdateInfoReceiver();
 		return view;
+	}
+
+
+	@Override
+	public void onResume() {
+		super.onResume();
+		onEnter(MainActivity.instance, fabTrack, fabUp);
+	}
+
+	@Override
+	public void onPause() {
+		super.onPause();
+		onLeave();
 	}
 
 	private void setCollected(Resources r, long collected) {
@@ -179,6 +192,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
+		if (receiver == null)
+			receiver = new UpdateInfoReceiver();
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
 
@@ -211,12 +226,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
-		LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(receiver);
+		LocalBroadcastManager.getInstance(MainActivity.context).unregisterReceiver(receiver);
 		DataStore.onDataChanged = null;
 		DataStore.onUpload = null;
 	}
 
-	class UpdateInfoReceiver extends BroadcastReceiver {
+	public class UpdateInfoReceiver extends BroadcastReceiver {
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			Resources res = getResources();
