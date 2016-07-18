@@ -29,20 +29,18 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
-import android.telephony.CellInfo;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.data.CellData;
-import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.MainActivity;
-import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.data.CellData;
+import com.adsamcik.signalcollector.data.Data;
+import com.adsamcik.signalcollector.play.PlayController;
+import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;

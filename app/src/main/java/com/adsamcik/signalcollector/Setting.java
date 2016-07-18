@@ -5,8 +5,6 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 
-import java.io.Serializable;
-
 public class Setting {
 	public static final int UPLOAD_JOB = 513;
 

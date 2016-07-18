@@ -18,13 +18,13 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.data.Stat;
-import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Network;
+import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.data.Stat;
+import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
-import com.adsamcik.signalcollector.R;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
