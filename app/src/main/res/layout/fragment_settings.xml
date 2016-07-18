@@ -160,6 +160,7 @@
         />
 
     <Switch
+        android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Track wifi"
@@ -168,6 +169,7 @@
         android:layout_alignParentStart="true"/>
 
     <Switch
+        android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Track cell"
@@ -176,6 +178,7 @@
         android:layout_alignParentStart="true"/>
 
     <Switch
+        android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Track pressure"
@@ -184,6 +187,7 @@
         android:layout_alignParentStart="true"/>
 
     <Switch
+        android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Track noise"
