@@ -80,7 +80,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private void setCollected(long collected) {
 		if (Network.cloudStatus == 0 && collected > 0)
 			setCloudStatus(1);
-		else if(collected == 0)
+		else if (collected == 0)
 			setCloudStatus(0);
 		textCollected.setText(String.format(MainActivity.instance.getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
@@ -243,18 +243,21 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.onUpload = null;
 	}
 
+	long lastWifiTime = 0;
+
 	void UpdateData() {
 		Resources res = MainActivity.instance.getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(TrackerService.approxSize);
 
-		if(d != null) {
+		if (d != null) {
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
 
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
 				layoutWifi.setVisibility(View.VISIBLE);
-			} else
+				lastWifiTime = d.time;
+			} else if (lastWifiTime - d.time > 10000)
 				layoutWifi.setVisibility(View.GONE);
 
 			if (d.cell != null) {
@@ -266,7 +269,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				layoutCell.setVisibility(View.GONE);
 
 
-			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), d.accuracy));
+			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
 
 			textPosition.setText(String.format(res.getString(R.string.main_position),
 					Extensions.coordsToString(d.latitude),
