@@ -209,7 +209,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.onUpload = new ICallback() {
 			@Override
 			public void OnTrue() {
-				activity.runOnUiThread(() -> setCloudStatus(2));
+				activity.runOnUiThread(() -> setCloudStatus(0));
 			}
 
 			@Override
