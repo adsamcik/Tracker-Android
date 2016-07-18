@@ -72,7 +72,7 @@ public class UploadService extends JobService {
 				DataStore.recountDataSize();
 
 				Setting.getPreferences().edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
-				DataStore.onUpload.OnTrue();
+				DataStore.onUpload.onCallback();
 			});
 			thread.start();
 			return true;

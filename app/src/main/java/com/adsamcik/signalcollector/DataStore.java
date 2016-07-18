@@ -230,9 +230,7 @@ public class DataStore {
 		isSaveAllowed = true;
 		if (onDataChanged != null) {
 			if (renamedFiles.size() > 0)
-				onDataChanged.OnTrue();
-			else
-				onDataChanged.OnFalse();
+				onDataChanged.onCallback();
 		}
 	}
 
@@ -286,7 +284,7 @@ public class DataStore {
 		}
 		isSaveAllowed = true;
 		if (onDataChanged != null)
-			onDataChanged.OnFalse();
+			onDataChanged.onCallback();
 	}
 
 	/**
@@ -308,7 +306,7 @@ public class DataStore {
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
 			if (onDataChanged != null)
-				onDataChanged.OnTrue();
+				onDataChanged.onCallback();
 		}
 
 

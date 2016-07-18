@@ -132,7 +132,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
 		if(onNewDataFound != null)
-			onNewDataFound.OnTrue();
+			onNewDataFound.onCallback();
 
 		if (data.size() > 10)
 			saveData();

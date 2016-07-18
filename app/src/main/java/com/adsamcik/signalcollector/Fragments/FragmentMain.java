@@ -194,41 +194,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
 
-		DataStore.onDataChanged = new ICallback() {
-			@Override
-			public void OnTrue() {
-				activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
-			}
+		DataStore.onDataChanged = () -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
 
-			@Override
-			public void OnFalse() {
-				activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
-			}
-		};
+		DataStore.onUpload = () -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData()));
 
-		DataStore.onUpload = new ICallback() {
-			@Override
-			public void OnTrue() {
-				activity.runOnUiThread(() -> setCloudStatus(0));
-			}
-
-			@Override
-			public void OnFalse() {
-				activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData()));
-			}
-		};
-
-		TrackerService.onNewDataFound = new ICallback() {
-			@Override
-			public void OnTrue() {
-				UpdateData();
-			}
-
-			@Override
-			public void OnFalse() {
-
-			}
-		};
+		TrackerService.onNewDataFound = this::UpdateData;
 
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
