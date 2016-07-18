@@ -49,6 +49,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
 
 public class TrackerService extends Service implements SensorEventListener {
 	//Constants
@@ -346,7 +347,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		public void onReceive(Context context, Intent intent) {
 			List<ScanResult> result = wifiManager.getScanResults();
 			wifiScanData = result.toArray(new ScanResult[result.size()]);
-			wifiScanTime = Calendar.getInstance().getTimeInMillis();
+			wifiScanTime = System.currentTimeMillis();
 		}
 	}
 }
