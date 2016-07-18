@@ -129,13 +129,14 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		data.add(d);
 		dataEcho = d;
+		
+		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
 		if(onNewDataFound != null)
 			onNewDataFound.OnTrue();
 
 		if (data.size() > 10)
 			saveData();
 
-		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
 
 		notificationManager.notify(1, generateNotification(true, d));
 		wifiScanData = null;
