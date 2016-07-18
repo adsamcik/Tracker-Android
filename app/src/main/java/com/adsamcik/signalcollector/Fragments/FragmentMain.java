@@ -62,9 +62,24 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		textCollected.setText(String.format(r.getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
-	@Override
-	public void onDestroy() {
-		super.onDestroy();
+	/**
+	 * 0 - start tracking icon
+	 * 1 - stop tracking icon
+	 * 2 - saving icon
+	 */
+	private void changeTrackerButton(int status) {
+		switch (status) {
+			case 0:
+				fabTrack.setImageResource(R.drawable.ic_play_arrow_24dp);
+				break;
+			case 1:
+				fabTrack.setImageResource(R.drawable.ic_pause_24dp);
+				break;
+			case 2:
+				fabTrack.setImageResource(R.drawable.ic_loop_24dp);
+				break;
+
+		}
 	}
 
 	/**
@@ -85,9 +100,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				MainActivity.instance.startService(trackerService);
 				TrackerService.service = trackerService;
+				changeTrackerButton(1);
 			} else {
 				MainActivity.instance.stopService(TrackerService.service);
+				changeTrackerButton(0);
 			}
+
 		} else if (Build.VERSION.SDK_INT >= 23) {
 			MainActivity.instance.requestPermissions(requiredPermissions, 0);
 		}
@@ -133,26 +151,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		}
 
 		Network.cloudStatus = status;
-	}
-
-	/**
-	 * 0 - start tracking icon
-	 * 1 - stop tracking icon
-	 * 2 - saving icon
-	 */
-	private void changeTrackerButton(int status) {
-		switch (status) {
-			case 0:
-				fabTrack.setImageResource(R.drawable.ic_play_arrow_24dp);
-				break;
-			case 1:
-				fabTrack.setImageResource(R.drawable.ic_pause_24dp);
-				break;
-			case 2:
-				fabTrack.setImageResource(R.drawable.ic_loop_24dp);
-				break;
-
-		}
 	}
 
 	private void RecountData() {
