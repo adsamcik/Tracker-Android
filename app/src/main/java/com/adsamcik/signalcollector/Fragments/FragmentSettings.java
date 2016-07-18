@@ -172,7 +172,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		//todo think if something fits in here
+		fabOne.hide();
+        fabTwo.hide();
 		return true;
 	}
 

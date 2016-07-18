@@ -316,6 +316,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		//todo check if up to date
+		fabOne.hide();
+		fabTwo.hide();
 		return true;
 	}
 
