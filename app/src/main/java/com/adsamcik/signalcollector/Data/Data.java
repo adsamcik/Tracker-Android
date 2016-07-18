@@ -82,4 +82,12 @@ public class Data implements Serializable {
 		this.networkOperator = operator;
 		return this;
 	}
+
+	public CellData GetActiveCell() {
+		for (CellData cd : cell) {
+			if (cd.isRegistered)
+				return cd;
+		}
+		return null;
+	}
 }

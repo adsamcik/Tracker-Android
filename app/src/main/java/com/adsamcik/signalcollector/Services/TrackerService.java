@@ -39,9 +39,11 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
+import com.adsamcik.signalcollector.data.WifiData;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 
+import java.lang.reflect.Array;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -59,6 +61,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	public static Intent service;
 
 	public static long approxSize = 0;
+	public static Data dataEcho;
+
 	private static long lockedUntil;
 	private static TrackerService instance;
 
@@ -125,29 +129,14 @@ public class TrackerService extends Service implements SensorEventListener {
 			d.setWifi(wifiScanData, wifiScanTime);
 
 		data.add(d);
+		dataEcho = d;
 
 		if (data.size() > 10)
 			saveData();
 
-		int cellCount = -1;
-		int cellDbm = 0, cellAsu = 0;
-		String cellType = "";
-		if (d.cell != null) {
-			for (CellData cd : d.cell) {
-				if (cd.isRegistered) {
-					cellDbm = cd.dbm;
-					cellAsu = cd.asu;
-					cellType = cd.getType();
-				}
-			}
-			cellCount = d.cell.length;
-		}
-
-		int wifiCount = d.wifi == null ? -1 : d.wifi.length;
 		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
-		sendUpdateInfoBroadcast(d.time, wifiCount, cellCount, cellDbm, cellAsu, cellType, d.longitude, d.latitude, d.altitude, d.accuracy, pressureValue, Extensions.getActivityName(currentActivity));
 
-		notificationManager.notify(1, generateNotification(true, wifiCount, cellCount));
+		notificationManager.notify(1, generateNotification(true, d));
 		wifiScanData = null;
 
 		if (backgroundActivated && powerManager.isPowerSaveMode())
@@ -156,7 +145,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.release();
 	}
 
-	private Notification generateNotification(boolean gpsAvailable, int wifiCount, int cellCount) {
+	private Notification generateNotification(boolean gpsAvailable, Data d) {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
 				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
@@ -175,13 +164,15 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (!gpsAvailable)
 			builder.setContentText("Looking for GPS");
 		else {
-			if (wifiCount >= 0)
-				if (cellCount >= 0)
-					builder.setContentText("Found " + wifiCount + " wifi and " + cellCount + " cell");
+			if (d.wifi != null)
+				if (d.cell != null)
+					builder.setContentText("Found " + d.wifi.length + " wifi and " + d.cell.length + " cell");
 				else
-					builder.setContentText("Found " + wifiCount + " wifi");
-			else if (cellCount >= 0)
-				builder.setContentText("Found " + cellCount + " cell");
+					builder.setContentText("Found " + d.wifi.length + " wifi");
+			else if (d.cell != null)
+				builder.setContentText("Found " + d.cell.length + " cell");
+			else
+				builder.setContentText("Nothing found");
 		}
 
 		return builder.build();
@@ -259,7 +250,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
 				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					notificationManager.notify(1, generateNotification(false, 0, 0));
+					notificationManager.notify(1, generateNotification(false, null));
 			}
 
 			public void onProviderEnabled(String provider) {
@@ -306,7 +297,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			approxSize = intent.getLongExtra("approxSize", 0);
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}
-		startForeground(1, generateNotification(false, -1, -1));
+		startForeground(1, generateNotification(false, null));
 		return super.onStartCommand(intent, flags, startId);
 	}
 
@@ -334,26 +325,6 @@ public class TrackerService extends Service implements SensorEventListener {
 	@Override
 	public IBinder onBind(Intent intent) {
 		return null;
-	}
-
-	private void sendUpdateInfoBroadcast(long time, int wifiCount, int cellCount, int cellDbm,
-	                                     int cellAsu, String cellType, double longitude, double latitude,
-	                                     double altitude, double accuracy, float pressure, String activity) {
-		Intent intent = new Intent(Setting.BROADCAST_UPDATE_INFO);
-		intent.putExtra("time", time);
-		intent.putExtra("wifiCount", wifiCount);
-		intent.putExtra("cellCount", cellCount);
-		intent.putExtra("cellDbm", cellDbm);
-		intent.putExtra("cellAsu", cellAsu);
-		intent.putExtra("cellType", cellType);
-		intent.putExtra("longitude", longitude);
-		intent.putExtra("latitude", latitude);
-		intent.putExtra("altitude", altitude);
-		intent.putExtra("accuracy", (int) accuracy);
-		intent.putExtra("approxSize", approxSize);
-		intent.putExtra("pressure", pressure);
-		intent.putExtra("activity", activity);
-		LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
 	}
 
 	@Override
