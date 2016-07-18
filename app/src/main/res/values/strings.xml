@@ -11,6 +11,7 @@
 
     <string name="main_wifi_title">WiFi:</string>
     <string name="main_wifi_count">%1$d in range</string>
+    <string name="main_wifi_time">found %1$dms before collection</string>
 
     <string name="main_cell_title">Signal:</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>

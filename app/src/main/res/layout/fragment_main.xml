@@ -86,6 +86,14 @@
             android:layout_below="@+id/textWifiTitle"
             android:text=""
             android:textAppearance="?android:attr/textAppearanceLarge"/>
+
+        <TextView
+            android:id="@+id/textWifiTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/textWifiCount"
+            android:text="" />
     </RelativeLayout>
 
     <RelativeLayout

@@ -34,7 +34,7 @@ import com.adsamcik.signalcollector.services.TrackerService;
 public class FragmentMain extends Fragment implements ITabFragment {
 	private final String activity_name = "MainActivity";
 	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
-	private TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 	private BroadcastReceiver receiver;
 
 	private FloatingActionButton fabTrack, fabUp;
@@ -57,6 +57,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		textCellCount = (TextView) view.findViewById(R.id.textCells);
 		textCurrentCell = (TextView) view.findViewById(R.id.textCurrentCell);
 		textWifiCount = (TextView) view.findViewById(R.id.textWifiCount);
+		textWifiTime = (TextView) view.findViewById(R.id.textWifiTime);
 		textTime = (TextView) view.findViewById(R.id.textTime);
 		textPressure = (TextView) view.findViewById(R.id.textPressure);
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
@@ -191,8 +192,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
-		setCollected(DataStore.sizeOfData());
-
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
 
@@ -232,7 +231,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			}
 		};
 
-		UpdateData();
+		long dataSize = DataStore.sizeOfData();
+		setCollected(dataSize);
+		setCloudStatus(dataSize == 0 ? 0 : 1);
 		return true;
 	}
 
@@ -256,6 +257,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
 				layoutWifi.setVisibility(View.VISIBLE);
+				textWifiTime.setText(String.format(res.getString(R.string.main_wifi_time), d.time - d.wifiTime));
 				lastWifiTime = d.time;
 			} else if (lastWifiTime - d.time > 10000)
 				layoutWifi.setVisibility(View.GONE);
