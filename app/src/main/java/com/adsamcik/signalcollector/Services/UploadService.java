@@ -72,7 +72,7 @@ public class UploadService extends JobService {
 				DataStore.recountDataSize();
 
 				Setting.getPreferences().edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
-				FirebaseCrash.log("Job finished");
+				DataStore.onUpload.OnTrue();
 			});
 			thread.start();
 			return true;
