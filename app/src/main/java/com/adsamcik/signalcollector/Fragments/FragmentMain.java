@@ -131,6 +131,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				fabUp.setOnClickListener(null);
 				break;
 		}
+
+		Network.cloudStatus = status;
 	}
 
 	/**
@@ -165,7 +167,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 
+		fabTrack.show();
 		RecountData();
+
 		changeTrackerButton(TrackerService.isActive ? 1 : 0);
 		fabTrack.setOnClickListener(
 				v -> {
@@ -175,7 +179,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
-		setCloudStatus(Network.cloudStatus);
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(getContext()).registerReceiver(receiver, filter);
 
