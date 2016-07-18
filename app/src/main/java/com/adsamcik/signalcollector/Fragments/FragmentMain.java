@@ -80,6 +80,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private void setCollected(long collected) {
 		if (Network.cloudStatus == 0 && collected > 0)
 			setCloudStatus(1);
+		else if(collected == 0)
+			setCloudStatus(0);
 		textCollected.setText(String.format(MainActivity.instance.getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
@@ -178,7 +180,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
-
 		fabTrack.show();
 
 		changeTrackerButton(TrackerService.isActive ? 1 : 0);
@@ -189,6 +190,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					toggleCollecting(!TrackerService.isActive);
 				}
 		);
+
+		setCollected(DataStore.sizeOfData());
 
 		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
 		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
