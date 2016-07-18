@@ -21,24 +21,27 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
+import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private final String activity_name = "MainActivity";
-	private MainActivity activity;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 	private BroadcastReceiver receiver;
+
+	private FloatingActionButton fabTrack, fabUp;
 
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_main, container, false);
-		if(!getActivity().getClass().getSimpleName().equals(activity_name))
+		if (!getActivity().getClass().getSimpleName().equals(activity_name))
 			throw new RuntimeException("Main fragment is attached to different activity than " + activity_name);
 
-		activity = (MainActivity) getActivity();
 		textAccuracy = (TextView) view.findViewById(R.id.textAccuracy);
 		textPosition = (TextView) view.findViewById(R.id.textPosition);
 		textCellCount = (TextView) view.findViewById(R.id.textCells);
@@ -51,9 +54,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		setCollected(getResources(), DataStore.sizeOfData());
 
-		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
 		receiver = new UpdateInfoReceiver();
-		LocalBroadcastManager.getInstance(getContext()).registerReceiver(receiver, filter);
 		return view;
 	}
 
@@ -63,7 +64,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public void onDestroy() {
-		LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(receiver);
 		super.onDestroy();
 	}
 
@@ -88,17 +88,86 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			} else {
 				MainActivity.instance.stopService(TrackerService.service);
 			}
-		}
-		else if(Build.VERSION.SDK_INT >= 23){
+		} else if (Build.VERSION.SDK_INT >= 23) {
 			MainActivity.instance.requestPermissions(requiredPermissions, 0);
 		}
 	}
 
+
+	/**
+	 * 0 - No cloud sync required
+	 * 1 - Data available for sync
+	 * 2 - Syncing data
+	 * 3 - Cloud error
+	 */
+	public void setCloudStatus(int status) {
+		if (fabUp == null)
+			throw new RuntimeException("upload fab is null. This should not happen.");
+		else if (status < 0 || status > 3)
+			throw new RuntimeException("Status is out of range");
+
+		switch (status) {
+			case 0:
+				fabUp.hide();
+				fabUp.setOnClickListener(null);
+				break;
+			case 1:
+				fabUp.setImageResource(R.drawable.ic_file_upload_24dp);
+				fabUp.setOnClickListener(
+						v -> {
+							setCloudStatus(2);
+							DataStore.requestUpload(getContext(), false);
+						}
+				);
+				fabUp.show();
+				break;
+			case 2:
+				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
+				fabUp.setOnClickListener(null);
+				fabUp.show();
+				break;
+			case 3:
+				fabUp.setImageResource(R.drawable.ic_cloud_off_24dp);
+				fabUp.setOnClickListener(null);
+				break;
+		}
+	}
+
+	/**
+	 * 0 - start tracking icon
+	 * 1 - stop tracking icon
+	 * 2 - saving icon
+	 */
+	private void changeTrackerButton(int status) {
+		switch (status) {
+			case 0:
+				fabTrack.setImageResource(R.drawable.ic_play_arrow_24dp);
+				break;
+			case 1:
+				fabTrack.setImageResource(R.drawable.ic_pause_24dp);
+				break;
+			case 2:
+				fabTrack.setImageResource(R.drawable.ic_loop_24dp);
+				break;
+
+		}
+	}
+
+	private void RecountData() {
+		if (DataStore.recountDataSize() > 0)
+			setCloudStatus(1);
+		else
+			setCloudStatus(0);
+	}
+
 	@Override
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		fabOne.show();
+		fabTrack = fabOne;
+		fabUp = fabTwo;
+
+		RecountData();
 		changeTrackerButton(TrackerService.isActive ? 1 : 0);
-		fabOne.setOnClickListener(
+		fabTrack.setOnClickListener(
 				v -> {
 					if (TrackerService.isActive)
 						TrackerService.setAutoLock();
@@ -106,41 +175,35 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
-		setCloudStatus(cloudStatus);
-		fabTwo.setOnClickListener(
-				v -> {
-					if (cloudStatus == 1) {
-						setCloudStatus(2);
-						DataStore.requestUpload(context, false);
-					}
-				}
-		);
+		setCloudStatus(Network.cloudStatus);
+		IntentFilter filter = new IntentFilter(UpdateInfoReceiver.BROADCAST_TAG);
+		LocalBroadcastManager.getInstance(getContext()).registerReceiver(receiver, filter);
 		return true;
 	}
 
 	@Override
 	public void onLeave() {
-
+		LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(receiver);
 	}
 
-	public class UpdateInfoReceiver extends BroadcastReceiver {
+	class UpdateInfoReceiver extends BroadcastReceiver {
 		public static final String BROADCAST_TAG = "SignalsUpdate";
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			Resources res = getResources();
-			if(activity.getCloudStatus() == 0) activity.setCloudStatus(1);
+			if (Network.cloudStatus == 0) setCloudStatus(1);
 
 			setCollected(res, intent.getLongExtra("approxSize", 0));
 
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", intent.getLongExtra("time", 0))));
 
 			int wifiCount = intent.getIntExtra("wifiCount", -1);
-			if(wifiCount >= 0)
+			if (wifiCount >= 0)
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), wifiCount));
 
 			int cellCount = intent.getIntExtra("cellCount", -1);
-			if(cellCount >= 0) {
+			if (cellCount >= 0) {
 				textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), intent.getStringExtra("cellType"), intent.getIntExtra("cellDbm", -1), intent.getIntExtra("cellAsu", -1)));
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), cellCount));
 			}
@@ -154,10 +217,34 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					(int) intent.getDoubleExtra("altitude", -1)));
 
 			float pressure = intent.getFloatExtra("pressure", -1);
-			if(pressure >= 0)
+			if (pressure >= 0)
 				textPressure.setText(String.format(res.getString(R.string.main_pressure), pressure));
 
 			textActivity.setText(String.format(res.getString(R.string.main_activity), intent.getStringExtra("activity")));
+		}
+	}
+
+	class TrackedFileChangedCallback implements ICallback {
+		@Override
+		public void OnTrue() {
+			setCloudStatus(1);
+		}
+
+		@Override
+		public void OnFalse() {
+			setCloudStatus(0);
+		}
+	}
+
+	class UploadCallback implements ICallback {
+		@Override
+		public void OnTrue() {
+			setCloudStatus(2);
+		}
+
+		@Override
+		public void OnFalse() {
+			RecountData();
 		}
 	}
 }

@@ -1,15 +1,11 @@
 package com.adsamcik.signalcollector;
 
-import android.Manifest;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
@@ -19,7 +15,6 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.widget.LinearLayout;
@@ -29,9 +24,8 @@ import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
-import com.adsamcik.signalcollector.fragments.ITabFragment;
+import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
-import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
@@ -42,19 +36,10 @@ public class MainActivity extends FragmentActivity {
 
 	public static MainActivity instance;
 	public static Context context;
-	//static boolean tracking = false;
-	//0 - Data are synced
-	//1 - Sync required
-	//2 - Sync in progress
-	//-1 - Error
-	private static int cloudStatus;
-	//0 - No save needed
-	//1 - Save required
-	//2 - Save in progress
+
 	private FloatingActionButton fabOne;
 	private FloatingActionButton fabTwo;
 
-	private StatusReceiver statusReceiver;
 	private ViewPager viewPager;
 
 	@Override
@@ -140,19 +125,6 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		if (DataStore.recountDataSize() > 0)
-			setCloudStatus(1);
-		else
-			setCloudStatus(0);
-
-		IntentFilter filter = new IntentFilter(StatusReceiver.BROADCAST_TAG);
-		statusReceiver = new StatusReceiver();
-
-		LocalBroadcastManager.getInstance(this).registerReceiver(statusReceiver, filter);
-
-		if (TrackerService.isActive)
-			changeTrackerButton(1);
-
 		Extensions.initialize(context);
 
 		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
@@ -163,71 +135,6 @@ public class MainActivity extends FragmentActivity {
 		//Log.d(TAG,  FirebaseInstanceId.getInstance().getToken());
 	}
 
-	public int getCloudStatus() {
-		return cloudStatus;
-	}
-
-	/**
-	 * 0 - No cloud sync required
-	 * 1 - Data available for sync
-	 * 2 - Syncing data
-	 * 3 - Cloud error
-	 */
-	public void setCloudStatus(int status) {
-		if (fabTwo == null)
-			throw new RuntimeException("upload fab is null. This should not happen.");
-
-		int item = viewPager.getCurrentItem();
-		switch (status) {
-			case 0:
-				if (item == 0) {
-					//fabTwo.setImageResource(R.drawable.ic_cloud_done_24dp);
-					fabTwo.hide();
-				}
-				cloudStatus = 0;
-				break;
-			case 1:
-				if (item == 0) {
-					fabTwo.setImageResource(R.drawable.ic_file_upload_24dp);
-					fabTwo.show();
-				}
-				cloudStatus = 1;
-				break;
-			case 2:
-				if (item == 0)
-					fabTwo.setImageResource(R.drawable.ic_cloud_upload_24dp);
-				cloudStatus = 2;
-				break;
-			case 3:
-				if (item == 0)
-					fabTwo.setImageResource(R.drawable.ic_cloud_off_24dp);
-				cloudStatus = 3;
-				break;
-
-		}
-	}
-
-	/**
-	 * 0 - start tracking icon
-	 * 1 - stop tracking icon
-	 * 2 - saving icon
-	 */
-	private void changeTrackerButton(int status) {
-		if (viewPager.getCurrentItem() == 0) {
-			switch (status) {
-				case 0:
-					fabOne.setImageResource(R.drawable.ic_play_arrow_24dp);
-					break;
-				case 1:
-					fabOne.setImageResource(R.drawable.ic_pause_24dp);
-					break;
-				case 2:
-					fabOne.setImageResource(R.drawable.ic_loop_24dp);
-					break;
-
-			}
-		}
-	}
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
@@ -237,28 +144,11 @@ public class MainActivity extends FragmentActivity {
 		}
 	}
 
-
-	@Override
-	protected void onDestroy() {
-		super.onDestroy();
-		LocalBroadcastManager.getInstance(this).unregisterReceiver(statusReceiver);
-	}
-
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 		if (requestCode == 9001 && resultCode == -1)
 			PlayController.gapiGamesClient.connect();
-	}
-
-	public class StatusReceiver extends BroadcastReceiver {
-		public static final String BROADCAST_TAG = "signalCollectorStatus";
-
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			setCloudStatus(intent.getIntExtra("cloudStatus", -1));
-			changeTrackerButton(intent.getIntExtra("trackerStatus", -1));
-		}
 	}
 
 	class ViewPagerAdapter extends FragmentPagerAdapter {

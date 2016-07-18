@@ -73,11 +73,6 @@ public class UploadService extends JobService {
 				if (TrackerService.approxSize < 0)
 					TrackerService.approxSize = 0;
 
-				Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-				if (TrackerService.approxSize == 0)
-					intent.putExtra("cloudStatus", 0);
-				LocalBroadcastManager.getInstance(DataStore.getContext()).sendBroadcast(intent);
-
 				DataStore.cleanup();
 				DataStore.recountDataSize();
 

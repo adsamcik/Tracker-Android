@@ -228,7 +228,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		instance = this;
 		approxSize = 0;
 		isActive = true;
-		sendStatusBroadcast(-1, 1);
 
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
@@ -330,7 +329,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		DataStore.cleanup();
 
 		stopForeground(true);
-		sendStatusBroadcast(-1, 0);
 		instance = null;
 	}
 
@@ -338,13 +336,6 @@ public class TrackerService extends Service implements SensorEventListener {
 	@Override
 	public IBinder onBind(Intent intent) {
 		return null;
-	}
-
-	private void sendStatusBroadcast(int cloudStatus, int trackerStatus) {
-		Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-		intent.putExtra("cloudStatus", cloudStatus);
-		intent.putExtra("trackerStatus", trackerStatus);
-		LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
 	}
 
 	private void sendUpdateInfoBroadcast(long time, int wifiCount, int cellCount, int cellDbm,

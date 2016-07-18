@@ -17,6 +17,8 @@ import android.telephony.TelephonyManager;
 import android.util.Base64;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.fragments.FragmentMain;
+import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
@@ -61,6 +63,8 @@ public class DataStore {
 	}
 
 	private static boolean isSaveAllowed = true;
+
+	private static ICallback onDataChanged;
 
 	/**
 	 * Requests upload
@@ -162,9 +166,6 @@ public class DataStore {
 
 			@Override
 			public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-				Intent intent = new Intent(MainActivity.StatusReceiver.BROADCAST_TAG);
-				intent.putExtra("cloudStatus", 1);
-				LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 				requestUpload(context, true);
 				FirebaseCrash.log("Upload failed " + name + " code " + statusCode);
 				Log.d(TAG, "Upload failed " + name + " code " + statusCode);
@@ -176,7 +177,6 @@ public class DataStore {
 				Log.d(TAG, "Retry " + Extensions.canUpload(context, background));
 				if (Extensions.canUpload(context, background))
 					client.cancelAllRequests(true);
-
 			}
 		});
 	}

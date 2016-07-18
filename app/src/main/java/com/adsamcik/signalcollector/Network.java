@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector;
 
-import com.adsamcik.signalcollector.fragments.FragmentStats;
+import android.content.res.Resources;
 
 public final class Network {
 	public static final String URL_WEB = "http://collector.adsamcik.xyz/";
@@ -11,6 +11,8 @@ public final class Network {
 	public static final String URL_TILES = URL_WEB + "tiles/z%dx%dy%dt%s.png";
 	public static final String URL_USER_STATS = URL_WEB + "stats/userdata";
 	public static final String URL_STATS = URL_WEB + "data/stats.json";
+
+	public static int cloudStatus = 0;
 
 	//todo encryption
 	public static String encrypt(String data) {

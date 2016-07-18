@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.fragments;
+package com.adsamcik.signalcollector.interfaces;
 
 import android.app.Activity;
 import android.support.design.widget.FloatingActionButton;

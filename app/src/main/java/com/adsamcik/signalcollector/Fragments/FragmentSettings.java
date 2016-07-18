@@ -10,7 +10,6 @@ import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.res.ResourcesCompat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,8 +17,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
-import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.MainActivity;
+import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
@@ -160,7 +158,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
             AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
             alertDialogBuilder.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> {
                 DataStore.clearAllData();
-                ((MainActivity) getActivity()).setCloudStatus(0);
             })
                     .setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
 

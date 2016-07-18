@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Network;
+import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.loopj.android.http.AsyncHttpClient;
@@ -39,7 +40,7 @@ import java.util.Locale;
 
 import cz.msebera.android.httpclient.Header;
 
-public class FragmentStats extends Fragment implements ITabFragment{
+public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
 	public static int lastIndex = -1;
