@@ -12,7 +12,6 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.format.DateFormat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -198,7 +197,13 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.onDataChanged = new ICallback() {
 			@Override
 			public void OnTrue() {
-				setCollected(TrackerService.approxSize);
+				activity.runOnUiThread(new Runnable() {
+					@Override
+					public void run() {
+						setCollected(TrackerService.approxSize);
+					}
+				});
+
 			}
 
 			@Override

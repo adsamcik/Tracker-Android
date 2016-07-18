@@ -3,15 +3,10 @@ package com.adsamcik.signalcollector.services;
 import android.app.job.JobParameters;
 import android.app.job.JobService;
 import android.content.Context;
-import android.content.Intent;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Setting;
 import com.google.firebase.crash.FirebaseCrash;
 

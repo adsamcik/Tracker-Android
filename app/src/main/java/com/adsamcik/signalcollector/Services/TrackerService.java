@@ -28,7 +28,6 @@ import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -37,19 +36,15 @@ import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
-import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
-import com.adsamcik.signalcollector.data.WifiData;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 
-import java.lang.reflect.Array;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.TimeZone;
 
 public class TrackerService extends Service implements SensorEventListener {
 	//Constants

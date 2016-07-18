@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector;
 
 import android.util.Base64;
-import android.util.Log;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
