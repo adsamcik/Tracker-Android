@@ -41,6 +41,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	public FragmentMain setFabs(@NonNull FloatingActionButton fabTrack, @NonNull FloatingActionButton fabUp) {
 		this.fabTrack = fabTrack;
 		this.fabUp = fabUp;
+
+		onEnter(MainActivity.instance, fabTrack, fabUp);
 		return this;
 	}
 
@@ -71,7 +73,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutCell.setVisibility(View.GONE);
 		layoutOther.setVisibility(View.GONE);
 
-		onEnter(MainActivity.instance, fabTrack, fabUp);
 		return view;
 	}
 
@@ -99,7 +100,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			case 2:
 				fabTrack.setImageResource(R.drawable.ic_loop_24dp);
 				break;
-
 		}
 	}
 
