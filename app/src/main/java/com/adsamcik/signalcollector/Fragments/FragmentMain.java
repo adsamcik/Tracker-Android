@@ -198,7 +198,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		DataStore.onUpload = () -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData()));
 
-		TrackerService.onNewDataFound = this::UpdateData;
+		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
 
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
