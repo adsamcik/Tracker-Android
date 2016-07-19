@@ -51,8 +51,9 @@ public class DataStore {
 		return context;
 	}
 
-	public static void setContext(@NonNull Context c) {
-		context = c.getApplicationContext();
+	public static void setContext(Context c) {
+		if (c != null)
+			context = c.getApplicationContext();
 	}
 
 	private static boolean isSaveAllowed = true;
@@ -62,12 +63,12 @@ public class DataStore {
 
 
 	public static void onDataChanged() {
-		if(onDataChanged != null)
+		if (onDataChanged != null)
 			onDataChanged.onCallback();
 	}
 
 	public static void onUpload() {
-		if(onUpload != null)
+		if (onUpload != null)
 			onUpload.onCallback();
 	}
 
