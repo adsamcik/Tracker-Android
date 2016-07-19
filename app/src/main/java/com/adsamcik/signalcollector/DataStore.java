@@ -42,7 +42,7 @@ public class DataStore {
 	private static final String KEY_SIZE = "totalSize";
 	public static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
 
-	//1048576 1MB, 5242880 5MB, 2097152 2MB
+	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
 	private static final int MAX_FILE_SIZE = 1048576;
 
 	private static Context context;
