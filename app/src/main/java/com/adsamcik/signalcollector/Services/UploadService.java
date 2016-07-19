@@ -21,6 +21,7 @@ public class UploadService extends JobService {
 	 * @return true if started
 	 */
 	public boolean upload(final boolean background) {
+		DataStore.setContext(getApplicationContext());
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
 				String[] files = DataStore.getDataFileNames(!background);
