@@ -71,8 +71,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutCell.setVisibility(View.GONE);
 		layoutOther.setVisibility(View.GONE);
 
-		setCollected(DataStore.sizeOfData());
-
 		onEnter(MainActivity.instance, fabTrack, fabUp);
 		return view;
 	}
@@ -121,8 +119,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				Setting.getPreferences(MainActivity.context).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(MainActivity.context, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
-				MainActivity.instance.startService(trackerService);
 				TrackerService.service = trackerService;
+				MainActivity.instance.startService(trackerService);
 				changeTrackerButton(1);
 			} else {
 				MainActivity.instance.stopService(TrackerService.service);
@@ -178,8 +176,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		fabTrack = fabOne;
-		fabUp = fabTwo;
 		fabTrack.show();
 
 		changeTrackerButton(TrackerService.isActive ? 1 : 0);
