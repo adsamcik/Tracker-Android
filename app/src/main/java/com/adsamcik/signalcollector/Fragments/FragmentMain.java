@@ -191,9 +191,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
-		IntentFilter filter = new IntentFilter(Setting.BROADCAST_UPDATE_INFO);
-		LocalBroadcastManager.getInstance(MainActivity.context).registerReceiver(receiver, filter);
-
 		DataStore.onDataChanged = () -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
 
 		DataStore.onUpload = () -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData()));
@@ -208,7 +205,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
-		LocalBroadcastManager.getInstance(MainActivity.context).unregisterReceiver(receiver);
 		DataStore.onDataChanged = null;
 		DataStore.onUpload = null;
 	}
