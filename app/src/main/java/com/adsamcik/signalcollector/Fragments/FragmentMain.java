@@ -180,6 +180,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		fabTrack = fabOne;
+		fabUp = fabTwo;
+
 		fabTrack.show();
 
 		changeTrackerButton(TrackerService.isActive ? 1 : 0);
