@@ -187,9 +187,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 
-		DataStore.onDataChanged = () -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize));
+		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize)));
 
-		DataStore.onUpload = () -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData()));
+		DataStore.setOnUpload(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
 
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
 
@@ -201,8 +201,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
-		DataStore.onDataChanged = null;
-		DataStore.onUpload = null;
+		DataStore.setOnDataChanged(null);
+		DataStore.setOnUpload(null);
 	}
 
 	long lastWifiTime = 0;

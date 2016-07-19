@@ -57,9 +57,27 @@ public class DataStore {
 
 	private static boolean isSaveAllowed = true;
 
-	public static ICallback onDataChanged;
-	public static ICallback onUpload;
+	private static ICallback onDataChanged;
+	private static ICallback onUpload;
 
+
+	public static void onDataChanged() {
+		if(onDataChanged != null)
+			onDataChanged.onCallback();
+	}
+
+	public static void onUpload() {
+		if(onUpload != null)
+			onUpload.onCallback();
+	}
+
+	public static void setOnDataChanged(ICallback callback) {
+		onDataChanged = callback;
+	}
+
+	public static void setOnUpload(ICallback callback) {
+		onUpload = callback;
+	}
 
 	/**
 	 * Generates array of all data files
