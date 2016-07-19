@@ -32,7 +32,7 @@ public class Setting {
 	 * @param c context
 	 */
 	public static void initializeSharedPreferences(@NonNull Context c) {
-		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
+		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.getApplicationContext());
 	}
 
 	/**
@@ -52,7 +52,7 @@ public class Setting {
 	 */
 	public static SharedPreferences getPreferences(@NonNull Context c) {
 		if(sharedPreferences == null)
-			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c);
+			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.getApplicationContext());
 		return sharedPreferences;
 	}
 

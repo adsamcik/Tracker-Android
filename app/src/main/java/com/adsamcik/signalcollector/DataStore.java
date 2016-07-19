@@ -52,7 +52,7 @@ public class DataStore {
 	}
 
 	public static void setContext(@NonNull Context c) {
-		context = c;
+		context = c.getApplicationContext();
 	}
 
 	private static boolean isSaveAllowed = true;
