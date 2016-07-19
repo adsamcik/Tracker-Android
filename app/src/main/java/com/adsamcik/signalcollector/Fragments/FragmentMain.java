@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
@@ -34,11 +35,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private final String activity_name = "MainActivity";
 	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
-	private BroadcastReceiver receiver;
 
 	private FloatingActionButton fabTrack, fabUp;
 
-	public FragmentMain setFabs(FloatingActionButton fabTrack, FloatingActionButton fabUp) {
+	public FragmentMain setFabs(@NonNull FloatingActionButton fabTrack, @NonNull FloatingActionButton fabUp) {
 		this.fabTrack = fabTrack;
 		this.fabUp = fabUp;
 		return this;
