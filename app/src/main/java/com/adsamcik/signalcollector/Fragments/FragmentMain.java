@@ -41,9 +41,13 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	public FragmentMain setFabs(@NonNull FloatingActionButton fabTrack, @NonNull FloatingActionButton fabUp) {
 		this.fabTrack = fabTrack;
 		this.fabUp = fabUp;
-
-		onEnter(MainActivity.instance, fabTrack, fabUp);
 		return this;
+	}
+
+	@Override
+	public void onStart() {
+		super.onStart();
+		onEnter(MainActivity.instance, fabTrack, fabUp);
 	}
 
 	@Nullable

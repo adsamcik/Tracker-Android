@@ -301,8 +301,7 @@ public class DataStore {
 				deleteFile(name);
 		}
 		isSaveAllowed = true;
-		if (onDataChanged != null)
-			onDataChanged.onCallback();
+		onDataChanged();
 	}
 
 	/**
@@ -323,8 +322,7 @@ public class DataStore {
 		if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
-			if (onDataChanged != null)
-				onDataChanged.onCallback();
+			onDataChanged();
 		}
 
 
