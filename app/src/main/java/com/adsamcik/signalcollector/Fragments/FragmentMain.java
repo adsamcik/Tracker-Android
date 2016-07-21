@@ -232,7 +232,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			if (d.cell != null) {
 				CellData active = d.getActiveCell();
-				textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
+				if (active != null)
+					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
+				else
+					textCurrentCell.setText("");
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cell.length));
 				layoutCell.setVisibility(View.VISIBLE);
 			} else
