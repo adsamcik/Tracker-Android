@@ -91,7 +91,6 @@ public class MainActivity extends FragmentActivity {
 
 	@Override
 	protected void onStart() {
-		super.onStart();
 		Resources r = getResources();
 		// Set up the viewPager with the sections adapter.
 		viewPager = (ViewPager) findViewById(R.id.container);
@@ -136,6 +135,7 @@ public class MainActivity extends FragmentActivity {
 
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
+		super.onStart();
 	}
 
 	@Override
