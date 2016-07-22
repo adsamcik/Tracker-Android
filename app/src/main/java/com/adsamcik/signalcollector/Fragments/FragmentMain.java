@@ -1,10 +1,7 @@
 package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
@@ -12,7 +9,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
-import android.support.v4.content.LocalBroadcastManager;
 import android.text.format.DateFormat;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,13 +18,11 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
-import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 

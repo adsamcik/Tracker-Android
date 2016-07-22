@@ -20,7 +20,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.TouchWrapper;

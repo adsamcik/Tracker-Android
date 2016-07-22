@@ -25,6 +25,7 @@ public class Extensions {
 	private static TelephonyManager telephonyManager;
 	private static ConnectivityManager connectivityManager;
 
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public static boolean isInitialized() {
 		return telephonyManager != null;
 	}
