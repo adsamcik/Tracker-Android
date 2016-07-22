@@ -142,8 +142,7 @@
             android:id="@+id/play_achievements"
             style="@style/SettingsButton"
             android:layout_below="@+id/play_loginButton"
-            android:text="@string/achievements"
-            />
+            android:text="@string/achievements"/>
 
 
         <TextView
@@ -151,11 +150,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@+id/play_achievements"
+            android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:paddingBottom="@dimen/setting_item_padding"/>
+            android:textSize="18sp"/>
 
         <Switch
             android:id="@+id/switchTrackWifi"
@@ -163,8 +162,8 @@
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/tracker_title"
-            android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_wifi"/>
 
 
@@ -174,8 +173,8 @@
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_below="@id/switchTrackWifi"
-            android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_cell"/>
 
         <Switch
@@ -184,19 +183,19 @@
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/switchTrackCell"
-            android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_pressure"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:enabled="false"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/switchTrackPressure"
-            android:paddingTop="@dimen/setting_item_padding"
+            android:enabled="false"
             android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_noise"/>
 
         <TextView

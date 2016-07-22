@@ -349,7 +349,7 @@ public class DataStore {
 	public static boolean saveString(String fileName, String data) {
 		if (isSaveAllowed) {
 			try {
-				FileOutputStream outputStream = MainActivity.context.openFileOutput(fileName, Context.MODE_PRIVATE);
+				FileOutputStream outputStream = context.openFileOutput(fileName, Context.MODE_PRIVATE);
 				OutputStreamWriter osw = new OutputStreamWriter(outputStream);
 				osw.write(data);
 				osw.close();

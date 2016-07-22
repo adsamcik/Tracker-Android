@@ -50,7 +50,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final String TAG = "SIGNALS MAP";
 	private static final String[] availableTypes = {"Wifi", "Cell"};
 	private static int typeIndex = -1;
-	private static View view;
+	private View view;
 	private SupportMapFragment mMapFragment;
 	private GoogleMap map;
 	private TileProvider tileProvider;
@@ -69,7 +69,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @return is permission available atm
 	 */
 	boolean checkLocationPermission(boolean request) {
-		if (ContextCompat.checkSelfPermission(MainActivity.context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+		if (ContextCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else if (request)
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);

@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
@@ -47,7 +48,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	@Override
 	public void onStart() {
 		super.onStart();
-		onEnter(MainActivity.instance, fabTrack, fabUp);
+		onEnter(getActivity(), fabTrack, fabUp);
 	}
 
 	@Nullable
@@ -85,7 +86,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			setCloudStatus(1);
 		else if (collected == 0)
 			setCloudStatus(0);
-		textCollected.setText(String.format(MainActivity.instance.getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
+		textCollected.setText(String.format(getActivity().getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
 	/**
@@ -116,23 +117,23 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		if (TrackerService.isActive == enable)
 			return;
 
-		String[] requiredPermissions = Extensions.checkTrackingPermissions(MainActivity.context);
+		String[] requiredPermissions = Extensions.checkTrackingPermissions(getActivity());
 
 		if (requiredPermissions == null) {
 			if (!TrackerService.isActive) {
-				Setting.getPreferences(MainActivity.context).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
-				Intent trackerService = new Intent(MainActivity.context, TrackerService.class);
+				Setting.getPreferences(getActivity()).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
+				Intent trackerService = new Intent(getActivity(), TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				TrackerService.service = trackerService;
-				MainActivity.instance.startService(trackerService);
+				getActivity().startService(trackerService);
 				changeTrackerButton(1);
 			} else {
-				MainActivity.instance.stopService(TrackerService.service);
+				getActivity().stopService(TrackerService.service);
 				changeTrackerButton(0);
 			}
 
 		} else if (Build.VERSION.SDK_INT >= 23) {
-			MainActivity.instance.requestPermissions(requiredPermissions, 0);
+			getActivity().requestPermissions(requiredPermissions, 0);
 		}
 	}
 
@@ -193,7 +194,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					toggleCollecting(!TrackerService.isActive);
 				}
 		);
-
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize)));
 
 		DataStore.setOnUpload(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
@@ -215,7 +215,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	long lastWifiTime = 0;
 
 	void UpdateData() {
-		Resources res = MainActivity.instance.getResources();
+		Resources res = getActivity().getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(TrackerService.approxSize);
 

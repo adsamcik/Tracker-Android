@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -16,6 +17,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
@@ -33,10 +35,6 @@ import java.util.List;
 public class MainActivity extends FragmentActivity {
 	public static final String TAG = "Signals";
 
-	public static MainActivity instance;
-	public static Context context;
-
-
 	private FloatingActionButton fabOne;
 	private FloatingActionButton fabTwo;
 
@@ -48,12 +46,11 @@ public class MainActivity extends FragmentActivity {
 		super.onCreate(savedInstanceState);
 
 		setContentView(R.layout.activity_main);
-		context = getApplicationContext();
+		Context context = getApplicationContext();
 		DataStore.setContext(context);
 		Setting.initializeSharedPreferences(context);
-		instance = this;
 
-		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false))
+		if (!Setting.getPreferences(context).getBoolean(Setting.HAS_BEEN_LAUNCHED, false))
 			startActivity(new Intent(this, IntroActivity.class));
 
 		PlayController.setContext(context);
@@ -66,8 +63,6 @@ public class MainActivity extends FragmentActivity {
 			PlayController.initializeActivityClient();
 		}
 
-		Resources r = getResources();
-
 		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
 		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
 
@@ -78,49 +73,6 @@ public class MainActivity extends FragmentActivity {
 		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
-
-		// Set up the viewPager with the sections adapter.
-		viewPager = (ViewPager) findViewById(R.id.container);
-		viewPager.setOffscreenPageLimit(3);
-
-		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-		adapter.addFrag(new FragmentMain().setFabs(fabOne, fabTwo), r.getString(R.string.menu_dashboard));
-		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
-		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
-		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
-		viewPager.setAdapter(adapter);
-
-		viewPager.addOnPageChangeListener(
-				new ViewPager.OnPageChangeListener() {
-					ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
-
-					@Override
-					public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-					}
-
-					@Override
-					public void onPageSelected(int position) {
-						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-						prevFragment.onLeave();
-
-						ITabFragment tf = (ITabFragment) adapter.getItem(position);
-
-						if (!tf.onEnter(MainActivity.instance, fabOne, fabTwo)) {
-							viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
-							Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
-							FirebaseCrash.log("Something went wrong on fragment initialization.");
-						} else
-							prevFragment = tf;
-					}
-
-					@Override
-					public void onPageScrollStateChanged(int state) {
-					}
-				}
-		);
-
-		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
-		tabLayout.setupWithViewPager(viewPager);
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25));
@@ -137,6 +89,54 @@ public class MainActivity extends FragmentActivity {
 		//Log.d(TAG,  FirebaseInstanceId.getInstance().getToken());
 	}
 
+	@Override
+	protected void onStart() {
+		super.onStart();
+		Resources r = getResources();
+		// Set up the viewPager with the sections adapter.
+		viewPager = (ViewPager) findViewById(R.id.container);
+		viewPager.setOffscreenPageLimit(3);
+
+		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
+		adapter.addFrag(new FragmentMain().setFabs(fabOne, fabTwo), r.getString(R.string.menu_dashboard));
+		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
+		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
+		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
+		viewPager.setAdapter(adapter);
+
+		final Activity a = this;
+		viewPager.addOnPageChangeListener(
+				new ViewPager.OnPageChangeListener() {
+					ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
+
+					@Override
+					public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+					}
+
+					@Override
+					public void onPageSelected(int position) {
+						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
+						prevFragment.onLeave();
+
+						ITabFragment tf = (ITabFragment) adapter.getItem(position);
+						Log.d(TAG, "Activity " + a);
+						if (!tf.onEnter(a, fabOne, fabTwo)) {
+							viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
+							Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
+							FirebaseCrash.log("Something went wrong on fragment initialization.");
+						} else
+							prevFragment = tf;
+					}
+
+					@Override
+					public void onPageScrollStateChanged(int state) {
+					}
+				}
+		);
+
+		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
+		tabLayout.setupWithViewPager(viewPager);
+	}
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
