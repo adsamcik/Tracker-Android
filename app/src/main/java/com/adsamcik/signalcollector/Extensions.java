@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
@@ -140,6 +141,7 @@ public class Extensions {
 		return sb.toString();
 	}
 
+	@SuppressLint("HardwareIds")
 	public static String getImei() {
 		if (telephonyManager == null)
 			throw new NullPointerException("Extensions were not initialized, this is a bug.");
