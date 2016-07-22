@@ -1,198 +1,223 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:padding="10dp">
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:scrollbars="none">
 
-    <TextView
-        android:id="@+id/tracking_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/settings_automaticTracking"
-        android:textSize="18sp"
-        android:textColor="@color/textSecondary"/>
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
 
-    <TextView
-        android:id="@+id/tracking_description"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/tracking_title"
-        android:textSize="18sp"
-        android:gravity="center"
-        android:textColor="@color/colorPrimary"/>
+        <TextView
+            android:id="@+id/tracking_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_automaticTracking"
+            android:textColor="@color/textSecondary"
+            android:textSize="18sp"/>
 
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/tracking_layout"
-        android:layout_below="@id/tracking_description"
-        android:gravity="center">
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="10dp"
-            android:id="@+id/tracking_none"
-            android:tint="@color/textSecondary"
-            android:src="@drawable/ic_close_black_24dp"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:id="@+id/tracking_onfoot"
-            android:layout_margin="10dp"
-            android:layout_toEndOf="@id/tracking_none"
-            android:tint="@color/textSecondary"
-            android:src="@drawable/ic_directions_walk_black_24dp"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_toEndOf="@id/tracking_onfoot"
-            android:layout_margin="10dp"
-            android:id="@+id/tracking_always"
-            android:tint="@color/textSecondary"
-            android:src="@drawable/ic_directions_car_black_24dp"/>
+        <TextView
+            android:id="@+id/tracking_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/tracking_title"
+            android:gravity="center"
+            android:textColor="@color/colorPrimary"
+            android:textSize="18sp"/>
+
+        <RelativeLayout
+            android:id="@+id/tracking_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tracking_description"
+            android:gravity="center">
+
+            <ImageView
+                android:id="@+id/tracking_none"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_margin="10dp"
+                android:src="@drawable/ic_close_black_24dp"
+                android:tint="@color/textSecondary"/>
+
+            <ImageView
+                android:id="@+id/tracking_onfoot"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_margin="10dp"
+                android:layout_toEndOf="@id/tracking_none"
+                android:src="@drawable/ic_directions_walk_black_24dp"
+                android:tint="@color/textSecondary"/>
+
+            <ImageView
+                android:id="@+id/tracking_always"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_margin="10dp"
+                android:layout_toEndOf="@id/tracking_onfoot"
+                android:src="@drawable/ic_directions_car_black_24dp"
+                android:tint="@color/textSecondary"/>
+        </RelativeLayout>
+
+        <TextView
+            android:id="@+id/autoupload_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/tracking_layout"
+            android:paddingTop="15dp"
+            android:text="@string/settings_automaticUpload"
+            android:textColor="@color/textSecondary"
+            android:textSize="18sp"/>
+
+        <TextView
+            android:id="@+id/autoupload_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/autoupload_title"
+            android:gravity="center"
+            android:textColor="@color/colorPrimary"
+            android:textSize="18sp"/>
+
+        <RelativeLayout
+            android:id="@+id/autoupload_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/autoupload_description"
+            android:gravity="center">
+
+            <ImageView
+                android:id="@+id/autoupload_disabled"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_margin="10dp"
+                android:src="@drawable/ic_close_black_24dp"
+                android:tint="@color/textSecondary"/>
+
+            <ImageView
+                android:id="@+id/autoupload_wifi"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_margin="10dp"
+                android:layout_toEndOf="@id/autoupload_disabled"
+                android:src="@drawable/ic_network_wifi_24dp"
+                android:tint="@color/textSecondary"/>
+
+            <ImageView
+                android:id="@+id/autoupload_always"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_margin="10dp"
+                android:layout_toEndOf="@id/autoupload_wifi"
+                android:src="@drawable/ic_autorenew_black_24dp"
+                android:tint="@color/textSecondary"/>
+        </RelativeLayout>
+
+        <TextView
+            android:id="@+id/play_loginTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/autoupload_layout"
+            android:paddingTop="15dp"
+            android:text="@string/settings_playGames"
+            android:textColor="@color/textSecondary"
+            android:textSize="18sp"/>
+
+        <Button
+            android:id="@+id/play_loginButton"
+            style="@style/SettingsButton"
+            android:layout_below="@id/play_loginTitle"
+            android:text="@string/settings_playGamesLogin"
+            />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_below="@id/play_loginButton"
+            android:background="@color/cardBackground"/>
+
+        <Button
+            android:id="@+id/play_achievements"
+            style="@style/SettingsButton"
+            android:layout_below="@+id/play_loginButton"
+            android:text="@string/achievements"
+            />
+
+
+        <TextView
+            android:id="@+id/tracker_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/play_achievements"
+            android:paddingTop="15dp"
+            android:text="Tracker"
+            android:textColor="@color/textSecondary"
+            android:textSize="18sp"/>
+
+        <Switch
+            android:id="@+id/switchTrackWifi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/tracker_title"
+            android:text="Track wifi"/>
+
+
+        <Switch
+            android:id="@+id/switchTrackCell"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@id/switchTrackWifi"
+            android:text="Track cell"/>
+
+        <Switch
+            android:id="@+id/switchTrackPressure"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/switchTrackCell"
+            android:text="Track pressure"/>
+
+        <Switch
+            android:id="@+id/switchTrackNoise"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/switchTrackPressure"
+            android:text="Track noise"/>
+
+        <TextView
+            android:id="@+id/other_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/switchTrackNoise"
+            android:paddingTop="15dp"
+            android:text="@string/other"
+            android:textColor="@color/textSecondary"
+            android:textSize="18sp"/>
+
+        <Button
+            android:id="@+id/other_clear"
+            style="@style/SettingsButton"
+            android:layout_below="@+id/other_title"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/settings_clear"
+            />
+
+        <TextView
+            android:id="@+id/versionNum"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/other_clear"
+            android:paddingTop="15dp"
+            android:textSize="18sp"
+            />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_below="@id/versionNum"/>
     </RelativeLayout>
-
-    <TextView
-        android:id="@+id/autoupload_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/tracking_layout"
-        android:paddingTop="15dp"
-        android:text="@string/settings_automaticUpload"
-        android:textSize="18sp"
-        android:textColor="@color/textSecondary"/>
-
-    <TextView
-        android:id="@+id/autoupload_description"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/autoupload_title"
-        android:textSize="18sp"
-        android:gravity="center"
-        android:textColor="@color/colorPrimary"/>
-
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/autoupload_layout"
-        android:layout_below="@id/autoupload_description"
-        android:gravity="center">
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="10dp"
-            android:id="@+id/autoupload_disabled"
-            android:tint="@color/textSecondary"
-            android:src="@drawable/ic_close_black_24dp"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:id="@+id/autoupload_wifi"
-            android:layout_margin="10dp"
-            android:layout_toEndOf="@id/autoupload_disabled"
-            android:tint="@color/textSecondary"
-            android:src="@drawable/ic_network_wifi_24dp"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_toEndOf="@id/autoupload_wifi"
-            android:layout_margin="10dp"
-            android:id="@+id/autoupload_always"
-            android:tint="@color/textSecondary"
-            android:src="@drawable/ic_autorenew_black_24dp"/>
-    </RelativeLayout>
-
-    <TextView
-        android:id="@+id/play_loginTitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/autoupload_layout"
-        android:paddingTop="15dp"
-        android:text="@string/settings_playGames"
-        android:textSize="18sp"
-        android:textColor="@color/textSecondary"/>
-
-    <Button
-        style="@style/SettingsButton"
-        android:id="@+id/play_loginButton"
-        android:layout_below="@id/play_loginTitle"
-        android:text="@string/settings_playGamesLogin"
-        />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:background="@color/cardBackground"
-        android:layout_below="@id/play_loginButton"/>
-
-    <Button
-        style="@style/SettingsButton"
-        android:text="@string/achievements"
-        android:layout_below="@+id/play_loginButton"
-        android:id="@+id/play_achievements"
-        />
-
-    <TextView
-        android:id="@+id/other_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/play_achievements"
-        android:paddingTop="15dp"
-        android:text="@string/other"
-        android:textSize="18sp"
-        android:textColor="@color/textSecondary"/>
-
-    <Button
-        android:id="@+id/other_clear"
-        style="@style/SettingsButton"
-        android:layout_below="@+id/other_title"
-        android:backgroundTint="@color/colorAccent"
-        android:text="@string/settings_clear"
-        />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/versionNum"
-        android:layout_below="@id/other_clear"
-        android:paddingTop="10dp"
-        />
-
-    <Switch
-        android:visibility="gone"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Track wifi"
-        android:id="@+id/switchTrackWifi"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"/>
-
-    <Switch
-        android:visibility="gone"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Track cell"
-        android:id="@+id/switchTrackCell"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"/>
-
-    <Switch
-        android:visibility="gone"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Track pressure"
-        android:id="@+id/switchTrackPressure"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"/>
-
-    <Switch
-        android:visibility="gone"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Track noise"
-        android:id="@+id/switchTrackNoise"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"/>
-
-</RelativeLayout>
+</ScrollView>
