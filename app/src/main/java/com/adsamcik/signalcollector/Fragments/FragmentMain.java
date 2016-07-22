@@ -33,7 +33,6 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 
 public class FragmentMain extends Fragment implements ITabFragment {
-	private final String activity_name = "MainActivity";
 	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 
@@ -55,6 +54,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_main, container, false);
+		final String activity_name = "MainActivity";
 		if (!getActivity().getClass().getSimpleName().equals(activity_name))
 			throw new RuntimeException("Main fragment is attached to different activity than " + activity_name);
 
@@ -144,7 +144,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	 * 2 - Syncing data
 	 * 3 - Cloud error
 	 */
-	public void setCloudStatus(int status) {
+	private void setCloudStatus(int status) {
 		if (fabUp == null)
 			throw new RuntimeException("upload fab is null. This should not happen.");
 		else if (status < 0 || status > 3)
@@ -212,9 +212,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.setOnUpload(null);
 	}
 
-	long lastWifiTime = 0;
+	private long lastWifiTime = 0;
 
-	void UpdateData() {
+	private void UpdateData() {
 		Resources res = getActivity().getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(TrackerService.approxSize);
