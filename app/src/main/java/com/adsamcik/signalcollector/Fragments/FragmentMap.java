@@ -68,7 +68,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 *
 	 * @return is permission available atm
 	 */
-	boolean checkLocationPermission(boolean request) {
+	private boolean checkLocationPermission(boolean request) {
 		if (ContextCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else if (request)
@@ -169,7 +169,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		return true;
 	}
 
-	TileOverlay activeOverlay;
+	private TileOverlay activeOverlay;
 
 	/**
 	 * Change map overlay
@@ -224,8 +224,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		changeMapOverlay(0);
 	}
 
-	Circle userRadius;
-	Marker userCenter;
+	private Circle userRadius;
+	private Marker userCenter;
 
 	/**
 	 * Draws user accuracy radius and location
@@ -234,7 +234,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param latlng   Latitude and longitude
 	 * @param accuracy Accuracy
 	 */
-	void DrawUserPosition(LatLng latlng, float accuracy) {
+	private void DrawUserPosition(LatLng latlng, float accuracy) {
 		if (userRadius == null) {
 			Context c = getContext();
 			if (c == null) {
@@ -263,11 +263,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 	}
 
-	public class UpdateLocationListener implements LocationListener {
+	private class UpdateLocationListener implements LocationListener {
 		LatLng position;
 		boolean followMyPosition = false;
 
-		public final GoogleMap.OnCameraChangeListener cameraChangeListener = cameraPosition -> {
+		private final GoogleMap.OnCameraChangeListener cameraChangeListener = cameraPosition -> {
 			if (followMyPosition && touchWrapper.getTouchDown())
 				followMyPosition = false;
 
@@ -285,20 +285,20 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				moveTo(position);
 		}
 
-		public void moveToMyPosition() {
+		private void moveToMyPosition() {
 			followMyPosition = true;
 			if (position != null)
 				moveTo(position);
 		}
 
-		public void moveTo(@NonNull LatLng latlng) {
+		private void moveTo(@NonNull LatLng latlng) {
 			float zoom = map.getCameraPosition().zoom;
 			moveTo(latlng,
 					zoom < 16 ? 16 :
 							zoom > 17 ? 17 : zoom);
 		}
 
-		public void moveTo(@NonNull LatLng latlng, float zoom) {
+		private void moveTo(@NonNull LatLng latlng, float zoom) {
 			CameraPosition cPos = map.getCameraPosition();
 			if (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude)
 				map.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
@@ -319,7 +319,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		}
 
-		public void cleanup() {
+		private void cleanup() {
 			//map.setOnCameraChangeListener(null);
 			if (map != null)
 				map.setOnMyLocationButtonClickListener(null);
