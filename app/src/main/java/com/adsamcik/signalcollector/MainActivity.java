@@ -42,9 +42,7 @@ public class MainActivity extends FragmentActivity {
 
 
 	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
+	protected void onStart() {
 		setContentView(R.layout.activity_main);
 		Context context = getApplicationContext();
 		DataStore.setContext(context);
@@ -63,17 +61,6 @@ public class MainActivity extends FragmentActivity {
 			PlayController.initializeActivityClient();
 		}
 
-		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
-		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
-
-		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
-		fabOne.setBackgroundTintList(secondary);
-		fabOne.setImageTintList(primary);
-
-		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
-		fabTwo.setBackgroundTintList(primary);
-		fabTwo.setImageTintList(secondary);
-
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25));
 		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
@@ -86,11 +73,17 @@ public class MainActivity extends FragmentActivity {
 
 		DataStore.getDataFileNames(true);
 
-		//Log.d(TAG,  FirebaseInstanceId.getInstance().getToken());
-	}
+		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
+		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
 
-	@Override
-	protected void onStart() {
+		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
+		fabOne.setBackgroundTintList(secondary);
+		fabOne.setImageTintList(primary);
+
+		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
+		fabTwo.setBackgroundTintList(primary);
+		fabTwo.setImageTintList(secondary);
+
 		Resources r = getResources();
 		// Set up the viewPager with the sections adapter.
 		viewPager = (ViewPager) findViewById(R.id.container);
