@@ -2,6 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="fill_parent"
             android:layout_height="fill_parent"
+            android:overScrollMode="never"
             android:scrollbars="none">
 
     <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -150,42 +151,52 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@+id/play_achievements"
-            android:paddingTop="15dp"
             android:text="Tracker"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"/>
+            android:textSize="18sp"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:paddingBottom="@dimen/setting_item_padding"/>
 
         <Switch
             android:id="@+id/switchTrackWifi"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/tracker_title"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:paddingBottom="@dimen/setting_item_padding"
             android:text="Track wifi"/>
 
 
         <Switch
             android:id="@+id/switchTrackCell"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_below="@id/switchTrackWifi"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:paddingBottom="@dimen/setting_item_padding"
             android:text="Track cell"/>
 
         <Switch
             android:id="@+id/switchTrackPressure"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/switchTrackCell"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:paddingBottom="@dimen/setting_item_padding"
             android:text="Track pressure"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:enabled="false"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/switchTrackPressure"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:paddingBottom="@dimen/setting_item_padding"
             android:text="Track noise"/>
 
         <TextView
@@ -211,13 +222,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/other_clear"
+            android:paddingBottom="64dp"
             android:paddingTop="15dp"
-            android:textSize="18sp"
-            />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_below="@id/versionNum"/>
+            android:textSize="18sp"/>
     </RelativeLayout>
 </ScrollView>
