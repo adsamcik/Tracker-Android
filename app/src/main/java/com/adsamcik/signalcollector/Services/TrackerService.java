@@ -187,8 +187,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		int wifiCount, cellCount;
 
 		//todo check date
-		wifiCount = sp.getInt(Setting.TRACKING_WIFI_FOUND, 0);
-		cellCount = sp.getInt(Setting.TRACKING_CELL_FOUND, 0);
+		wifiCount = sp.getInt(Setting.STATS_WIFI_FOUND, 0);
+		cellCount = sp.getInt(Setting.STATS_CELL_FOUND, 0);
 		for (Data d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
@@ -196,7 +196,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				cellCount += d.cell.length;
 		}
 
-		sp.edit().putInt(Setting.TRACKING_WIFI_FOUND, wifiCount).putInt(Setting.TRACKING_CELL_FOUND, cellCount).apply();
+		sp.edit().putInt(Setting.STATS_WIFI_FOUND, wifiCount).putInt(Setting.STATS_CELL_FOUND, cellCount).apply();
 
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);

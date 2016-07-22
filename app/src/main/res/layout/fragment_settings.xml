@@ -151,7 +151,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@+id/play_achievements"
-            android:text="Tracker"
+            android:text="@string/settings_track"
             android:textColor="@color/textSecondary"
             android:textSize="18sp"
             android:paddingTop="@dimen/setting_item_padding"
@@ -165,7 +165,7 @@
             android:layout_below="@+id/tracker_title"
             android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
-            android:text="Track wifi"/>
+            android:text="@string/settings_track_wifi"/>
 
 
         <Switch
@@ -176,7 +176,7 @@
             android:layout_below="@id/switchTrackWifi"
             android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
-            android:text="Track cell"/>
+            android:text="@string/settings_track_cell"/>
 
         <Switch
             android:id="@+id/switchTrackPressure"
@@ -186,7 +186,7 @@
             android:layout_below="@+id/switchTrackCell"
             android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
-            android:text="Track pressure"/>
+            android:text="@string/settings_track_pressure"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
@@ -197,7 +197,7 @@
             android:layout_below="@+id/switchTrackPressure"
             android:paddingTop="@dimen/setting_item_padding"
             android:paddingBottom="@dimen/setting_item_padding"
-            android:text="Track noise"/>
+            android:text="@string/settings_track_noise"/>
 
         <TextView
             android:id="@+id/other_title"

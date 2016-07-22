@@ -15,15 +15,18 @@ public class Setting {
 	public static final String AUTO_UPLOAD = "autoUpload";
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
-	public static final String STATS_VERSION = "statsVersion";
 
 	//Local tracking stats
-	public static final String TRACKING_STAT_DAY = "trackingStatDay";
-	public static final String TRACKING_WIFI_FOUND = "trackingWifiFound";
-	public static final String TRACKING_CELL_FOUND = "trackingCellFound";
-	public static final String TRACKING_LOCATIONS_FOUND = "trackingLocationsFound";
+	public static final String STATS_STAT_DAY = "statsStatDay";
+	public static final String STATS_WIFI_FOUND = "statsWifiFound";
+	public static final String STATS_CELL_FOUND = "statsCellFound";
+	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";
+	public static final String STATS_VERSION = "statsVersion";
 
-	public static final String BROADCAST_UPDATE_INFO = "SignalsUpdate";
+	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
+	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
+	public static final String TRACKING_PRESSURE_ENABLED = "trackingPressureEnabled";
+	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
 
 	private static SharedPreferences sharedPreferences;
 

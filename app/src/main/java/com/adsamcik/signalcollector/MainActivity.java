@@ -153,11 +153,11 @@ public class MainActivity extends FragmentActivity {
 			PlayController.gapiGamesClient.connect();
 	}
 
-	class ViewPagerAdapter extends FragmentPagerAdapter {
+	private class ViewPagerAdapter extends FragmentPagerAdapter {
 		private final List<Fragment> mFragmentList = new ArrayList<>();
 		private final List<String> mFragmentTitleList = new ArrayList<>();
 
-		public ViewPagerAdapter(FragmentManager manager) {
+		private ViewPagerAdapter(FragmentManager manager) {
 			super(manager);
 		}
 
@@ -171,7 +171,7 @@ public class MainActivity extends FragmentActivity {
 			return mFragmentList.size();
 		}
 
-		public void addFrag(Fragment fragment, String title) {
+		private void addFrag(Fragment fragment, String title) {
 			mFragmentList.add(fragment);
 			mFragmentTitleList.add(title);
 		}

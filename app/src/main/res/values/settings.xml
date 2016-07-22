@@ -12,11 +12,16 @@
         <item>Wifi only</item>
         <item>Always</item>
     </string-array>
-    <string name="settings_playGames">Google Play Games</string>
+    <string name="settings_playGames">Account</string>
     <string name="settings_playGamesLogin">Login</string>
     <string name="settings_playGamesLogout">Logout</string>
     <string name="settings_clear">Clear tracked data</string>
     <string name="alert_clear_text">Are you sure you want to clear your collected data, which are not yet uploaded?</string>
     <string name="alert_clear_confirm">I\'m sure</string>
     <string name="alert_clear_cancel">Not really</string>
+    <string name="settings_track">Tracking options</string>
+    <string name="settings_track_wifi">Wifi</string>
+    <string name="settings_track_cell">Cell</string>
+    <string name="settings_track_pressure">Pressure</string>
+    <string name="settings_track_noise">Noise</string>
 </resources>
