@@ -84,7 +84,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_map, container, false);
-		FirebaseCrash.log("Created view");
 		touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
 		return view;
 	}
@@ -320,7 +319,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 
 		private void cleanup() {
-			//map.setOnCameraChangeListener(null);
 			if (map != null)
 				map.setOnMyLocationButtonClickListener(null);
 		}
