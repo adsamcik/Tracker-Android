@@ -108,7 +108,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if(view == null)
+		if (view == null)
 			return false;
 
 		this.fabOne = fabOne;
@@ -122,7 +122,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return false;
 
-
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
@@ -134,7 +133,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
 		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1));
 
-		if(mMapFragment == null) {
+		if (mMapFragment == null) {
 			mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
 			mMapFragment.getMapAsync(this);
 
@@ -292,9 +291,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		private void moveTo(@NonNull LatLng latlng) {
 			float zoom = map.getCameraPosition().zoom;
-			moveTo(latlng,
-					zoom < 16 ? 16 :
-							zoom > 17 ? 17 : zoom);
+			moveTo(latlng, zoom < 16 ? 16 : zoom > 17 ? 17 : zoom);
 		}
 
 		private void moveTo(@NonNull LatLng latlng, float zoom) {
