@@ -27,6 +27,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
@@ -45,15 +46,15 @@ public class DataStore {
 	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
 	private static final int MAX_FILE_SIZE = 1048576;
 
-	private static Context context;
+	private static WeakReference<Context> contextWeak;
 
-	public static Context getContext() {
-		return context;
+	private static Context getContext() {
+		return contextWeak.get();
 	}
 
 	public static void setContext(Context c) {
 		if (c != null)
-			context = c.getApplicationContext();
+			contextWeak = new WeakReference<>(c.getApplicationContext());
 	}
 
 	private static boolean isSaveAllowed = true;
@@ -87,7 +88,7 @@ public class DataStore {
 	 * @return Returns data file names
 	 */
 	public static String[] getDataFileNames(boolean includeLast) {
-		int maxID = Setting.getPreferences(context).getInt(KEY_FILE_ID, -1);
+		int maxID = Setting.getPreferences(getContext()).getInt(KEY_FILE_ID, -1);
 		if (maxID < 0)
 			return null;
 		if (!includeLast)
@@ -106,10 +107,12 @@ public class DataStore {
 	 * @param isBackground Is activated by background tracking
 	 */
 	public static void requestUpload(@NonNull Context c, boolean isBackground) {
+		if(contextWeak.get() == null)
+			setContext(c);
 		SharedPreferences sp = Setting.getPreferences(c);
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || !isBackground) {
-			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(context, UploadService.class));
+			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(getContext(), UploadService.class));
 			if (!isBackground) {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -134,7 +137,7 @@ public class DataStore {
 			PersistableBundle pb = new PersistableBundle(1);
 			pb.putInt(KEY_IS_AUTOUPLOAD, isBackground ? 1 : 0);
 			jb.setExtras(pb);
-			((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
+			((JobScheduler) getContext().getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
 		}
 	}
@@ -149,7 +152,7 @@ public class DataStore {
 	public static void upload(final String data, final String name, final long size, final boolean background) {
 		if (data.isEmpty()) return;
 		if (!Extensions.isInitialized())
-			Extensions.initialize(context);
+			Extensions.initialize(getContext());
 
 		String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +
@@ -169,8 +172,6 @@ public class DataStore {
 		rp.add("data", serialized);
 		final SyncHttpClient client = new SyncHttpClient();
 		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
-			ConnectivityManager cm;
-
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 				deleteFile(name);
@@ -180,7 +181,7 @@ public class DataStore {
 
 			@Override
 			public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-				requestUpload(context, true);
+				requestUpload(getContext(), true);
 				FirebaseCrash.log("Upload failed " + name + " code " + statusCode);
 				Log.d(TAG, "Upload failed " + name + " code " + statusCode);
 			}
@@ -188,8 +189,8 @@ public class DataStore {
 			@Override
 			public void onRetry(int retryNo) {
 				super.onRetry(retryNo);
-				Log.d(TAG, "Retry " + Extensions.canUpload(context, background));
-				if (Extensions.canUpload(context, background))
+				Log.d(TAG, "Retry " + Extensions.canUpload(getContext(), background));
+				if (Extensions.canUpload(getContext(), background))
 					client.cancelAllRequests(true);
 			}
 		});
@@ -203,7 +204,7 @@ public class DataStore {
 	 * @return success
 	 */
 	private static boolean renameFile(String fileName, String newFileName) {
-		String dir = context.getFilesDir().getPath();
+		String dir = getContext().getFilesDir().getPath();
 		return new File(dir, fileName).renameTo(new File(dir, newFileName));
 	}
 
@@ -213,7 +214,7 @@ public class DataStore {
 	 * @param fileName file name
 	 */
 	private static void deleteFile(String fileName) {
-		context.deleteFile(fileName);
+		getContext().deleteFile(fileName);
 	}
 
 	/**
@@ -223,7 +224,7 @@ public class DataStore {
 	 * @return existance of file
 	 */
 	public static boolean exists(String fileName) {
-		return new File(context.getFilesDir().getAbsolutePath() + "/" + fileName).exists();
+		return new File(getContext().getFilesDir().getAbsolutePath() + "/" + fileName).exists();
 	}
 
 	/**
@@ -231,7 +232,7 @@ public class DataStore {
 	 */
 	public static void cleanup() {
 		isSaveAllowed = false;
-		File[] files = context.getFilesDir().listFiles();
+		File[] files = getContext().getFilesDir().listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<String> renamedFiles = new ArrayList<>();
 		for (File file : files) {
@@ -283,7 +284,7 @@ public class DataStore {
 	 * @return Size of file
 	 */
 	private static long sizeOf(String fileName) {
-		return new File(context.getFilesDir().getPath(), fileName).length();
+		return new File(getContext().getFilesDir().getPath(), fileName).length();
 	}
 
 
@@ -294,7 +295,7 @@ public class DataStore {
 		isSaveAllowed = false;
 		SharedPreferences sp = Setting.getPreferences();
 		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Setting.SCHEDULED_UPLOAD).apply();
-		File[] files = context.getFilesDir().listFiles();
+		File[] files = getContext().getFilesDir().listFiles();
 
 		for (File file : files) {
 			String name = file.getName();
@@ -349,7 +350,7 @@ public class DataStore {
 	public static boolean saveString(String fileName, String data) {
 		if (isSaveAllowed) {
 			try {
-				FileOutputStream outputStream = context.openFileOutput(fileName, Context.MODE_PRIVATE);
+				FileOutputStream outputStream = getContext().openFileOutput(fileName, Context.MODE_PRIVATE);
 				OutputStreamWriter osw = new OutputStreamWriter(outputStream);
 				osw.write(data);
 				osw.close();
@@ -381,7 +382,7 @@ public class DataStore {
 			data = sb.toString();
 			FileOutputStream outputStream;
 			try {
-				outputStream = context.openFileOutput(fileName, Context.MODE_APPEND);
+				outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND);
 				outputStream.write(data.getBytes());
 				outputStream.close();
 				return true;
@@ -407,7 +408,7 @@ public class DataStore {
 		}
 
 		try {
-			FileInputStream fis = context.openFileInput(fileName);
+			FileInputStream fis = getContext().openFileInput(fileName);
 			InputStreamReader isr = new InputStreamReader(fis);
 			BufferedReader br = new BufferedReader(isr);
 			String receiveString;

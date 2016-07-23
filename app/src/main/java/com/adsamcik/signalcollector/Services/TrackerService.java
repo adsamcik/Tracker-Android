@@ -104,7 +104,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
 	}
 
-	private void makeUseOfNewLocation(Location location) {
+	private void updateData(Location location) {
 		wakeLock.acquire();
 		if (wifiScanData != null && wifiScanPos != null) {
 			float distTo = wifiScanPos.distanceTo(location);
@@ -136,6 +136,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		dataEcho = d;
 
 		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
+
+		notificationManager.notify(1, generateNotification(true, d));
 		if(onNewDataFound != null)
 			onNewDataFound.onCallback();
 
@@ -143,7 +145,6 @@ public class TrackerService extends Service implements SensorEventListener {
 			saveData();
 
 
-		notificationManager.notify(1, generateNotification(true, d));
 		wifiScanData = null;
 
 		if (backgroundActivated && powerManager.isPowerSaveMode())
@@ -229,7 +230,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		DataStore.setContext(appContext);
 
 		if (!PlayController.apiActivity)
-			PlayController.initializeActivityClient(getApplicationContext());
+			PlayController.initializeActivityClient(appContext);
 
 		activityReceiver = new BroadcastReceiver() {
 			@Override
@@ -250,7 +251,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
-				makeUseOfNewLocation(location);
+				updateData(location);
 			}
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {

@@ -30,10 +30,6 @@ public class UploadService extends JobService {
 					Log.e(DataStore.TAG, "No file names were entered");
 					FirebaseCrash.report(new Throwable("No file names were entered"));
 					return;
-				} else if (DataStore.getContext() == null) {
-					Log.e(DataStore.TAG, "DataStore context is null");
-					FirebaseCrash.report(new Throwable("DataStore context is null"));
-					return;
 				}
 
 				TrackerService.approxSize = DataStore.sizeOfData();
