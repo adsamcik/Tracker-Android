@@ -41,13 +41,15 @@ public class MainActivity extends FragmentActivity {
 
 	@Override
 	protected void onStart() {
-		setContentView(R.layout.activity_main);
+		super.onStart();
 		Context context = getApplicationContext();
+		if (!Setting.getPreferences(context).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
+			startActivity(new Intent(this, IntroActivity.class));
+			return;
+		}
+		setContentView(R.layout.activity_main);
 		DataStore.setContext(context);
 		Setting.initializeSharedPreferences(context);
-
-		if (!Setting.getPreferences(context).getBoolean(Setting.HAS_BEEN_LAUNCHED, false))
-			startActivity(new Intent(this, IntroActivity.class));
 
 		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			PlayController.initializeGamesClient(findViewById(R.id.container), this);
@@ -121,7 +123,6 @@ public class MainActivity extends FragmentActivity {
 
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
-		super.onStart();
 	}
 
 	@Override
