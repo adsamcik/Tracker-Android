@@ -13,7 +13,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 
-public class ActivityController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class ActivityController implements GoogleApiClient.ConnectionCallbacks {
 	private GoogleApiClient client;
 	private IContextCallback callback;
 
@@ -38,11 +38,6 @@ public class ActivityController implements GoogleApiClient.ConnectionCallbacks, 
 
 	@Override
 	public void onConnectionSuspended(int i) {
-
-	}
-
-	@Override
-	public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
 	}
 }

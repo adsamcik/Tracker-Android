@@ -31,7 +31,6 @@ public class PlayController {
 			gapiActivityClient = new GoogleApiClient.Builder(context)
 					.addApi(ActivityRecognition.API)
 					.addConnectionCallbacks(activityController)
-					.addOnConnectionFailedListener(activityController)
 					.build();
 
 			activityController.setClient(gapiActivityClient);
