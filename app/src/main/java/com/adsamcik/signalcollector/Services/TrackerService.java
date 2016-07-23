@@ -90,7 +90,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private PowerManager powerManager;
 	private PowerManager.WakeLock wakeLock;
 
-	public static boolean isAutoLocked() {
+	static boolean isAutoLocked() {
 		return System.currentTimeMillis() < lockedUntil;
 	}
 
@@ -117,13 +117,18 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (wifiScanData != null)
 			d.setWifi(wifiScanData, wifiScanTime);
 
-		wifiManager.startScan();
-		wifiScanPos = location;
+		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+		if(sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
+			wifiManager.startScan();
+			wifiScanPos = location;
+		}
 
-		if (!isAirplaneModeOn(this))
+		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
 			d.setCell(telephonyManager.getNetworkOperator(), telephonyManager.getAllCellInfo());
 
-		d.setLocation(location).setPressure(pressureValue).setActivity(currentActivity);
+		if(sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
+			d.setPressure(pressureValue);
+		d.setLocation(location).setActivity(currentActivity);
 		if (wifiScanData != null)
 			d.setWifi(wifiScanData, wifiScanTime);
 
