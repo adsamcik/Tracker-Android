@@ -7,4 +7,6 @@
     <dimen name="main_card_spacing">10dp</dimen>
     <dimen name="main_info_font_size">17sp</dimen>
     <dimen name="setting_item_padding">15dp</dimen>
+    <dimen name="setting_title_text_size">16sp</dimen>
+    <dimen name="setting_text_size">18sp</dimen>
 </resources>

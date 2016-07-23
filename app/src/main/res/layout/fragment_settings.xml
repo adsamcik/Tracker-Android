@@ -9,7 +9,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="10dp">
+                    android:paddingTop="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingStart="16dp"
+                    android:paddingBottom="64dp">
 
         <TextView
             android:id="@+id/tracking_title"
@@ -17,7 +20,7 @@
             android:layout_height="wrap_content"
             android:text="@string/settings_automaticTracking"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_title_text_size"/>
 
         <TextView
             android:id="@+id/tracking_description"
@@ -26,7 +29,7 @@
             android:layout_below="@+id/tracking_title"
             android:gravity="center"
             android:textColor="@color/colorPrimary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
             android:id="@+id/tracking_layout"
@@ -70,7 +73,7 @@
             android:paddingTop="15dp"
             android:text="@string/settings_automaticUpload"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_title_text_size"/>
 
         <TextView
             android:id="@+id/autoupload_description"
@@ -79,7 +82,7 @@
             android:layout_below="@id/autoupload_title"
             android:gravity="center"
             android:textColor="@color/colorPrimary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
             android:id="@+id/autoupload_layout"
@@ -123,13 +126,14 @@
             android:paddingTop="15dp"
             android:text="@string/settings_playGames"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_title_text_size"/>
 
         <Button
             android:id="@+id/play_loginButton"
             style="@style/SettingsButton"
             android:layout_below="@id/play_loginTitle"
             android:text="@string/settings_playGamesLogin"
+            android:textSize="@dimen/setting_text_size"
             />
 
         <View
@@ -142,7 +146,8 @@
             android:id="@+id/play_achievements"
             style="@style/SettingsButton"
             android:layout_below="@+id/play_loginButton"
-            android:text="@string/achievements"/>
+            android:text="@string/achievements"
+            android:textSize="@dimen/setting_text_size"/>
 
 
         <TextView
@@ -154,7 +159,7 @@
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_title_text_size"/>
 
         <Switch
             android:id="@+id/switchTrackWifi"
@@ -164,6 +169,7 @@
             android:layout_below="@+id/tracker_title"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
+            android:textSize="@dimen/setting_text_size"
             android:text="@string/settings_track_wifi"/>
 
 
@@ -175,6 +181,7 @@
             android:layout_below="@id/switchTrackWifi"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
+            android:textSize="@dimen/setting_text_size"
             android:text="@string/settings_track_cell"/>
 
         <Switch
@@ -185,6 +192,7 @@
             android:layout_below="@+id/switchTrackCell"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
+            android:textSize="@dimen/setting_text_size"
             android:text="@string/settings_track_pressure"/>
 
         <Switch
@@ -196,6 +204,7 @@
             android:enabled="false"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
+            android:textSize="@dimen/setting_text_size"
             android:text="@string/settings_track_noise"/>
 
         <TextView
@@ -206,7 +215,7 @@
             android:paddingTop="15dp"
             android:text="@string/other"
             android:textColor="@color/textSecondary"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_title_text_size"/>
 
         <Button
             android:id="@+id/other_clear"
@@ -214,6 +223,7 @@
             android:layout_below="@+id/other_title"
             android:backgroundTint="@color/colorAccent"
             android:text="@string/settings_clear"
+            android:textSize="@dimen/setting_text_size"
             />
 
         <TextView
@@ -221,8 +231,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/other_clear"
-            android:paddingBottom="64dp"
             android:paddingTop="15dp"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/setting_text_size"/>
     </RelativeLayout>
 </ScrollView>
