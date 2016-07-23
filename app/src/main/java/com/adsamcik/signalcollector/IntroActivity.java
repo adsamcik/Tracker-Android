@@ -94,6 +94,11 @@ public class IntroActivity extends AppIntro2 {
 	}
 
 	@Override
+	public void onBackPressed() {
+
+	}
+
+	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
 		for (int grantResult : grantResults) {
 			if (grantResult != PackageManager.PERMISSION_GRANTED) {
