@@ -8,13 +8,23 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 24
-        versionCode 59
-        versionName "2.0.0 rebuild3"
+        versionCode 60
+        versionName "2.0.0 rebuild4"
+        jackOptions {
+            enabled true
+        }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            jackOptions {
+                enabled true
+            }
+        }
+        release_jack {
+            minifyEnabled true
+            proguardFiles 'proguard-android-JACK.txt-2.2'
         }
     }
     compileOptions {
@@ -45,4 +55,3 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
-apply plugin: 'me.tatarka.retrolambda'
