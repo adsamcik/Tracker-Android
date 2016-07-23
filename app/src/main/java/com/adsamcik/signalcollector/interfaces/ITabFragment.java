@@ -9,6 +9,7 @@ public interface ITabFragment {
 	 * Called when entering the tab
 	 * @return if tab successfully loaded
 	 */
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo);
 
 	/**
