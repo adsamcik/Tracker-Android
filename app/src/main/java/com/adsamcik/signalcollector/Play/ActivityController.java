@@ -3,9 +3,11 @@ package com.adsamcik.signalcollector.play;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.LauncherApps;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 
+import com.adsamcik.signalcollector.interfaces.IContextCallback;
 import com.adsamcik.signalcollector.services.PlayIntentService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -13,10 +15,10 @@ import com.google.android.gms.location.ActivityRecognition;
 
 public class ActivityController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 	private GoogleApiClient client;
-	private final Context context;
+	private IContextCallback callback;
 
-	public ActivityController(Context context) {
-		this.context = context;
+	ActivityController(IContextCallback callback) {
+		this.callback = callback;
 	}
 
 	public void setClient(GoogleApiClient client) {
@@ -25,12 +27,13 @@ public class ActivityController implements GoogleApiClient.ConnectionCallbacks, 
 
 	@Override
 	public void onConnected(Bundle bundle) {
-		PlayController.apiActivity = true;
+		Context context = callback.getContext();
 		Intent i = new Intent(context, PlayIntentService.class);
 		PendingIntent activityPendingIntent = PendingIntent
 				.getService(context, 0, i, PendingIntent.FLAG_UPDATE_CURRENT);
 
 		ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(client, 0, activityPendingIntent);
+		callback = null;
 	}
 
 	@Override

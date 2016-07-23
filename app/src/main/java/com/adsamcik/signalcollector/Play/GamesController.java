@@ -22,20 +22,13 @@ import com.loopj.android.http.RequestParams;
 
 import cz.msebera.android.httpclient.Header;
 
-public class GamesController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
-	private final Activity activity;
-
+public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	private static final int REQUEST_LEADERBOARD = 5989;
 	private static final int REQUEST_ACHIEVEMENTS = 8955;
 	private static final int RC_SIGN_IN = 9001;
 
 	private GoogleApiClient client;
 	private Button button;
-	private boolean mResolvingConnectionFailure = false;
-
-	public GamesController(Activity a) {
-		this.activity = a;
-	}
 
 	public GamesController setClient(GoogleApiClient client) {
 		this.client = client;
@@ -51,7 +44,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 	public void logout() {
 		updateUI(false);
 		String userID = getUserID();
-		if(userID != null) {
+		if (userID != null) {
 			RequestParams rp = new RequestParams();
 			rp.add("register", "false");
 			rp.add("userID", userID);
@@ -70,28 +63,28 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 		}
 	}
 
-	void updateUI(boolean connected) {
-		if(connected) {
-			if(button != null) {
+	private void updateUI(boolean connected) {
+		if (connected) {
+			if (button != null) {
 				button.setText(R.string.settings_playGamesLogout);
 				button.setTextColor(Color.rgb(255, 110, 110));
 
 			}
 		} else {
-			if(button != null) {
+			if (button != null) {
 				button.setText(R.string.settings_playGamesLogin);
-				button.setTextColor(Color.rgb(110,255,110));
+				button.setTextColor(Color.rgb(110, 255, 110));
 			}
 		}
 	}
 
-	public void showAchievements() {
-		if(client != null)
+	public void showAchievements(Activity activity) {
+		if (client != null)
 			activity.startActivityForResult(Games.Achievements.getAchievementsIntent(client), REQUEST_ACHIEVEMENTS);
 	}
 
-	public void showLeaderboard(String id) {
-		if(client != null)
+	public void showLeaderboard(Activity activity, String id) {
+		if (client != null)
 			activity.startActivityForResult(Games.Leaderboards.getLeaderboardIntent(client, id), REQUEST_LEADERBOARD);
 	}
 
@@ -105,9 +98,8 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 
 	@Override
 	public void onConnected(Bundle bundle) {
-		PlayController.apiGames = true;
 		updateUI(true);
-		if(!Setting.getPreferences().getBoolean(Setting.REGISTERED_USER, false)) {
+		if (!Setting.getPreferences().getBoolean(Setting.REGISTERED_USER, false)) {
 			Log.d("TAG", "Registering");
 			AsyncHttpClient hac = new AsyncHttpClient();
 			RequestParams rp = new RequestParams();
@@ -127,7 +119,6 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 				}
 			});
 		}
-
 	}
 
 	@Override
@@ -141,15 +132,5 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 
 	public void progressAchievement(String id, int value) {
 		Games.Achievements.increment(client, id, value);
-	}
-
-	@Override
-	public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-		if(mResolvingConnectionFailure) {
-			// Already resolving
-			return;
-		}
-
-		mResolvingConnectionFailure = BaseGameUtils.resolveConnectionFailure(activity, client, connectionResult, RC_SIGN_IN, "error");
 	}
 }

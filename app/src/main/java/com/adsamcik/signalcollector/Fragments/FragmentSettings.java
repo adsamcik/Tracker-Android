@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.res.ResourcesCompat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,25 +20,28 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
-	String[] mTrackingString, mAutoupString;
-	ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
-	ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
-	TextView textView_PlayLog, mAutoupDesc, mTrackDesc;
+	private final String TAG = "FSettings";
 
-	SharedPreferences mSharedPreferences;
+	private String[] mTrackingString, mAutoupString;
+	private ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
+	private ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
+	private TextView textView_PlayLog, mAutoupDesc, mTrackDesc;
 
-	ImageView mTrackingSelected, mAutoupSelected;
+	private SharedPreferences mSharedPreferences;
 
-	ColorStateList mSelectedState;
-	ColorStateList mDefaultState;
+	private ImageView mTrackingSelected, mAutoupSelected;
 
-	void updateTracking(int select) {
+	private ColorStateList mSelectedState;
+	private ColorStateList mDefaultState;
+
+	private void updateTracking(int select) {
 		mSharedPreferences.edit().putInt(Setting.BACKGROUND_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
@@ -60,7 +64,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		mTrackingSelected = selected;
 	}
 
-	void updateAutoup(int select) {
+	private void updateAutoup(int select) {
 		mSharedPreferences.edit().putInt(Setting.AUTO_UPLOAD, select).apply();
 		ImageView selected;
 		switch (select) {
@@ -93,8 +97,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if ((c = getContext()) != null) {
 			try {
 				((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
-			} catch (Exception e) {
-
+			} catch (Exception e){
+				Log.d(TAG, "Failed to set version");
 			}
 		}
 
@@ -126,7 +130,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		textView_PlayLog = (TextView) rootView.findViewById(R.id.play_loginButton);
 
-
 		if (PlayController.gamesController != null)
 			PlayController.gamesController.setUI(rootView);
 
@@ -142,7 +145,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.play_achievements).setOnClickListener(v -> {
 			if (PlayController.isLogged())
-				PlayController.gamesController.showAchievements();
+				PlayController.gamesController.showAchievements(getActivity());
 			else
 				PlayController.initializeGamesClient(rootView, getActivity());
 		});

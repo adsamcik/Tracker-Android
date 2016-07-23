@@ -24,21 +24,16 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 	@Override
 	public void onMessageReceived(RemoteMessage message){
-		if(PlayController.gapiGamesClient == null)
-			return;
 
 		Map<String, String> data = message.getData();
 
 		String type = message.getMessageType();
-		FirebaseCrash.log(type);
 		if(type == null)
 			return;
 
 		String title = data.get("title");
 		String msg = message.getNotification().getBody();
 
-		FirebaseCrash.log(title);
-		FirebaseCrash.log(msg);
 		message.getNotification().notify();
 		switch(MessageType.values()[Integer.parseInt(type)]) {
 			case Notification:

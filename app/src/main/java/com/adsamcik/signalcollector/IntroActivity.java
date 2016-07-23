@@ -22,9 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class IntroActivity extends AppIntro2 {
-	int slideNumber = 0;
-
-
+	private int slideNumber = 0;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -63,7 +61,7 @@ public class IntroActivity extends AppIntro2 {
 	 *
 	 * @return true if all permissions are granted
 	 */
-	boolean CheckAllTrackingPermissions() {
+	private boolean CheckAllTrackingPermissions() {
 		if (Build.VERSION.SDK_INT > 22) {
 			List<String> permissions = new ArrayList<>();
 			if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
@@ -91,9 +89,8 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
-		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable(getApplicationContext())) {
+		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable(getApplicationContext()))
 			PlayController.initializeGamesClient(findViewById(android.R.id.content), this);
-		}
 	}
 
 	@Override

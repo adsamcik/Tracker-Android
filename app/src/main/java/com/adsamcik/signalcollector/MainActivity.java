@@ -39,7 +39,6 @@ public class MainActivity extends FragmentActivity {
 
 	private ViewPager viewPager;
 
-
 	@Override
 	protected void onStart() {
 		setContentView(R.layout.activity_main);
@@ -52,7 +51,7 @@ public class MainActivity extends FragmentActivity {
 
 		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			PlayController.initializeGamesClient(findViewById(R.id.container), this);
-			PlayController.initializeActivityClient(context);
+			PlayController.initializeActivityClient(this);
 		}
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -137,7 +136,7 @@ public class MainActivity extends FragmentActivity {
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 		if (requestCode == 9001 && resultCode == -1)
-			PlayController.gapiGamesClient.connect();
+			PlayController.reconnect();
 	}
 
 	private class ViewPagerAdapter extends FragmentPagerAdapter {

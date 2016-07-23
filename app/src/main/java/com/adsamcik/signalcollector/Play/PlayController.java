@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.interfaces.IContextCallback;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -15,9 +16,9 @@ import com.google.android.gms.games.Games;
 import com.google.android.gms.location.ActivityRecognition;
 
 public class PlayController {
-	public static final String TAG = "PLAY";
+	public static final String TAG = "SignalsPlay";
 
-	public static GoogleApiClient gapiActivityClient, gapiGamesClient;
+	private static GoogleApiClient gapiActivityClient, gapiGamesClient;
 	public static boolean apiActivity = false;
 	public static boolean apiGames = false;
 
@@ -25,8 +26,8 @@ public class PlayController {
 	public static GamesController gamesController;
 
 	public static boolean initializeActivityClient(Context context) {
-		if(isPlayServiceAvailable(context)) {
-			activityController = new ActivityController(context);
+		if (isPlayServiceAvailable(context)) {
+			activityController = new ActivityController(() -> context);
 			gapiActivityClient = new GoogleApiClient.Builder(context)
 					.addApi(ActivityRecognition.API)
 					.addConnectionCallbacks(activityController)
@@ -44,13 +45,12 @@ public class PlayController {
 	}
 
 	public static boolean initializeGamesClient(View v, Activity activity) {
-		if(isPlayServiceAvailable(activity)) {
-			gamesController = new GamesController(activity);
+		if (isPlayServiceAvailable(activity)) {
+			gamesController = new GamesController();
 			gapiGamesClient = new GoogleApiClient.Builder(activity)
 					.addApi(Games.API)
 					.addScope(Games.SCOPE_GAMES)
 					.addConnectionCallbacks(gamesController)
-					.addOnConnectionFailedListener(gamesController)
 					.setViewForPopups(v)
 					.build();
 
@@ -64,8 +64,13 @@ public class PlayController {
 		return false;
 	}
 
+	public static void reconnect() {
+		if(gapiGamesClient != null)
+			gapiGamesClient.connect();
+	}
+
 	public static void destroyGamesClient() {
-		if(!isLogged()) return;
+		if (!isLogged()) return;
 		gamesController.logout();
 		Games.signOut(gapiGamesClient);
 		gapiGamesClient.disconnect();
@@ -75,18 +80,17 @@ public class PlayController {
 	}
 
 	public static void registerActivityReceiver(BroadcastReceiver receiver, Context context) {
-		if(apiActivity) {
+		if (apiActivity) {
 			//Filter the Intent and register broadcast receiver
 			IntentFilter filter = new IntentFilter();
 			filter.addAction("SCActivity");
 			context.registerReceiver(receiver, filter);
-		}
-		else
+		} else
 			Log.w(TAG, "Registration failed - play api not initialized");
 	}
 
 	public static void unregisterActivityReceiver(BroadcastReceiver receiver, Context context) {
-		if(apiActivity)
+		if (apiActivity)
 			context.unregisterReceiver(receiver);
 	}
 
