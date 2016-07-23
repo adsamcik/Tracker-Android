@@ -51,8 +51,7 @@ public class MainActivity extends FragmentActivity {
 			startActivity(new Intent(this, IntroActivity.class));
 
 		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
-			PlayController.setActivity(this);
-			PlayController.initializeGamesClient(findViewById(R.id.container), getApplicationContext());
+			PlayController.initializeGamesClient(findViewById(R.id.container), this);
 			PlayController.initializeActivityClient(context);
 		}
 

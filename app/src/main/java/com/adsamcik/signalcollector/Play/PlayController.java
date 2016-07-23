@@ -18,16 +18,11 @@ public class PlayController {
 	public static final String TAG = "PLAY";
 
 	public static GoogleApiClient gapiActivityClient, gapiGamesClient;
-	public static Activity activity;
 	public static boolean apiActivity = false;
 	public static boolean apiGames = false;
 
 	public static ActivityController activityController;
 	public static GamesController gamesController;
-
-	public static void setActivity(Activity activity) {
-		PlayController.activity = activity;
-	}
 
 	public static boolean initializeActivityClient(Context context) {
 		if(isPlayServiceAvailable(context)) {
@@ -48,10 +43,10 @@ public class PlayController {
 		return false;
 	}
 
-	public static boolean initializeGamesClient(View v, Context context) {
-		if(isPlayServiceAvailable(context)) {
+	public static boolean initializeGamesClient(View v, Activity activity) {
+		if(isPlayServiceAvailable(activity)) {
 			gamesController = new GamesController(activity);
-			gapiGamesClient = new GoogleApiClient.Builder(context)
+			gapiGamesClient = new GoogleApiClient.Builder(activity)
 					.addApi(Games.API)
 					.addScope(Games.SCOPE_GAMES)
 					.addConnectionCallbacks(gamesController)

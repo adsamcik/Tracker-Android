@@ -92,8 +92,7 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
 		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable(getApplicationContext())) {
-			PlayController.setActivity(this);
-			PlayController.initializeGamesClient(findViewById(android.R.id.content), getApplicationContext());
+			PlayController.initializeGamesClient(findViewById(android.R.id.content), this);
 		}
 	}
 
