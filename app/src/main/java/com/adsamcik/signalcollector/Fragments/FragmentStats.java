@@ -19,7 +19,6 @@ import android.widget.TableRow;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
-import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Stat;
@@ -44,14 +43,14 @@ import cz.msebera.android.httpclient.Header;
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
-	public static int lastIndex = -1;
+	private static int lastIndex = -1;
 	private static long lastRequest = 0;
 	private final AsyncHttpClient client = new AsyncHttpClient();
 	private FragmentStats instance;
 	private View v;
 
 	//todo Improve stats updating
-	public final AsyncHttpResponseHandler userStatsResponseHandler = new AsyncHttpResponseHandler() {
+	private final AsyncHttpResponseHandler userStatsResponseHandler = new AsyncHttpResponseHandler() {
 		@Override
 		public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 			if(responseBody != null && responseBody.length > 0)
@@ -71,7 +70,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		}
 	};
-	public final AsyncHttpResponseHandler generalStatsResponseHandler = new AsyncHttpResponseHandler() {
+	private final AsyncHttpResponseHandler generalStatsResponseHandler = new AsyncHttpResponseHandler() {
 		@Override
 		public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
 			if(responseBody != null && responseBody.length > 0)
@@ -90,7 +89,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		}
 	};
 
-	public static TableLayout GenerateTableWithHeader(Context c, String title) {
+	private static TableLayout GenerateTableWithHeader(Context c, String title) {
 		TableLayout table = new TableLayout(c);
 		table.setPadding(0, 0, 0, 50);
 
@@ -104,7 +103,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		return table;
 	}
 
-	public static TableRow GenerateRow(Context c, int index, boolean showIndex, String id, String value) {
+	private static TableRow GenerateRow(Context c, int index, boolean showIndex, String id, String value) {
 		TableRow row = new TableRow(c);
 		row.setPadding(0, 0, 0, 20);
 
@@ -172,13 +171,13 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		return view;
 	}
 
-	public List<Stat> readJsonStream(InputStream in) throws IOException {
+	private List<Stat> readJsonStream(InputStream in) throws IOException {
 		try(JsonReader reader = new JsonReader(new InputStreamReader(in, "UTF-8"))) {
 			return readStatDataArray(reader);
 		}
 	}
 
-	public List<Stat> readStatDataArray(JsonReader reader) throws IOException {
+	private List<Stat> readStatDataArray(JsonReader reader) throws IOException {
 		List<Stat> l = new ArrayList<>();
 		reader.beginArray();
 		while(reader.hasNext())
@@ -187,7 +186,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		return l;
 	}
 
-	public Stat readStat(JsonReader reader) throws IOException {
+	private Stat readStat(JsonReader reader) throws IOException {
 		String name = null, type = null, className;
 		List<StatData> statData = null;
 		boolean showPosition = false;
@@ -217,7 +216,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		return new Stat(name, type, showPosition, statData);
 	}
 
-	public List<StatData> readData(JsonReader reader) throws IOException {
+	private List<StatData> readData(JsonReader reader) throws IOException {
 		String id = null, value = null;
 
 		List<StatData> data = new ArrayList<>();
@@ -246,7 +245,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		return data;
 	}
 
-	public void GenerateStatsTable(List<Stat> stats) {
+	private void GenerateStatsTable(List<Stat> stats) {
 		Context c = instance.getContext();
 
 		RelativeLayout ll = (RelativeLayout) v.findViewById(R.id.statsLayout);
@@ -276,7 +275,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		}
 	}
 
-	public void GenerateUserStatsTable(List<Stat> stats) {
+	private void GenerateUserStatsTable(List<Stat> stats) {
 		Context c = instance.getContext();
 
 		RelativeLayout ll = (RelativeLayout) v.findViewById(R.id.statsLayout);

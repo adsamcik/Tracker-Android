@@ -20,7 +20,6 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
-import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;

@@ -12,7 +12,6 @@ import android.util.Log;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 

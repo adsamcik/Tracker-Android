@@ -63,7 +63,7 @@ public class DataStore {
 	private static ICallback onUpload;
 
 
-	public static void onDataChanged() {
+	private static void onDataChanged() {
 		if (onDataChanged != null)
 			onDataChanged.onCallback();
 	}
