@@ -23,12 +23,14 @@ import com.loopj.android.http.RequestParams;
 import cz.msebera.android.httpclient.Header;
 
 public class GamesController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
-	static final int REQUEST_LEADERBOARD = 5989;
-	static final int REQUEST_ACHIEVEMENTS = 8955;
+	private final Activity activity;
+
+	private static final int REQUEST_LEADERBOARD = 5989;
+	private static final int REQUEST_ACHIEVEMENTS = 8955;
 	private static final int RC_SIGN_IN = 9001;
-	GoogleApiClient client;
-	final Activity activity;
-	Button button;
+
+	private GoogleApiClient client;
+	private Button button;
 	private boolean mResolvingConnectionFailure = false;
 
 	public GamesController(Activity a) {
