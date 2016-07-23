@@ -3,22 +3,21 @@ package com.adsamcik.signalcollector.play;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
-import com.adsamcik.signalcollector.BaseGameUtils;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
-import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.games.Games;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
+
+import java.lang.ref.WeakReference;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -28,7 +27,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	private static final int RC_SIGN_IN = 9001;
 
 	private GoogleApiClient client;
-	private Button button;
+	private WeakReference<Button> buttonWeakReference;
 
 	public GamesController setClient(GoogleApiClient client) {
 		this.client = client;
@@ -36,7 +35,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	}
 
 	public GamesController setUI(View v) {
-		button = (Button) v.findViewById(R.id.play_loginButton);
+		buttonWeakReference = new WeakReference<>((Button) v.findViewById(R.id.play_loginButton));
 		updateUI(client.isConnected());
 		return this;
 	}
@@ -64,14 +63,12 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	}
 
 	private void updateUI(boolean connected) {
-		if (connected) {
-			if (button != null) {
+		Button button = this.buttonWeakReference.get();
+		if (button != null) {
+			if (connected) {
 				button.setText(R.string.settings_playGamesLogout);
 				button.setTextColor(Color.rgb(255, 110, 110));
-
-			}
-		} else {
-			if (button != null) {
+			} else {
 				button.setText(R.string.settings_playGamesLogin);
 				button.setTextColor(Color.rgb(110, 255, 110));
 			}
