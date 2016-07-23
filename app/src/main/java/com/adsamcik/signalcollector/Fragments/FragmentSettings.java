@@ -132,7 +132,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		textView_PlayLog.setOnClickListener(v -> {
 			if (!PlayController.apiGames || !PlayController.isLogged())
-				PlayController.initializeGamesClient(rootView);
+				PlayController.initializeGamesClient(rootView, getActivity());
 			else {
 				textView_PlayLog.setText(R.string.settings_playGamesLogin);
 				PlayController.destroyGamesClient();
@@ -144,7 +144,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			if (PlayController.isLogged())
 				PlayController.gamesController.showAchievements();
 			else
-				PlayController.initializeGamesClient(rootView);
+				PlayController.initializeGamesClient(rootView, getActivity());
 		});
 
 		/*rootView.findViewById(R.id.ib_leaderboards).setOnClickListener(new View.OnClickListener() {

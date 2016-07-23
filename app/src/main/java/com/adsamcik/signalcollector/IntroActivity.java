@@ -36,7 +36,7 @@ public class IntroActivity extends AppIntro2 {
 		}
 		addSlide(AppIntro2Fragment.newInstance("Automatic tracking and uploading", "As long as all background services are running, the app can manage tracking and uploading by itself. You can change this in settings.", R.drawable.ic_satellite_24dp, Color.parseColor("#3E77C1")));
 		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, IMEI (device identification), device manufacturer and model, time, android version", R.drawable.ic_attachment_24dp, Color.parseColor("#3E89C6")));
-		if (PlayController.isPlayServiceAvailable())
+		if (PlayController.isPlayServiceAvailable(getApplicationContext()))
 			addSlide(AppIntro2Fragment.newInstance("Google Play Games", "If you login to google play games, you will have access to achievements and personal stats.", R.drawable.ic_games_controller, Color.parseColor("#3D9CCC")));
 
 		// Hide Skip/Done button.
@@ -91,10 +91,9 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
-		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable()) {
-			PlayController.setContext(getApplicationContext());
+		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable(getApplicationContext())) {
 			PlayController.setActivity(this);
-			PlayController.initializeGamesClient(findViewById(android.R.id.content));
+			PlayController.initializeGamesClient(findViewById(android.R.id.content), getApplicationContext());
 		}
 	}
 

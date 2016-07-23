@@ -50,14 +50,10 @@ public class MainActivity extends FragmentActivity {
 		if (!Setting.getPreferences(context).getBoolean(Setting.HAS_BEEN_LAUNCHED, false))
 			startActivity(new Intent(this, IntroActivity.class));
 
-		PlayController.setContext(context);
-		PlayController.setActivity(this);
-
 		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
-			PlayController.setContext(context);
 			PlayController.setActivity(this);
-			PlayController.initializeGamesClient(findViewById(R.id.container));
-			PlayController.initializeActivityClient();
+			PlayController.initializeGamesClient(findViewById(R.id.container), getApplicationContext());
+			PlayController.initializeActivityClient(context);
 		}
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
