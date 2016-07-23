@@ -20,10 +20,6 @@ public class TouchWrapper extends FrameLayout {
 		super(context, attrs, defStyleAttr);
 	}
 
-	public TouchWrapper(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-		super(context, attrs, defStyleAttr, defStyleRes);
-	}
-
 	public boolean getTouchDown() {
 		boolean touched = mMapIsTouched;
 		mMapIsTouched = false;
