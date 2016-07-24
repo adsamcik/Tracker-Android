@@ -89,7 +89,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
-		mSharedPreferences = Setting.getPreferences();
+		mSharedPreferences = Setting.getPreferences(getActivity());
 		final Resources resources = getResources();
 
 		Context c;

@@ -43,18 +43,17 @@ public class MainActivity extends FragmentActivity {
 	protected void onStart() {
 		super.onStart();
 		Context context = getApplicationContext();
-		if (!Setting.getPreferences(context).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
+		Setting.initializeSharedPreferences(context);
+
+		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			startActivity(new Intent(this, IntroActivity.class));
 			return;
 		}
 		setContentView(R.layout.activity_main);
 		DataStore.setContext(context);
-		Setting.initializeSharedPreferences(context);
 
-		if (Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
-			PlayController.initializeGamesClient(findViewById(R.id.container), this);
-			PlayController.initializeActivityClient(this);
-		}
+		PlayController.initializeGamesClient(findViewById(R.id.container), this);
+		PlayController.initializeActivityClient(this);
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25 - 16));
