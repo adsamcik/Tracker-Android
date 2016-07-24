@@ -13,14 +13,14 @@ import com.google.firebase.crash.FirebaseCrash;
 import java.nio.charset.Charset;
 
 public class UploadService extends JobService {
-	Thread thread;
+	private Thread thread;
 
 	/**
 	 *
 	 * @param background background upload
 	 * @return true if started
 	 */
-	public boolean upload(final boolean background) {
+	private boolean upload(final boolean background) {
 		DataStore.setContext(getApplicationContext());
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
@@ -77,7 +77,7 @@ public class UploadService extends JobService {
 		return false;
 	}
 
-	boolean canStart(boolean background) {
+	private boolean canStart(boolean background) {
 		Context c = getApplicationContext();
 		return Extensions.canUpload(c, background);
 	}
