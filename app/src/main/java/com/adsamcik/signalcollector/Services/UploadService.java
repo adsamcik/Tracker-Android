@@ -83,7 +83,6 @@ public class UploadService extends JobService {
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		Log.d("TAG", "ServiceStarted");
 		return upload(jobParameters.getExtras().getInt(DataStore.KEY_IS_AUTOUPLOAD) == 1);
 	}
 
@@ -92,7 +91,6 @@ public class UploadService extends JobService {
 		if (thread != null && thread.isAlive())
 			thread.interrupt();
 		DataStore.cleanup();
-		//FirebaseCrash.report(new Throwable("Job canceled"));
 		return false;
 	}
 }
