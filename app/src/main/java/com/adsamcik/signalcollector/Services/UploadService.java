@@ -52,7 +52,6 @@ public class UploadService extends JobService {
 							builder.setCharAt(0, '[');
 							builder.append(']');
 						}
-						Log.d("TAG", "start " + canStart(background));
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
 						if (canStart(background))
 							DataStore.upload(builder.toString(), fileName, size, background);
