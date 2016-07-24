@@ -16,7 +16,6 @@ public class UploadService extends JobService {
 	private Thread thread;
 
 	/**
-	 *
 	 * @param background background upload
 	 * @return true if started
 	 */
@@ -45,8 +44,9 @@ public class UploadService extends JobService {
 						StringBuilder builder = DataStore.loadStringAsBuilder(fileName);
 
 						if (builder == null || builder.length() == 0) {
-							Log.e(DataStore.TAG, "File " + fileName + " did not exist or was empty. This should not happen.");
-							FirebaseCrash.report(new Exception("File " + fileName + " did not exist or was empty. This should not happen."));
+							String issue = builder == null ? "does not exist" : "is empty";
+							Log.e(DataStore.TAG, "File " + fileName + " " + issue + ". This should not happen.");
+							FirebaseCrash.report(new Exception("File " + fileName + " " + issue + ". This should not happen."));
 							continue;
 						} else {
 							builder.setCharAt(0, '[');

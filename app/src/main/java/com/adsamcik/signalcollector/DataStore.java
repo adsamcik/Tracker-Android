@@ -402,10 +402,8 @@ public class DataStore {
 	 * @return content of file as StringBuilder
 	 */
 	public static StringBuilder loadStringAsBuilder(String fileName) {
-		if (!exists(fileName)) {
-			Log.e(TAG, "file " + fileName + " does not exist");
+		if (!exists(fileName))
 			return null;
-		}
 
 		try {
 			FileInputStream fis = getContext().openFileInput(fileName);
