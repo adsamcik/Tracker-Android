@@ -45,8 +45,8 @@ public class UploadService extends JobService {
 						StringBuilder builder = DataStore.loadStringAsBuilder(fileName);
 
 						if (builder == null || builder.length() == 0) {
-							Log.e(DataStore.TAG, "File" + fileName + " did not exist or was empty. This should not happen.");
-							FirebaseCrash.report(new Exception("File" + fileName + " did not exist or was empty. This should not happen."));
+							Log.e(DataStore.TAG, "File " + fileName + " did not exist or was empty. This should not happen.");
+							FirebaseCrash.report(new Exception("File " + fileName + " did not exist or was empty. This should not happen."));
 							continue;
 						} else {
 							builder.setCharAt(0, '[');
