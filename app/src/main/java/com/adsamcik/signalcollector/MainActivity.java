@@ -42,28 +42,27 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onStart() {
 		super.onStart();
-		Context context = getApplicationContext();
-		Setting.initializeSharedPreferences(context);
+		Setting.initializeSharedPreferences(this);
 
 		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
 			startActivity(new Intent(this, IntroActivity.class));
 			return;
 		}
 		setContentView(R.layout.activity_main);
-		DataStore.setContext(context);
+		DataStore.setContext(this);
 
 		PlayController.initializeGamesClient(findViewById(R.id.container), this);
 		PlayController.initializeActivityClient(this);
 
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(context) : 0) + Extensions.dpToPx(context, 25 - 16));
+		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(this) : 0) + Extensions.dpToPx(this, 25 - 16));
 		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
 
 
-		Extensions.initialize(context);
+		Extensions.initialize(this);
 
-		if (Setting.getPreferences(context).getBoolean(Setting.SCHEDULED_UPLOAD, false))
-			DataStore.requestUpload(context, true);
+		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
+			DataStore.requestUpload(this, true);
 
 		DataStore.getDataFileNames(true);
 
