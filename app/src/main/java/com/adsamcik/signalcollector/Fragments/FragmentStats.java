@@ -40,7 +40,6 @@ import cz.msebera.android.httpclient.Header;
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
-	private static int lastIndex = -1;
 	private static long lastRequest = 0;
 	private final AsyncHttpClient client = new AsyncHttpClient();
 	private View view;
