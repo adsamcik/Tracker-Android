@@ -157,68 +157,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		List<Stat> l = new ArrayList<>();
 		reader.beginArray();
 		while (reader.hasNext())
-			l.add(readStat(reader));
+			l.add(new Stat(reader));
 		reader.endArray();
 		return l;
-	}
-
-	private Stat readStat(JsonReader reader) throws IOException {
-		String name = null, type = null, className;
-		List<StatData> statData = null;
-		boolean showPosition = false;
-
-		reader.beginObject();
-		while (reader.hasNext()) {
-			className = reader.nextName();
-			switch (className) {
-				case "name":
-					name = reader.nextString();
-					break;
-				case "type":
-					type = reader.nextString();
-					break;
-				case "showPosition":
-					showPosition = reader.nextBoolean();
-					break;
-				case "data":
-					statData = readData(reader);
-					break;
-				default:
-					reader.skipValue();
-					break;
-			}
-		}
-		reader.endObject();
-		return new Stat(name, type, showPosition, statData);
-	}
-
-	private List<StatData> readData(JsonReader reader) throws IOException {
-		String id = null, value = null;
-
-		List<StatData> data = new ArrayList<>();
-
-		reader.beginArray();
-		while (reader.hasNext()) {
-			reader.beginObject();
-			while (reader.hasNext()) {
-				String name = reader.nextName();
-				switch (name) {
-					case "id":
-						id = reader.nextString();
-						break;
-					case "value":
-						value = reader.nextString();
-						break;
-					default:
-						reader.skipValue();
-				}
-			}
-			reader.endObject();
-			data.add(new StatData(id, value));
-		}
-		reader.endArray();
-
-		return data;
 	}
 }
 
