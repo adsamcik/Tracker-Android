@@ -136,7 +136,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.setTitle("This week");
 		weeklyStats.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
 		weeklyStats.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
-		weeklyStats.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
+		weeklyStats.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0)));
 
 		return true;
 	}
