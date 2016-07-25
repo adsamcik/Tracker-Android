@@ -18,7 +18,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:tabGravity="fill"
-            app:tabMode="fixed" />
+            app:tabMode="fixed"
+            app:tabIndicatorColor="@color/textPrimary"/>
     </android.support.design.widget.AppBarLayout>
 
     <android.support.v4.view.ViewPager
