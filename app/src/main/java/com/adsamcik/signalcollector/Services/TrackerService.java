@@ -118,19 +118,29 @@ public class TrackerService extends Service implements SensorEventListener {
 			d.setWifi(wifiScanData, wifiScanTime);
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		if(sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
+		SharedPreferences.Editor spe = sp.edit();
+		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
 			wifiScanPos = location;
 		}
 
-		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
+		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this)) {
 			d.setCell(telephonyManager.getNetworkOperator(), telephonyManager.getAllCellInfo());
+			spe.putInt(Setting.STATS_CELL_FOUND, sp.getInt(Setting.STATS_CELL_FOUND, 0) + d.cell.length);
+		}
 
-		if(sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
+		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
 		d.setLocation(location).setActivity(currentActivity);
-		if (wifiScanData != null)
+
+		if (wifiScanData != null) {
 			d.setWifi(wifiScanData, wifiScanTime);
+			spe.putInt(Setting.STATS_WIFI_FOUND, sp.getInt(Setting.STATS_WIFI_FOUND, 0) + wifiScanData.length);
+		}
+
+		spe.putInt(Setting.STATS_LOCATIONS_FOUND, sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0) + 1);
+
+		spe.apply();
 
 		data.add(d);
 		dataEcho = d;
@@ -138,7 +148,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
 
 		notificationManager.notify(1, generateNotification(true, d));
-		if(onNewDataFound != null)
+		if (onNewDataFound != null)
 			onNewDataFound.onCallback();
 
 		if (data.size() > 10)
