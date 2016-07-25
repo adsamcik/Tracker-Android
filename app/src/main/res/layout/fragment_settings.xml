@@ -42,7 +42,8 @@
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textSecondary"
+                android:contentDescription="@string/autotracking_disabled_description"/>
 
             <ImageView
                 android:id="@+id/tracking_onfoot"
@@ -51,7 +52,8 @@
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/tracking_none"
                 android:src="@drawable/ic_directions_walk_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textSecondary"
+                android:contentDescription="@string/autotracking_onfoot_description"/>
 
             <ImageView
                 android:id="@+id/tracking_always"
@@ -60,7 +62,8 @@
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/tracking_onfoot"
                 android:src="@drawable/ic_directions_car_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textSecondary"
+                android:contentDescription="@string/autotracking_onfootvehicle_description"/>
         </RelativeLayout>
 
         <TextView
@@ -92,7 +95,8 @@
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textSecondary"
+                android:contentDescription="@string/autoupload_disabled_description"/>
 
             <ImageView
                 android:id="@+id/autoupload_wifi"
@@ -101,7 +105,8 @@
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/autoupload_disabled"
                 android:src="@drawable/ic_network_wifi_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textSecondary"
+                android:contentDescription="@string/autoupload_wifi_description"/>
 
             <ImageView
                 android:id="@+id/autoupload_always"
@@ -110,7 +115,8 @@
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/autoupload_wifi"
                 android:src="@drawable/ic_autorenew_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textSecondary"
+                android:contentDescription="@string/autoupload_always_description"/>
         </RelativeLayout>
 
         <TextView

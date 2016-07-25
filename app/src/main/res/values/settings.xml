@@ -6,12 +6,18 @@
         <item>On foot</item>
         <item>On foot or in vehicle</item>
     </string-array>
+    <string name="autotracking_disabled_description">Automatic tracking disabled</string>
+    <string name="autotracking_onfoot_description">Automatic tracking enabled on foot</string>
+    <string name="autotracking_onfootvehicle_description">Automatic tracking enabled in car and on foot</string>
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
         <item>Disabled</item>
         <item>Wifi only</item>
         <item>Always</item>
     </string-array>
+    <string name="autoupload_disabled_description">Automatic upload disabled</string>
+    <string name="autoupload_wifi_description">Automatic upload enabled on wifi</string>
+    <string name="autoupload_always_description">Automatic upload enabled on cellular and wifi networks</string>
     <string name="settings_playGames">Account</string>
     <string name="settings_playGamesLogin">Login</string>
     <string name="settings_playGamesLogout">Logout</string>
