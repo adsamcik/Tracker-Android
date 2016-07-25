@@ -75,51 +75,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		}
 	};
 
-	private TableLayout GenerateTableWithHeader(Context c, String title) {
-		TableLayout table = new TableLayout(c);
-		Resources r = getResources();
-		int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
-		table.setPadding(hPadding, 30, hPadding, 30);
-		table.setBackgroundColor(ContextCompat.getColor(getActivity(), R.color.cardBackground));
-		table.setElevation(r.getDimension(R.dimen.main_card_elevation));
-
-		TextView label = new TextView(c);
-		label.setTextSize(18);
-		label.setText(title);
-		label.setTypeface(null, Typeface.BOLD);
-		label.setGravity(Gravity.CENTER);
-		label.setPadding(0, 0, 0, 30);
-		table.addView(label);
-		return table;
-	}
-
-	private TableRow GenerateRow(Context c, int index, boolean showIndex, String id, String value) {
-		TableRow row = new TableRow(c);
-		row.setPadding(0, 0, 0, 20);
-
-		if (showIndex) {
-			TextView rowNum = new TextView(c);
-			rowNum.setText(String.format(Locale.UK, "%d", index));
-			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
-			rowNum.setTextSize(15);
-			row.addView(rowNum);
-		}
-
-		TextView textId = new TextView(c);
-		textId.setText(id);
-		textId.setTextSize(15);
-		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 5f));
-		row.addView(textId);
-
-		TextView textValue = new TextView(c);
-		textValue.setText(value);
-		textValue.setTextSize(15);
-		textValue.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f));
-		textValue.setGravity(Gravity.END);
-		row.addView(textValue);
-		return row;
-	}
-
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -148,6 +103,48 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			}
 		}
 		return view;
+	}
+
+	private void GenerateStatsTable(List<Stat> stats) {
+		Context c = getContext();
+		Resources r = getResources();
+		int vPadding = (int) r.getDimension(R.dimen.activity_vertical_margin);
+		RelativeLayout ll = (RelativeLayout) v.findViewById(R.id.statsLayout);
+		for (int i = 0; i < stats.size(); i++) {
+			Stat s = stats.get(i);
+			Table table = new Table(c, s.statData.size(), s.showPosition);
+			table.setTitle(s.name);
+			for (int y = 0; y < s.statData.size(); y++) {
+				StatData sd = s.statData.get(y);
+				table.addRow().addData(sd.id, sd.value);
+			}
+
+			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+					RelativeLayout.LayoutParams.MATCH_PARENT,
+					RelativeLayout.LayoutParams.WRAP_CONTENT);
+
+			lp.topMargin = vPadding;
+
+			if (lastIndex >= 0)
+				lp.addRule(RelativeLayout.BELOW, lastIndex);
+
+			lastIndex = View.generateViewId();
+			table.getLayout().setId(lastIndex);
+			ll.addView(table.getLayout(), lp);
+		}
+	}
+
+	@Override
+	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		//todo check if up to date
+		fabOne.hide();
+		fabTwo.hide();
+		return true;
+	}
+
+	@Override
+	public void onLeave() {
+
 	}
 
 	private List<Stat> readJsonStream(InputStream in) throws IOException {
@@ -222,52 +219,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		reader.endArray();
 
 		return data;
-	}
-
-	private void GenerateStatsTable(List<Stat> stats) {
-		Context c = getContext();
-		Resources r = getResources();
-		int vPadding = (int) r.getDimension(R.dimen.activity_vertical_margin);
-		RelativeLayout ll = (RelativeLayout) v.findViewById(R.id.statsLayout);
-		for (int i = 0; i < stats.size(); i++) {
-			Stat s = stats.get(i);
-			Table table = new Table(c, s.statData.size(), s.showPosition);
-			table.setTitle(s.name);
-			for (int y = 0; y < s.statData.size(); y++) {
-				StatData sd = s.statData.get(y);
-				table.addRow().addData(sd.id, sd.value);
-			}
-
-			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
-					RelativeLayout.LayoutParams.MATCH_PARENT,
-					RelativeLayout.LayoutParams.WRAP_CONTENT);
-
-			lp.topMargin = vPadding;
-
-			if (lastIndex >= 0) {
-				lp.addRule(RelativeLayout.BELOW, lastIndex);
-				//Log.d("test", "id " + ll.getChildAt(i - 1).getId());
-			}
-
-			lastIndex = View.generateViewId();
-			table.getLayout().setId(lastIndex);
-			//table.setLayoutParams(lp);
-			ll.addView(table.getLayout(), lp);
-			//previous = table;
-		}
-	}
-
-	@Override
-	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		//todo check if up to date
-		fabOne.hide();
-		fabTwo.hide();
-		return true;
-	}
-
-	@Override
-	public void onLeave() {
-
 	}
 }
 
