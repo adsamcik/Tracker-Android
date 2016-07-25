@@ -98,7 +98,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		}
 
 		weeklyStats = new Table(getContext(), 4, false);
-		((LinearLayout) this.view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout());
+		((LinearLayout) this.view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
 
 		return view;
 	}
