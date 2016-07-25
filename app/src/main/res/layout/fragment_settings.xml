@@ -5,7 +5,7 @@
             android:overScrollMode="never"
             android:scrollbars="none">
 
-    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -26,7 +26,6 @@
             android:id="@+id/tracking_description"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/tracking_title"
             android:gravity="center"
             android:textColor="@color/colorPrimary"
             android:textSize="@dimen/setting_text_size"/>
@@ -35,7 +34,6 @@
             android:id="@+id/tracking_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/tracking_description"
             android:gravity="center">
 
             <ImageView
@@ -69,7 +67,6 @@
             android:id="@+id/autoupload_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/tracking_layout"
             android:paddingTop="15dp"
             android:text="@string/settings_automaticUpload"
             android:textColor="@color/textSecondary"
@@ -79,7 +76,6 @@
             android:id="@+id/autoupload_description"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/autoupload_title"
             android:gravity="center"
             android:textColor="@color/colorPrimary"
             android:textSize="@dimen/setting_text_size"/>
@@ -88,7 +84,6 @@
             android:id="@+id/autoupload_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/autoupload_description"
             android:gravity="center">
 
             <ImageView
@@ -122,7 +117,6 @@
             android:id="@+id/play_loginTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/autoupload_layout"
             android:paddingTop="15dp"
             android:text="@string/settings_playGames"
             android:textColor="@color/textSecondary"
@@ -131,7 +125,6 @@
         <Button
             android:id="@+id/play_loginButton"
             style="@style/SettingsButton"
-            android:layout_below="@id/play_loginTitle"
             android:text="@string/settings_playGamesLogin"
             android:textSize="@dimen/setting_text_size"
             />
@@ -139,13 +132,11 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="3dp"
-            android:layout_below="@id/play_loginButton"
             android:background="@color/cardBackground"/>
 
         <Button
             android:id="@+id/play_achievements"
             style="@style/SettingsButton"
-            android:layout_below="@+id/play_loginButton"
             android:text="@string/achievements"
             android:textSize="@dimen/setting_text_size"/>
 
@@ -154,7 +145,6 @@
             android:id="@+id/tracker_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/play_achievements"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track"
@@ -165,8 +155,6 @@
             android:id="@+id/switchTrackWifi"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/tracker_title"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:textSize="@dimen/setting_text_size"
@@ -177,8 +165,6 @@
             android:id="@+id/switchTrackCell"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@id/switchTrackWifi"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:textSize="@dimen/setting_text_size"
@@ -188,8 +174,6 @@
             android:id="@+id/switchTrackPressure"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/switchTrackCell"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:textSize="@dimen/setting_text_size"
@@ -199,8 +183,6 @@
             android:id="@+id/switchTrackNoise"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/switchTrackPressure"
             android:enabled="false"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
@@ -211,7 +193,6 @@
             android:id="@+id/other_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/switchTrackNoise"
             android:paddingTop="15dp"
             android:text="@string/other"
             android:textColor="@color/textSecondary"
@@ -220,7 +201,6 @@
         <Button
             android:id="@+id/other_clear"
             style="@style/SettingsButton"
-            android:layout_below="@+id/other_title"
             android:backgroundTint="@color/colorAccent"
             android:text="@string/settings_clear"
             android:textSize="@dimen/setting_text_size"
@@ -230,8 +210,7 @@
             android:id="@+id/versionNum"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/other_clear"
             android:paddingTop="15dp"
             android:textSize="@dimen/setting_text_size"/>
-    </RelativeLayout>
+    </LinearLayout>
 </ScrollView>
