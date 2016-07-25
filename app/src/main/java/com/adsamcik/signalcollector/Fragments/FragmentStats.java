@@ -36,6 +36,7 @@ import java.util.Calendar;
 import java.util.List;
 
 import cz.msebera.android.httpclient.Header;
+import cz.msebera.android.httpclient.client.cache.Resource;
 
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
@@ -127,11 +128,13 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			sp.edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
 		}
 
+		Resources r = getResources();
+
 		weeklyStats.clear();
-		weeklyStats.setTitle("This week");
-		weeklyStats.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
-		weeklyStats.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
-		weeklyStats.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0)));
+		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0)));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
 
 		return true;
 	}
