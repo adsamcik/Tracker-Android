@@ -17,7 +17,7 @@ public class Setting {
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
 
 	//Local tracking stats
-	public static final String STATS_STAT_DAY = "statsStatDay";
+	public static final String STATS_STAT_WEEK = "statsStatWeek";
 	public static final String STATS_WIFI_FOUND = "statsWifiFound";
 	public static final String STATS_CELL_FOUND = "statsCellFound";
 	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";

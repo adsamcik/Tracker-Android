@@ -93,7 +93,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		SharedPreferences sp = Setting.getPreferences(getContext());
 		Table table = new Table(getContext(), 4, false);
-		table.setTitle("Today");
+		table.setTitle("This week");
 		table.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
 		table.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
 		table.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));

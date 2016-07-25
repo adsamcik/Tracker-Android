@@ -119,6 +119,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
 		SharedPreferences.Editor spe = sp.edit();
+
 		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
 			wifiScanPos = location;
@@ -301,6 +302,10 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
+
+		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) == Setting.getPreferences(appContext).getInt(Setting.STATS_STAT_WEEK, -1)) {
+			Setting.getPreferences(appContext).edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
+		}
 	}
 
 	@Override
