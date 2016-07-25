@@ -41,6 +41,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -92,6 +93,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		long diff = time - lastRequest;
 
 		SharedPreferences sp = Setting.getPreferences(getContext());
+
+		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) == sp.getInt(Setting.STATS_STAT_WEEK, -1)) {
+			sp.edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
+		}
+
 		Table table = new Table(getContext(), 4, false);
 		table.setTitle("This week");
 		table.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
