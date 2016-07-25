@@ -232,11 +232,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
 			Table table = new Table(c, s.statData.size(), s.showPosition);
-
+			table.setTitle(s.name);
 			for (int y = 0; y < s.statData.size(); y++) {
 				StatData sd = s.statData.get(y);
 				table.addRow();
-				table.setTitle(s.name).addData(sd.id, sd.value);
+				table.addData(sd.id, sd.value);
 			}
 
 			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
