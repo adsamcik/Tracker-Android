@@ -4,23 +4,16 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
 import android.util.JsonReader;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
-import android.widget.TableLayout;
-import android.widget.TableRow;
-import android.widget.TextView;
 
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Network;
@@ -30,10 +23,8 @@ import com.adsamcik.signalcollector.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.play.PlayController;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
-import com.loopj.android.http.RequestParams;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -43,11 +34,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 import cz.msebera.android.httpclient.Header;
-import cz.msebera.android.httpclient.client.cache.Resource;
 
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
@@ -55,7 +43,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private static int lastIndex = -1;
 	private static long lastRequest = 0;
 	private final AsyncHttpClient client = new AsyncHttpClient();
-	private View v;
+	private View view;
 
 	//todo add user stats
 	//todo add last day stats
@@ -86,7 +74,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		View view = inflater.inflate(R.layout.fragment_stats, container, false);
 
 		//todo show notification when offline to let know that the stats might be outdated
-		v = view;
+		this.view = view;
 		long time = System.currentTimeMillis();
 		time -= time % 600000;
 		time += 120000;
@@ -103,7 +91,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		table.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
 		table.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
 		table.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
-		((LinearLayout) v.findViewById(R.id.statsLayout)).addView(table.getLayout());
+		((LinearLayout) this.view.findViewById(R.id.statsLayout)).addView(table.getLayout());
 
 		//todo show local device stats
 		if (diff > 600000) {
@@ -126,7 +114,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private void GenerateStatsTable(List<Stat> stats) {
 		Context c = getContext();
 		Resources r = getResources();
-		LinearLayout ll = (LinearLayout) v.findViewById(R.id.statsLayout);
+		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
 			Table table = new Table(c, s.statData.size(), s.showPosition);
