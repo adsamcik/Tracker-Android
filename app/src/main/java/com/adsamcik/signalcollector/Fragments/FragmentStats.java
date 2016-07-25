@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -15,6 +16,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
@@ -23,6 +25,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
@@ -40,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import cz.msebera.android.httpclient.Header;
 import cz.msebera.android.httpclient.client.cache.Resource;
@@ -87,6 +91,14 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		time += 120000;
 		long diff = time - lastRequest;
 
+		SharedPreferences sp = Setting.getPreferences(getContext());
+		Table table = new Table(getContext(), 4, false);
+		table.setTitle("Today");
+		table.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
+		table.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
+		table.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
+		((LinearLayout) v.findViewById(R.id.statsLayout)).addView(table.getLayout());
+
 		//todo show local device stats
 		if (diff > 600000) {
 			client.get(Network.URL_STATS, null, generalStatsResponseHandler);
@@ -108,8 +120,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private void GenerateStatsTable(List<Stat> stats) {
 		Context c = getContext();
 		Resources r = getResources();
-		int vPadding = (int) r.getDimension(R.dimen.activity_vertical_margin);
-		RelativeLayout ll = (RelativeLayout) v.findViewById(R.id.statsLayout);
+		LinearLayout ll = (LinearLayout) v.findViewById(R.id.statsLayout);
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
 			Table table = new Table(c, s.statData.size(), s.showPosition);
@@ -118,19 +129,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				StatData sd = s.statData.get(y);
 				table.addRow().addData(sd.id, sd.value);
 			}
-
-			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
-					RelativeLayout.LayoutParams.MATCH_PARENT,
-					RelativeLayout.LayoutParams.WRAP_CONTENT);
-
-			lp.topMargin = vPadding;
-
-			if (lastIndex >= 0)
-				lp.addRule(RelativeLayout.BELOW, lastIndex);
-
-			lastIndex = View.generateViewId();
-			table.getLayout().setId(lastIndex);
-			ll.addView(table.getLayout(), lp);
+			ll.addView(table.getLayout());
 		}
 	}
 

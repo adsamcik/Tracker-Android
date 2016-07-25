@@ -40,6 +40,10 @@ public class Table {
 		layout.setPadding(hPadding, 30, hPadding, 30);
 		layout.setBackgroundColor(ContextCompat.getColor(context, R.color.cardBackground));
 		layout.setElevation(r.getDimension(R.dimen.main_card_elevation));
+
+		TableLayout.LayoutParams lp = new TableLayout.LayoutParams();
+		lp.topMargin = (int)r.getDimension(R.dimen.activity_vertical_margin);
+		layout.setLayoutParams(lp);
 	}
 
 	public Table setTitle(String title) {
