@@ -106,7 +106,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void GenerateStatsTable(List<Stat> stats) {
 		Context c = getContext();
-		Resources r = getResources();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
