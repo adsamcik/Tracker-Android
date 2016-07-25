@@ -6,13 +6,13 @@
             android:scrollbars="none">
 
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="@dimen/activity_vertical_margin"
-                    android:paddingLeft="@dimen/activity_horizontal_margin"
-                    android:paddingRight="@dimen/activity_horizontal_margin"
-                    android:paddingBottom="@dimen/navbar_height">
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:paddingBottom="@dimen/navbar_height"
+                  android:paddingLeft="@dimen/activity_horizontal_margin"
+                  android:paddingRight="@dimen/activity_horizontal_margin"
+                  android:paddingTop="@dimen/activity_vertical_margin">
 
         <TextView
             android:id="@+id/tracking_title"
@@ -41,9 +41,9 @@
                 android:layout_width="50dp"
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
+                android:contentDescription="@string/autotracking_disabled_description"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textSecondary"
-                android:contentDescription="@string/autotracking_disabled_description"/>
+                android:tint="@color/textSecondary"/>
 
             <ImageView
                 android:id="@+id/tracking_onfoot"
@@ -51,9 +51,9 @@
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/tracking_none"
+                android:contentDescription="@string/autotracking_onfoot_description"
                 android:src="@drawable/ic_directions_walk_black_24dp"
-                android:tint="@color/textSecondary"
-                android:contentDescription="@string/autotracking_onfoot_description"/>
+                android:tint="@color/textSecondary"/>
 
             <ImageView
                 android:id="@+id/tracking_always"
@@ -61,9 +61,9 @@
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/tracking_onfoot"
+                android:contentDescription="@string/autotracking_onfootvehicle_description"
                 android:src="@drawable/ic_directions_car_black_24dp"
-                android:tint="@color/textSecondary"
-                android:contentDescription="@string/autotracking_onfootvehicle_description"/>
+                android:tint="@color/textSecondary"/>
         </RelativeLayout>
 
         <TextView
@@ -94,9 +94,9 @@
                 android:layout_width="50dp"
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
+                android:contentDescription="@string/autoupload_disabled_description"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textSecondary"
-                android:contentDescription="@string/autoupload_disabled_description"/>
+                android:tint="@color/textSecondary"/>
 
             <ImageView
                 android:id="@+id/autoupload_wifi"
@@ -104,9 +104,9 @@
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/autoupload_disabled"
+                android:contentDescription="@string/autoupload_wifi_description"
                 android:src="@drawable/ic_network_wifi_24dp"
-                android:tint="@color/textSecondary"
-                android:contentDescription="@string/autoupload_wifi_description"/>
+                android:tint="@color/textSecondary"/>
 
             <ImageView
                 android:id="@+id/autoupload_always"
@@ -114,9 +114,9 @@
                 android:layout_height="50dp"
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/autoupload_wifi"
+                android:contentDescription="@string/autoupload_always_description"
                 android:src="@drawable/ic_autorenew_black_24dp"
-                android:tint="@color/textSecondary"
-                android:contentDescription="@string/autoupload_always_description"/>
+                android:tint="@color/textSecondary"/>
         </RelativeLayout>
 
         <TextView
@@ -163,8 +163,8 @@
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:textSize="@dimen/setting_text_size"
-            android:text="@string/settings_track_wifi"/>
+            android:text="@string/settings_track_wifi"
+            android:textSize="@dimen/setting_text_size"/>
 
 
         <Switch
@@ -173,8 +173,8 @@
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:textSize="@dimen/setting_text_size"
-            android:text="@string/settings_track_cell"/>
+            android:text="@string/settings_track_cell"
+            android:textSize="@dimen/setting_text_size"/>
 
         <Switch
             android:id="@+id/switchTrackPressure"
@@ -182,8 +182,8 @@
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:textSize="@dimen/setting_text_size"
-            android:text="@string/settings_track_pressure"/>
+            android:text="@string/settings_track_pressure"
+            android:textSize="@dimen/setting_text_size"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
@@ -192,8 +192,8 @@
             android:enabled="false"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:textSize="@dimen/setting_text_size"
-            android:text="@string/settings_track_noise"/>
+            android:text="@string/settings_track_noise"
+            android:textSize="@dimen/setting_text_size"/>
 
         <TextView
             android:id="@+id/other_title"
