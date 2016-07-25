@@ -15,16 +15,11 @@ android {
         }
     }
     buildTypes {
-        release {
+        release_nominify {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            jackOptions {
-                enabled true
-            }
         }
-        release_jack {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt')
+        release {
+            minifyEnabled true
         }
     }
     compileOptions {
