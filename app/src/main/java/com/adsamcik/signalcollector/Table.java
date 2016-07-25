@@ -42,7 +42,7 @@ public class Table {
 		layout.setElevation(r.getDimension(R.dimen.main_card_elevation));
 
 		TableLayout.LayoutParams lp = new TableLayout.LayoutParams();
-		lp.topMargin = (int)r.getDimension(R.dimen.activity_vertical_margin);
+		lp.topMargin = (int) r.getDimension(R.dimen.activity_vertical_margin);
 		layout.setLayoutParams(lp);
 	}
 
@@ -96,6 +96,12 @@ public class Table {
 		textValue.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f));
 		textValue.setGravity(Gravity.END);
 		row.addView(textValue);
+		return this;
+	}
+
+	public Table clear() {
+		layout.removeAllViewsInLayout();
+		rows.clear();
 		return this;
 	}
 

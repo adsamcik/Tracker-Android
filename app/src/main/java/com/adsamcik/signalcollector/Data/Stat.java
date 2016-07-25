@@ -12,6 +12,7 @@ public class Stat {
 	public final boolean showPosition;
 	public final List<StatData> statData;
 
+
 	public Stat(String name, String type, boolean showPosition, List<StatData> statData) {
 		this.name = name;
 		this.type = type;

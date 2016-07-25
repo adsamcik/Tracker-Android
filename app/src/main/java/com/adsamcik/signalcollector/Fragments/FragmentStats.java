@@ -45,6 +45,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private final AsyncHttpClient client = new AsyncHttpClient();
 	private View view;
 
+	private Table weeklyStats;
+
 	//todo add user stats
 	//todo add last day stats
 
@@ -80,19 +82,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		time += 120000;
 		long diff = time - lastRequest;
 
-		SharedPreferences sp = Setting.getPreferences(getContext());
-
-		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) == sp.getInt(Setting.STATS_STAT_WEEK, -1)) {
-			sp.edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
-		}
-
-		Table table = new Table(getContext(), 4, false);
-		table.setTitle("This week");
-		table.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
-		table.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
-		table.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
-		((LinearLayout) this.view.findViewById(R.id.statsLayout)).addView(table.getLayout());
-
 		//todo show local device stats
 		if (diff > 600000) {
 			client.get(Network.URL_STATS, null, generalStatsResponseHandler);
@@ -108,6 +97,10 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				}
 			}
 		}
+
+		weeklyStats = new Table(getContext(), 4, false);
+		((LinearLayout) this.view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout());
+
 		return view;
 	}
 
@@ -132,6 +125,19 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		//todo check if up to date
 		fabOne.hide();
 		fabTwo.hide();
+
+		SharedPreferences sp = Setting.getPreferences(getContext());
+
+		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) == sp.getInt(Setting.STATS_STAT_WEEK, -1)) {
+			sp.edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
+		}
+
+		weeklyStats.clear();
+		weeklyStats.setTitle("This week");
+		weeklyStats.addRow().addData("Seen wifi", String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
+		weeklyStats.addRow().addData("Seen cell", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
+		weeklyStats.addRow().addData("Tracking count", String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
+
 		return true;
 	}
 
