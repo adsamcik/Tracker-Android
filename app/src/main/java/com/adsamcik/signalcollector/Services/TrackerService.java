@@ -118,30 +118,21 @@ public class TrackerService extends Service implements SensorEventListener {
 			d.setWifi(wifiScanData, wifiScanTime);
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		SharedPreferences.Editor spe = sp.edit();
 
 		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
 			wifiScanPos = location;
 		}
 
-		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this)) {
+		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
 			d.setCell(telephonyManager.getNetworkOperator(), telephonyManager.getAllCellInfo());
-			spe.putInt(Setting.STATS_CELL_FOUND, sp.getInt(Setting.STATS_CELL_FOUND, 0) + d.cell.length);
-		}
 
 		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
 		d.setLocation(location).setActivity(currentActivity);
 
-		if (wifiScanData != null) {
+		if (wifiScanData != null)
 			d.setWifi(wifiScanData, wifiScanTime);
-			spe.putInt(Setting.STATS_WIFI_FOUND, sp.getInt(Setting.STATS_WIFI_FOUND, 0) + wifiScanData.length);
-		}
-
-		spe.putInt(Setting.STATS_LOCATIONS_FOUND, sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0) + 1);
-
-		spe.apply();
 
 		data.add(d);
 		dataEcho = d;
@@ -201,11 +192,12 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (data.size() == 0) return;
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		int wifiCount, cellCount;
+		int wifiCount, cellCount, locations;
 
 		//todo check date
 		wifiCount = sp.getInt(Setting.STATS_WIFI_FOUND, 0);
 		cellCount = sp.getInt(Setting.STATS_CELL_FOUND, 0);
+		locations = sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0);
 		for (Data d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
@@ -213,7 +205,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				cellCount += d.cell.length;
 		}
 
-		sp.edit().putInt(Setting.STATS_WIFI_FOUND, wifiCount).putInt(Setting.STATS_CELL_FOUND, cellCount).apply();
+		sp.edit().putInt(Setting.STATS_WIFI_FOUND, wifiCount).putInt(Setting.STATS_CELL_FOUND, cellCount).putInt(Setting.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
