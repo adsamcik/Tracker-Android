@@ -49,11 +49,11 @@ public class Table {
 		label.setTypeface(null, Typeface.BOLD);
 		label.setGravity(Gravity.CENTER);
 		label.setPadding(0, 0, 0, 30);
-		layout.addView(label);
+		layout.addView(label, 0);
 		return this;
 	}
 
-	public TableRow addRow() {
+	public Table addRow() {
 		TableRow row = new TableRow(context);
 		row.setPadding(0, 0, 0, 20);
 
@@ -66,7 +66,8 @@ public class Table {
 		}
 
 		rows.add(row);
-		return row;
+		layout.addView(row);
+		return this;
 	}
 
 	public Table addData(String name, String value) {

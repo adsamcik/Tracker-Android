@@ -236,7 +236,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			for (int y = 0; y < s.statData.size(); y++) {
 				StatData sd = s.statData.get(y);
 				table.addRow();
-				table.addData(sd.id, sd.value);
+				table.setTitle(s.name).addData(sd.id, sd.value);
 			}
 
 			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
