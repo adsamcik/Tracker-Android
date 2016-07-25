@@ -78,46 +78,47 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setImageTintList(secondary);
 
 		Resources r = getResources();
-		// Set up the viewPager with the sections adapter.
-		viewPager = (ViewPager) findViewById(R.id.container);
-		viewPager.setOffscreenPageLimit(3);
+		if (viewPager == null) {
+			viewPager = (ViewPager) findViewById(R.id.container);
+			viewPager.setOffscreenPageLimit(3);
 
-		ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-		adapter.addFrag(new FragmentMain().setFabs(fabOne, fabTwo), r.getString(R.string.menu_dashboard));
-		adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
-		adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
-		adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
-		viewPager.setAdapter(adapter);
+			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
+			adapter.addFrag(new FragmentMain().setFabs(fabOne, fabTwo), r.getString(R.string.menu_dashboard));
+			adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
+			adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
+			adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
+			viewPager.setAdapter(adapter);
 
-		final Activity a = this;
-		viewPager.addOnPageChangeListener(
-				new ViewPager.OnPageChangeListener() {
-					ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
+			final Activity a = this;
+			viewPager.addOnPageChangeListener(
+					new ViewPager.OnPageChangeListener() {
+						ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
 
-					@Override
-					public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+						@Override
+						public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+						}
+
+						@Override
+						public void onPageSelected(int position) {
+							ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
+							prevFragment.onLeave();
+
+							ITabFragment tf = (ITabFragment) adapter.getItem(position);
+							Log.d(TAG, "Activity " + a);
+							if (!tf.onEnter(a, fabOne, fabTwo)) {
+								viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
+								Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
+								FirebaseCrash.log("Something went wrong on fragment initialization.");
+							} else
+								prevFragment = tf;
+						}
+
+						@Override
+						public void onPageScrollStateChanged(int state) {
+						}
 					}
-
-					@Override
-					public void onPageSelected(int position) {
-						ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-						prevFragment.onLeave();
-
-						ITabFragment tf = (ITabFragment) adapter.getItem(position);
-						Log.d(TAG, "Activity " + a);
-						if (!tf.onEnter(a, fabOne, fabTwo)) {
-							viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
-							Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
-							FirebaseCrash.log("Something went wrong on fragment initialization.");
-						} else
-							prevFragment = tf;
-					}
-
-					@Override
-					public void onPageScrollStateChanged(int state) {
-					}
-				}
-		);
+			);
+		}
 
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
 		tabLayout.setupWithViewPager(viewPager);
