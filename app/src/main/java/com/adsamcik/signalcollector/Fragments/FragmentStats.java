@@ -23,6 +23,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.DataStore;
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
@@ -49,7 +50,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private static int lastIndex = -1;
 	private static long lastRequest = 0;
 	private final AsyncHttpClient client = new AsyncHttpClient();
-	private FragmentStats instance;
 	private View v;
 
 	//todo add user stats
@@ -126,7 +126,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		View view = inflater.inflate(R.layout.fragment_stats, container, false);
 
 		//todo show notification when offline to let know that the stats might be outdated
-		instance = this;
 		v = view;
 		long time = System.currentTimeMillis();
 		time -= time % 600000;
@@ -226,17 +225,18 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	}
 
 	private void GenerateStatsTable(List<Stat> stats) {
-		Context c = instance.getContext();
+		Context c = getContext();
 		Resources r = getResources();
 		int vPadding = (int) r.getDimension(R.dimen.activity_vertical_margin);
 		RelativeLayout ll = (RelativeLayout) v.findViewById(R.id.statsLayout);
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
-			TableLayout table = GenerateTableWithHeader(c, s.name);
+			Table table = new Table(c, s.statData.size(), s.showPosition);
 
 			for (int y = 0; y < s.statData.size(); y++) {
 				StatData sd = s.statData.get(y);
-				table.addView(GenerateRow(c, y + 1, s.showPosition, sd.id, sd.value));
+				table.addRow();
+				table.addData(sd.id, sd.value);
 			}
 
 			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
@@ -251,9 +251,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			}
 
 			lastIndex = View.generateViewId();
-			table.setId(lastIndex);
+			table.getLayout().setId(lastIndex);
 			//table.setLayoutParams(lp);
-			ll.addView(table, lp);
+			ll.addView(table.getLayout(), lp);
 			//previous = table;
 		}
 	}
