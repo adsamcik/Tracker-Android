@@ -209,6 +209,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private long lastWifiTime = 0;
 
 	private void UpdateData() {
+		if(getActivity() == null)
+			return;
 		Resources res = getActivity().getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(TrackerService.approxSize);
