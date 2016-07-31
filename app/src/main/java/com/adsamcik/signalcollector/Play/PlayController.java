@@ -26,7 +26,8 @@ public class PlayController {
 
 	public static boolean initializeActivityClient(Context context) {
 		if (isPlayServiceAvailable(context)) {
-			activityController = new ActivityController(() -> context);
+			final Context appContext = context.getApplicationContext();
+			activityController = new ActivityController(() -> appContext);
 			gapiActivityClient = new GoogleApiClient.Builder(context)
 					.addApi(ActivityRecognition.API)
 					.addConnectionCallbacks(activityController)
