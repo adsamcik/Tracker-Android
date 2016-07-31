@@ -84,7 +84,9 @@ public class MainActivity extends FragmentActivity {
 			viewPager.setOffscreenPageLimit(3);
 
 			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-			adapter.addFrag(new FragmentMain().setFabs(fabOne, fabTwo), r.getString(R.string.menu_dashboard));
+			FragmentMain fm = new FragmentMain();
+			fm.onEnter(this, fabOne, fabTwo);
+			adapter.addFrag(fm, r.getString(R.string.menu_dashboard));
 			adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
 			adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
 			adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
@@ -105,7 +107,6 @@ public class MainActivity extends FragmentActivity {
 							prevFragment.onLeave();
 
 							ITabFragment tf = (ITabFragment) adapter.getItem(position);
-							Log.d(TAG, "Activity " + a);
 							if (!tf.onEnter(a, fabOne, fabTwo)) {
 								viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
 								Snackbar.make(findViewById(R.id.container), "An error occurred", 5);

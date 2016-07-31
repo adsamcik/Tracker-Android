@@ -32,18 +32,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	private FloatingActionButton fabTrack, fabUp;
 
-	public FragmentMain setFabs(@NonNull FloatingActionButton fabTrack, @NonNull FloatingActionButton fabUp) {
-		this.fabTrack = fabTrack;
-		this.fabUp = fabUp;
-		return this;
-	}
-
-	@Override
-	public void onStart() {
-		super.onStart();
-		onEnter(getActivity(), fabTrack, fabUp);
-	}
-
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -72,6 +60,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutCell.setVisibility(View.GONE);
 		layoutOther.setVisibility(View.GONE);
 
+		long dataSize = DataStore.sizeOfData();
+		setCollected(dataSize);
+
 		return view;
 	}
 
@@ -80,7 +71,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			setCloudStatus(1);
 		else if (collected == 0)
 			setCloudStatus(0);
-		textCollected.setText(String.format(getActivity().getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
+		if (textCollected != null)
+			textCollected.setText(String.format(getActivity().getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
 	/**
