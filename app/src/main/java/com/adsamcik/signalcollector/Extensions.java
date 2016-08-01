@@ -93,7 +93,7 @@ public class Extensions {
 		return (int) (pt * scale + 0.5f);
 	}
 
-	public static String[] checkTrackingPermissions(Context context) {
+	public static String[] checkTrackingPermissions(@NonNull Context context) {
 		if (Build.VERSION.SDK_INT > 22) {
 			List<String> permissions = new ArrayList<>();
 			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
