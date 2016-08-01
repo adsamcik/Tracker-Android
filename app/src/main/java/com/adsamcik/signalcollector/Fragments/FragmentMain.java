@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Build;

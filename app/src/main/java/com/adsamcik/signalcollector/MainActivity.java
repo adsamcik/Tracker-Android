@@ -19,6 +19,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.util.Log;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
@@ -59,7 +60,7 @@ public class MainActivity extends FragmentActivity {
 		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(this) : 0) + Extensions.dpToPx(this, 25 - 16));
 		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
-		
+
 		Extensions.initialize(this);
 
 		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
@@ -108,13 +109,13 @@ public class MainActivity extends FragmentActivity {
 
 							ITabFragment tf = (ITabFragment) adapter.getItem(position);
 							if (!tf.onEnter(a, fabOne, fabTwo)) {
-								if(prevFragment == tf)
-									throw new Exception("Failed to create current fragment. Preventing freeze.");
+								if (prevFragment == tf)
+									FirebaseCrash.report(new Exception("Failed to create current fragment. Preventing freeze."));
 								viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
 								View v = findViewById(R.id.container);
-								if(v == null)
-									throw new Exception("View did not contain container.");
-								Snackbar.make(, "An error occurred", 5);
+								if (v == null)
+									FirebaseCrash.report(new Exception("View did not contain container."));
+								Snackbar.make(v, "An error occurred", 5);
 								FirebaseCrash.log("Something went wrong on fragment initialization.");
 							} else
 								prevFragment = tf;

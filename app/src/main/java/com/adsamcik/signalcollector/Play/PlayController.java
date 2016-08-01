@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
 
@@ -43,7 +44,7 @@ public class PlayController {
 		return false;
 	}
 
-	public static boolean initializeGamesClient(@NonNull View v, @NonNul Activity activity) {
+	public static boolean initializeGamesClient(@NonNull View v, @NonNull Activity activity) {
 		if (isPlayServiceAvailable(activity)) {
 			gamesController = new GamesController();
 			gapiGamesClient = new GoogleApiClient.Builder(activity)
