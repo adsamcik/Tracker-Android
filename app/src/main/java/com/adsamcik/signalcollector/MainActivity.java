@@ -108,8 +108,13 @@ public class MainActivity extends FragmentActivity {
 
 							ITabFragment tf = (ITabFragment) adapter.getItem(position);
 							if (!tf.onEnter(a, fabOne, fabTwo)) {
+								if(prevFragment == tf)
+									throw new Exception("Failed to create current fragment. Preventing freeze.");
 								viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
-								Snackbar.make(findViewById(R.id.container), "An error occurred", 5);
+								View v = findViewById(R.id.container);
+								if(v == null)
+									throw new Exception("View did not contain container.");
+								Snackbar.make(, "An error occurred", 5);
 								FirebaseCrash.log("Something went wrong on fragment initialization.");
 							} else
 								prevFragment = tf;
