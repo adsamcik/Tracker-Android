@@ -24,7 +24,7 @@ public class PlayController {
 	public static ActivityController activityController;
 	public static GamesController gamesController;
 
-	public static boolean initializeActivityClient(Context context) {
+	public static boolean initializeActivityClient(@NonNull Context context) {
 		if (isPlayServiceAvailable(context)) {
 			final Context appContext = context.getApplicationContext();
 			activityController = new ActivityController(() -> appContext);
@@ -43,7 +43,7 @@ public class PlayController {
 		return false;
 	}
 
-	public static boolean initializeGamesClient(View v, Activity activity) {
+	public static boolean initializeGamesClient(@NonNull View v, @NonNul Activity activity) {
 		if (isPlayServiceAvailable(activity)) {
 			gamesController = new GamesController();
 			gapiGamesClient = new GoogleApiClient.Builder(activity)
