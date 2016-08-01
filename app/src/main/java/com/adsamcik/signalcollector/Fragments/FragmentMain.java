@@ -71,8 +71,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			setCloudStatus(1);
 		else if (collected == 0)
 			setCloudStatus(0);
-		if (textCollected != null)
-			textCollected.setText(String.format(getActivity().getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
+		if (textCollected != null && getResources() != null)
+			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
 	}
 
 	/**
