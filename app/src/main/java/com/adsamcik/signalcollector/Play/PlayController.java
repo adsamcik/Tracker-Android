@@ -14,6 +14,7 @@ import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.games.Games;
 import com.google.android.gms.location.ActivityRecognition;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class PlayController {
 	public static final String TAG = "SignalsPlay";
@@ -28,8 +29,12 @@ public class PlayController {
 	public static boolean initializeActivityClient(@NonNull Context context) {
 		if (isPlayServiceAvailable(context)) {
 			final Context appContext = context.getApplicationContext();
+			if(appContext == null) {
+				FirebaseCrash.report(new Throwable("Application context is null and original context is" + (context == null ? "null too" : "ok")));
+				return false;
+			}
 			activityController = new ActivityController(() -> appContext);
-			gapiActivityClient = new GoogleApiClient.Builder(context)
+			gapiActivityClient = new GoogleApiClient.Builder(appContext)
 					.addApi(ActivityRecognition.API)
 					.addConnectionCallbacks(activityController)
 					.build();
