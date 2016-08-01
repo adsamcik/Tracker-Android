@@ -52,6 +52,11 @@ public class Extensions {
 		return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit, exp), pre);
 	}
 
+	/**
+	 * Gets SW navbar height
+	 * @param c context
+	 * @return  height, 0 if HW navbar is present
+	 */
 	public static int getNavBarHeight(@NonNull Context c) {
 		Resources r = c.getResources();
 		int resourceId = r.getIdentifier("navigation_bar_height", "dimen", "android");
@@ -60,6 +65,11 @@ public class Extensions {
 		return 0;
 	}
 
+	/**
+	 * Checks if device has SW or HW navbar
+	 * @param windowManager Window Manager
+	 * @return  true if SW navbar is present
+	 */
 	public static boolean hasNavBar(WindowManager windowManager) {
 		Display d = windowManager.getDefaultDisplay();
 
@@ -93,6 +103,13 @@ public class Extensions {
 		return (int) (pt * scale + 0.5f);
 	}
 
+	/**
+	 * Checks if required permission are available
+	 * ACCESS_FINE_LOCATION - GPS
+	 * READ_PHONE_STATE - IMEI
+	 * @param context context
+	 * @return permissions that app does not have, null if api is lower than 23 or all permission are acquired
+	 */
 	public static String[] checkTrackingPermissions(@NonNull Context context) {
 		if (Build.VERSION.SDK_INT > 22) {
 			List<String> permissions = new ArrayList<>();
@@ -113,6 +130,12 @@ public class Extensions {
 		return null;
 	}
 
+	/**
+	 * Checks if background tracking can be activated
+	 * @param c context
+	 * @param evalActivity  evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
+	 * @return true if background tracking can be activated
+	 */
 	public static boolean canBackgroundTrack(@NonNull Context c, int evalActivity) {
 		if(!isInitialized())
 			initialize(c);
@@ -122,6 +145,12 @@ public class Extensions {
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}
 
+	/**
+	 * Checks if upload can be initiated
+	 * @param c context
+	 * @param isBackground true if NOT activated by user
+	 * @return  true if upload can be initiated
+	 */
 	public static boolean canUpload(@NonNull Context c, boolean isBackground) {
 		if(!isInitialized() || connectivityManager == null)
 			initialize(c);
@@ -135,6 +164,11 @@ public class Extensions {
 			return !activeNetwork.isRoaming();
 	}
 
+	/**
+	 * Converts numbers to easier to read format (spaces after every 3 digits)
+	 * @param number    number
+	 * @return  stringified number
+	 */
 	public static String easierToReadNumber(int number) {
 		StringBuilder sb = new StringBuilder(number);
 		for (int i = sb.length(); i > 0; i -= 3)
@@ -142,6 +176,10 @@ public class Extensions {
 		return sb.toString();
 	}
 
+	/**
+	 *
+	 * @return Device imei
+	 */
 	@SuppressLint("HardwareIds")
 	public static String getImei() {
 		if (telephonyManager == null)
