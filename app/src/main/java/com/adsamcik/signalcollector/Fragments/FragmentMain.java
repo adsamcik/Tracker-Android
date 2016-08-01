@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
@@ -100,27 +101,29 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	 *
 	 * @param enable ensures intended action
 	 */
-	private void toggleCollecting(boolean enable) {
+	private void toggleCollecting(Activity activity, boolean enable) {
 		if (TrackerService.isActive == enable)
 			return;
 
-		String[] requiredPermissions = Extensions.checkTrackingPermissions(getActivity());
+		String[] requiredPermissions = Extensions.checkTrackingPermissions(activity);
 
 		if (requiredPermissions == null) {
 			if (!TrackerService.isActive) {
-				Setting.getPreferences(getActivity()).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
-				Intent trackerService = new Intent(getActivity(), TrackerService.class);
+				Setting.getPreferences(activity).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
+				Intent trackerService = new Intent(activity, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				TrackerService.service = trackerService;
-				getActivity().startService(trackerService);
+				activity.startService(trackerService);
 				changeTrackerButton(1);
 			} else {
-				getActivity().stopService(TrackerService.service);
+				if(TrackerService.service == null)
+					FirebaseCrash.report(new Exception("Tracker service is null"));
+				activity.stopService(TrackerService.service);
 				changeTrackerButton(0);
 			}
 
 		} else if (Build.VERSION.SDK_INT >= 23) {
-			getActivity().requestPermissions(requiredPermissions, 0);
+			c.requestPermissions(requiredPermissions, 0);
 		}
 	}
 
@@ -178,7 +181,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				v -> {
 					if (TrackerService.isActive)
 						TrackerService.setAutoLock();
-					toggleCollecting(!TrackerService.isActive);
+					toggleCollecting(activity, !TrackerService.isActive);
 				}
 		);
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize)));
