@@ -123,7 +123,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			}
 
 		} else if (Build.VERSION.SDK_INT >= 23) {
-			c.requestPermissions(requiredPermissions, 0);
+			activity.requestPermissions(requiredPermissions, 0);
 		}
 	}
 
