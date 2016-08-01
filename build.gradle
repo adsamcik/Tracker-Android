@@ -20,5 +20,3 @@ allprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
-
-apply plugin: 'me.tatarka.retrolambda'
