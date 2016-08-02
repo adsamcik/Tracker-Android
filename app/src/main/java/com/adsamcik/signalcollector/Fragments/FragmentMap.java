@@ -16,13 +16,9 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.TouchWrapper;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.google.android.gms.maps.CameraUpdateFactory;

@@ -9,7 +9,6 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
@@ -18,13 +17,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
-import android.util.Log;
-import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.TableLayout;
 
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
@@ -121,13 +114,12 @@ public class MainActivity extends FragmentActivity {
 							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
 							return;
 						}
-						Snackbar snack = Snackbar.make(v, "An error occurred", 5000);
+						Snackbar snack = Snackbar.make(v, "An error occurred while loading this tab", 4000);
 						View view = snack.getView();
-						CoordinatorLayout.LayoutParams params = (CoordinatorLayout.LayoutParams) view.getLayoutParams();
-						params.bottomMargin = Extensions.getNavBarHeight(a);
-						view.setLayoutParams(params);
+						view.setPadding(0, 0, 0, Extensions.getNavBarHeight(a));
 						snack.show();
-						FirebaseCrash.log("Something went wrong on fragment initialization.");
+						fabOne.hide();
+						fabTwo.hide();
 					} else {
 						prevFragmentIndex = position;
 						prevFragment = tf;

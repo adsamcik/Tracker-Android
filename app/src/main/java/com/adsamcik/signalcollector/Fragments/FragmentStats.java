@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -80,7 +79,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		time -= time % 600000;
 		time += 120000;
 		long diff = time - lastRequest;
-		
+
 		if (diff > 600000) {
 			client.get(Network.URL_STATS, null, generalStatsResponseHandler);
 			lastRequest = time;
