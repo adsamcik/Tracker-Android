@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
+import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
@@ -122,19 +123,19 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		fabOne.hide();
 		fabTwo.hide();
 
-		SharedPreferences sp = Setting.getPreferences(getContext());
+		Context c = getContext();
 
-		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) == sp.getInt(Setting.STATS_STAT_WEEK, -1)) {
-			sp.edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
-		}
+		SharedPreferences sp = Setting.getPreferences(c);
+		Setting.checkStatsDay(c);
 
 		Resources r = getResources();
 
 		weeklyStats.clear();
 		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0)));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(sp.getInt(Setting.STATS_WIFI_FOUND, 0)));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(sp.getInt(Setting.STATS_CELL_FOUND, 0)));
+		StatDay weekStats = Setting.countStats(c);
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 
 		return true;
 	}

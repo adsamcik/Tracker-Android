@@ -44,7 +44,9 @@ import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TrackerService extends Service implements SensorEventListener {
 	//Constants
@@ -192,9 +194,10 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (data.size() == 0) return;
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+		Setting.checkStatsDay(getApplicationContext());
+
 		int wifiCount, cellCount, locations;
 
-		//todo check date
 		wifiCount = sp.getInt(Setting.STATS_WIFI_FOUND, 0);
 		cellCount = sp.getInt(Setting.STATS_CELL_FOUND, 0);
 		locations = sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0);
@@ -292,15 +295,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
-
-		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) != Setting.getPreferences(appContext).getInt(Setting.STATS_STAT_WEEK, -1)) {
-			Setting.getPreferences(appContext).edit()
-					.putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR))
-					.remove(Setting.STATS_LOCATIONS_FOUND)
-					.remove(Setting.STATS_WIFI_FOUND)
-					.remove(Setting.STATS_CELL_FOUND)
-					.apply();
-		}
 	}
 
 	@Override
