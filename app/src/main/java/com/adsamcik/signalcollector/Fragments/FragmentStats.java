@@ -42,9 +42,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
 	private static long lastRequest = 0;
 	private final AsyncHttpClient client = new AsyncHttpClient();
-	private View view;
 
 	private Table weeklyStats;
+	private View view;
 
 	//todo add user stats
 	//todo add last day stats
@@ -72,15 +72,17 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		View view = inflater.inflate(R.layout.fragment_stats, container, false);
+		view = inflater.inflate(R.layout.fragment_stats, container, false);
+		return view;
+	}
 
-		//todo show notification when offline to let know that the stats might be outdated
-		this.view = view;
+	@Override
+	public void onStart() {
+		super.onStart();
 		long time = System.currentTimeMillis();
 		time -= time % 600000;
 		time += 120000;
 		long diff = time - lastRequest;
-
 		if (diff > 600000) {
 			client.get(Network.URL_STATS, null, generalStatsResponseHandler);
 			lastRequest = time;
@@ -92,11 +94,10 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				Log.e("Error", e.getMessage());
 			}
 		}
-
-		weeklyStats = new Table(getContext(), 4, false);
-		((LinearLayout) view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
-
-		return view;
+		if (view != null) {
+			weeklyStats = new Table(getContext(), 4, false);
+			((LinearLayout) view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
+		}
 	}
 
 	private void GenerateStatsTable(List<Stat> stats) {
@@ -116,8 +117,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	@Override
 	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if(weeklyStats == null)
-			return new Success("Tab is not yet initialized.");
+		if (weeklyStats == null)
+			return new Success("Weekly stats failed to initialize");
 		//todo check if up to date
 		fabOne.hide();
 		fabTwo.hide();
