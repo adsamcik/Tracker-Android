@@ -80,8 +80,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		time -= time % 600000;
 		time += 120000;
 		long diff = time - lastRequest;
-
-		//todo show local device stats
+		
 		if (diff > 600000) {
 			client.get(Network.URL_STATS, null, generalStatsResponseHandler);
 			lastRequest = time;
