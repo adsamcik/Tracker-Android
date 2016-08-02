@@ -122,8 +122,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		fabTwo.hide();
 
 		Context c = getContext();
-
-		SharedPreferences sp = Setting.getPreferences(c);
 		Setting.checkStatsDay(c);
 
 		Resources r = getResources();
