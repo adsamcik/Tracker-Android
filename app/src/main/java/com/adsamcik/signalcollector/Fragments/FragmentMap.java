@@ -48,6 +48,7 @@ import java.net.URL;
 import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
+	private static final int MAX_ZOOM = 17;
 	private static final String TAG = "SIGNALS MAP";
 	private static final String[] availableTypes = {"Wifi", "Cell"};
 	private static int typeIndex = -1;
@@ -147,7 +148,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 				private boolean checkTileExists(int x, int y, int zoom) {
 					int minZoom = 10;
-					int maxZoom = 17;
+					int maxZoom = MAX_ZOOM;
 
 					return !(zoom < minZoom || zoom > maxZoom);
 				}
@@ -196,6 +197,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
+		map.setMaxZoomPreference(MAX_ZOOM);
 
 		if (checkLocationPermission(false)) {
 			locationListener.followMyPosition = true;
@@ -255,15 +257,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		LatLng position;
 		boolean followMyPosition = false;
 
-		private final GoogleMap.OnCameraMoveStartedListener cameraChangeListener = new GoogleMap.OnCameraMoveStartedListener() {
-			@Override
-			public void onCameraMoveStarted(int i) {
-				if (followMyPosition && i == REASON_GESTURE)
-					followMyPosition = false;
-
-				if (map.getCameraPosition().zoom > 17)
-					map.animateCamera(CameraUpdateFactory.zoomTo(17));
-			}
+		private final GoogleMap.OnCameraMoveStartedListener cameraChangeListener = i -> {
+			if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
+				followMyPosition = false;
 		};
 
 		@Override
