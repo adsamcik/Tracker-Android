@@ -293,8 +293,13 @@ public class TrackerService extends Service implements SensorEventListener {
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
-		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) == Setting.getPreferences(appContext).getInt(Setting.STATS_STAT_WEEK, -1)) {
-			Setting.getPreferences(appContext).edit().putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR)).apply();
+		if (Calendar.getInstance().get(Calendar.WEEK_OF_YEAR) != Setting.getPreferences(appContext).getInt(Setting.STATS_STAT_WEEK, -1)) {
+			Setting.getPreferences(appContext).edit()
+					.putInt(Setting.STATS_STAT_WEEK, Calendar.getInstance().get(Calendar.WEEK_OF_YEAR))
+					.remove(Setting.STATS_LOCATIONS_FOUND)
+					.remove(Setting.STATS_WIFI_FOUND)
+					.remove(Setting.STATS_CELL_FOUND)
+					.apply();
 		}
 	}
 
