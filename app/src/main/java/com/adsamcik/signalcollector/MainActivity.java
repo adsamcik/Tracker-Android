@@ -97,6 +97,7 @@ public class MainActivity extends FragmentActivity {
 			viewPager.addOnPageChangeListener(
 					new ViewPager.OnPageChangeListener() {
 						ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
+						int prevFragmentIndex = 0;
 
 						@Override
 						public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
@@ -109,16 +110,22 @@ public class MainActivity extends FragmentActivity {
 
 							ITabFragment tf = (ITabFragment) adapter.getItem(position);
 							if (!tf.onEnter(a, fabOne, fabTwo)) {
-								if (prevFragment == tf)
-									FirebaseCrash.report(new Exception("Failed to create current fragment. Preventing freeze."));
-								viewPager.setCurrentItem(adapter.getItemPosition(prevFragment));
+								if (prevFragmentIndex == position) {
+									FirebaseCrash.report(new Exception("Failed to create current fragment which is also previous fragment. Preventing freeze."));
+									return;
+								}
+								viewPager.setCurrentItem(prevFragmentIndex);
 								View v = findViewById(R.id.container);
-								if (v == null)
-									FirebaseCrash.report(new Exception("View did not contain container."));
+								if (v == null) {
+									FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
+									return;
+								}
 								Snackbar.make(v, "An error occurred", 5);
 								FirebaseCrash.log("Something went wrong on fragment initialization.");
-							} else
+							} else {
+								prevFragmentIndex = position;
 								prevFragment = tf;
+							}
 						}
 
 						@Override

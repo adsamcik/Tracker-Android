@@ -107,7 +107,7 @@ public class DataStore {
 	 * @param isBackground Is activated by background tracking
 	 */
 	public static void requestUpload(@NonNull Context c, boolean isBackground) {
-		if(contextWeak.get() == null)
+		if (contextWeak.get() == null)
 			setContext(c);
 		SharedPreferences sp = Setting.getPreferences(c);
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
@@ -174,6 +174,7 @@ public class DataStore {
 		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+				FirebaseCrash.log("deleting " + name);
 				deleteFile(name);
 				TrackerService.approxSize -= size;
 				//Log.d(TAG, "Successfully uploaded " + name);
