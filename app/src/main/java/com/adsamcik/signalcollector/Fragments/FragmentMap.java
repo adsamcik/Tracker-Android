@@ -57,9 +57,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private FloatingActionButton fabTwo, fabOne;
 
 	private LocationManager locationManager;
-	private final UpdateLocationListener locationListener;
-
-	private TouchWrapper touchWrapper;
+	private final UpdateLocationListener locationListener = new UpdateLocationListener();
 
 
 	/**
@@ -74,18 +72,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		else if (request)
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
 		return false;
-	}
-
-	public FragmentMap() {
-		super();
-		locationListener = new UpdateLocationListener();
-	}
-
-	@Override
-	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-		view = inflater.inflate(R.layout.fragment_map, container, false);
-		touchWrapper = (TouchWrapper) view.findViewById(R.id.mapsLayout);
-		return view;
 	}
 
 	/**
@@ -108,7 +94,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (view == null || !PlayController.isPlayServiceAvailable(activity))
+		if (getView() == null || !PlayController.isPlayServiceAvailable(activity))
 			return false;
 
 		this.fabOne = fabOne;
@@ -218,7 +204,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		}
 
-		map.setOnCameraChangeListener(locationListener.cameraChangeListener);
+		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
 		changeMapOverlay(0);
 	}
 
@@ -265,21 +251,22 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		LatLng position;
 		boolean followMyPosition = false;
 
-		private final GoogleMap.OnCameraChangeListener cameraChangeListener = cameraPosition -> {
-			if (followMyPosition && touchWrapper.getTouchDown())
-				followMyPosition = false;
+		private final GoogleMap.OnCameraMoveStartedListener cameraChangeListener = new GoogleMap.OnCameraMoveStartedListener() {
+			@Override
+			public void onCameraMoveStarted(int i) {
+				if (followMyPosition && i == REASON_GESTURE)
+					followMyPosition = false;
 
-			if (map.getCameraPosition().zoom > 17)
-				map.animateCamera(CameraUpdateFactory.zoomTo(17));
+				if (map.getCameraPosition().zoom > 17)
+					map.animateCamera(CameraUpdateFactory.zoomTo(17));
+			}
 		};
 
 		@Override
 		public void onLocationChanged(Location location) {
 			position = new LatLng(location.getLatitude(), location.getLongitude());
 			DrawUserPosition(position, location.getAccuracy());
-			if (touchWrapper.mMapIsTouched)
-				followMyPosition = false;
-			else if (followMyPosition && map != null)
+			if (followMyPosition && map != null)
 				moveTo(position);
 		}
 
