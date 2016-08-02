@@ -348,6 +348,7 @@ public class DataStore {
 	 * @param fileName file name
 	 * @param data     string data
 	 */
+	@SuppressWarnings("SameParameterValue")
 	public static boolean saveString(String fileName, String data) {
 		if (isSaveAllowed) {
 			try {
@@ -431,6 +432,7 @@ public class DataStore {
 	 * @param fileName file name
 	 * @return content of file (empty if file has no content or does not exists)
 	 */
+	@SuppressWarnings("SameParameterValue")
 	public static String loadString(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
 		if (sb != null)
