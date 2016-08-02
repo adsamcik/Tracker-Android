@@ -16,10 +16,10 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public class Table {
-	private TableLayout layout;
-	private Context context;
-	private ArrayList<TableRow> rows;
-	private boolean showIndex;
+	private final TableLayout layout;
+	private final Context context;
+	private final ArrayList<TableRow> rows;
+	private final boolean showIndex;
 
 	/**
 	 * Table constructor
