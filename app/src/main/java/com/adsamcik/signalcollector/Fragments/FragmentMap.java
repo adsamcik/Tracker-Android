@@ -19,6 +19,7 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -87,9 +88,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (getView() == null || !PlayController.isPlayServiceAvailable(activity))
-			return false;
+	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		if(!PlayController.isPlayServiceAvailable(activity))
+			return new Success("Play services are out of date or unavailable.");
+		else if (getView() == null)
+			return new Success("Initialization error occured. Please report this with code 21.");
 
 		if (checkLocationPermission(true)) {
 			if (locationManager == null)
@@ -97,7 +100,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			else
 				locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 		} else
-			return false;
+			return new Success("App does not have required permissions.");
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
@@ -141,7 +144,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				}
 			};
 		}
-		return true;
+		return new Success();
 	}
 
 	private TileOverlay activeOverlay;

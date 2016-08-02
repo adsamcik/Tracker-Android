@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
@@ -20,6 +21,7 @@ import android.support.v4.view.ViewPager;
 import android.view.View;
 
 import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
@@ -54,10 +56,6 @@ public class MainActivity extends FragmentActivity {
 		PlayController.initializeGamesClient(findViewById(R.id.container), this);
 		PlayController.initializeActivityClient(this);
 
-		//CoordinatorLayout.LayoutParams lp = new CoordinatorLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-		//lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(this) : 0) + Extensions.dpToPx(this, 25 - 16));
-		//findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
-
 		Extensions.initialize(this);
 
 		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
@@ -77,6 +75,14 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setImageTintList(secondary);
 
 		Resources r = getResources();
+
+
+		if(!Extensions.hasNavBar(getWindowManager())) {
+			CoordinatorLayout.LayoutParams lp = new CoordinatorLayout.LayoutParams(CoordinatorLayout.LayoutParams.WRAP_CONTENT, CoordinatorLayout.LayoutParams.WRAP_CONTENT);
+			lp.setMargins(0, 0, 0, 0);
+			fabOne.setLayoutParams(lp);
+		}
+
 		if (viewPager == null) {
 			viewPager = (ViewPager) findViewById(R.id.container);
 			viewPager.setOffscreenPageLimit(3);
@@ -105,7 +111,8 @@ public class MainActivity extends FragmentActivity {
 					prevFragment.onLeave();
 
 					ITabFragment tf = (ITabFragment) adapter.getItem(position);
-					if (!tf.onEnter(a, fabOne, fabTwo)) {
+					Success response = tf.onEnter(a, fabOne, fabTwo);
+					if (!response.getSuccess()) {
 						if (prevFragmentIndex == position) {
 							FirebaseCrash.report(new Exception("Failed to create current fragment which is also previous fragment. Preventing freeze."));
 							return;
@@ -115,7 +122,8 @@ public class MainActivity extends FragmentActivity {
 							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
 							return;
 						}
-						Snackbar snack = Snackbar.make(v, "An error occurred while loading this tab", 4000);
+						//it cannot be null because this is handled in getSuccess
+						@SuppressWarnings("ConstantConditions") Snackbar snack = Snackbar.make(v, response.message, 4000);
 						View view = snack.getView();
 						view.setPadding(0, 0, 0, Extensions.getNavBarHeight(a));
 						snack.show();

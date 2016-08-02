@@ -18,6 +18,7 @@ import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.classes.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
@@ -114,9 +115,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		if(weeklyStats == null)
-			return false;
+			return new Success("Tab is not yet initialized.");
 		//todo check if up to date
 		fabOne.hide();
 		fabTwo.hide();
@@ -132,7 +133,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 
-		return true;
+		return new Success();
 	}
 
 	@Override

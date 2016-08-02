@@ -20,6 +20,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
@@ -182,10 +183,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		fabOne.hide();
 		fabTwo.hide();
-		return true;
+		return new Success();
 	}
 
 	@Override

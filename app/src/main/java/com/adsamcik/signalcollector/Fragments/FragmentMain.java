@@ -21,6 +21,7 @@ import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
@@ -169,7 +170,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 
@@ -192,7 +193,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
 		setCloudStatus(dataSize == 0 ? 0 : 1);
-		return true;
+		return new Success();
 	}
 
 	@Override
