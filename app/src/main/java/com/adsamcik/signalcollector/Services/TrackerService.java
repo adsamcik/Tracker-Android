@@ -54,6 +54,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * 60000;
 	private final int UPDATE_TIME_MILLISEC = 2000;
+	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 	private final float MIN_DISTANCE_M = 5;
 
 	public static boolean isActive = false;
@@ -63,6 +64,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public static ICallback onNewDataFound;
 	public static Data dataEcho;
+	public static int distanceToWifi;
 
 	private static long lockedUntil;
 	private static TrackerService instance;
@@ -110,7 +112,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.acquire();
 		if (wifiScanData != null && wifiScanPos != null) {
 			float distTo = wifiScanPos.distanceTo(location);
-			if ((distTo > 3 * MIN_DISTANCE_M && wifiScanTime - (1.5f * Calendar.getInstance().getTimeInMillis()) > 0) || distTo > 80)
+			distanceToWifi = (int) distTo;
+			if ((distTo > 3 * MIN_DISTANCE_M && wifiScanTime - (1.5f * Calendar.getInstance().getTimeInMillis()) > 0) || distTo > UPDATE_MAX_DISTANCE_TO_WIFI)
 				wifiScanData = null;
 		}
 
