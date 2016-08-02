@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.TouchWrapper;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.play.PlayController;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -107,7 +108,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (view == null)
+		if (view == null || !PlayController.isPlayServiceAvailable(activity))
 			return false;
 
 		this.fabOne = fabOne;
