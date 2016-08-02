@@ -73,8 +73,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 *
 	 * @return is permission available atm
 	 */
-	private boolean checkLocationPermission(boolean request) {
-		if (ContextCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+	private boolean checkLocationPermission(Context context, boolean request) {
+		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else if (request)
 			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
@@ -85,7 +85,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if (checkLocationPermission(false)) {
+		if (checkLocationPermission(getActivity(), false)) {
 			if (locationManager == null)
 				FirebaseCrash.log("Location manager is null on leave");
 			else
@@ -101,10 +101,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (!PlayController.isPlayServiceAvailable(activity))
-			return new Success("Play services are out of date or unavailable.");
+		/*if (!PlayController.isPlayServiceAvailable(activity))
+			return new Success("Play services are out of date or unavailable.");*/
 
-		if (checkLocationPermission(true)) {
+		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
 			else
@@ -115,7 +115,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
-			if (checkLocationPermission(true))
+			if (checkLocationPermission(activity,true))
 				locationListener.moveToMyPosition();
 		});
 
@@ -191,7 +191,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_map, container, false);
-		return super.onCreateView(inflater, container, savedInstanceState);
+		return view;
 	}
 
 	@Override
@@ -199,7 +199,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		this.map = map;
 		map.setMaxZoomPreference(MAX_ZOOM);
 
-		if (checkLocationPermission(false)) {
+		Log.d("TAG", "ready");
+		if (checkLocationPermission(getActivity(), false)) {
 			locationListener.followMyPosition = true;
 			if (locationManager == null)
 				locationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
@@ -225,6 +226,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param accuracy Accuracy
 	 */
 	private void DrawUserPosition(LatLng latlng, float accuracy) {
+		if(map == null)
+			return;;
 		if (userRadius == null) {
 			Context c = getContext();
 			if (c == null) {
