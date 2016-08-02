@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.classes;
 
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
@@ -13,6 +13,9 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.Extensions;
+import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;

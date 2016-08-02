@@ -8,7 +8,7 @@ import android.view.View;
 import android.widget.Button;
 
 import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.Network;
+import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.google.android.gms.common.api.GoogleApiClient;

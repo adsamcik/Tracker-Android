@@ -14,11 +14,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
-import com.adsamcik.signalcollector.DataStore;
-import com.adsamcik.signalcollector.Network;
+import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
-import com.adsamcik.signalcollector.Table;
+import com.adsamcik.signalcollector.classes.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.classes;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -10,6 +10,7 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.R;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;

@@ -16,9 +16,9 @@ import android.view.ViewGroup;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.Network;
+import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.CellData;

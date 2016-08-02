@@ -5,7 +5,7 @@ import android.content.Intent;
 import android.os.PowerManager;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;

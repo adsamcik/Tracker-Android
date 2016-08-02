@@ -5,7 +5,7 @@ import android.app.job.JobService;
 import android.content.Context;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.Setting;
 import com.google.firebase.crash.FirebaseCrash;

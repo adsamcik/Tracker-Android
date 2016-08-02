@@ -31,7 +31,7 @@ import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.DataStore;
+import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
