@@ -121,14 +121,13 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		fabOne.hide();
 		fabTwo.hide();
 
-		Context c = getContext();
-		Setting.checkStatsDay(c);
+		Setting.checkStatsDay(activity);
 
-		Resources r = getResources();
+		Resources r = activity.getResources();
 
 		weeklyStats.clear();
 		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
-		StatDay weekStats = Setting.countStats(c);
+		StatDay weekStats = Setting.countStats(activity);
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
