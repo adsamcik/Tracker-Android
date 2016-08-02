@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
-import android.support.design.widget.TabLayout;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.Gravity;

@@ -44,9 +44,7 @@ import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class TrackerService extends Service implements SensorEventListener {
 	//Constants
