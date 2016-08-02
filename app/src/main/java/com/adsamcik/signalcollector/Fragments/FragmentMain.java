@@ -218,7 +218,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
 				layoutWifi.setVisibility(View.VISIBLE);
-				textWifiTime.setText(String.format(res.getString(R.string.main_wifi_time), d.time - d.wifiTime));
+				textWifiTime.setText(String.format(res.getString(R.string.main_wifi_time), d.time - d.wifiTime, TrackerService.distanceToWifi));
 				lastWifiTime = d.time;
 			} else if (lastWifiTime - d.time > 10000)
 				layoutWifi.setVisibility(View.GONE);

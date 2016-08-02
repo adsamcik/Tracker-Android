@@ -123,7 +123,6 @@ public class TrackerService extends Service implements SensorEventListener {
 				d.setWifi(wifiScanData, wifiScanTime);
 		}
 
-
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
 
 		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
