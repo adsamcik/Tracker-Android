@@ -40,7 +40,6 @@ public class Setting {
 	public static final String TRACKING_PRESSURE_ENABLED = "trackingPressureEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
 
-	public static final int DAY_IN_MILLISECONDS = 86400000;
 	static final int MAX_DAY_DIFF_STATS = 7;
 
 	private static SharedPreferences sharedPreferences;
@@ -91,9 +90,9 @@ public class Setting {
 
 	public static void checkStatsDay(@NonNull Context context) {
 		long now = Calendar.getInstance().getTime().getTime();
-		int dayDiff = (int) (now - Setting.getPreferences(context).getLong(Setting.STATS_STAT_LAST_DAY, -1)) / DAY_IN_MILLISECONDS;
+		int dayDiff = (int) (now - Setting.getPreferences(context).getLong(Setting.STATS_STAT_LAST_DAY, -1)) / Extensions.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
-			long roundDay = dayDiff * DAY_IN_MILLISECONDS;
+			long roundDay = dayDiff * Extensions.DAY_IN_MILLISECONDS;
 			SharedPreferences sp = getPreferences(context);
 			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
@@ -22,6 +23,12 @@ import java.util.List;
 import java.util.Locale;
 
 public class Extensions {
+	public static final int SECOND_IN_MILLISECONDS = 1000;
+	public static final int MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
+	public static final int HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS;
+	public static final int DAY_IN_MILLISECONDS = 24 * HOUR_IN_MILLISECONDS;
+
+
 	private static TelephonyManager telephonyManager;
 	private static ConnectivityManager connectivityManager;
 
@@ -101,6 +108,23 @@ public class Extensions {
 	public static int ptToPx(@NonNull Context c, int pt) {
 		final float scale = c.getResources().getDisplayMetrics().density;
 		return (int) (pt * scale + 0.5f);
+	}
+
+	/**
+	 * Generates position between two passed positions based on time
+	 * @param locationOne   first location
+	 * @param locationTwo   second location
+	 * @param time  Value between 0 and 1. 0 is locationOne, 1 is locationTwo
+	 * @return  interpolated location
+	 */
+	public static Location interpolateLocation(@NonNull Location locationOne, @NonNull Location locationTwo, double time) {
+		if(time < 0 || time > 1)
+			throw new IllegalArgumentException("Time must be between 0 and 1. is " + time);
+		Location l = new Location("interpolation");
+		l.setLatitude((locationTwo.getLatitude() - locationOne.getLatitude()) * time);
+		l.setLongitude((locationTwo.getLongitude() - locationOne.getLongitude()) * time);
+		l.setAltitude((locationTwo.getAltitude() - locationOne.getAltitude()) * time);
+		return l;
 	}
 
 	/**

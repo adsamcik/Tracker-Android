@@ -52,8 +52,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	//Constants
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
-	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * 60000;
-	private final int UPDATE_TIME_MILLISEC = 2000;
+	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Extensions.MINUTE_IN_MILLISECONDS;
+	private final int UPDATE_TIME_MILLISEC = 2 * Extensions.SECOND_IN_MILLISECONDS;
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 	private final float MIN_DISTANCE_M = 5;
 
@@ -110,17 +110,19 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	private void updateData(Location location) {
 		wakeLock.acquire();
-		if (wifiScanData != null && wifiScanPos != null) {
-			float distTo = wifiScanPos.distanceTo(location);
-			distanceToWifi = (int) distTo;
-			if ((distTo > 3 * MIN_DISTANCE_M && wifiScanTime - (1.5f * Calendar.getInstance().getTimeInMillis()) > 0) || distTo > UPDATE_MAX_DISTANCE_TO_WIFI)
-				wifiScanData = null;
-		}
-
 		Data d = new Data(location.getTime());
 
-		if (wifiScanData != null)
-			d.setWifi(wifiScanData, wifiScanTime);
+		if (wifiScanData != null && wifiScanPos != null) {
+			long currentTime = Calendar.getInstance().getTimeInMillis();
+			long timeDiff = (wifiScanTime - wifiScanPos.getTime()) / (currentTime - wifiScanPos.getTime());
+			float distTo = wifiScanPos.distanceTo(Extensions.interpolateLocation(wifiScanPos, location, timeDiff));
+			distanceToWifi = (int) distTo;
+			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI)
+				wifiScanData = null;
+			else
+				d.setWifi(wifiScanData, wifiScanTime);
+		}
+
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
 
@@ -135,9 +137,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
 		d.setLocation(location).setActivity(currentActivity);
-
-		if (wifiScanData != null)
-			d.setWifi(wifiScanData, wifiScanTime);
 
 		data.add(d);
 		dataEcho = d;
