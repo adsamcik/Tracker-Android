@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+<android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                                 xmlns:app="http://schemas.android.com/apk/res-auto"
+                                                 xmlns:tools="http://schemas.android.com/tools"
+                                                 android:layout_width="match_parent"
+                                                 android:layout_height="match_parent"
+                                                 tools:context=".MainActivity">
 
     <android.support.design.widget.AppBarLayout
         android:id="@+id/AppBar"
@@ -18,46 +18,42 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:tabGravity="fill"
-            app:tabMode="fixed"
-            app:tabIndicatorColor="@color/textPrimary"/>
+            app:tabIndicatorColor="@color/textPrimary"
+            app:tabMode="fixed"/>
     </android.support.design.widget.AppBarLayout>
+
 
     <android.support.v4.view.ViewPager
         android:id="@+id/container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/AppBar" />
+        app:layout_anchor="@id/AppBar"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
 
-
-    <RelativeLayout
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/toggleTracking_fab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/relative_layout_fabs">
+        android:layout_gravity="end|bottom"
+        android:layout_marginEnd="@dimen/fab_margin"
+        android:layout_marginStart="@dimen/fab_margin"
+        android:layout_marginBottom="@dimen/navbar_height"
+        android:src="@drawable/ic_play_arrow_24dp"
+        app:backgroundTint="@color/colorPrimary"/>
 
-        <android.support.design.widget.FloatingActionButton
-            android:id="@+id/toggleTracking_fab"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true"
-            android:translationY="-16dp"
-            android:layout_marginEnd="16dp"
-            android:clickable="true"
-            android:src="@drawable/ic_play_arrow_24dp"
-            app:backgroundTint="@color/colorPrimary"/>
-
-        <android.support.design.widget.FloatingActionButton
-            android:id="@+id/upload_fab"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_above="@+id/toggleTracking_fab"
-            android:layout_alignParentEnd="true"
-            android:layout_marginBottom="32dp"
-            android:layout_marginEnd="16dp"
-            android:clickable="true"
-            android:longClickable="false"
-            android:src="@drawable/ic_cloud_upload_24dp"
-            app:backgroundTint="@color/colorPrimary"
-            app:layout_anchorGravity="bottom|right|end" />
-    </RelativeLayout>
-</RelativeLayout>
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/upload_fab"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="top|end"
+        android:layout_marginBottom="85dp"
+        android:layout_marginEnd="0dp"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="0dp"
+        android:src="@drawable/ic_cloud_upload_24dp"
+        app:backgroundTint="@color/colorPrimary"
+        app:layout_anchor="@id/toggleTracking_fab"
+        app:layout_anchorGravity="top"/>
+</android.support.design.widget.CoordinatorLayout>

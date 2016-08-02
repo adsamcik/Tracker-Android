@@ -10,7 +10,7 @@ public interface ITabFragment {
 	 * @return if tab successfully loaded
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-	boolean onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo);
+	boolean onEnter(final Activity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo);
 
 	/**
 	 * Called when leaving tab

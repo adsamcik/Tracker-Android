@@ -50,11 +50,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final String TAG = "SIGNALS MAP";
 	private static final String[] availableTypes = {"Wifi", "Cell"};
 	private static int typeIndex = -1;
-	private View view;
 	private SupportMapFragment mMapFragment;
 	private GoogleMap map;
 	private TileProvider tileProvider;
-	private FloatingActionButton fabTwo, fabOne;
 
 	private LocationManager locationManager;
 	private final UpdateLocationListener locationListener = new UpdateLocationListener();
@@ -97,9 +95,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (getView() == null || !PlayController.isPlayServiceAvailable(activity))
 			return false;
 
-		this.fabOne = fabOne;
-		this.fabTwo = fabTwo;
-
 		if (checkLocationPermission(true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
@@ -117,7 +112,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
-		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1));
+		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 
 		if (mMapFragment == null) {
 			mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
@@ -160,7 +155,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 *
 	 * @param index new overlay string index
 	 */
-	private void changeMapOverlay(int index) {
+	private void changeMapOverlay(int index, @NonNull FloatingActionButton fab) {
 		if (map == null) {
 			FirebaseCrash.report(new Throwable("changeMapOverlay should not be called before map is initialized"));
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
@@ -175,15 +170,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		}
 
-		if (fabTwo != null) {
-			switch (availableTypes[typeIndex]) {
-				case "Wifi":
-					fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
-					break;
-				case "Cell":
-					fabTwo.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
-					break;
-			}
+		switch (availableTypes[typeIndex]) {
+			case "Wifi":
+				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
+				break;
+			case "Cell":
+				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
+				break;
 		}
 	}
 
@@ -205,7 +198,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 
 		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
-		changeMapOverlay(0);
+		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+		typeIndex = 0;
 	}
 
 	private Circle userRadius;

@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
@@ -17,9 +18,13 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
+import android.widget.TableLayout;
 
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
@@ -55,9 +60,9 @@ public class MainActivity extends FragmentActivity {
 		PlayController.initializeGamesClient(findViewById(R.id.container), this);
 		PlayController.initializeActivityClient(this);
 
-		RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-		lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(this) : 0) + Extensions.dpToPx(this, 25 - 16));
-		findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
+		//CoordinatorLayout.LayoutParams lp = new CoordinatorLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+		//lp.setMargins(0, 0, 0, (Extensions.hasNavBar(getWindowManager()) ? Extensions.getNavBarHeight(this) : 0) + Extensions.dpToPx(this, 25 - 16));
+		//findViewById(R.id.relative_layout_fabs).setLayoutParams(lp);
 
 		Extensions.initialize(this);
 
@@ -92,45 +97,47 @@ public class MainActivity extends FragmentActivity {
 			viewPager.setAdapter(adapter);
 
 			final Activity a = this;
-			viewPager.addOnPageChangeListener(
-					new ViewPager.OnPageChangeListener() {
-						ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
-						int prevFragmentIndex = 0;
+			viewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+				ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
+				int prevFragmentIndex = 0;
 
-						@Override
-						public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+				@Override
+				public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+				}
+
+				@Override
+				public void onPageSelected(int position) {
+					ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
+					prevFragment.onLeave();
+
+					ITabFragment tf = (ITabFragment) adapter.getItem(position);
+					if (!tf.onEnter(a, fabOne, fabTwo)) {
+						if (prevFragmentIndex == position) {
+							FirebaseCrash.report(new Exception("Failed to create current fragment which is also previous fragment. Preventing freeze."));
+							return;
 						}
-
-						@Override
-						public void onPageSelected(int position) {
-							ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-							prevFragment.onLeave();
-
-							ITabFragment tf = (ITabFragment) adapter.getItem(position);
-							if (!tf.onEnter(a, fabOne, fabTwo)) {
-								if (prevFragmentIndex == position) {
-									FirebaseCrash.report(new Exception("Failed to create current fragment which is also previous fragment. Preventing freeze."));
-									return;
-								}
-								viewPager.setCurrentItem(prevFragmentIndex);
-								View v = findViewById(R.id.container);
-								if (v == null) {
-									FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
-									return;
-								}
-								Snackbar.make(v, "An error occurred", 5);
-								FirebaseCrash.log("Something went wrong on fragment initialization.");
-							} else {
-								prevFragmentIndex = position;
-								prevFragment = tf;
-							}
+						final View v = findViewById(R.id.container);
+						if (v == null) {
+							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
+							return;
 						}
-
-						@Override
-						public void onPageScrollStateChanged(int state) {
-						}
+						Snackbar snack = Snackbar.make(v, "An error occurred", 5000);
+						View view = snack.getView();
+						CoordinatorLayout.LayoutParams params = (CoordinatorLayout.LayoutParams) view.getLayoutParams();
+						params.bottomMargin = Extensions.getNavBarHeight(a);
+						view.setLayoutParams(params);
+						snack.show();
+						FirebaseCrash.log("Something went wrong on fragment initialization.");
+					} else {
+						prevFragmentIndex = position;
+						prevFragment = tf;
 					}
-			);
+				}
+
+				@Override
+				public void onPageScrollStateChanged(int state) {
+				}
+			});
 		}
 
 		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
