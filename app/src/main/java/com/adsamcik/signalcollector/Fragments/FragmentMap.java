@@ -12,10 +12,14 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
@@ -54,6 +58,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private LocationManager locationManager;
 	private final UpdateLocationListener locationListener = new UpdateLocationListener();
 
+	private TileOverlay activeOverlay;
+
+	private View view;
+
+	private Circle userRadius;
+	private Marker userCenter;
+
 
 	/**
 	 * Check if permission to access fine location is granted
@@ -89,10 +100,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if(!PlayController.isPlayServiceAvailable(activity))
+		if (!PlayController.isPlayServiceAvailable(activity))
 			return new Success("Play services are out of date or unavailable.");
-		else if (getView() == null)
-			return new Success("Initialization error occured. Please report this with code 21.");
 
 		if (checkLocationPermission(true)) {
 			if (locationManager == null)
@@ -147,8 +156,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		return new Success();
 	}
 
-	private TileOverlay activeOverlay;
-
 	/**
 	 * Change map overlay
 	 *
@@ -179,6 +186,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 	}
 
+	@Nullable
+	@Override
+	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+		view = inflater.inflate(R.layout.fragment_map, container, false);
+		return super.onCreateView(inflater, container, savedInstanceState);
+	}
+
 	@Override
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
@@ -200,9 +214,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		typeIndex = 0;
 	}
-
-	private Circle userRadius;
-	private Marker userCenter;
 
 	/**
 	 * Draws user accuracy radius and location
