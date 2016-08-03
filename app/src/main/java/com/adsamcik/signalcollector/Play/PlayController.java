@@ -35,7 +35,12 @@ public class PlayController {
 				FirebaseCrash.report(new Throwable("Application context is null and original context is" + (context == null ? "null too" : "ok")));
 				return new Success("Failed to initialize automatic tracking");
 			}
-			activityController = new ActivityController(() -> appContext);
+			activityController = new ActivityController(new IContextCallback() {
+				@Override
+				public Context getContext() {
+					return appContext;
+				}
+			});
 			gapiActivityClient = new GoogleApiClient.Builder(appContext)
 					.addApi(ActivityRecognition.API)
 					.addConnectionCallbacks(activityController)
