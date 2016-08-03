@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.classes.Success;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -26,12 +27,12 @@ public class PlayController {
 	public static ActivityController activityController;
 	public static GamesController gamesController;
 
-	public static boolean initializeActivityClient(@NonNull Context context) {
+	public static Success initializeActivityClient(@NonNull Context context) {
 		if (isPlayServiceAvailable(context)) {
 			final Context appContext = context.getApplicationContext();
 			if(appContext == null) {
 				FirebaseCrash.report(new Throwable("Application context is null and original context is" + (context == null ? "null too" : "ok")));
-				return false;
+				return new Success("Failed to initialize automatic tracking");
 			}
 			activityController = new ActivityController(() -> appContext);
 			gapiActivityClient = new GoogleApiClient.Builder(appContext)
@@ -43,13 +44,12 @@ public class PlayController {
 			//Connect to Google API
 			gapiActivityClient.connect();
 			apiActivity = true;
-			return true;
+			return new Success();
 		}
-		Log.w(TAG, "Play services not available");
-		return false;
+		return new Success("Play services are not available");
 	}
 
-	public static boolean initializeGamesClient(@NonNull View v, @NonNull Activity activity) {
+	public static Success initializeGamesClient(@NonNull View v, @NonNull Activity activity) {
 		if (isPlayServiceAvailable(activity)) {
 			gamesController = new GamesController();
 			gapiGamesClient = new GoogleApiClient.Builder(activity)
@@ -63,10 +63,10 @@ public class PlayController {
 			//Connect to Google API
 			gapiGamesClient.connect();
 			apiGames = true;
-			return true;
+			return new Success();
 		}
 		Log.w(TAG, "Play services not available");
-		return false;
+		return new Success("Play services are not available");
 	}
 
 	public static void reconnect() {

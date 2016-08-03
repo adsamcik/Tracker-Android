@@ -21,6 +21,7 @@ import android.support.v4.view.ViewPager;
 import android.view.View;
 
 import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.classes.SnackMaker;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
@@ -41,9 +42,12 @@ public class MainActivity extends FragmentActivity {
 
 	private ViewPager viewPager;
 
+	SnackMaker snackMaker;
+
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		snackMaker = new SnackMaker(findViewById(R.id.container));
 		Setting.initializeSharedPreferences(this);
 
 		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
@@ -54,7 +58,10 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(this);
 
 		PlayController.initializeGamesClient(findViewById(R.id.container), this);
-		PlayController.initializeActivityClient(this);
+
+		Success s = PlayController.initializeActivityClient(this);
+		if(!s.getSuccess())
+			snackMaker.showSnackbar(s.message);
 
 		Extensions.initialize(this);
 
