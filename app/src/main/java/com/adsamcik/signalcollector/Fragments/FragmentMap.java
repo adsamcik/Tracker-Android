@@ -198,8 +198,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
 		map.setMaxZoomPreference(MAX_ZOOM);
+		//map.getUiSettings().setMapToolbarEnabled(false);
 
-		Log.d("TAG", "ready");
 		if (checkLocationPermission(getActivity(), false)) {
 			locationListener.followMyPosition = true;
 			if (locationManager == null)
