@@ -36,14 +36,14 @@ public class PlayIntentService extends IntentService {
 			int confidence = detectedActivity.getConfidence();
 			//String mostProbableName = Extensions.getActivityName(detectedActivity.getType());
 
-			//Log.d(TAG, Extensions.getActivityName(detectedActivity.getType()));
+			//Log.d(TAG, Extensions.getActivityName(detectedActivity.getType()) + " confident " + confidence);
 
 			if(TrackerService.isActive) {
 				Intent i = new Intent("SCActivity");
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
 				sendBroadcast(i);
-			} else if(confidence >= 85 && Extensions.canBackgroundTrack(this, Extensions.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+			} else if(confidence >= 75 && Extensions.canBackgroundTrack(this, Extensions.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);
