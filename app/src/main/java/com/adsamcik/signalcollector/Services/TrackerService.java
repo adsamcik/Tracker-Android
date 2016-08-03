@@ -110,11 +110,10 @@ public class TrackerService extends Service implements SensorEventListener {
 		wakeLock.acquire();
 		Data d = new Data(location.getTime());
 
-		Log.d(TAG, "dist to wifi ");
 		if (wifiScanData != null && wifiScanPos != null) {
 			long currentTime = Calendar.getInstance().getTimeInMillis();
 			long timeDiff = (wifiScanTime - wifiScanPos.getTime()) / (currentTime - wifiScanPos.getTime());
-			float distTo = wifiScanPos.distanceTo(Extensions.interpolateLocation(wifiScanPos, location, timeDiff));
+			float distTo = location.distanceTo(Extensions.interpolateLocation(wifiScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			Log.d(TAG, "dist to wifi " + distTo);
 			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI)
