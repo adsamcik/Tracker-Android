@@ -241,11 +241,12 @@ public class TrackerService extends Service implements SensorEventListener {
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				if (intent.getIntExtra("confidence", -1) > 85 && backgroundActivated) {
+				Log.d(TAG, "receiver");
+				if (intent.getIntExtra("confidence", -1) > 85) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
-					if (evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0)
+					if (backgroundActivated && (evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0))
 						stopSelf();
 				}
 			}
@@ -322,6 +323,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		mSensorManager.unregisterListener(this);
 
 		isActive = false;
+		service = null;
 		saveData();
 		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(false);
