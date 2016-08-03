@@ -47,7 +47,6 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		snackMaker = new SnackMaker(findViewById(R.id.container));
 		Setting.initializeSharedPreferences(this);
 
 		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
@@ -57,7 +56,13 @@ public class MainActivity extends FragmentActivity {
 		setContentView(R.layout.activity_main);
 		DataStore.setContext(this);
 
-		PlayController.initializeGamesClient(findViewById(R.id.container), this);
+		View containerView = findViewById(R.id.container);
+		if(containerView != null) {
+			PlayController.initializeGamesClient(containerView, this);
+			snackMaker = new SnackMaker(containerView);
+		}
+		else
+			FirebaseCrash.report(new Throwable("container view is null. something is wrong."));
 
 		Success s = PlayController.initializeActivityClient(this);
 		if(!s.getSuccess())
@@ -88,8 +93,8 @@ public class MainActivity extends FragmentActivity {
 			fabOne.setLayoutParams(lp);
 		}
 
-		if (viewPager == null) {
-			viewPager = (ViewPager) findViewById(R.id.container);
+		if (viewPager == null && containerView != null) {
+			viewPager = (ViewPager) containerView;
 			viewPager.setOffscreenPageLimit(3);
 
 			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
