@@ -73,6 +73,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
+		weeklyStats = new Table(getContext(), 4, false);
+		((LinearLayout) view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
 		return view;
 	}
 
@@ -93,10 +95,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			} catch (IOException e) {
 				Log.e("Error", e.getMessage());
 			}
-		}
-		if (view != null) {
-			weeklyStats = new Table(getContext(), 4, false);
-			((LinearLayout) view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
 		}
 	}
 
