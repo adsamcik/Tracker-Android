@@ -121,9 +121,9 @@ public class Extensions {
 		if(time < 0 || time > 1)
 			throw new IllegalArgumentException("Time must be between 0 and 1. is " + time);
 		Location l = new Location("interpolation");
-		l.setLatitude((locationTwo.getLatitude() - locationOne.getLatitude()) * time);
-		l.setLongitude((locationTwo.getLongitude() - locationOne.getLongitude()) * time);
-		l.setAltitude((locationTwo.getAltitude() - locationOne.getAltitude()) * time);
+		l.setLatitude(locationOne.getLatitude() + (locationTwo.getLatitude() - locationOne.getLatitude()) * time);
+		l.setLongitude(locationOne.getLongitude() + (locationTwo.getLongitude() - locationOne.getLongitude()) * time);
+		l.setAltitude(locationOne.getAltitude() + (locationTwo.getAltitude() - locationOne.getAltitude()) * time);
 		return l;
 	}
 
