@@ -10,6 +10,7 @@ import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.interfaces.IContextCallback;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
