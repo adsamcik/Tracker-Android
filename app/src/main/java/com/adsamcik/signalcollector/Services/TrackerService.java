@@ -242,7 +242,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				Log.d(TAG, "receiver");
 				if (intent.getIntExtra("confidence", -1) > 85) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.evaluateActivity(currentActivity);
