@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
+import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
@@ -33,6 +34,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 
 	private FloatingActionButton fabTrack, fabUp;
+
+	private long lastWifiTime = 0;
 
 	@Nullable
 	@Override
@@ -114,12 +117,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				TrackerService.service = trackerService;
 				activity.startService(trackerService);
-				changeTrackerButton(1);
 			} else {
 				if(TrackerService.service == null)
 					FirebaseCrash.report(new Exception("Tracker service is null"));
 				activity.stopService(TrackerService.service);
-				changeTrackerButton(0);
 			}
 
 		} else if (Build.VERSION.SDK_INT >= 23) {
@@ -190,6 +191,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
 
+		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isActive ? 1 : 0));
+
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
 		setCloudStatus(dataSize == 0 ? 0 : 1);
@@ -200,9 +203,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	public void onLeave() {
 		DataStore.setOnDataChanged(null);
 		DataStore.setOnUpload(null);
+		TrackerService.onNewDataFound = null;
+		TrackerService.onServiceStateChange = null;
 	}
-
-	private long lastWifiTime = 0;
 
 	private void UpdateData() {
 		Context c = getContext();

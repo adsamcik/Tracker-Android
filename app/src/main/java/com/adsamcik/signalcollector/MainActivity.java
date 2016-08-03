@@ -68,8 +68,6 @@ public class MainActivity extends FragmentActivity {
 		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(this, true);
 
-		DataStore.getDataFileNames(true);
-
 		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
 		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
 

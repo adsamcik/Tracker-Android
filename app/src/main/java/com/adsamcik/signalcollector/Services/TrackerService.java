@@ -60,6 +60,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public static long approxSize = 0;
 
+	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
 	public static Data dataEcho;
 	public static int distanceToWifi;
@@ -303,12 +304,13 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (intent == null) {
 			approxSize = DataStore.recountDataSize();
 			backgroundActivated = true;
-			Log.d(TAG, "Tracker services started with null intent");
 		} else {
 			approxSize = intent.getLongExtra("approxSize", 0);
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}
 		startForeground(1, generateNotification(false, null));
+		if(onServiceStateChange != null)
+			onServiceStateChange.onCallback();
 		return super.onStartCommand(intent, flags, startId);
 	}
 
@@ -327,6 +329,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		saveData();
 		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(false);
+		if(onServiceStateChange != null)
+			onServiceStateChange.onCallback();
 		DataStore.cleanup();
 
 		stopForeground(true);

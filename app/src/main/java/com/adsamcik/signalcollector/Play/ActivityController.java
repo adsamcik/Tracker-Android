@@ -26,8 +26,7 @@ public class ActivityController implements GoogleApiClient.ConnectionCallbacks {
 	public void onConnected(Bundle bundle) {
 		Context context = callback.getContext();
 		Intent i = new Intent(context, PlayIntentService.class);
-		PendingIntent activityPendingIntent = PendingIntent
-				.getService(context, 0, i, PendingIntent.FLAG_UPDATE_CURRENT);
+		PendingIntent activityPendingIntent = PendingIntent.getService(context, 0, i, PendingIntent.FLAG_UPDATE_CURRENT);
 
 		ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(client, 0, activityPendingIntent);
 		callback = null;
