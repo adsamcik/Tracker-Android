@@ -103,9 +103,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		/*if (!PlayController.isPlayServiceAvailable(activity))
-			return new Success("Play services are out of date or unavailable.");*/
-
 		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
@@ -114,16 +111,22 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return new Success("App does not have required permissions.");
 
-		fabOne.show();
-		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
-		fabOne.setOnClickListener(v -> {
-			if (checkLocationPermission(activity,true))
-				locationListener.moveToMyPosition();
-		});
+		if (!PlayController.isPlayServiceAvailable(activity)) {
+			fabOne.show();
+			fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
+			fabOne.setOnClickListener(v -> {
+				if (checkLocationPermission(activity, true))
+					locationListener.moveToMyPosition();
+			});
 
-		fabTwo.show();
-		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
-		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
+			fabTwo.show();
+			fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
+			fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
+		}
+		else {
+			fabOne.hide();
+			fabTwo.hide();
+		}
 
 		if (mMapFragment == null) {
 			mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
