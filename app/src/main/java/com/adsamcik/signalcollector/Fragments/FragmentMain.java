@@ -66,8 +66,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutOther.setVisibility(View.GONE);
 
 		long dataSize = DataStore.sizeOfData();
-		if (fabUp != null)
-			setCollected(dataSize);
+		setCollected(dataSize);
 
 		return view;
 	}
@@ -138,7 +137,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	 */
 	private void setCloudStatus(int status) {
 		if (fabUp == null)
-			throw new RuntimeException("upload fab is null. This should not happen.");
+			return;
 		else if (status < 0 || status > 3)
 			throw new RuntimeException("Status is out of range");
 
