@@ -66,7 +66,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutOther.setVisibility(View.GONE);
 
 		long dataSize = DataStore.sizeOfData();
-		setCollected(dataSize);
+		if (fabUp != null)
+			setCollected(dataSize);
 
 		return view;
 	}
@@ -118,7 +119,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				TrackerService.service = trackerService;
 				activity.startService(trackerService);
 			} else {
-				if(TrackerService.service == null)
+				if (TrackerService.service == null)
 					FirebaseCrash.report(new Exception("Tracker service is null"));
 				activity.stopService(TrackerService.service);
 			}
@@ -171,7 +172,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success onEnter(final Activity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 
@@ -209,7 +210,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	private void UpdateData() {
 		Context c = getContext();
-		if(c == null)
+		if (c == null)
 			return;
 		Resources res = c.getResources();
 		Data d = TrackerService.dataEcho;

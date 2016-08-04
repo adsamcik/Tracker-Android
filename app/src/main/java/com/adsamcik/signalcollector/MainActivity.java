@@ -42,7 +42,7 @@ public class MainActivity extends FragmentActivity {
 
 	private ViewPager viewPager;
 
-	SnackMaker snackMaker;
+	private SnackMaker snackMaker;
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
