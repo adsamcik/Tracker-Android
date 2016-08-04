@@ -103,6 +103,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		if (!PlayController.isPlayServiceAvailable(activity))
+			return new Success("Play services are not available");
 		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
@@ -111,27 +113,19 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return new Success("App does not have required permissions.");
 
-		if (PlayController.isPlayServiceAvailable(activity)) {
-			fabOne.show();
-			fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
-			fabOne.setOnClickListener(v -> {
-				if (checkLocationPermission(activity, true))
-					locationListener.moveToMyPosition();
-			});
+		fabOne.show();
+		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
+		fabOne.setOnClickListener(v -> {
+			if (checkLocationPermission(activity, true))
+				locationListener.moveToMyPosition();
+		});
 
-			fabTwo.show();
-			fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
-			fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
-		}
-		else {
-			fabOne.hide();
-			fabTwo.hide();
-		}
+		fabTwo.show();
+		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
+		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 
 		if (mMapFragment == null) {
 			mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-			if(mMapFragment == null)
-				return new Success("Map is not ready yet");
 			mMapFragment.getMapAsync(this);
 
 			tileProvider = new UrlTileProvider(256, 256) {
@@ -233,8 +227,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param accuracy Accuracy
 	 */
 	private void DrawUserPosition(LatLng latlng, float accuracy) {
-		if(map == null)
-			return;;
+		if (map == null)
+			return;
+		;
 		if (userRadius == null) {
 			Context c = getContext();
 			if (c == null) {
