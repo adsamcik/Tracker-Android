@@ -126,6 +126,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		if (mMapFragment == null) {
 			mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
+			if(mMapFragment == null)
+				return new Success("Map is null, please report when this happened");
 			mMapFragment.getMapAsync(this);
 
 			tileProvider = new UrlTileProvider(256, 256) {
