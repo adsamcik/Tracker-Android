@@ -111,7 +111,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return new Success("App does not have required permissions.");
 
-		if (!PlayController.isPlayServiceAvailable(activity)) {
+		if (PlayController.isPlayServiceAvailable(activity)) {
 			fabOne.show();
 			fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 			fabOne.setOnClickListener(v -> {
