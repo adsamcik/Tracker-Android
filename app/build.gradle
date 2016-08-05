@@ -26,20 +26,15 @@ android {
 }
 
 dependencies {
-    compile fileTree(include: ['*.jar'], dir: 'libs')
-    //testCompile 'junit:junit:4.12'
     compile 'com.android.support:design:24.1.1'
     compile 'com.android.support:appcompat-v7:24.1.1'
     compile 'com.android.support:support-v4:24.1.1'
-
+    compile 'com.android.volley:volley:1.0.0'
     compile 'com.google.code.gson:gson:2.7'
     compile 'com.github.paolorotolo:appintro:4.0.0'
-    compile 'com.loopj.android:android-async-http:1.4.9'
-
     compile 'com.google.android.gms:play-services-maps:9.4.0'
     compile 'com.google.android.gms:play-services-location:9.4.0'
     compile 'com.google.android.gms:play-services-games:9.4.0'
-
     compile 'com.google.firebase:firebase-core:9.4.0'
     compile 'com.google.firebase:firebase-crash:9.4.0'
     compile 'com.google.firebase:firebase-messaging:9.4.0'
