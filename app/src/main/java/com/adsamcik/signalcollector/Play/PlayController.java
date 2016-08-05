@@ -64,7 +64,7 @@ public class PlayController {
 			gapiActivityClient = new GoogleApiClient.Builder(appContext)
 					.addApi(ActivityRecognition.API)
 					.addConnectionCallbacks(activityController)
-					.enableAutoManage(activity, null)
+					.enableAutoManage(activity, ActivityController.GOOGLE_API_ID, null)
 					.build();
 
 			activityController.setClient(gapiActivityClient);
@@ -77,17 +77,18 @@ public class PlayController {
 
 	public static Success initializeGamesClient(@NonNull View v, @NonNull FragmentActivity activity) {
 		if (isPlayServiceAvailable(activity)) {
-			gamesController = new GamesController();
-			gapiGamesClient = new GoogleApiClient.Builder(activity)
-					.addApi(Games.API)
-					.addScope(Games.SCOPE_GAMES)
-					.enableAutoManage(activity, null)
-					.addConnectionCallbacks(gamesController)
-					.setViewForPopups(v)
-					.build();
+			if(gapiGamesClient == null) {
+				gamesController = new GamesController();
+				gapiGamesClient = new GoogleApiClient.Builder(activity)
+						.addApi(Games.API)
+						.addScope(Games.SCOPE_GAMES)
+						.enableAutoManage(activity, GamesController.GOOGLE_API_ID, null)
+						.addConnectionCallbacks(gamesController)
+						.setViewForPopups(v)
+						.build();
 
-			gamesController.setClient(gapiGamesClient).setUI(v);
-			//Connect to Google API
+				gamesController.setClient(gapiGamesClient).setUI(v);
+			}
 			gapiGamesClient.connect();
 			apiGames = true;
 			return new Success();
@@ -105,8 +106,6 @@ public class PlayController {
 		gamesController.logout();
 		Games.signOut(gapiGamesClient);
 		gapiGamesClient.disconnect();
-		gapiGamesClient = null;
-		apiGames = false;
 		Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, false).apply();
 	}
 

@@ -27,7 +27,7 @@ import cz.msebera.android.httpclient.Header;
 public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	private static final int REQUEST_LEADERBOARD = 5989;
 	private static final int REQUEST_ACHIEVEMENTS = 8955;
-	private static final int RC_SIGN_IN = 9001;
+	public static final int GOOGLE_API_ID = 57641;
 
 	private GoogleApiClient client;
 	private WeakReference<Button> buttonWeakReference;
@@ -45,7 +45,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 
 	public void logout() {
 		updateUI(false);
-		String userID = getUserID();
+		/*String userID = getUserID();
 		if (userID != null) {
 			RequestParams rp = new RequestParams();
 			rp.add("register", "false");
@@ -62,7 +62,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 
 				}
 			});
-		}
+		}*/
 	}
 
 	private void updateUI(boolean connected) {

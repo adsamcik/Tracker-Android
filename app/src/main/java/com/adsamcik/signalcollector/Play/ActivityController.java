@@ -18,6 +18,7 @@ import java.lang.ref.WeakReference;
 
 public class ActivityController implements GoogleApiClient.ConnectionCallbacks {
 	private GoogleApiClient client;
+	public static final int GOOGLE_API_ID = 77285;
 
 	private WeakReference<Context> appContext;
 
