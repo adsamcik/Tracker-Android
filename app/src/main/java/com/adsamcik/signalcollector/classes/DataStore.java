@@ -19,10 +19,15 @@ import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.firebase.crash.FirebaseCrash;
-import com.loopj.android.http.AsyncHttpResponseHandler;
-import com.loopj.android.http.RequestParams;
-import com.loopj.android.http.SyncHttpClient;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -36,8 +41,8 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
-
-import cz.msebera.android.httpclient.Header;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DataStore {
 	public static final String TAG = "DATA-STORE";
@@ -157,47 +162,47 @@ public class DataStore {
 		if (!Extensions.isInitialized())
 			Extensions.initialize(getContext());
 
-		String serialized = "{\"imei\":" + Extensions.getImei() +
+		final String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 				"\",\"api\":" + Build.VERSION.SDK_INT +
-				",\"version\":" + BuildConfig.VERSION_CODE + ",";
-		serialized += "\"data\":" + data + "}";
+				",\"version\":" + BuildConfig.VERSION_CODE + "," +
+				"\"data\":" + data + "}";
 
-		RequestParams rp = new RequestParams();
-		rp.add("imei", Extensions.getImei());
-		/*try {
-			Log.d(TAG, AES256.encryptMsg(serialized, AES256.generateKey()));
-			rp.add("data", AES256.encryptMsg(serialized, AES256.generateKey()));
-		} catch (Exception e) {
-			Log.d(TAG, e.getMessage());
-		}*/
-		rp.add("data", serialized);
-		final SyncHttpClient client = new SyncHttpClient();
-		client.post(Network.URL_DATA_UPLOAD, rp, new AsyncHttpResponseHandler(Looper.getMainLooper()) {
+		StringRequest postRequest = new StringRequest(Request.Method.POST, Network.URL_DATA_UPLOAD,
+				new Response.Listener<String>() {
+					@Override
+					public void onResponse(String response) {
+						/*try {
+							JSONObject jsonResponse = new JSONObject(response).getJSONObject("form");
+							String site = jsonResponse.getString("site"),
+									network = jsonResponse.getString("network");
+							System.out.println("Site: "+site+"\nNetwork: "+network);
+						} catch (JSONException e) {
+							e.printStackTrace();
+						}*/
+						deleteFile(name);
+						TrackerService.approxSize -= size;
+					}
+				},
+				new Response.ErrorListener() {
+					@Override
+					public void onErrorResponse(VolleyError error) {
+						requestUpload(getContext(), true);
+					}
+				}
+		) {
 			@Override
-			public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-				FirebaseCrash.log("deleting " + name);
-				deleteFile(name);
-				TrackerService.approxSize -= size;
-				//Log.d(TAG, "Successfully uploaded " + name);
+			protected Map<String, String> getParams() {
+				Map<String, String> params = new HashMap<>();
+				// the POST parameters:
+				params.put("data", serialized);
+				params.put("imei", Extensions.getImei());
+				return params;
 			}
+		};
 
-			@Override
-			public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-				requestUpload(getContext(), true);
-				FirebaseCrash.log("Upload failed " + name + " code " + statusCode);
-				Log.d(TAG, "Upload failed " + name + " code " + statusCode);
-			}
-
-			@Override
-			public void onRetry(int retryNo) {
-				super.onRetry(retryNo);
-				Log.d(TAG, "Retry " + Extensions.canUpload(getContext(), background));
-				if (Extensions.canUpload(getContext(), background))
-					client.cancelAllRequests(true);
-			}
-		});
+		Volley.newRequestQueue(getContext()).add(postRequest);
 	}
 
 	/**
