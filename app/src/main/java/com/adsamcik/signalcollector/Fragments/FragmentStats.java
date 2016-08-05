@@ -24,8 +24,6 @@ import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.loopj.android.http.AsyncHttpClient;
-import com.loopj.android.http.AsyncHttpResponseHandler;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -35,13 +33,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import cz.msebera.android.httpclient.Header;
-
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
 	private static long lastRequest = 0;
-	private final AsyncHttpClient client = new AsyncHttpClient();
 
 	private Table weeklyStats;
 	private View view;
@@ -50,24 +45,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	//todo add last day stats
 
 	//todo Improve stats updating
-	private final AsyncHttpResponseHandler generalStatsResponseHandler = new AsyncHttpResponseHandler() {
-		@Override
-		public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-			if (responseBody != null && responseBody.length > 0)
-				try {
-					String data = new String(responseBody);
-					DataStore.saveString(GENERAL_STAT_FILE, data);
-					GenerateStatsTable(readJsonStream(new ByteArrayInputStream(responseBody)));
-				} catch (IOException e) {
-					Log.e("Error", e.getMessage());
-				}
-		}
-
-		@Override
-		public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-
-		}
-	};
 
 	@Nullable
 	@Override
@@ -86,7 +63,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		time += 120000;
 		long diff = time - lastRequest;
 		if (diff > 600000) {
-			client.get(Network.URL_STATS, null, generalStatsResponseHandler);
+			//client.get(Network.URL_STATS, null, generalStatsResponseHandler);
 			lastRequest = time;
 		} else if (DataStore.exists(GENERAL_STAT_FILE)) {
 			String data = DataStore.loadString(GENERAL_STAT_FILE);

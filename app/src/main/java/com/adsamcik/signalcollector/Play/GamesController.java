@@ -12,17 +12,11 @@ import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
-import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.games.Games;
-import com.google.firebase.crash.FirebaseCrash;
-import com.loopj.android.http.AsyncHttpClient;
-import com.loopj.android.http.AsyncHttpResponseHandler;
-import com.loopj.android.http.RequestParams;
 
 import java.lang.ref.WeakReference;
 
-import cz.msebera.android.httpclient.Header;
 
 public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	private static final int REQUEST_LEADERBOARD = 5989;
@@ -100,24 +94,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	public void onConnected(Bundle bundle) {
 		updateUI(true);
 		if (!Setting.getPreferences().getBoolean(Setting.REGISTERED_USER, false)) {
-			Log.d("TAG", "Registering");
-			AsyncHttpClient hac = new AsyncHttpClient();
-			RequestParams rp = new RequestParams();
-			rp.add("userID", getUserID());
-			rp.add("imei", Extensions.getImei());
-			rp.add("userName", getUserName());
-			rp.add("register", "true");
-			hac.post(Network.URL_USER_REGISTRATION, rp, new AsyncHttpResponseHandler() {
-				@Override
-				public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-					Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, true).apply();
-				}
-
-				@Override
-				public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-
-				}
-			});
+			//todo register user on the server
 		}
 	}
 
