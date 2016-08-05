@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.play;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -11,8 +12,10 @@ import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.games.Games;
+import com.google.firebase.crash.FirebaseCrash;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
@@ -21,13 +24,20 @@ import java.lang.ref.WeakReference;
 
 import cz.msebera.android.httpclient.Header;
 
-public class GamesController implements GoogleApiClient.ConnectionCallbacks {
+public class GamesController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 	private static final int REQUEST_LEADERBOARD = 5989;
 	private static final int REQUEST_ACHIEVEMENTS = 8955;
 	private static final int RC_SIGN_IN = 9001;
 
 	private GoogleApiClient client;
 	private WeakReference<Button> buttonWeakReference;
+	private WeakReference<Activity> activityWeakReference;
+
+	private boolean mResolvingConnectionFailure = false;
+
+	public GamesController(Activity activity) {
+		activityWeakReference = new WeakReference<>(activity);
+	}
 
 	public GamesController setClient(GoogleApiClient client) {
 		this.client = client;
@@ -129,5 +139,17 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 
 	public void progressAchievement(String id, int value) {
 		Games.Achievements.increment(client, id, value);
+	}
+
+	@Override
+	public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+		if(mResolvingConnectionFailure)
+			return;
+		else if(activityWeakReference.get() == null) {
+			FirebaseCrash.report(new Throwable("Activity is null"));
+			return;
+		}
+
+		mResolvingConnectionFailure = PlayController.resolveConnectionFailure(activityWeakReference.get(), client, connectionResult, RC_SIGN_IN, "error");
 	}
 }

@@ -134,7 +134,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			PlayController.gamesController.setUI(rootView);
 
 		textView_PlayLog.setOnClickListener(v -> {
-			if (!PlayController.apiGames || !PlayController.isLogged())
+			if (!PlayController.isLogged())
 				PlayController.initializeGamesClient(rootView, getActivity());
 			else {
 				textView_PlayLog.setText(R.string.settings_playGamesLogin);
