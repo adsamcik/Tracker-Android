@@ -61,17 +61,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		long time = System.currentTimeMillis();
 		time -= time % 600000;
 		time += 120000;
-		long diff = time - lastRequest;
-		if (diff > 600000) {
-			//client.get(Network.URL_STATS, null, generalStatsResponseHandler);
-			lastRequest = time;
-		} else if (DataStore.exists(GENERAL_STAT_FILE)) {
-			String data = DataStore.loadString(GENERAL_STAT_FILE);
-			try {
-				GenerateStatsTable(readJsonStream(new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8))));
-			} catch (IOException e) {
-				Log.e("Error", e.getMessage());
-			}
+		if (DataStore.exists(GENERAL_STAT_FILE)) {
+			DataStore.deleteFile(GENERAL_STAT_FILE);
 		}
 	}
 

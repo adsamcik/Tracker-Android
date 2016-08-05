@@ -212,7 +212,7 @@ public class DataStore {
 	 * @param newFileName new file name
 	 * @return success
 	 */
-	private static boolean renameFile(String fileName, String newFileName) {
+	public static boolean renameFile(String fileName, String newFileName) {
 		String dir = getContext().getFilesDir().getPath();
 		return new File(dir, fileName).renameTo(new File(dir, newFileName));
 	}
@@ -222,7 +222,7 @@ public class DataStore {
 	 *
 	 * @param fileName file name
 	 */
-	private static void deleteFile(String fileName) {
+	public static void deleteFile(String fileName) {
 		getContext().deleteFile(fileName);
 	}
 
