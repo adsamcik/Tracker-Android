@@ -24,20 +24,13 @@ import java.lang.ref.WeakReference;
 
 import cz.msebera.android.httpclient.Header;
 
-public class GamesController implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	private static final int REQUEST_LEADERBOARD = 5989;
 	private static final int REQUEST_ACHIEVEMENTS = 8955;
 	private static final int RC_SIGN_IN = 9001;
 
 	private GoogleApiClient client;
 	private WeakReference<Button> buttonWeakReference;
-	private WeakReference<Activity> activityWeakReference;
-
-	private boolean mResolvingConnectionFailure = false;
-
-	public GamesController(Activity activity) {
-		activityWeakReference = new WeakReference<>(activity);
-	}
 
 	public GamesController setClient(GoogleApiClient client) {
 		this.client = client;
@@ -139,17 +132,5 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks, Goo
 
 	public void progressAchievement(String id, int value) {
 		Games.Achievements.increment(client, id, value);
-	}
-
-	@Override
-	public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-		if(mResolvingConnectionFailure)
-			return;
-		else if(activityWeakReference.get() == null) {
-			FirebaseCrash.report(new Throwable("Activity is null"));
-			return;
-		}
-
-		mResolvingConnectionFailure = PlayController.resolveConnectionFailure(activityWeakReference.get(), client, connectionResult, RC_SIGN_IN, "error");
 	}
 }
