@@ -32,10 +32,9 @@ import java.util.concurrent.TimeoutException;
 
 public class UploadService extends JobService {
 	private Thread thread;
-	private final int REQUEST_TIMEOUT = 30;
 	private static int queued = 0;
 
-	void checkQueue() {
+	private void checkQueue() {
 		if(--queued == 0) {
 			DataStore.cleanup();
 			DataStore.recountDataSize();
@@ -47,16 +46,14 @@ public class UploadService extends JobService {
 
 	/**
 	 * Uploads data to server.
-	 *
-	 * @param data json array of Data
+	 *  @param data json array of Data
 	 * @param name name of file where the data is saved (Function will clear the file afterwards)
 	 * @param size size of data uploaded
 	 */
-	public boolean upload(final String data, final String name, final long size) {
-		Log.d("UP", "uploading");
+	private void upload(final String data, final String name, final long size) {
 		if (data.isEmpty()) {
 			FirebaseCrash.report(new Exception("data are empty"));
-			return true;
+			return;
 		}
 		final Context context = getApplicationContext();
 		if (!Extensions.isInitialized())
@@ -71,14 +68,6 @@ public class UploadService extends JobService {
 
 		StringRequest postRequest = new StringRequest(Request.Method.POST, Network.URL_DATA_UPLOAD,
 				response -> {
-					/*try {
-						JSONObject jsonResponse = new JSONObject(response).getJSONObject("form");
-						String site = jsonResponse.getString("site"),
-								network = jsonResponse.getString("network");
-						System.out.println("Site: "+site+"\nNetwork: "+network);
-					} catch (JSONException e) {
-						e.printStackTrace();
-					}*/
 					deleteFile(name);
 					TrackerService.approxSize -= size;
 					DataStore.onUpload();
@@ -101,7 +90,6 @@ public class UploadService extends JobService {
 
 		queued++;
 		Volley.newRequestQueue(context).add(postRequest);
-		return true;
 	}
 
 	/**
