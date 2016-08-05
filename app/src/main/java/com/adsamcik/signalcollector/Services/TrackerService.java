@@ -40,6 +40,7 @@ import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -55,18 +56,17 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 	private final float MIN_DISTANCE_M = 5;
 
-	public static boolean isActive = false;
 	public static Intent service;
 
 	public static long approxSize = 0;
+
+	private static long lockedUntil;
+	private static boolean backgroundActivated = false;
 
 	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
 	public static Data dataEcho;
 	public static int distanceToWifi;
-
-	private static long lockedUntil;
-	private static TrackerService instance;
 
 	private Location wifiScanPos;
 	private long wifiScanTime;
@@ -84,7 +84,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	private float pressureValue;
 	private int currentActivity;
-	private boolean backgroundActivated = false;
 	private boolean wifiEnabled = false;
 
 	private int saveAttemptsFailed = 0;
@@ -98,7 +97,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	}
 
 	public static void setAutoLock() {
-		if (instance.backgroundActivated)
+		if (backgroundActivated)
 			lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
 	}
 
@@ -113,7 +112,9 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		if (wifiScanData != null && wifiScanPos != null) {
 			long currentTime = Calendar.getInstance().getTimeInMillis();
-			long timeDiff = (wifiScanTime - wifiScanPos.getTime()) / (currentTime - wifiScanPos.getTime());
+			double timeDiff = (double) (wifiScanTime - wifiScanPos.getTime()) / (double) (currentTime - wifiScanPos.getTime());
+			if (timeDiff < 0 || timeDiff > 1)
+				FirebaseCrash.report(new Throwable("wifiScanTime " + wifiScanTime + " previous position time " + wifiScanPos.getTime() + " current time " + currentTime + " timeDiff " + timeDiff));
 			float distTo = location.distanceTo(Extensions.interpolateLocation(wifiScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			Log.d(TAG, "dist to wifi " + distTo);
@@ -308,7 +309,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
 		}
 		startForeground(1, generateNotification(false, null));
-		if(onServiceStateChange != null)
+		if (onServiceStateChange != null)
 			onServiceStateChange.onCallback();
 		return super.onStartCommand(intent, flags, startId);
 	}
@@ -316,24 +317,23 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public void onDestroy() {
+		stopForeground(true);
+		service = null;
+		instance = null;
+
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
-
 		unregisterReceiver(wifiReceiver);
 		PlayController.unregisterActivityReceiver(activityReceiver, getApplicationContext());
 		mSensorManager.unregisterListener(this);
 
-		isActive = false;
-		service = null;
 		saveData();
-		if (!wifiEnabled)
-			wifiManager.setWifiEnabled(false);
-		if(onServiceStateChange != null)
+		if (onServiceStateChange != null)
 			onServiceStateChange.onCallback();
 		DataStore.cleanup();
 
-		stopForeground(true);
-		instance = null;
+		if (!wifiEnabled)
+			wifiManager.setWifiEnabled(false);
 	}
 
 	@Nullable
