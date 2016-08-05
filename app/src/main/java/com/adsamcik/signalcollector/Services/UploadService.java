@@ -52,7 +52,7 @@ public class UploadService extends JobService {
 	 * @param name name of file where the data is saved (Function will clear the file afterwards)
 	 * @param size size of data uploaded
 	 */
-	public boolean upload(final String data, final long size) {
+	public boolean upload(final String data, final String name, final long size) {
 		Log.d("UP", "uploading");
 		if (data.isEmpty()) {
 			FirebaseCrash.report(new Exception("data are empty"));
@@ -79,7 +79,7 @@ public class UploadService extends JobService {
 					} catch (JSONException e) {
 						e.printStackTrace();
 					}*/
-					//deleteFile(name);
+					deleteFile(name);
 					TrackerService.approxSize -= size;
 					DataStore.onUpload();
 					checkQueue();
@@ -144,7 +144,7 @@ public class UploadService extends JobService {
 						}
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
 						if (canStart(background))
-							upload(builder.toString(), size);
+							upload(builder.toString(), fileName, size);
 						else
 							break;
 					} else
