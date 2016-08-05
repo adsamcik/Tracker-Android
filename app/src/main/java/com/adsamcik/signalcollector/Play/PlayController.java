@@ -34,18 +34,20 @@ public class PlayController {
 
 	public static Success initializeActivityClient(@NonNull Context context) {
 		if (isPlayServiceAvailable(context)) {
-			final Context appContext = context.getApplicationContext();
-			if (appContext == null) {
-				FirebaseCrash.report(new Throwable("Application context is null"));
-				return new Success("Failed to initialize automatic tracking");
-			}
-			activityController = new ActivityController(context);
-			gapiActivityClient = new GoogleApiClient.Builder(appContext)
-					.addApi(ActivityRecognition.API)
-					.addConnectionCallbacks(activityController)
-					.build();
+			if(gapiActivityClient == null) {
+				final Context appContext = context.getApplicationContext();
+				if (appContext == null) {
+					FirebaseCrash.report(new Throwable("Application context is null"));
+					return new Success("Failed to initialize automatic tracking");
+				}
+				activityController = new ActivityController(context);
+				gapiActivityClient = new GoogleApiClient.Builder(appContext)
+						.addApi(ActivityRecognition.API)
+						.addConnectionCallbacks(activityController)
+						.build();
 
-			activityController.setClient(gapiActivityClient);
+				activityController.setClient(gapiActivityClient);
+			}
 			gapiActivityClient.connect();
 			apiActivity = true;
 			return new Success();
@@ -55,19 +57,21 @@ public class PlayController {
 
 	public static Success initializeActivityClient(@NonNull FragmentActivity activity) {
 		if (isPlayServiceAvailable(activity)) {
-			final Context appContext = activity.getApplicationContext();
-			if (appContext == null) {
-				FirebaseCrash.report(new Throwable("Application context is null"));
-				return new Success("Failed to initialize automatic tracking");
-			}
-			activityController = new ActivityController(appContext);
-			gapiActivityClient = new GoogleApiClient.Builder(appContext)
-					.addApi(ActivityRecognition.API)
-					.addConnectionCallbacks(activityController)
-					.enableAutoManage(activity, ActivityController.GOOGLE_API_ID, null)
-					.build();
+			if(gapiActivityClient == null) {
+				final Context appContext = activity.getApplicationContext();
+				if (appContext == null) {
+					FirebaseCrash.report(new Throwable("Application context is null"));
+					return new Success("Failed to initialize automatic tracking");
+				}
+				activityController = new ActivityController(appContext);
+				gapiActivityClient = new GoogleApiClient.Builder(appContext)
+						.addApi(ActivityRecognition.API)
+						.addConnectionCallbacks(activityController)
+						.enableAutoManage(activity, ActivityController.GOOGLE_API_ID, null)
+						.build();
 
-			activityController.setClient(gapiActivityClient);
+				activityController.setClient(gapiActivityClient);
+			}
 			gapiActivityClient.connect();
 			apiActivity = true;
 			return new Success();
