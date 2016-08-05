@@ -66,6 +66,10 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		}
 	}
 
+	/**
+	 * Generates table from List of stats
+	 * @param stats list of stats
+	 */
 	private void GenerateStatsTable(List<Stat> stats) {
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);

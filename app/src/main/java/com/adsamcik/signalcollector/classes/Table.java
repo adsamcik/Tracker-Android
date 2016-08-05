@@ -46,6 +46,11 @@ public class Table {
 		layout.setLayoutParams(lp);
 	}
 
+	/**
+	 * Sets single title for whole table
+	 * @param title title
+	 * @return  this table
+	 */
 	public Table setTitle(String title) {
 		TextView label = new TextView(context);
 		label.setTextSize(18);
@@ -57,6 +62,10 @@ public class Table {
 		return this;
 	}
 
+	/**
+	 * Adds new row to the table
+	 * @return  this table
+	 */
 	public Table addRow() {
 		TableRow row = new TableRow(context);
 		row.setPadding(0, 0, 0, 20);
@@ -74,6 +83,12 @@ public class Table {
 		return this;
 	}
 
+	/**
+	 * Adds data to 2 columns on the last row, only use this with 2 columns (+1 if row numbering is enabled)
+	 * @param name  row name
+	 * @param value row value
+	 * @return  this table
+	 */
 	public Table addData(String name, String value) {
 		if (rows.size() == 0) {
 			Log.e("Signals", "You must add row first");
@@ -83,6 +98,13 @@ public class Table {
 		return addData(name, value, rows.get(rows.size() - 1));
 	}
 
+	/**
+	 * Adds data to 2 columns on the passed row, only use this with 2 columns (+1 if row numbering is enabled)
+	 * @param name  row name
+	 * @param value row value
+	 * @param row   row
+	 * @return  this table
+	 */
 	public Table addData(String name, String value, TableRow row) {
 		TextView textId = new TextView(context);
 		textId.setText(name);
@@ -99,12 +121,20 @@ public class Table {
 		return this;
 	}
 
+	/**
+	 * Removed all rows from the table
+	 * @return this table
+	 */
 	public Table clear() {
 		layout.removeAllViewsInLayout();
 		rows.clear();
 		return this;
 	}
 
+	/**
+	 * Returns table layout
+	 * @return  layout
+	 */
 	public TableLayout getLayout() {
 		return layout;
 	}
