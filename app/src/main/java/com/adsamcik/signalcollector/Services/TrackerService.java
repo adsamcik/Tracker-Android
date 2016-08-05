@@ -83,7 +83,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private BroadcastReceiver activityReceiver;
 
 	private float pressureValue;
-	private int currentActivity;
+	private int currentActivity = -1;
 	private boolean wifiEnabled = false;
 
 	private int saveAttemptsFailed = 0;
