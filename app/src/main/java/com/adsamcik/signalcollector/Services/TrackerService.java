@@ -230,9 +230,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public void onCreate() {
-		instance = this;
 		approxSize = 0;
-		isActive = true;
 
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
@@ -301,6 +299,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
+		TrackerService.service = intent;
 		if (intent == null) {
 			approxSize = DataStore.recountDataSize();
 			backgroundActivated = true;
@@ -319,7 +318,6 @@ public class TrackerService extends Service implements SensorEventListener {
 	public void onDestroy() {
 		stopForeground(true);
 		service = null;
-		instance = null;
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);

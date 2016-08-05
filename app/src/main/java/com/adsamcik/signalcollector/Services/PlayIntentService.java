@@ -38,7 +38,7 @@ public class PlayIntentService extends IntentService {
 
 			//Log.d(TAG, Extensions.getActivityName(detectedActivity.getType()) + " confident " + confidence);
 
-			if(TrackerService.isActive) {
+			if(TrackerService.service != null) {
 				Intent i = new Intent("SCActivity");
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
@@ -48,7 +48,6 @@ public class PlayIntentService extends IntentService {
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);
 				startService(trackerService);
-				TrackerService.service = trackerService;
 			}
 		} else {
 			Log.d(TAG, "Intent had no data returned");

@@ -163,7 +163,7 @@ public class Extensions {
 	public static boolean canBackgroundTrack(@NonNull Context c, int evalActivity) {
 		if(!isInitialized())
 			initialize(c);
-		if (evalActivity == 3 || evalActivity == 0 || TrackerService.isActive || Setting.getPreferences(c).getBoolean(Setting.STOP_TILL_RECHARGE, false))
+		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(c).getBoolean(Setting.STOP_TILL_RECHARGE, false))
 			return false;
 		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
 		return val != 0 && (val == evalActivity || val > evalActivity);

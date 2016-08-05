@@ -105,17 +105,16 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	 * @param enable ensures intended action
 	 */
 	private void toggleCollecting(Activity activity, boolean enable) {
-		if (TrackerService.isActive == enable)
+		if (TrackerService.service != null == enable)
 			return;
 
 		String[] requiredPermissions = Extensions.checkTrackingPermissions(activity);
 
 		if (requiredPermissions == null) {
-			if (!TrackerService.isActive) {
+			if (TrackerService.service == null) {
 				Setting.getPreferences(activity).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(activity, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
-				TrackerService.service = trackerService;
 				activity.startService(trackerService);
 			} else {
 				if (TrackerService.service == null)
@@ -177,12 +176,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		fabTrack.show();
 
-		changeTrackerButton(TrackerService.isActive ? 1 : 0);
+		changeTrackerButton(TrackerService.service != null ? 1 : 0);
 		fabTrack.setOnClickListener(
 				v -> {
-					if (TrackerService.isActive)
+					if (TrackerService.service != null)
 						TrackerService.setAutoLock();
-					toggleCollecting(activity, !TrackerService.isActive);
+					toggleCollecting(activity, TrackerService.service == null);
 				}
 		);
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize)));
@@ -191,7 +190,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
 
-		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isActive ? 1 : 0));
+		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.service != null ? 1 : 0));
 
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
