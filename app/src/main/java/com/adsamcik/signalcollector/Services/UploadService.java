@@ -24,7 +24,10 @@ public class UploadService extends JobService {
 	private Thread thread;
 	private static int queued = 0;
 
-	private void checkQueue() {
+	/**
+	 * Removes upload from queue and checks if any uploads are still active
+	 */
+	private void removeFromQueue() {
 		if(--queued == 0) {
 			DataStore.cleanup();
 			DataStore.recountDataSize();
@@ -61,11 +64,11 @@ public class UploadService extends JobService {
 					deleteFile(name);
 					TrackerService.approxSize -= size;
 					DataStore.onUpload();
-					checkQueue();
+					removeFromQueue();
 				},
 				error -> {
 					DataStore.requestUpload(context, true);
-					checkQueue();
+					removeFromQueue();
 				}
 		) {
 			@Override
