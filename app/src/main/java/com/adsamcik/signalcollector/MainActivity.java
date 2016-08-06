@@ -96,9 +96,7 @@ public class MainActivity extends FragmentActivity {
 			viewPager.setOffscreenPageLimit(1);
 
 			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-			FragmentMain fm = new FragmentMain();
-			fm.onEnter(this, fabOne, fabTwo);
-			adapter.addFrag(fm, r.getString(R.string.menu_dashboard));
+			adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
 			adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
 			adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
 			adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));

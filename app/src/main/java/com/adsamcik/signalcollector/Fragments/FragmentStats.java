@@ -46,12 +46,33 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	//todo Improve stats updating
 
+	@Override
+	public void onCreate(@Nullable Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		weeklyStats = new Table(getContext(), 4, false);
+	}
+
+	@Override
+	public void onDestroyView() {
+		((LinearLayout) view.findViewById(R.id.statsLayout)).removeAllViews();
+		super.onDestroyView();
+	}
+
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
-		weeklyStats = new Table(getContext(), 4, false);
 		((LinearLayout) view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
+		Resources r = getResources();
+
+		Setting.checkStatsDay(getActivity());
+
+		weeklyStats.clear();
+		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
+		StatDay weekStats = Setting.countStats(getActivity());
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		return view;
 	}
 
@@ -87,22 +108,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	@Override
 	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (weeklyStats == null)
-			return new Success("Weekly stats failed to initialize");
 		//todo check if up to date
 		fabOne.hide();
 		fabTwo.hide();
-
-		Setting.checkStatsDay(activity);
-
-		Resources r = activity.getResources();
-
-		weeklyStats.clear();
-		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
-		StatDay weekStats = Setting.countStats(activity);
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 
 		return new Success();
 	}
