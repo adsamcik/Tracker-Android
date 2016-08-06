@@ -193,7 +193,17 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		view = inflater.inflate(R.layout.fragment_map, container, false);
+		if (view != null) {
+			ViewGroup parent = (ViewGroup) view.getParent();
+			if (parent != null)
+				parent.removeView(view);
+		}
+		try {
+			view = inflater.inflate(R.layout.fragment_map, container, false);
+		}
+		catch (Exception e) {
+			//map is already loaded
+		}
 		return view;
 	}
 

@@ -93,7 +93,7 @@ public class MainActivity extends FragmentActivity {
 
 		if (viewPager == null && containerView != null) {
 			viewPager = (ViewPager) containerView;
-			viewPager.setOffscreenPageLimit(3);
+			viewPager.setOffscreenPageLimit(1);
 
 			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
 			FragmentMain fm = new FragmentMain();
