@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentActivity;
 import android.text.format.DateFormat;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -170,7 +171,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success onEnter(final Activity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
+	public Success onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 
@@ -204,6 +205,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.setOnUpload(null);
 		TrackerService.onNewDataFound = null;
 		TrackerService.onServiceStateChange = null;
+	}
+
+	@Override
+	public ITabFragment newInstance() {
+		return new FragmentMain();
 	}
 
 	private void UpdateData() {

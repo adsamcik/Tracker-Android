@@ -19,6 +19,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.view.View;
+import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.SnackMaker;
@@ -43,6 +44,11 @@ public class MainActivity extends FragmentActivity {
 	private ViewPager viewPager;
 
 	private SnackMaker snackMaker;
+
+	@Override
+	protected void onStart() {
+		super.onStart();
+	}
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -96,15 +102,15 @@ public class MainActivity extends FragmentActivity {
 			viewPager.setOffscreenPageLimit(1);
 
 			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-			adapter.addFrag(new FragmentMain(), r.getString(R.string.menu_dashboard));
-			adapter.addFrag(new FragmentMap(), r.getString(R.string.menu_map));
-			adapter.addFrag(new FragmentStats(), r.getString(R.string.menu_stats));
-			adapter.addFrag(new FragmentSettings(), r.getString(R.string.menu_settings));
+			adapter.addFrag(FragmentMain.class, r.getString(R.string.menu_dashboard));
+			adapter.addFrag(FragmentMap.class, r.getString(R.string.menu_map));
+			adapter.addFrag(FragmentStats.class, r.getString(R.string.menu_stats));
+			adapter.addFrag(FragmentSettings.class, r.getString(R.string.menu_settings));
 			viewPager.setAdapter(adapter);
 
-			final Activity a = this;
+			final FragmentActivity a = this;
 			viewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-				ITabFragment prevFragment = (ITabFragment) adapter.mFragmentList.get(0);
+				ITabFragment prevFragment = (ITabFragment) adapter.getItem(0);
 				int prevFragmentIndex = 0;
 
 				@Override
@@ -167,7 +173,7 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	private class ViewPagerAdapter extends FragmentPagerAdapter {
-		private final List<Fragment> mFragmentList = new ArrayList<>();
+		private final List<Class<? extends ITabFragment>> mFragmentList = new ArrayList<>();
 		private final List<String> mFragmentTitleList = new ArrayList<>();
 
 		private ViewPagerAdapter(FragmentManager manager) {
@@ -176,7 +182,17 @@ public class MainActivity extends FragmentActivity {
 
 		@Override
 		public Fragment getItem(int position) {
-			return mFragmentList.get(position);
+			try {
+				return (Fragment) mFragmentList.get(position).newInstance();
+			}
+			catch (Exception e) {
+				return null;
+			}
+		}
+
+		@Override
+		public Object instantiateItem(ViewGroup container, int position) {
+			return super.instantiateItem(container, position);
 		}
 
 		@Override
@@ -184,7 +200,7 @@ public class MainActivity extends FragmentActivity {
 			return mFragmentList.size();
 		}
 
-		private void addFrag(Fragment fragment, String title) {
+		private void addFrag(Class<? extends ITabFragment> fragment, String title) {
 			mFragmentList.add(fragment);
 			mFragmentTitleList.add(title);
 		}

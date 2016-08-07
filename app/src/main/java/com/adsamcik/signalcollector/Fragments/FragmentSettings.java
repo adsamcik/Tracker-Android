@@ -9,6 +9,7 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.res.ResourcesCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -97,7 +98,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if ((c = getContext()) != null) {
 			try {
 				((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
-			} catch (Exception e){
+			} catch (Exception e) {
 				Log.d(TAG, "Failed to set version");
 			}
 		}
@@ -183,7 +184,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		fabOne.hide();
 		fabTwo.hide();
 		return new Success();
@@ -192,5 +193,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public void onLeave() {
 
+	}
+
+	@Override
+	public ITabFragment newInstance() {
+		return new FragmentSettings();
 	}
 }

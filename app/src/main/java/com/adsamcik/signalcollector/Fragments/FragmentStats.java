@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentActivity;
 import android.util.JsonReader;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -107,7 +108,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success onEnter(Activity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		//todo check if up to date
 		fabOne.hide();
 		fabTwo.hide();
@@ -118,6 +119,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onLeave() {
 
+	}
+
+	@Override
+	public ITabFragment newInstance() {
+		return new FragmentStats();
 	}
 
 	private List<Stat> readJsonStream(InputStream in) throws IOException {
