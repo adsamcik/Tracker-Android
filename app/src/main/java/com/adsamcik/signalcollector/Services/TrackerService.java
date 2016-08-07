@@ -108,10 +108,10 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	private void updateData(Location location) {
 		wakeLock.acquire();
-		Data d = new Data(location.getTime());
+		long currentTime = Calendar.getInstance().getTimeInMillis();
+		Data d = new Data(currentTime);
 
 		if (wifiScanData != null && wifiScanPos != null) {
-			long currentTime = Calendar.getInstance().getTimeInMillis();
 			double timeDiff = (double) (wifiScanTime - wifiScanPos.getTime()) / (double) (currentTime - wifiScanPos.getTime());
 			if (timeDiff < 0 || timeDiff > 1)
 				FirebaseCrash.report(new Throwable("wifiScanTime " + wifiScanTime + " previous position time " + wifiScanPos.getTime() + " current time " + currentTime + " timeDiff " + timeDiff));
@@ -129,6 +129,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
 			wifiScanPos = location;
+			wifiScanPos.setTime(currentTime);
 		}
 
 		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
