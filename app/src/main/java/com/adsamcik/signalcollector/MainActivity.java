@@ -55,10 +55,6 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		if (!Setting.getPreferences(this).getBoolean(Setting.HAS_BEEN_LAUNCHED, false)) {
-			startActivity(new Intent(this, IntroActivity.class));
-			return;
-		}
 		setContentView(R.layout.activity_main);
 		DataStore.setContext(this);
 
