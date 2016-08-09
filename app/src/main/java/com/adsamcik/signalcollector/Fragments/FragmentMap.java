@@ -24,6 +24,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.Success;
@@ -66,7 +67,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private TileOverlay activeOverlay;
 
 	private View view;
-	private Activity activity;
 
 	private Circle userRadius;
 	private Marker userCenter;
@@ -91,7 +91,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if (checkLocationPermission(activity, false)) {
+		if (checkLocationPermission(getContext(), false)) {
 			if (locationManager == null)
 				FirebaseCrash.log("Location manager is null on leave");
 			else
@@ -112,7 +112,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		Log.d(TAG, this + " enter ");
 		if (!PlayController.isPlayServiceAvailable(activity))
 			return new Success("Play services are not available");
 		if (checkLocationPermission(activity, true)) {
@@ -144,7 +143,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			Log.d(TAG, this + " create map");
 			initialized = true;
 		}
-		this.activity = activity;
 		return new Success();
 	}
 
@@ -157,7 +155,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				parent.removeView(view);
 		}
 
-		view = inflater.inflate(R.layout.fragment_map, container, false);
+		if (PlayController.isPlayServiceAvailable(getContext()))
+			view = inflater.inflate(R.layout.fragment_map, container, false);
+		else
+			view = inflater.inflate(R.layout.no_play_services, container, false);
 		return view;
 	}
 
@@ -189,10 +190,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		switch (availableTypes[typeIndex]) {
 			case "Wifi":
-				fab.setImageDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_network_cell_24dp));
+				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
 				break;
 			case "Cell":
-				fab.setImageDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_network_wifi_24dp));
+				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
 				break;
 		}
 	}
@@ -230,10 +231,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		map.setMaxZoomPreference(MAX_ZOOM);
 
-		if (checkLocationPermission(activity, false)) {
+		if (checkLocationPermission(getContext(), false)) {
 			locationListener.followMyPosition = true;
 			if (locationManager == null)
-				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
+				locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
 			if (l != null) {
 				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
@@ -294,7 +295,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	@Override
 	public void onSaveInstanceState(Bundle outState) {
-		if(map != null) {
+		if (map != null) {
 			CameraPosition cp = map.getCameraPosition();
 			outState.putDouble(SAVE_LAT, cp.target.latitude);
 			outState.putDouble(SAVE_LNG, cp.target.longitude);
