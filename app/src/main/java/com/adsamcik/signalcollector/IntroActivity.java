@@ -28,7 +28,7 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		addSlide(AppIntro2Fragment.newInstance("Signals", "is app used for collection information about your surroundings", R.drawable.signals_logo, Color.parseColor("#3F51B5")));
+		addSlide(AppIntro2Fragment.newInstance("Signals", "is app used for gathering information about your surrounding", R.drawable.signals_logo, Color.parseColor("#3F51B5")));
 		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, noise, IMEI (device identification)", R.drawable.intro_cloud, Color.parseColor("#3E89C6")));
 		if (Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {
 			addSlide(AppIntro2Fragment.newInstance("Permissions", "Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.", R.drawable.intro_permissions, Color.parseColor("#3F64BB")));
