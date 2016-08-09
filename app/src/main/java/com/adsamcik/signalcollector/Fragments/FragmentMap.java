@@ -53,10 +53,9 @@ import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
-	private static final String TAG = "SIGNALS MAP";
+	private static final String TAG = "Signals map";
 	private static final String[] availableTypes = {"Wifi", "Cell"};
-	private static int typeIndex = -1;
-	private SupportMapFragment mMapFragment;
+	private static int typeIndex = 0;
 	private boolean initialized = false;
 	private GoogleMap map;
 	private TileProvider tileProvider;
@@ -106,7 +105,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		return new FragmentMap();
 	}
 
-
 	/**
 	 * Initializes fabs for Map fragment
 	 *
@@ -114,6 +112,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		Log.d(TAG, this + " enter ");
 		if (!PlayController.isPlayServiceAvailable(activity))
 			return new Success("Play services are not available");
 		if (checkLocationPermission(activity, true)) {
@@ -136,49 +135,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 
 		if (!initialized) {
-			//mMapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-			mMapFragment = SupportMapFragment.newInstance();
+			//SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
+			SupportMapFragment mapFragment = SupportMapFragment.newInstance();
 			FragmentTransaction fragmentTransaction = activity.getSupportFragmentManager().beginTransaction();
-			fragmentTransaction.add(R.id.MapLayout, mMapFragment);
+			fragmentTransaction.add(R.id.MapLayout, mapFragment);
 			fragmentTransaction.commit();
-			prepareMap(mMapFragment, fabOne, fabTwo);
+			mapFragment.getMapAsync(this);
+			Log.d(TAG, this + " create map");
 			initialized = true;
 		}
 		this.activity = activity;
 		return new Success();
 	}
-
-	private void prepareMap(SupportMapFragment mapFragment, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		mapFragment.getMapAsync(this);
-
-		tileProvider = new UrlTileProvider(256, 256) {
-			@Override
-			public URL getTileUrl(int x, int y, int zoom) {
-				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, availableTypes[typeIndex]);
-
-				if (!checkTileExists(x, y, zoom))
-					return null;
-
-				try {
-					URL u = new URL(s);
-					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
-					huc.setRequestMethod("HEAD");
-					return huc.getResponseCode() == 200 ? u : null;
-				} catch (Exception e) {
-					throw new AssertionError(e);
-				}
-			}
-
-			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-			private boolean checkTileExists(int x, int y, int zoom) {
-				int minZoom = 10;
-				int maxZoom = MAX_ZOOM;
-
-				return !(zoom < minZoom || zoom > maxZoom);
-			}
-		};
-	}
-
 
 	@Nullable
 	@Override
@@ -193,6 +161,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		return view;
 	}
 
+	@Override
+	public void onDestroyView() {
+		super.onDestroyView();
+		initialized = false;
+	}
 
 	/**
 	 * Change map overlay
@@ -227,6 +200,34 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
+
+		tileProvider = new UrlTileProvider(256, 256) {
+			@Override
+			public URL getTileUrl(int x, int y, int zoom) {
+				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, availableTypes[typeIndex]);
+
+				if (!checkTileExists(x, y, zoom))
+					return null;
+
+				try {
+					URL u = new URL(s);
+					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
+					huc.setRequestMethod("HEAD");
+					return huc.getResponseCode() == 200 ? u : null;
+				} catch (Exception e) {
+					throw new AssertionError(e);
+				}
+			}
+
+			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
+			private boolean checkTileExists(int x, int y, int zoom) {
+				int minZoom = 10;
+				int maxZoom = MAX_ZOOM;
+
+				return !(zoom < minZoom || zoom > maxZoom);
+			}
+		};
+
 		map.setMaxZoomPreference(MAX_ZOOM);
 
 		if (checkLocationPermission(activity, false)) {
@@ -242,9 +243,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		}
 
+		Log.d(TAG, this + " map ready");
 		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
-		typeIndex = 0;
 	}
 
 	/**

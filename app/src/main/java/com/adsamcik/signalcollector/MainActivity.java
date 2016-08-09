@@ -18,6 +18,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -33,6 +34,7 @@ import com.adsamcik.signalcollector.play.PlayController;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class MainActivity extends FragmentActivity {
@@ -61,15 +63,14 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(this);
 
 		View containerView = findViewById(R.id.container);
-		if(containerView != null) {
+		if (containerView != null) {
 			PlayController.initializeGamesClient(containerView, this);
 			snackMaker = new SnackMaker(containerView);
-		}
-		else
+		} else
 			FirebaseCrash.report(new Throwable("container view is null. something is wrong."));
 
 		Success s = PlayController.initializeActivityClient(this);
-		if(!s.getSuccess())
+		if (!s.getSuccess())
 			snackMaker.showSnackbar(s.message);
 
 		Extensions.initialize(this);
@@ -91,7 +92,7 @@ public class MainActivity extends FragmentActivity {
 		Resources r = getResources();
 
 
-		if(!Extensions.hasNavBar(getWindowManager())) {
+		if (!Extensions.hasNavBar(getWindowManager())) {
 			CoordinatorLayout.LayoutParams lp = new CoordinatorLayout.LayoutParams(CoordinatorLayout.LayoutParams.WRAP_CONTENT, CoordinatorLayout.LayoutParams.WRAP_CONTENT);
 			lp.setMargins(0, 0, 0, 0);
 			fabOne.setLayoutParams(lp);
@@ -101,7 +102,7 @@ public class MainActivity extends FragmentActivity {
 			viewPager = (ViewPager) containerView;
 			viewPager.setOffscreenPageLimit(1);
 
-			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
+			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager(), this);
 			adapter.addFrag(FragmentMain.class, r.getString(R.string.menu_dashboard));
 			adapter.addFrag(FragmentMap.class, r.getString(R.string.menu_map));
 			adapter.addFrag(FragmentStats.class, r.getString(R.string.menu_stats));
@@ -110,7 +111,7 @@ public class MainActivity extends FragmentActivity {
 
 			final FragmentActivity a = this;
 			viewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-				ITabFragment prevFragment = (ITabFragment) adapter.getItem(0);
+				ITabFragment prevFragment;
 				int prevFragmentIndex = 0;
 
 				@Override
@@ -119,16 +120,14 @@ public class MainActivity extends FragmentActivity {
 
 				@Override
 				public void onPageSelected(int position) {
-					ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-					prevFragment.onLeave();
+					if (prevFragment != null)
+						prevFragment.onLeave();
 
-					ITabFragment tf = (ITabFragment) adapter.getItem(position);
+					ITabFragment tf = adapter.getInstance(position);
+					if (tf == null)
+						return;
 					Success response = tf.onEnter(a, fabOne, fabTwo);
 					if (!response.getSuccess()) {
-						if (prevFragmentIndex == position) {
-							FirebaseCrash.report(new Exception("Failed to create current fragment which is also previous fragment. Preventing freeze."));
-							return;
-						}
 						final View v = findViewById(R.id.container);
 						if (v == null) {
 							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
@@ -141,10 +140,10 @@ public class MainActivity extends FragmentActivity {
 						snack.show();
 						fabOne.hide();
 						fabTwo.hide();
-					} else {
-						prevFragmentIndex = position;
-						prevFragment = tf;
 					}
+
+					prevFragmentIndex = position;
+					prevFragment = tf;
 				}
 
 				@Override
@@ -173,26 +172,40 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	private class ViewPagerAdapter extends FragmentPagerAdapter {
-		private final List<Class<? extends ITabFragment>> mFragmentList = new ArrayList<>();
-		private final List<String> mFragmentTitleList = new ArrayList<>();
+		private final List<Class<? extends ITabFragment>> mFragmentList = new ArrayList<>(4);
+		private final List<String> mFragmentTitleList = new ArrayList<>(4);
+		private ITabFragment[] mInstanceList;
+		private FragmentActivity activity;
 
-		private ViewPagerAdapter(FragmentManager manager) {
+		private ViewPagerAdapter(FragmentManager manager, FragmentActivity activity) {
 			super(manager);
+			this.activity = activity;
 		}
 
 		@Override
 		public Fragment getItem(int position) {
 			try {
 				return (Fragment) mFragmentList.get(position).newInstance();
-			}
-			catch (Exception e) {
+			} catch (Exception e) {
 				return null;
 			}
 		}
 
 		@Override
 		public Object instantiateItem(ViewGroup container, int position) {
-			return super.instantiateItem(container, position);
+			ITabFragment instance = (ITabFragment) super.instantiateItem(container, position);
+			if (mInstanceList == null) {
+				mInstanceList = new ITabFragment[mFragmentList.size()];
+				instance.onEnter(activity, fabOne, fabTwo);
+			} else if (mFragmentList.size() <= position)
+				mInstanceList = Arrays.copyOf(mInstanceList, mFragmentList.size());
+
+			mInstanceList[position] = instance;
+			return instance;
+		}
+
+		public ITabFragment getInstance(int position) {
+			return mInstanceList == null || position >= mInstanceList.length ? null : mInstanceList[position];
 		}
 
 		@Override

@@ -108,7 +108,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	private void updateData(Location location) {
 		wakeLock.acquire();
-		long currentTime = Calendar.getInstance().getTimeInMillis();
+		long currentTime = System.currentTimeMillis();
 		Data d = new Data(currentTime);
 
 		if (wifiScanData != null && wifiScanPos != null) {
@@ -353,9 +353,9 @@ public class TrackerService extends Service implements SensorEventListener {
 	private class WifiReceiver extends BroadcastReceiver {
 		@Override
 		public void onReceive(Context context, Intent intent) {
+			wifiScanTime = System.currentTimeMillis();
 			List<ScanResult> result = wifiManager.getScanResults();
 			wifiScanData = result.toArray(new ScanResult[result.size()]);
-			wifiScanTime = System.currentTimeMillis();
 		}
 	}
 }
