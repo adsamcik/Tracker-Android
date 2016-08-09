@@ -28,4 +28,6 @@
     <string name="achievements">Achievements</string>
 
     <string name="other">Other</string>
+
+    <string name="no_play_services">Play services are not available</string>
 </resources>
