@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -27,15 +28,15 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		addSlide(AppIntro2Fragment.newInstance("Signal Collector", "Welcome [insert your name] to the exciting world of data collecting", R.drawable.ic_signals, Color.parseColor("#3F51B5")));
+		addSlide(AppIntro2Fragment.newInstance("Signals", "is app used for collection information about your surroundings", R.drawable.signals_logo, Color.parseColor("#3F51B5")));
+		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, noise, IMEI (device identification)", R.drawable.intro_cloud, Color.parseColor("#3E89C6")));
 		if (Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {
-			addSlide(AppIntro2Fragment.newInstance("Permissions", "The app needs location to place data you collect into a map and phone permission to get identification number to distinguish your uploads from others.", R.drawable.intro_permissions, Color.parseColor("#3F64BB")));
+			addSlide(AppIntro2Fragment.newInstance("Permissions", "Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.", R.drawable.intro_permissions, Color.parseColor("#3F64BB")));
 			askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.READ_PHONE_STATE}, 2);
 		}
-		addSlide(AppIntro2Fragment.newInstance("Automatic tracking and uploading", "As long as all background services are running, the app can manage tracking and uploading by itself. You can change this in settings.", R.drawable.ic_satellite_24dp, Color.parseColor("#3E77C1")));
-		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, IMEI (device identification), device manufacturer and model, time, android version", R.drawable.ic_attachment_24dp, Color.parseColor("#3E89C6")));
+		addSlide(AppIntro2Fragment.newInstance("Automatization", "Signals can automatically track and upload all data. Can be disabled or tweaked.", R.drawable.intro_autotracking, Color.parseColor("#3E77C1")));
 		if (PlayController.isPlayServiceAvailable(getApplicationContext()))
-			addSlide(AppIntro2Fragment.newInstance("Google Play Games", "If you login to google play games, you will have access to achievements and personal stats.", R.drawable.ic_games_controller, Color.parseColor("#3D9CCC")));
+			addSlide(AppIntro2Fragment.newInstance("Google Play Games", "Allows you to earn achievements", R.drawable.intro_games, Color.parseColor("#3D9CCC")));
 
 		// Hide Skip/Done button.
 		Window window = getWindow();
@@ -81,6 +82,7 @@ public class IntroActivity extends AppIntro2 {
 		return false;
 	}
 
+	@SuppressLint("CommitPrefEdits")
 	@Override
 	public void onDonePressed(Fragment currentFragment) {
 		Setting.getPreferences(this).edit().putBoolean(Setting.HAS_BEEN_LAUNCHED, true).apply();
