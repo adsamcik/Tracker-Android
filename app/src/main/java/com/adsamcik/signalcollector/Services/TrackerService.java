@@ -110,12 +110,11 @@ public class TrackerService extends Service implements SensorEventListener {
 		Data d;
 
 		if (wifiScanData != null && prevScanPos != null) {
-			long currentTime = System.currentTimeMillis();
-			d = new Data(currentTime);
+			d = new Data(System.currentTimeMillis());
 
-			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (currentTime - prevScanPos.getTime());
+			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
 			if (timeDiff < 0 || timeDiff > 1)
-				FirebaseCrash.log("wifiScanTime " + wifiScanTime + " previous position time " + prevScanPos.getTime() + " current time " + currentTime + " timeDiff " + timeDiff);
+				FirebaseCrash.log("wifiScanTime " + wifiScanTime + " previous position time " + prevScanPos.getTime() + " current time " + d.time + " timeDiff " + timeDiff);
 			float distTo = location.distanceTo(Extensions.interpolateLocation(prevScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			Log.d(TAG, "dist to wifi " + distTo);
