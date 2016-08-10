@@ -75,7 +75,7 @@ public class MainActivity extends FragmentActivity {
 		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(this, true);
 
-		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
+		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
 
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);

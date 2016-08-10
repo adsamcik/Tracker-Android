@@ -12,7 +12,7 @@
         <path
             android:name="@string/nPlay"
             android:pathData="@string/path_play"
-            android:fillColor="@color/stroke_color"/>
+            android:fillColor="@color/textPrimary"/>
 
     </group>
 
