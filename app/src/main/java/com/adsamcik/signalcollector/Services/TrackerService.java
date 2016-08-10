@@ -44,7 +44,6 @@ import com.google.firebase.crash.FirebaseCrash;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 
 public class TrackerService extends Service implements SensorEventListener {
@@ -68,7 +67,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	public static Data dataEcho;
 	public static int distanceToWifi;
 
-	private Location wifiScanPos;
+	private Location prevScanPos;
 	private long wifiScanTime;
 
 	private final ArrayList<Data> data = new ArrayList<>();
@@ -108,28 +107,32 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	private void updateData(Location location) {
 		wakeLock.acquire();
-		long currentTime = System.currentTimeMillis();
-		Data d = new Data(currentTime);
+		Data d;
 
-		if (wifiScanData != null && wifiScanPos != null) {
-			double timeDiff = (double) (wifiScanTime - wifiScanPos.getTime()) / (double) (currentTime - wifiScanPos.getTime());
+		if (wifiScanData != null && prevScanPos != null) {
+			long currentTime = System.currentTimeMillis();
+			d = new Data(currentTime);
+
+			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (currentTime - prevScanPos.getTime());
 			if (timeDiff < 0 || timeDiff > 1)
-				FirebaseCrash.report(new Throwable("wifiScanTime " + wifiScanTime + " previous position time " + wifiScanPos.getTime() + " current time " + currentTime + " timeDiff " + timeDiff));
-			float distTo = location.distanceTo(Extensions.interpolateLocation(wifiScanPos, location, timeDiff));
+				FirebaseCrash.log("wifiScanTime " + wifiScanTime + " previous position time " + prevScanPos.getTime() + " current time " + currentTime + " timeDiff " + timeDiff);
+			float distTo = location.distanceTo(Extensions.interpolateLocation(prevScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			Log.d(TAG, "dist to wifi " + distTo);
-			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI)
+			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI || distTo < 0)
 				wifiScanData = null;
 			else
 				d.setWifi(wifiScanData, wifiScanTime);
 		}
+		else
+			d = new Data(System.currentTimeMillis())
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
 
 		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
-			wifiScanPos = location;
-			wifiScanPos.setTime(currentTime);
+			prevScanPos = location;
+			prevScanPos.setTime(currentTime);
 		}
 
 		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
