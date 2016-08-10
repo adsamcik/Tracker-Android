@@ -14,6 +14,7 @@ public class LaunchActivity extends Activity {
 			startActivity(new Intent(this, MainActivity.class));
 		else
 			startActivity(new Intent(this, IntroActivity.class));
+		overridePendingTransition(0, 0);
 		finish();
 	}
 }
