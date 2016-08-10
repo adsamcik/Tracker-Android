@@ -17,6 +17,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
 import android.view.View;
 import android.view.ViewGroup;
@@ -75,7 +76,7 @@ public class MainActivity extends FragmentActivity {
 			DataStore.requestUpload(this, true);
 
 		ColorStateList primary = ColorStateList.valueOf(Color.argb(255, 255, 255, 255));
-		ColorStateList secondary = ColorStateList.valueOf(Color.argb(255, 54, 95, 179));
+		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
 
 		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
 		fabOne.setBackgroundTintList(secondary);

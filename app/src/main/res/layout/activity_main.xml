@@ -38,8 +38,7 @@
         android:layout_marginBottom="@dimen/navbar_height"
         android:layout_marginEnd="@dimen/fab_margin"
         android:layout_marginStart="@dimen/fab_margin"
-        android:src="@drawable/ic_play"
-        app:backgroundTint="@color/colorPrimary"/>
+        android:src="@drawable/ic_play"/>
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -54,7 +53,6 @@
             android:layout_marginBottom="@dimen/fab_margin"
             android:layout_marginEnd="@dimen/fab_margin"
             android:layout_marginStart="@dimen/fab_margin"
-            android:src="@drawable/ic_cloud_upload_24dp"
-            app:backgroundTint="@color/colorPrimary"/>
+            android:src="@drawable/ic_cloud_upload_24dp"/>
     </LinearLayout>
 </android.support.design.widget.CoordinatorLayout>
