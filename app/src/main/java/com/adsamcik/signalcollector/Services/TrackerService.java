@@ -125,14 +125,14 @@ public class TrackerService extends Service implements SensorEventListener {
 				d.setWifi(wifiScanData, wifiScanTime);
 		}
 		else
-			d = new Data(System.currentTimeMillis())
+			d = new Data(System.currentTimeMillis());
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
 
 		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
 			prevScanPos = location;
-			prevScanPos.setTime(currentTime);
+			prevScanPos.setTime(System.currentTimeMillis());
 		}
 
 		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
