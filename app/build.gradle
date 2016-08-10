@@ -9,7 +9,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 24
         versionCode 77
-        versionName "2.0.0 rebuild8"
+        versionName "2.0.0 Design 1"
     }
     buildTypes {
         release_nominify {
