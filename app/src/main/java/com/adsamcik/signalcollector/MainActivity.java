@@ -4,8 +4,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
-import android.graphics.Color;
-import android.graphics.drawable.AnimatedVectorDrawable;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -78,11 +76,11 @@ public class MainActivity extends FragmentActivity {
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
 
-		fabOne = (FloatingActionButton) findViewById(R.id.toggleTracking_fab);
+		fabOne = (FloatingActionButton) findViewById(R.id.fabOne);
 		fabOne.setBackgroundTintList(secondary);
 		fabOne.setImageTintList(primary);
 
-		fabTwo = (FloatingActionButton) findViewById(R.id.upload_fab);
+		fabTwo = (FloatingActionButton) findViewById(R.id.fabTwo);
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 

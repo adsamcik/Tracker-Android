@@ -31,7 +31,7 @@
         app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
 
     <android.support.design.widget.FloatingActionButton
-        android:id="@+id/toggleTracking_fab"
+        android:id="@+id/fabOne"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="end|bottom"
@@ -40,19 +40,20 @@
         android:layout_marginStart="@dimen/fab_margin"
         android:src="@drawable/ic_play"/>
 
+
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:layout_anchor="@id/toggleTracking_fab"
-        android:layout_gravity="top|end">
+        android:layout_gravity="top|end"
+        app:layout_anchor="@id/fabOne">
 
-        <android.support.design.widget.FloatingActionButton
-            android:id="@+id/upload_fab"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/fab_margin"
-            android:layout_marginEnd="@dimen/fab_margin"
-            android:layout_marginStart="@dimen/fab_margin"
-            android:src="@drawable/ic_cloud_upload_24dp"/>
+            <android.support.design.widget.FloatingActionButton
+                android:layout_marginBottom="@dimen/fab_margin"
+                android:layout_marginEnd="@dimen/fab_margin"
+                android:layout_marginStart="@dimen/fab_margin"
+                android:id="@+id/fabTwo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_cloud_upload_24dp"/>
     </LinearLayout>
 </android.support.design.widget.CoordinatorLayout>

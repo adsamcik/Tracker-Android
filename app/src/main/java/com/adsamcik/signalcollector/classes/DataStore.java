@@ -19,15 +19,7 @@ import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
-import com.android.volley.Request;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.StringRequest;
-import com.android.volley.toolbox.Volley;
 import com.google.firebase.crash.FirebaseCrash;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -120,7 +112,7 @@ public class DataStore {
 		SharedPreferences sp = Setting.getPreferences(c);
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || !isBackground) {
-			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(getContext(), UploadService.class));
+			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(c, UploadService.class));
 			if (!isBackground) {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -145,64 +137,9 @@ public class DataStore {
 			PersistableBundle pb = new PersistableBundle(1);
 			pb.putInt(KEY_IS_AUTOUPLOAD, isBackground ? 1 : 0);
 			jb.setExtras(pb);
-			((JobScheduler) getContext().getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
+			((JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
 			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
 		}
-	}
-
-	/**
-	 * Uploads data to server.
-	 *
-	 * @param data json array of Data
-	 * @param name name of file where the data is saved (Function will clear the file afterwards)
-	 * @param size size of data uploaded
-	 */
-	public static void upload(final String data, final String name, final long size, final boolean background) {
-		if (data.isEmpty()) return;
-		if (!Extensions.isInitialized())
-			Extensions.initialize(getContext());
-
-		final String serialized = "{\"imei\":" + Extensions.getImei() +
-				",\"device\":\"" + Build.MODEL +
-				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
-				"\",\"api\":" + Build.VERSION.SDK_INT +
-				",\"version\":" + BuildConfig.VERSION_CODE + "," +
-				"\"data\":" + data + "}";
-
-		StringRequest postRequest = new StringRequest(Request.Method.POST, Network.URL_DATA_UPLOAD,
-				new Response.Listener<String>() {
-					@Override
-					public void onResponse(String response) {
-						/*try {
-							JSONObject jsonResponse = new JSONObject(response).getJSONObject("form");
-							String site = jsonResponse.getString("site"),
-									network = jsonResponse.getString("network");
-							System.out.println("Site: "+site+"\nNetwork: "+network);
-						} catch (JSONException e) {
-							e.printStackTrace();
-						}*/
-						deleteFile(name);
-						TrackerService.approxSize -= size;
-					}
-				},
-				new Response.ErrorListener() {
-					@Override
-					public void onErrorResponse(VolleyError error) {
-						requestUpload(getContext(), true);
-					}
-				}
-		) {
-			@Override
-			protected Map<String, String> getParams() {
-				Map<String, String> params = new HashMap<>();
-				// the POST parameters:
-				params.put("data", serialized);
-				params.put("imei", Extensions.getImei());
-				return params;
-			}
-		};
-
-		Volley.newRequestQueue(getContext()).add(postRequest);
 	}
 
 	/**

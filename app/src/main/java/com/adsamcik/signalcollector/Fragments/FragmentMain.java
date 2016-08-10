@@ -32,6 +32,7 @@ import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.github.jorgecastilloprz.FABProgressCircle;
 import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
@@ -152,6 +153,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				break;
 			case 1:
 				fabUp.setImageResource(R.drawable.ic_file_upload_24dp);
+
+				((FABProgressCircle) fabUp.getParent()).show();
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
@@ -181,7 +184,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		fabTrack.show();
 
-		if(playToPause == null) {
+		if (playToPause == null) {
 			playToPause = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_play_to_pause);
 			pauseToPlay = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play);
 		}

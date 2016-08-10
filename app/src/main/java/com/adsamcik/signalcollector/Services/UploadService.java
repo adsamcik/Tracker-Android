@@ -11,46 +11,37 @@ import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Network;
-import com.android.volley.Request;
-import com.android.volley.toolbox.StringRequest;
-import com.android.volley.toolbox.Volley;
 import com.google.firebase.crash.FirebaseCrash;
 
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
 public class UploadService extends JobService {
 	private Thread thread;
-	private static int queued = 0;
 
-	/**
-	 * Removes upload from queue and checks if any uploads are still active
-	 */
-	private void removeFromQueue() {
-		if(--queued == 0) {
-			DataStore.cleanup();
-			DataStore.recountDataSize();
-			DataStore.onUpload();
-		}
-		else if(queued < 0)
-			FirebaseCrash.report(new Throwable("queued is less than 0, how could it happen?"));
-	}
+	private OkHttpClient client = new OkHttpClient();
 
 	/**
 	 * Uploads data to server.
-	 *  @param data json array of Data
+	 *
+	 * @param data json array of Data
 	 * @param name name of file where the data is saved (Function will clear the file afterwards)
 	 * @param size size of data uploaded
 	 */
-	private void upload(final String data, final String name, final long size) {
+	private boolean upload(final String data, final String name, final long size) {
 		if (data.isEmpty()) {
 			FirebaseCrash.report(new Exception("data are empty"));
-			return;
+			return false;
 		}
-		final Context context = getApplicationContext();
-		if (!Extensions.isInitialized())
-			Extensions.initialize(context);
 
 		final String serialized = "{\"imei\":" + Extensions.getImei() +
 				",\"device\":\"" + Build.MODEL +
@@ -59,29 +50,26 @@ public class UploadService extends JobService {
 				",\"version\":" + BuildConfig.VERSION_CODE + "," +
 				"\"data\":" + data + "}";
 
-		StringRequest postRequest = new StringRequest(Request.Method.POST, Network.URL_DATA_UPLOAD,
-				response -> {
-					deleteFile(name);
-					TrackerService.approxSize -= size;
-					DataStore.onUpload();
-					removeFromQueue();
-				},
-				error -> {
-					DataStore.requestUpload(context, true);
-					removeFromQueue();
-				}
-		) {
-			@Override
-			protected Map<String, String> getParams() {
-				Map<String, String> params = new HashMap<>();
-				params.put("data", serialized);
-				params.put("imei", Extensions.getImei());
-				return params;
-			}
-		};
+		RequestBody formBody = new MultipartBody.Builder()
+				.setType(MultipartBody.FORM)
+				.addFormDataPart("imei", Extensions.getImei())
+				.addFormDataPart("data", serialized)
+				.build();
+		Request request = new Request.Builder().url(Network.URL_DATA_UPLOAD).post(formBody).build();
 
-		queued++;
-		Volley.newRequestQueue(context).add(postRequest);
+		try {
+			Response response = this.client.newCall(request).execute();
+			if (response.isSuccessful()) {
+				deleteFile(name);
+				TrackerService.approxSize -= size;
+				DataStore.onUpload();
+				return true;
+			}
+		} catch (IOException e) {
+			//catch
+		}
+
+		return false;
 	}
 
 	/**
@@ -89,10 +77,13 @@ public class UploadService extends JobService {
 	 * @return true if started
 	 */
 	private boolean uploadAll(final boolean background) {
-		DataStore.setContext(getApplicationContext());
+		final Context c = getApplicationContext();
+		DataStore.setContext(c);
+		if (!Extensions.isInitialized())
+			Extensions.initialize(c);
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
-				Setting.getPreferences().edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
+				Setting.getPreferences(c).edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
 				String[] files = DataStore.getDataFileNames(!background);
 
 				if (files == null || files.length == 0) {
@@ -123,23 +114,20 @@ public class UploadService extends JobService {
 							builder.append(']');
 						}
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
-						if (canStart(background))
-							upload(builder.toString(), fileName, size);
+						if (Extensions.canUpload(c, background))
+							if(!upload(builder.toString(), fileName, size))
+								DataStore.requestUpload(c, true);
 						else
 							break;
 					} else
 						break;
 				}
 			});
+
 			thread.start();
 			return true;
 		}
 		return false;
-	}
-
-	private boolean canStart(boolean background) {
-		Context c = getApplicationContext();
-		return Extensions.canUpload(c, background);
 	}
 
 	@Override
