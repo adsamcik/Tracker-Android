@@ -38,7 +38,7 @@
         android:layout_marginBottom="@dimen/navbar_height"
         android:layout_marginEnd="@dimen/fab_margin"
         android:layout_marginStart="@dimen/fab_margin"
-        android:src="@drawable/ic_play_arrow_24dp"
+        android:src="@drawable/ic_play"
         app:backgroundTint="@color/colorPrimary"/>
 
     <LinearLayout

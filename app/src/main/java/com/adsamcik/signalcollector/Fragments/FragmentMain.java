@@ -4,13 +4,17 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.graphics.drawable.AnimatedVectorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
+import android.support.v4.content.res.ResourcesCompat;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,6 +38,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 
+	private AnimatedVectorDrawable playToPause, pauseToPlay;
 	private FloatingActionButton fabTrack, fabUp;
 
 	private long lastWifiTime = 0;
@@ -89,13 +94,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private void changeTrackerButton(int status) {
 		switch (status) {
 			case 0:
-				fabTrack.setImageResource(R.drawable.ic_play_arrow_24dp);
+				fabTrack.setImageDrawable(playToPause);
+				playToPause.start();
 				break;
 			case 1:
-				fabTrack.setImageResource(R.drawable.ic_pause_24dp);
-				break;
-			case 2:
-				fabTrack.setImageResource(R.drawable.ic_loop_24dp);
+				fabTrack.setImageDrawable(pauseToPlay);
+				pauseToPlay.start();
 				break;
 		}
 	}
@@ -176,6 +180,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		fabUp = fabTwo;
 
 		fabTrack.show();
+
+		if(playToPause == null) {
+			playToPause = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_play_to_pause);
+			pauseToPlay = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play);
+		}
 
 		changeTrackerButton(TrackerService.service != null ? 1 : 0);
 		fabTrack.setOnClickListener(

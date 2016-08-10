@@ -9,4 +9,5 @@
     <color name="background_splash">#2453b3</color>
     <color name="textPrimary">#FFFFFF</color>
     <color name="textSecondary">#919191</color>
+    <color name="stroke_color">#000000</color>
 </resources>

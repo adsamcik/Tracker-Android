@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_play">
+
+    <target
+        android:name="@string/nPlay"
+        android:animation="@animator/pause_to_play" />
+
+   /* <target
+        android:name="@string/nPlayPauseGroup"
+        android:animation="@animator/rotate_pause_to_play" />*/
+
+</animated-vector>
