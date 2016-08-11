@@ -7,6 +7,7 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.play.ActivityController;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
 
@@ -43,7 +44,7 @@ public class PlayIntentService extends IntentService {
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
 				sendBroadcast(i);
-			} else if(confidence >= 75 && Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+			} else if(confidence >= ActivityController.REQUIRED_PROBABILITY && Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);

@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.play.ActivityController;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.google.firebase.crash.FirebaseCrash;
@@ -239,7 +240,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				if (intent.getIntExtra("confidence", -1) >= 75) {
+				if (intent.getIntExtra("confidence", -1) >= ActivityController.REQUIRED_PROBABILITY ) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Assist.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
