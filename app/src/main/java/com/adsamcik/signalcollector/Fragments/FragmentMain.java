@@ -211,7 +211,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		if (TrackerService.service == null)
 			TrackerService.approxSize = dataSize;
 
-		TrackerService.dataEcho = new Data(200).setPressure(50).setActivity(1).setCell("test", new CellData[0]).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
+		//TrackerService.dataEcho = new Data(200).setPressure(50).setActivity(1).setCell("test", new CellData[0]).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
 			UpdateData(activity);
