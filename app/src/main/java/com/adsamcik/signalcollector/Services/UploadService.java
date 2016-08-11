@@ -27,8 +27,9 @@ import okhttp3.Response;
 
 public class UploadService extends JobService {
 	private Thread thread;
-
 	private OkHttpClient client = new OkHttpClient();
+
+	public static int queued = 0;
 
 	/**
 	 * Uploads data to server.
@@ -94,6 +95,7 @@ public class UploadService extends JobService {
 
 				TrackerService.approxSize = DataStore.sizeOfData();
 
+				queued = files.length;
 				for (String fileName : files) {
 					if (!Thread.currentThread().isInterrupted()) {
 						if (fileName == null || fileName.trim().length() == 0) {
@@ -114,9 +116,11 @@ public class UploadService extends JobService {
 							builder.append(']');
 						}
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
-						if (Extensions.canUpload(c, background))
-							if(!upload(builder.toString(), fileName, size))
+						if (Extensions.canUpload(c, background)) {
+							if (!upload(builder.toString(), fileName, size))
 								DataStore.requestUpload(c, true);
+							queued--;
+						}
 						else
 							break;
 					} else
@@ -140,6 +144,7 @@ public class UploadService extends JobService {
 		if (thread != null && thread.isAlive())
 			thread.interrupt();
 		DataStore.cleanup();
+		queued = 0;
 		return false;
 	}
 }

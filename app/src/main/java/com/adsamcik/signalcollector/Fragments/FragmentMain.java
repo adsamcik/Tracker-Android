@@ -5,8 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.drawable.AnimatedVectorDrawable;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
@@ -18,9 +21,11 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
@@ -32,11 +37,10 @@ import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
-import com.github.jorgecastilloprz.FABProgressCircle;
 import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
-	private RelativeLayout layoutCell, layoutWifi, layoutMain, layoutOther;
+	private LinearLayout layoutCell, layoutWifi, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
 
 	private AnimatedVectorDrawable playToPause, pauseToPlay;
@@ -63,10 +67,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
 		textCollected = (TextView) view.findViewById(R.id.textCollected);
 
-		layoutMain = (RelativeLayout) view.findViewById(R.id.layout_main);
-		layoutWifi = (RelativeLayout) view.findViewById(R.id.layout_wifi);
-		layoutCell = (RelativeLayout) view.findViewById(R.id.layout_cells);
-		layoutOther = (RelativeLayout) view.findViewById(R.id.layout_other);
+		layoutWifi = (LinearLayout) view.findViewById(R.id.layout_wifi);
+		layoutCell = (LinearLayout) view.findViewById(R.id.layout_cells);
+		layoutOther = (LinearLayout) view.findViewById(R.id.layout_other);
 
 		layoutWifi.setVisibility(View.GONE);
 		layoutCell.setVisibility(View.GONE);
@@ -74,6 +77,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
+
+		if (fabTrack != null)
+			UpdateData(getContext());
 
 		return view;
 	}
@@ -153,8 +159,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				break;
 			case 1:
 				fabUp.setImageResource(R.drawable.ic_file_upload_24dp);
-
-				((FABProgressCircle) fabUp.getParent()).show();
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
@@ -198,16 +202,19 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize)));
-
 		DataStore.setOnUpload(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
-
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
-
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.service != null ? 1 : 0));
 
 		long dataSize = DataStore.sizeOfData();
-		setCollected(dataSize);
 		setCloudStatus(dataSize == 0 ? 0 : 1);
+		if (TrackerService.service == null)
+			TrackerService.approxSize = dataSize;
+
+		TrackerService.dataEcho = new Data(200).setPressure(50).setActivity(1).setCell("test", new CellData[0]).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
+
+		if (layoutWifi != null)
+			UpdateData(activity);
 		return new Success();
 	}
 
@@ -224,11 +231,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		return new FragmentMain();
 	}
 
-	private void UpdateData() {
-		Context c = getContext();
-		if (c == null)
-			return;
-		Resources res = c.getResources();
+	private void UpdateData(@NonNull Context context) {
+		Resources res = context.getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(TrackerService.approxSize);
 
@@ -245,10 +249,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			if (d.cell != null) {
 				CellData active = d.getActiveCell();
-				if (active != null)
+				if (active != null) {
+					textCurrentCell.setVisibility(View.VISIBLE);
 					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
+				}
 				else
-					textCurrentCell.setText("");
+					textCurrentCell.setVisibility(View.GONE);
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cell.length));
 				layoutCell.setVisibility(View.VISIBLE);
 			} else
@@ -270,6 +276,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			textActivity.setText(String.format(res.getString(R.string.main_activity), Extensions.getActivityName(d.activity)));
 		}
+	}
+
+	private void UpdateData() {
+		UpdateData(getContext());
 	}
 
 }

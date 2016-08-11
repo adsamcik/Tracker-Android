@@ -1,12 +1,13 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                xmlns:tools="http://schemas.android.com/tools"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:paddingBottom="@dimen/navbar_height"
-                android:paddingLeft="@dimen/activity_horizontal_margin"
-                android:paddingRight="@dimen/activity_horizontal_margin"
-                android:paddingTop="@dimen/activity_vertical_margin"
-                tools:context=".fragments.FragmentMain">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:paddingBottom="@dimen/navbar_height"
+              android:paddingLeft="@dimen/activity_horizontal_margin"
+              android:paddingRight="@dimen/activity_horizontal_margin"
+              android:paddingTop="@dimen/activity_vertical_margin"
+              tools:context=".fragments.FragmentMain">
 
     <RelativeLayout
         android:id="@+id/layout_main"
@@ -57,11 +58,11 @@
 
     </RelativeLayout>
 
-    <RelativeLayout
+    <LinearLayout
+        android:orientation="vertical"
         android:id="@+id/layout_wifi"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/layout_main"
         android:layout_marginTop="@dimen/main_card_spacing"
         android:background="@color/cardBackground"
         android:elevation="@dimen/main_card_elevation"
@@ -72,18 +73,15 @@
             android:id="@+id/textWifiTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
             android:text="@string/main_wifi_title"
-            android:textSize="18sp"
             android:textColor="@color/textSecondary"
+            android:textSize="18sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/textWifiCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/textWifiTitle"
             android:text=""
             android:textAppearance="?android:attr/textAppearanceLarge"/>
 
@@ -91,16 +89,14 @@
             android:id="@+id/textWifiTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/textWifiCount"
-            android:text="" />
-    </RelativeLayout>
+            android:text=""/>
+    </LinearLayout>
 
-    <RelativeLayout
+    <LinearLayout
+        android:orientation="vertical"
         android:id="@+id/layout_cells"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/layout_wifi"
         android:layout_marginTop="@dimen/main_card_spacing"
         android:background="@color/cardBackground"
         android:elevation="@dimen/main_card_elevation"
@@ -111,17 +107,15 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/main_cell_title"
-            android:textSize="18sp"
             android:textColor="@color/textSecondary"
             android:textIsSelectable="false"
+            android:textSize="18sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/textCurrentCell"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/textCellTitle"
             android:text=""
             android:textAppearance="?android:attr/textAppearanceLarge"/>
 
@@ -129,16 +123,15 @@
             android:id="@+id/textCells"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/textCurrentCell"
             android:text=""
             android:textAppearance="?android:attr/textAppearanceLarge"/>
-    </RelativeLayout>
+    </LinearLayout>
 
-    <RelativeLayout
+    <LinearLayout
+        android:orientation="vertical"
         android:id="@+id/layout_other"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/layout_cells"
         android:layout_marginTop="@dimen/main_card_spacing"
         android:background="@color/cardBackground"
         android:elevation="@dimen/main_card_elevation"
@@ -155,9 +148,8 @@
             android:id="@+id/textActivity"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/textPressure"
             android:text=""
             android:textAppearance="?android:attr/textAppearanceMedium"/>
-    </RelativeLayout>
+    </LinearLayout>
 
-</RelativeLayout>
+</LinearLayout>
