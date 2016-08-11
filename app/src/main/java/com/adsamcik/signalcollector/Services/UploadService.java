@@ -62,7 +62,7 @@ public class UploadService extends JobService {
 			Response response = this.client.newCall(request).execute();
 			if (response.isSuccessful()) {
 				deleteFile(name);
-				TrackerService.approxSize -= size;
+				DataStore.incSizeOfData(-size);
 				DataStore.onUpload();
 				return true;
 			}
@@ -92,8 +92,6 @@ public class UploadService extends JobService {
 					FirebaseCrash.report(new Throwable("No file names were entered"));
 					return;
 				}
-
-				TrackerService.approxSize = DataStore.sizeOfData();
 
 				queued = files.length;
 				for (String fileName : files) {

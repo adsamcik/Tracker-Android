@@ -57,8 +57,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	public static Intent service;
 
-	public static long approxSize = 0;
-
 	private static long lockedUntil;
 	private static boolean backgroundActivated = false;
 
@@ -144,7 +142,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		data.add(d);
 		dataEcho = d;
 
-		approxSize += DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length;
+		DataStore.incSizeOfData(DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length);
 
 		notificationManager.notify(1, generateNotification(true, d));
 		if (onNewDataFound != null)
@@ -152,7 +150,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		if (data.size() > 10)
 			saveData();
-
 
 		wifiScanData = null;
 
@@ -233,8 +230,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 	@Override
 	public void onCreate() {
-		approxSize = 0;
-
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
 
@@ -244,7 +239,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				if (intent.getIntExtra("confidence", -1) > 85) {
+				if (intent.getIntExtra("confidence", -1) >= 75) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Extensions.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
@@ -303,13 +298,10 @@ public class TrackerService extends Service implements SensorEventListener {
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		TrackerService.service = intent;
-		if (intent == null) {
-			approxSize = DataStore.recountDataSize();
+		if (intent == null)
 			backgroundActivated = true;
-		} else {
-			approxSize = intent.getLongExtra("approxSize", 0);
+		else
 			backgroundActivated = intent.getBooleanExtra("backTrack", false);
-		}
 		startForeground(1, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.onCallback();

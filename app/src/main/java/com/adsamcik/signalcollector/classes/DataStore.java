@@ -42,16 +42,13 @@ public class DataStore {
 	private static final String KEY_FILE_ID = "saveFileID";
 	private static final String KEY_SIZE = "totalSize";
 	public static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
-
 	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
 	private static final int MAX_FILE_SIZE = 1048576;
 
 	private static WeakReference<Context> contextWeak;
-
 	private static Context getContext() {
 		return contextWeak.get();
 	}
-
 	public static void setContext(Context c) {
 		if (c != null)
 			contextWeak = new WeakReference<>(c.getApplicationContext());
@@ -61,6 +58,8 @@ public class DataStore {
 
 	private static ICallback onDataChanged;
 	private static ICallback onUpload;
+
+	private static long approxSize = -1;
 
 
 	private static void onDataChanged() {
@@ -216,13 +215,24 @@ public class DataStore {
 		return size;
 	}
 
+	private static void initSizeOfData() {
+		if(approxSize == -1)
+			approxSize = Setting.getPreferences().getLong(KEY_SIZE, 0);
+	}
+
 	/**
 	 * Gets saved size of data.
 	 *
 	 * @return returns saved data size from shared preferences.
 	 */
 	public static long sizeOfData() {
-		return Setting.getPreferences().getLong(KEY_SIZE, 0);
+		initSizeOfData();
+		return approxSize;
+	}
+
+	public static void incSizeOfData(long value) {
+		initSizeOfData();
+		approxSize += value;
 	}
 
 	/**

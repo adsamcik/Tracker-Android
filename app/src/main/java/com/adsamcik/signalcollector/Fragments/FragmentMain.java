@@ -201,15 +201,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					toggleCollecting(activity, TrackerService.service == null);
 				}
 		);
-		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(TrackerService.approxSize)));
+		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
 		DataStore.setOnUpload(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.service != null ? 1 : 0));
 
-		long dataSize = DataStore.sizeOfData();
-		setCloudStatus(dataSize == 0 ? 0 : 1);
-		if (TrackerService.service == null)
-			TrackerService.approxSize = dataSize;
+		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
 
 		//TrackerService.dataEcho = new Data(200).setPressure(50).setActivity(1).setCell("test", new CellData[0]).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
@@ -234,7 +231,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private void UpdateData(@NonNull Context context) {
 		Resources res = context.getResources();
 		Data d = TrackerService.dataEcho;
-		setCollected(TrackerService.approxSize);
+		setCollected(DataStore.sizeOfData());
 
 		if (d != null) {
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
