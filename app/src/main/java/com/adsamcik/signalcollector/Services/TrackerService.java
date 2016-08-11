@@ -240,7 +240,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		activityReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				if (intent.getIntExtra("confidence", -1) >= ActivityController.REQUIRED_PROBABILITY ) {
+				if (intent.getIntExtra("confidence", -1) >= ActivityController.REQUIRED_CONFIDENCE) {
 					currentActivity = intent.getIntExtra("activity", -1);
 					int evalActivity = Assist.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
