@@ -31,8 +31,8 @@ import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
@@ -50,8 +50,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	//Constants
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
-	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Extensions.MINUTE_IN_MILLISECONDS;
-	private final int UPDATE_TIME_MILLISEC = 2 * Extensions.SECOND_IN_MILLISECONDS;
+	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
+	private final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 	private final float MIN_DISTANCE_M = 5;
 
@@ -113,7 +113,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
 			if (timeDiff < 0 || timeDiff > 1)
 				FirebaseCrash.log("wifiScanTime " + wifiScanTime + " previous position time " + prevScanPos.getTime() + " current time " + d.time + " timeDiff " + timeDiff);
-			float distTo = location.distanceTo(Extensions.interpolateLocation(prevScanPos, location, timeDiff));
+			float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			Log.d(TAG, "dist to wifi " + distTo);
 			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI || distTo < 0)
@@ -241,7 +241,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			public void onReceive(Context context, Intent intent) {
 				if (intent.getIntExtra("confidence", -1) >= 75) {
 					currentActivity = intent.getIntExtra("activity", -1);
-					int evalActivity = Extensions.evaluateActivity(currentActivity);
+					int evalActivity = Assist.evaluateActivity(currentActivity);
 					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
 					if (backgroundActivated && (evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0))
 						stopSelf();

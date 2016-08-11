@@ -68,7 +68,7 @@ public class MainActivity extends FragmentActivity {
 		if (!s.getSuccess())
 			snackMaker.showSnackbar(s.message);
 
-		Extensions.initialize(this);
+		Assist.initialize(this);
 
 		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(this, true);
@@ -87,7 +87,7 @@ public class MainActivity extends FragmentActivity {
 		Resources r = getResources();
 
 
-		if (!Extensions.hasNavBar(getWindowManager())) {
+		if (!Assist.hasNavBar(getWindowManager())) {
 			CoordinatorLayout.LayoutParams lp = new CoordinatorLayout.LayoutParams(CoordinatorLayout.LayoutParams.WRAP_CONTENT, CoordinatorLayout.LayoutParams.WRAP_CONTENT);
 			lp.setMargins(0, 0, 0, 0);
 			fabOne.setLayoutParams(lp);
@@ -131,7 +131,7 @@ public class MainActivity extends FragmentActivity {
 						//it cannot be null because this is handled in getSuccess
 						@SuppressWarnings("ConstantConditions") Snackbar snack = Snackbar.make(v, response.message, 4000);
 						View view = snack.getView();
-						view.setPadding(0, 0, 0, Extensions.getNavBarHeight(a));
+						view.setPadding(0, 0, 0, Assist.getNavBarHeight(a));
 						snack.show();
 						fabOne.hide();
 						fabTwo.hide();

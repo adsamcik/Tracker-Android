@@ -8,16 +8,12 @@ import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
-import android.os.Looper;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.BuildConfig;
-import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.interfaces.ICallback;
-import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -33,8 +29,6 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 public class DataStore {
 	public static final String TAG = "DATA-STORE";

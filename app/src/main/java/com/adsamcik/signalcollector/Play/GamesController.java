@@ -3,13 +3,9 @@ package com.adsamcik.signalcollector.play;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
-import com.adsamcik.signalcollector.Extensions;
-import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.google.android.gms.common.api.GoogleApiClient;

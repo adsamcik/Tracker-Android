@@ -6,19 +6,16 @@ import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.Map;
 
-import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -44,7 +41,7 @@ public class UploadService extends JobService {
 			return false;
 		}
 
-		final String serialized = "{\"imei\":" + Extensions.getImei() +
+		final String serialized = "{\"imei\":" + Assist.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 				"\",\"api\":" + Build.VERSION.SDK_INT +
@@ -53,7 +50,7 @@ public class UploadService extends JobService {
 
 		RequestBody formBody = new MultipartBody.Builder()
 				.setType(MultipartBody.FORM)
-				.addFormDataPart("imei", Extensions.getImei())
+				.addFormDataPart("imei", Assist.getImei())
 				.addFormDataPart("data", serialized)
 				.build();
 		Request request = new Request.Builder().url(Network.URL_DATA_UPLOAD).post(formBody).build();
@@ -80,8 +77,8 @@ public class UploadService extends JobService {
 	private boolean uploadAll(final boolean background) {
 		final Context c = getApplicationContext();
 		DataStore.setContext(c);
-		if (!Extensions.isInitialized())
-			Extensions.initialize(c);
+		if (!Assist.isInitialized())
+			Assist.initialize(c);
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
 				Setting.getPreferences(c).edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
@@ -114,7 +111,7 @@ public class UploadService extends JobService {
 							builder.append(']');
 						}
 						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
-						if (Extensions.canUpload(c, background)) {
+						if (Assist.canUpload(c, background)) {
 							if (!upload(builder.toString(), fileName, size))
 								DataStore.requestUpload(c, true);
 							queued--;

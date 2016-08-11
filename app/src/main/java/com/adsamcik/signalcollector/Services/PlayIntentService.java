@@ -5,8 +5,8 @@ import android.content.Intent;
 import android.os.PowerManager;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.Extensions;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
 
@@ -34,16 +34,16 @@ public class PlayIntentService extends IntentService {
 
 			//Get the Confidence and Name of Activity
 			int confidence = detectedActivity.getConfidence();
-			//String mostProbableName = Extensions.getActivityName(detectedActivity.getType());
+			//String mostProbableName = Assist.getActivityName(detectedActivity.getType());
 
-			//Log.d(TAG, Extensions.getActivityName(detectedActivity.getType()) + " confident " + confidence);
+			//Log.d(TAG, Assist.getActivityName(detectedActivity.getType()) + " confident " + confidence);
 
 			if(TrackerService.service != null) {
 				Intent i = new Intent("SCActivity");
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
 				sendBroadcast(i);
-			} else if(confidence >= 75 && Extensions.canBackgroundTrack(this, Extensions.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+			} else if(confidence >= 75 && Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);

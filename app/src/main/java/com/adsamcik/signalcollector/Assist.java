@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class Extensions {
+public class Assist {
 	public static final int SECOND_IN_MILLISECONDS = 1000;
 	public static final int MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
 	public static final int HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS;
@@ -207,7 +207,7 @@ public class Extensions {
 	@SuppressLint("HardwareIds")
 	public static String getImei() {
 		if (telephonyManager == null)
-			throw new NullPointerException("Extensions were not initialized, this is a bug.");
+			throw new NullPointerException("Assist were not initialized, this is a bug.");
 		return telephonyManager.getDeviceId();
 	}
 

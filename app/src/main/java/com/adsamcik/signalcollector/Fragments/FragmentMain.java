@@ -5,36 +5,29 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.drawable.AnimatedVectorDrawable;
-import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.res.ResourcesCompat;
 import android.text.format.DateFormat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
-import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.crash.FirebaseCrash;
@@ -90,7 +83,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		else if (collected == 0)
 			setCloudStatus(0);
 		if (textCollected != null && getResources() != null)
-			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Extensions.humanReadableByteCount(collected)));
+			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected)));
 	}
 
 	/**
@@ -120,7 +113,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		if (TrackerService.service != null == enable)
 			return;
 
-		String[] requiredPermissions = Extensions.checkTrackingPermissions(activity);
+		String[] requiredPermissions = Assist.checkTrackingPermissions(activity);
 
 		if (requiredPermissions == null) {
 			if (TrackerService.service == null) {
@@ -261,8 +254,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
 
 			textPosition.setText(String.format(res.getString(R.string.main_position),
-					Extensions.coordsToString(d.latitude),
-					Extensions.coordsToString(d.longitude),
+					Assist.coordsToString(d.latitude),
+					Assist.coordsToString(d.longitude),
 					(int) d.altitude));
 
 			if (d.pressure > 0) {
@@ -271,7 +264,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			} else
 				layoutOther.setVisibility(View.GONE);
 
-			textActivity.setText(String.format(res.getString(R.string.main_activity), Extensions.getActivityName(d.activity)));
+			textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
 		}
 	}
 

@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -16,7 +15,6 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
-import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
@@ -24,7 +22,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.adsamcik.signalcollector.Extensions;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.Success;
@@ -32,7 +29,6 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
