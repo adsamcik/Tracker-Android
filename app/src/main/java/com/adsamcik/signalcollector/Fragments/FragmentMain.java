@@ -24,6 +24,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
 import android.widget.LinearLayout;
@@ -206,10 +207,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				fabTwo.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
 				fabTwo.setImageDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_check_black_24dp));
 
-
 				AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
 				fadeOutAnimation.setDuration(1000);
-				fadeOutAnimation.setFillAfter(true);//to keep it at 0 when animation ends
+				fadeOutAnimation.setFillAfter(true);
 				progressBar.startAnimation(fadeOutAnimation);
 
 				new Handler().postDelayed(fabTwo::hide, 1500);
