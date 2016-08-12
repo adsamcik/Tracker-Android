@@ -47,13 +47,29 @@
         android:layout_gravity="top|end"
         app:layout_anchor="@id/fabOne">
 
+        <RelativeLayout
+            android:layout_marginBottom="@dimen/fab_margin"
+            android:layout_marginEnd="11dp"
+            android:layout_marginStart="11dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
             <android.support.design.widget.FloatingActionButton
-                android:layout_marginBottom="@dimen/fab_margin"
-                android:layout_marginEnd="@dimen/fab_margin"
-                android:layout_marginStart="@dimen/fab_margin"
                 android:id="@+id/fabTwo"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_cloud_upload_24dp"/>
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@drawable/ic_cloud_upload_24dp"
+                android:layout_centerInParent="true"/>
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:max="100"
+                android:progress="0"
+                android:progressDrawable="@drawable/circular"
+                android:layout_centerInParent="true"/>
+        </RelativeLayout>
     </LinearLayout>
 </android.support.design.widget.CoordinatorLayout>
