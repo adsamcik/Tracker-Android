@@ -34,7 +34,7 @@ public class UploadService extends JobService {
 	}
 
 	private static int calculateUploadPercentage() {
-		return (int) ((--queued) / (double) originalQueueLength * 100);
+		return (int) ((1 - (queued / (double) originalQueueLength)) * 100);
 	}
 
 	/**
@@ -50,6 +50,7 @@ public class UploadService extends JobService {
 			return false;
 		}
 
+		Log.d(TAG, "upload started");
 		final String serialized = "{\"imei\":" + Assist.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
@@ -67,15 +68,13 @@ public class UploadService extends JobService {
 		try {
 			Response response = this.client.newCall(request).execute();
 			if (response.isSuccessful()) {
-				deleteFile(name);
+				//deleteFile(name);
 				DataStore.incSizeOfData(-size);
 				return true;
 			}
 		} catch (IOException e) {
 			//catch
 		}
-		DataStore.onUpload(calculateUploadPercentage());
-
 		return false;
 	}
 
@@ -84,6 +83,7 @@ public class UploadService extends JobService {
 	 * @return true if started
 	 */
 	private boolean uploadAll(final boolean background) {
+		Log.d(TAG, "upload all started");
 		final Context c = getApplicationContext();
 		DataStore.setContext(c);
 		if (!Assist.isInitialized())
@@ -92,7 +92,6 @@ public class UploadService extends JobService {
 			thread = new Thread(() -> {
 				Setting.getPreferences(c).edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
 				String[] files = DataStore.getDataFileNames(!background);
-
 				if (files == null || files.length == 0) {
 					Log.e(DataStore.TAG, "No file names were entered");
 					FirebaseCrash.report(new Throwable("No file names were entered"));
@@ -125,6 +124,8 @@ public class UploadService extends JobService {
 							if (!upload(builder.toString(), fileName, size))
 								DataStore.requestUpload(c, true);
 							queued--;
+							DataStore.onUpload(calculateUploadPercentage());
+							Log.d(TAG, "upload successful " + calculateUploadPercentage());
 						} else
 							break;
 					} else

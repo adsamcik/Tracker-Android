@@ -164,7 +164,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				fabUp.setOnClickListener(null);
 				break;
 			case 1:
-				fabUp.setImageResource(R.drawable.ic_file_upload_24dp);
+				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
@@ -174,7 +174,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				fabUp.show();
 				break;
 			case 2:
-				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
+				fabUp.setImageResource(R.drawable.ic_sync_black_24dp);
 				fabUp.setOnClickListener(null);
 				fabUp.show();
 				break;
