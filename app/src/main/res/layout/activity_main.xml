@@ -71,6 +71,7 @@
                 android:max="100"
                 android:progress="100"
                 android:progressDrawable="@drawable/circular"
+                android:visibility="invisible"
                 android:layout_centerInParent="true"/>
         </RelativeLayout>
     </LinearLayout>

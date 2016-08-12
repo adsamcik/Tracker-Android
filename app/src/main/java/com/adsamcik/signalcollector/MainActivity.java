@@ -17,6 +17,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -44,6 +45,8 @@ public class MainActivity extends FragmentActivity {
 	private ViewPager viewPager;
 
 	private SnackMaker snackMaker;
+
+	private ViewPager.OnPageChangeListener pageChangeListener;
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -92,17 +95,21 @@ public class MainActivity extends FragmentActivity {
 			viewPager = (ViewPager) containerView;
 			viewPager.setOffscreenPageLimit(1);
 
-			ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager(), this);
+			final ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager(), this);
 			adapter.addFrag(FragmentMain.class, r.getString(R.string.menu_dashboard));
 			adapter.addFrag(FragmentMap.class, r.getString(R.string.menu_map));
 			adapter.addFrag(FragmentStats.class, r.getString(R.string.menu_stats));
 			adapter.addFrag(FragmentSettings.class, r.getString(R.string.menu_settings));
 			viewPager.setAdapter(adapter);
 
+			TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
+			tabLayout.setupWithViewPager(viewPager);
+
 			final FragmentActivity a = this;
-			viewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-				ITabFragment prevFragment;
-				int prevFragmentIndex = 0;
+
+			pageChangeListener = new ViewPager.OnPageChangeListener() {
+				ITabFragment prevFragment = adapter.getInstance(viewPager.getCurrentItem());
+				int prevFragmentIndex = viewPager.getCurrentItem();
 
 				@Override
 				public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
@@ -139,11 +146,10 @@ public class MainActivity extends FragmentActivity {
 				@Override
 				public void onPageScrollStateChanged(int state) {
 				}
-			});
-		}
+			};
 
-		TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
-		tabLayout.setupWithViewPager(viewPager);
+			viewPager.addOnPageChangeListener(pageChangeListener);
+		}
 	}
 
 	@Override
@@ -184,13 +190,19 @@ public class MainActivity extends FragmentActivity {
 		@Override
 		public Object instantiateItem(ViewGroup container, int position) {
 			ITabFragment instance = (ITabFragment) super.instantiateItem(container, position);
+			boolean createInstance = mInstanceList == null;
 			if (mInstanceList == null) {
 				mInstanceList = new ITabFragment[mFragmentList.size()];
-				instance.onEnter(activity, fabOne, fabTwo);
-			} else if (mFragmentList.size() <= position)
+			} else if (mFragmentList.size() <= position) {
 				mInstanceList = Arrays.copyOf(mInstanceList, mFragmentList.size());
+			}
 
 			mInstanceList[position] = instance;
+
+			if(createInstance)
+				pageChangeListener.onPageSelected(viewPager.getCurrentItem());
+
+
 			return instance;
 		}
 
