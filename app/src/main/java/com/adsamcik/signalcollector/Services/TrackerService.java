@@ -147,7 +147,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		notificationManager.notify(1, generateNotification(true, d));
 		if (onNewDataFound != null)
-			onNewDataFound.onCallback();
+			onNewDataFound.callback();
 
 		if (data.size() > 10)
 			saveData();
@@ -299,13 +299,10 @@ public class TrackerService extends Service implements SensorEventListener {
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		TrackerService.service = intent;
-		if (intent == null)
-			backgroundActivated = true;
-		else
-			backgroundActivated = intent.getBooleanExtra("backTrack", false);
+		backgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false);
 		startForeground(1, generateNotification(false, null));
 		if (onServiceStateChange != null)
-			onServiceStateChange.onCallback();
+			onServiceStateChange.callback();
 		return super.onStartCommand(intent, flags, startId);
 	}
 
@@ -323,7 +320,7 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		saveData();
 		if (onServiceStateChange != null)
-			onServiceStateChange.onCallback();
+			onServiceStateChange.callback();
 		DataStore.cleanup();
 
 		if (!wifiEnabled)

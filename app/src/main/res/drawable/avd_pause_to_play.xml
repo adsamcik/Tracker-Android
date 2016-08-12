@@ -5,10 +5,10 @@
 
     <target
         android:name="@string/nPlay"
-        android:animation="@animator/pause_to_play" />
+        android:animation="@animator/pause_to_play"/>
 
-   /* <target
+    <target
         android:name="@string/nPlayPauseGroup"
-        android:animation="@animator/rotate_pause_to_play" />*/
+        android:animation="@animator/rotate_pause_to_play"/>
 
 </animated-vector>

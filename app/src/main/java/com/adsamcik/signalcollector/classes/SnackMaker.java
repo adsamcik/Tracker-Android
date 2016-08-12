@@ -6,7 +6,7 @@ import android.view.View;
 import com.adsamcik.signalcollector.Assist;
 
 public class SnackMaker {
-	private View view;
+	private final View view;
 	public SnackMaker(View view) {
 		this.view = view;
 	}

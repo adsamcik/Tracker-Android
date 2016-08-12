@@ -46,11 +46,6 @@ public class MainActivity extends FragmentActivity {
 	private SnackMaker snackMaker;
 
 	@Override
-	protected void onStart() {
-		super.onStart();
-	}
-
-	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
@@ -170,7 +165,7 @@ public class MainActivity extends FragmentActivity {
 		private final List<Class<? extends ITabFragment>> mFragmentList = new ArrayList<>(4);
 		private final List<String> mFragmentTitleList = new ArrayList<>(4);
 		private ITabFragment[] mInstanceList;
-		private FragmentActivity activity;
+		private final FragmentActivity activity;
 
 		private ViewPagerAdapter(FragmentManager manager, FragmentActivity activity) {
 			super(manager);

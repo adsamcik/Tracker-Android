@@ -14,6 +14,7 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -51,27 +52,27 @@ public class DataStore {
 	private static boolean isSaveAllowed = true;
 
 	private static ICallback onDataChanged;
-	private static ICallback onUpload;
+	private static IValueCallback<Integer> onUploadProgress;
 
 	private static long approxSize = -1;
 
 
 	private static void onDataChanged() {
 		if (onDataChanged != null)
-			onDataChanged.onCallback();
+			onDataChanged.callback();
 	}
 
-	public static void onUpload() {
-		if (onUpload != null)
-			onUpload.onCallback();
+	public static void onUpload(int progress) {
+		if (onUploadProgress != null)
+			onUploadProgress.callback(progress);
 	}
 
 	public static void setOnDataChanged(ICallback callback) {
 		onDataChanged = callback;
 	}
 
-	public static void setOnUpload(ICallback callback) {
-		onUpload = callback;
+	public static void setOnUploadProgress(IValueCallback<Integer> callback) {
+		onUploadProgress = callback;
 	}
 
 	/**
@@ -189,7 +190,7 @@ public class DataStore {
 		isSaveAllowed = true;
 		if (onDataChanged != null) {
 			if (renamedFiles.size() > 0)
-				onDataChanged.onCallback();
+				onDataChanged.callback();
 		}
 	}
 

@@ -21,7 +21,7 @@ public class ActivityController implements GoogleApiClient.ConnectionCallbacks {
 	public static final int GOOGLE_API_ID = 77285;
 	public static final int REQUIRED_CONFIDENCE = 75;
 
-	private WeakReference<Context> appContext;
+	private final WeakReference<Context> appContext;
 
 	ActivityController(@NonNull Context context) {
 		this.appContext = new WeakReference<>(context.getApplicationContext());

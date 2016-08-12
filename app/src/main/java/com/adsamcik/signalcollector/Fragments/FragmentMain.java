@@ -1,23 +1,33 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.animation.Animator;
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.Assist;
@@ -35,6 +45,7 @@ import com.google.firebase.crash.FirebaseCrash;
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
+	private ProgressBar progressBar;
 
 	private AnimatedVectorDrawable playToPause, pauseToPlay;
 	private FloatingActionButton fabTrack, fabUp;
@@ -72,7 +83,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		setCollected(dataSize);
 
 		if (fabTrack != null)
-			UpdateData(getContext());
+			updateData(getContext());
 
 		return view;
 	}
@@ -178,6 +189,42 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	public Success onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
+		progressBar = (ProgressBar) ((ViewGroup)fabTwo.getParent()).findViewById(R.id.progressBar);
+		ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", 100);
+		animation.setDuration(3000); // 0.5 second
+		animation.setInterpolator(new LinearInterpolator());
+		animation.start();
+		animation.addListener(new Animator.AnimatorListener() {
+			@Override
+			public void onAnimationStart(Animator animator) {
+
+			}
+
+			@Override
+			public void onAnimationEnd(Animator animator) {
+				fabTwo.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.colorAccent)));
+				fabTwo.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
+				fabTwo.setImageDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_check_black_24dp));
+
+
+				AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
+				fadeOutAnimation.setDuration(1000);
+				fadeOutAnimation.setFillAfter(true);//to keep it at 0 when animation ends
+				progressBar.startAnimation(fadeOutAnimation);
+
+				new Handler().postDelayed(fabTwo::hide, 1500);
+			}
+
+			@Override
+			public void onAnimationCancel(Animator animator) {
+
+			}
+
+			@Override
+			public void onAnimationRepeat(Animator animator) {
+
+			}
+		});
 
 		fabTrack.show();
 
@@ -195,8 +242,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
-		DataStore.setOnUpload(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
-		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::UpdateData);
+		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateCollected(progress)));
+		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.service != null ? 1 : 0));
 
 		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
@@ -204,14 +251,14 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		//TrackerService.dataEcho = new Data(200).setPressure(50).setActivity(1).setCell("test", new CellData[0]).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
-			UpdateData(activity);
+			updateData(activity);
 		return new Success();
 	}
 
 	@Override
 	public void onLeave() {
 		DataStore.setOnDataChanged(null);
-		DataStore.setOnUpload(null);
+		DataStore.setOnUploadProgress(null);
 		TrackerService.onNewDataFound = null;
 		TrackerService.onServiceStateChange = null;
 	}
@@ -221,7 +268,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		return new FragmentMain();
 	}
 
-	private void UpdateData(@NonNull Context context) {
+	private void updateCollected(int progress) {
+		setCollected(DataStore.sizeOfData());
+	}
+
+	private void updateData(@NonNull Context context) {
 		Resources res = context.getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(DataStore.sizeOfData());
@@ -268,8 +319,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		}
 	}
 
-	private void UpdateData() {
-		UpdateData(getContext());
+	private void updateData() {
+		updateData(getContext());
 	}
 
 }

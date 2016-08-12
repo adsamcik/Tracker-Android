@@ -24,9 +24,9 @@ import okhttp3.Response;
 
 public class UploadService extends JobService {
 	private Thread thread;
-	private OkHttpClient client = new OkHttpClient();
-
-	public static int queued = 0;
+	private final OkHttpClient client = new OkHttpClient();
+	private int queued;
+	private int originalQueueLength;
 
 	/**
 	 * Uploads data to server.
@@ -60,12 +60,12 @@ public class UploadService extends JobService {
 			if (response.isSuccessful()) {
 				deleteFile(name);
 				DataStore.incSizeOfData(-size);
-				DataStore.onUpload();
 				return true;
 			}
 		} catch (IOException e) {
 			//catch
 		}
+		DataStore.onUpload((int) ((--queued)/(double)originalQueueLength * 100));
 
 		return false;
 	}
@@ -91,6 +91,7 @@ public class UploadService extends JobService {
 				}
 
 				queued = files.length;
+				originalQueueLength = files.length;
 				for (String fileName : files) {
 					if (!Thread.currentThread().isInterrupted()) {
 						if (fileName == null || fileName.trim().length() == 0) {
