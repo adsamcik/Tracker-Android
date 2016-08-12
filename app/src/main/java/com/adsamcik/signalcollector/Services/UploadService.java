@@ -23,6 +23,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class UploadService extends JobService {
+	private static final String TAG = "SignalsUploadService";
 	private static Thread thread;
 	private final OkHttpClient client = new OkHttpClient();
 	private static int queued;
@@ -129,6 +130,8 @@ public class UploadService extends JobService {
 					} else
 						break;
 				}
+				DataStore.cleanup();
+				DataStore.recountDataSize();
 			});
 
 			thread.start();

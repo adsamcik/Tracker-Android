@@ -246,6 +246,7 @@ public class DataStore {
 		isSaveAllowed = false;
 		SharedPreferences sp = Setting.getPreferences();
 		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Setting.SCHEDULED_UPLOAD).apply();
+		approxSize = 0;
 		File[] files = getContext().getFilesDir().listFiles();
 
 		for (File file : files) {
