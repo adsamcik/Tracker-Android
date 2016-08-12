@@ -68,7 +68,7 @@ public class UploadService extends JobService {
 		try {
 			Response response = this.client.newCall(request).execute();
 			if (response.isSuccessful()) {
-				//deleteFile(name);
+				deleteFile(name);
 				DataStore.incSizeOfData(-size);
 				return true;
 			}
@@ -131,8 +131,6 @@ public class UploadService extends JobService {
 					} else
 						break;
 				}
-				DataStore.cleanup();
-				DataStore.recountDataSize();
 			});
 
 			thread.start();

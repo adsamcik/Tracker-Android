@@ -207,7 +207,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
 					AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
-					fadeOutAnimation.setDuration(1000);
+					fadeOutAnimation.setDuration(500);
 					fadeOutAnimation.setFillAfter(true);
 					progressBar.startAnimation(fadeOutAnimation);
 
@@ -279,8 +279,14 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	private void updateCollected(int progress) {
+		long size;
+		if (progress == 100) {
+			DataStore.cleanup();
+			size = DataStore.recountDataSize();
+		} else
+			size = DataStore.sizeOfData();
 		updateUploadProgress(getContext(), progress);
-		setCollected(DataStore.sizeOfData());
+		setCollected(size);
 	}
 
 	private void updateData(@NonNull Context context) {
