@@ -41,6 +41,7 @@ import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
+import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
@@ -186,13 +187,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		Network.cloudStatus = status;
 	}
 
-	@Override
-	public Success onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
-		fabTrack = fabOne;
-		fabUp = fabTwo;
-		progressBar = (ProgressBar) ((ViewGroup)fabTwo.getParent()).findViewById(R.id.progressBar);
-		ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", 100);
-		animation.setDuration(3000); // 0.5 second
+	void updateUploadProgress(final Context context, final int percentage) {
+		progressBar.setVisibility(View.VISIBLE);
+		ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
+		animation.setDuration(400);
 		animation.setInterpolator(new LinearInterpolator());
 		animation.start();
 		animation.addListener(new Animator.AnimatorListener() {
@@ -203,16 +201,18 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			@Override
 			public void onAnimationEnd(Animator animator) {
-				fabTwo.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.colorAccent)));
-				fabTwo.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
-				fabTwo.setImageDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_check_black_24dp));
+				if (percentage == 100) {
+					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
-				AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
-				fadeOutAnimation.setDuration(1000);
-				fadeOutAnimation.setFillAfter(true);
-				progressBar.startAnimation(fadeOutAnimation);
+					AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
+					fadeOutAnimation.setDuration(1000);
+					fadeOutAnimation.setFillAfter(true);
+					progressBar.startAnimation(fadeOutAnimation);
 
-				new Handler().postDelayed(fabTwo::hide, 1500);
+					new Handler().postDelayed(fabUp::hide, 1500);
+				}
 			}
 
 			@Override
@@ -225,7 +225,16 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			}
 		});
+	}
 
+	@Override
+	public Success onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
+		fabTrack = fabOne;
+		fabUp = fabTwo;
+		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
+		int percentage = UploadService.getUploadPercentage();
+		if (percentage > 0)
+			updateUploadProgress(activity, percentage);
 		fabTrack.show();
 
 		if (playToPause == null) {
@@ -261,6 +270,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.setOnUploadProgress(null);
 		TrackerService.onNewDataFound = null;
 		TrackerService.onServiceStateChange = null;
+		progressBar.setVisibility(View.INVISIBLE);
 	}
 
 	@Override
@@ -269,6 +279,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	private void updateCollected(int progress) {
+		updateUploadProgress(getContext(), progress);
 		setCollected(DataStore.sizeOfData());
 	}
 
@@ -293,8 +304,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				if (active != null) {
 					textCurrentCell.setVisibility(View.VISIBLE);
 					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
-				}
-				else
+				} else
 					textCurrentCell.setVisibility(View.GONE);
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cell.length));
 				layoutCell.setVisibility(View.VISIBLE);

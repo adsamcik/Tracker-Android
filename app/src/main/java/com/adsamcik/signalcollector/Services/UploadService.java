@@ -23,10 +23,18 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class UploadService extends JobService {
-	private Thread thread;
+	private static Thread thread;
 	private final OkHttpClient client = new OkHttpClient();
-	private int queued;
-	private int originalQueueLength;
+	private static int queued;
+	private static int originalQueueLength;
+
+	public static int getUploadPercentage() {
+		return thread == null || !thread.isAlive() ? 0 : calculateUploadPercentage();
+	}
+
+	private static int calculateUploadPercentage() {
+		return (int) ((--queued) / (double) originalQueueLength * 100);
+	}
 
 	/**
 	 * Uploads data to server.
@@ -65,7 +73,7 @@ public class UploadService extends JobService {
 		} catch (IOException e) {
 			//catch
 		}
-		DataStore.onUpload((int) ((--queued)/(double)originalQueueLength * 100));
+		DataStore.onUpload(calculateUploadPercentage());
 
 		return false;
 	}
@@ -116,8 +124,7 @@ public class UploadService extends JobService {
 							if (!upload(builder.toString(), fileName, size))
 								DataStore.requestUpload(c, true);
 							queued--;
-						}
-						else
+						} else
 							break;
 					} else
 						break;
