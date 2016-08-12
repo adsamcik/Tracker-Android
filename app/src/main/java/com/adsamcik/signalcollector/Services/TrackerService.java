@@ -163,7 +163,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private Notification generateNotification(boolean gpsAvailable, Data d) {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
-				.setSmallIcon(R.drawable.ic_notification_icon)  // the status icon
+				.setSmallIcon(R.drawable.ic_signals_notification)  // the status icon
 				.setTicker("Collection started")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
