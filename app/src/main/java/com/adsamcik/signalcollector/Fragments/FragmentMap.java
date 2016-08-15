@@ -257,12 +257,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return;
 		if (userRadius == null) {
 			Context c = getContext();
-			if (c == null) {
-				if (getActivity() != null)
-					c = getActivity().getApplicationContext();
-				else
-					return;
-			}
 			userRadius = map.addCircle(new CircleOptions()
 					.fillColor(ContextCompat.getColor(c, R.color.colorUserAccuracy))
 					.center(latlng)
