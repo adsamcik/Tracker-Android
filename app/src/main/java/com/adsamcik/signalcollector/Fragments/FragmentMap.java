@@ -240,7 +240,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		}
 
-		Log.d(TAG, this + " map ready");
 		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 	}

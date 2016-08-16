@@ -95,7 +95,7 @@ public class MainActivity extends FragmentActivity {
 			viewPager = (ViewPager) containerView;
 			viewPager.setOffscreenPageLimit(1);
 
-			final ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager(), this);
+			final ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
 			adapter.addFrag(FragmentMain.class, r.getString(R.string.menu_dashboard));
 			adapter.addFrag(FragmentMap.class, r.getString(R.string.menu_map));
 			adapter.addFrag(FragmentStats.class, r.getString(R.string.menu_stats));
@@ -171,11 +171,9 @@ public class MainActivity extends FragmentActivity {
 		private final List<Class<? extends ITabFragment>> mFragmentList = new ArrayList<>(4);
 		private final List<String> mFragmentTitleList = new ArrayList<>(4);
 		private ITabFragment[] mInstanceList;
-		private final FragmentActivity activity;
 
-		private ViewPagerAdapter(FragmentManager manager, FragmentActivity activity) {
+		private ViewPagerAdapter(FragmentManager manager) {
 			super(manager);
-			this.activity = activity;
 		}
 
 		@Override
