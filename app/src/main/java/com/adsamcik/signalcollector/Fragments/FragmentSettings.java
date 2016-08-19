@@ -184,10 +184,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		fabOne.hide();
 		fabTwo.hide();
-		return new Success();
+		return new Success<>();
 	}
 
 	@Override

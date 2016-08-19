@@ -228,7 +228,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
+	public Success<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
@@ -261,7 +261,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		if (layoutWifi != null)
 			updateData(activity);
-		return new Success();
+		return new Success<>();
 	}
 
 	@Override

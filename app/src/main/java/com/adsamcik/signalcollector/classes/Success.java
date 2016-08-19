@@ -1,24 +1,24 @@
 package com.adsamcik.signalcollector.classes;
 
-public class Success {
-	public final String message;
+public class Success<T> {
+	public final T value;
 
 	/**
 	 * Creates successful instance
 	 */
 	public Success() {
-		message = null;
+		value = null;
 	}
 
 	/**
 	 * Create unsuccessful instance
-	 * @param message message
+	 * @param message value
 	 */
-	public Success(String message) {
-		this.message = message;
+	public Success(T message) {
+		this.value = message;
 	}
 
 	public boolean getSuccess() {
-		return message == null;
+		return value == null;
 	}
 }

@@ -32,13 +32,13 @@ public class PlayController {
 	public static ActivityController activityController;
 	public static GamesController gamesController;
 
-	public static Success initializeActivityClient(@NonNull Context context) {
+	public static Success<String> initializeActivityClient(@NonNull Context context) {
 		if (isPlayServiceAvailable(context)) {
 			if(gapiActivityClient == null) {
 				final Context appContext = context.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
-					return new Success("Failed to initialize automatic tracking");
+					return new Success<>("Failed to initialize automatic tracking");
 				}
 				activityController = new ActivityController(context);
 				gapiActivityClient = new GoogleApiClient.Builder(appContext)
@@ -50,18 +50,18 @@ public class PlayController {
 			}
 			gapiActivityClient.connect();
 			apiActivity = true;
-			return new Success();
+			return new Success<>();
 		}
-		return new Success("Play services are not available");
+		return new Success<>("Play services are not available");
 	}
 
-	public static Success initializeActivityClient(@NonNull FragmentActivity activity) {
+	public static Success<String> initializeActivityClient(@NonNull FragmentActivity activity) {
 		if (isPlayServiceAvailable(activity)) {
 			if(gapiActivityClient == null) {
 				final Context appContext = activity.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
-					return new Success("Failed to initialize automatic tracking");
+					return new Success<>("Failed to initialize automatic tracking");
 				}
 				activityController = new ActivityController(appContext);
 				gapiActivityClient = new GoogleApiClient.Builder(appContext)
@@ -74,12 +74,12 @@ public class PlayController {
 			}
 			gapiActivityClient.connect();
 			apiActivity = true;
-			return new Success();
+			return new Success<>();
 		}
-		return new Success("Play services are not available");
+		return new Success<>("Play services are not available");
 	}
 
-	public static Success initializeGamesClient(@NonNull View v, @NonNull FragmentActivity activity) {
+	public static Success<String> initializeGamesClient(@NonNull View v, @NonNull FragmentActivity activity) {
 		if (isPlayServiceAvailable(activity)) {
 			if(gapiGamesClient == null) {
 				gamesController = new GamesController();
@@ -95,9 +95,9 @@ public class PlayController {
 			}
 			gapiGamesClient.connect();
 			apiGames = true;
-			return new Success();
+			return new Success<>();
 		}
-		return new Success("Play services are not available");
+		return new Success<>("Play services are not available");
 	}
 
 	public static void reconnect() {

@@ -14,7 +14,7 @@ public interface ITabFragment{
 	 * @return if tab successfully loaded
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-	Success onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo);
+	Success<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo);
 
 	/**
 	 * Called when leaving tab

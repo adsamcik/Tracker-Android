@@ -17,7 +17,6 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -62,9 +61,9 @@ public class MainActivity extends FragmentActivity {
 		} else
 			FirebaseCrash.report(new Throwable("container view is null. something is wrong."));
 
-		Success s = PlayController.initializeActivityClient(this);
+		Success<String> s = PlayController.initializeActivityClient(this);
 		if (!s.getSuccess())
-			snackMaker.showSnackbar(s.message);
+			snackMaker.showSnackbar(s.value);
 
 		Assist.initialize(this);
 
@@ -123,7 +122,7 @@ public class MainActivity extends FragmentActivity {
 					ITabFragment tf = adapter.getInstance(position);
 					if (tf == null)
 						return;
-					Success response = tf.onEnter(a, fabOne, fabTwo);
+					Success<String> response = tf.onEnter(a, fabOne, fabTwo);
 					if (!response.getSuccess()) {
 						final View v = findViewById(R.id.container);
 						if (v == null) {
@@ -131,7 +130,7 @@ public class MainActivity extends FragmentActivity {
 							return;
 						}
 						//it cannot be null because this is handled in getSuccess
-						@SuppressWarnings("ConstantConditions") Snackbar snack = Snackbar.make(v, response.message, 4000);
+						@SuppressWarnings("ConstantConditions") Snackbar snack = Snackbar.make(v, response.value, 4000);
 						View view = snack.getView();
 						view.setPadding(0, 0, 0, Assist.getNavBarHeight(a));
 						snack.show();

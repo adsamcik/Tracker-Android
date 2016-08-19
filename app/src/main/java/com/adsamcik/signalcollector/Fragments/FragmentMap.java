@@ -107,16 +107,16 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public Success onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		if (!PlayController.isPlayServiceAvailable(activity))
-			return new Success("Play services are not available");
+			return new Success<>("Play services are not available");
 		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
 			else
 				locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 		} else
-			return new Success("App does not have required permissions.");
+			return new Success<>("App does not have required permissions.");
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
@@ -139,7 +139,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			Log.d(TAG, this + " create map");
 			initialized = true;
 		}
-		return new Success();
+		return new Success<>();
 	}
 
 	@Nullable

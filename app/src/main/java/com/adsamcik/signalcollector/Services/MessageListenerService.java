@@ -47,9 +47,9 @@ public class MessageListenerService extends FirebaseMessagingService {
 	}
 
 	/**
-	 * Create and show a simple notification containing the received GCM message.
+	 * Create and show a simple notification containing the received GCM value.
 	 *
-	 * @param message GCM message received.
+	 * @param message GCM value received.
 	 */
 	private void sendNotification(String title, String message) {
 		Intent intent = new Intent(this, MainActivity.class);
