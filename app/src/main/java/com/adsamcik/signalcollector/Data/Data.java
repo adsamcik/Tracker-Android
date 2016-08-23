@@ -47,11 +47,13 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	public Data setWifi(@NonNull ScanResult[] data, long time) {
-		wifi = new WifiData[data.length];
-		for(int i = 0; i < data.length; i++)
-			wifi[i] = new WifiData(data[i]);
-		this.wifiTime = time;
+	public Data setWifi(ScanResult[] data, long time) {
+		if(data != null) {
+			wifi = new WifiData[data.length];
+			for (int i = 0; i < data.length; i++)
+				wifi[i] = new WifiData(data[i]);
+			this.wifiTime = time;
+		}
 		return this;
 	}
 
@@ -60,24 +62,26 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	public Data setCell(String operator, @NonNull List<CellInfo> data) {
-		CellData[] cellData = new CellData[data.size()];
-		for (int i = 0; i < data.size(); i++) {
-			CellInfo c = data.get(i);
-			if (c instanceof CellInfoGsm)
-				cellData[i] = new CellData((CellInfoGsm) c);
-			else if (c instanceof CellInfoLte)
-				cellData[i] = new CellData((CellInfoLte) c);
-			else if (c instanceof CellInfoCdma)
-				cellData[i] = new CellData((CellInfoCdma) c);
-			else if (c instanceof CellInfoWcdma)
-				cellData[i] = new CellData((CellInfoWcdma) c);
+	public Data setCell(String operator, List<CellInfo> data) {
+		if (data != null) {
+			CellData[] cellData = new CellData[data.size()];
+			for (int i = 0; i < data.size(); i++) {
+				CellInfo c = data.get(i);
+				if (c instanceof CellInfoGsm)
+					cellData[i] = new CellData((CellInfoGsm) c);
+				else if (c instanceof CellInfoLte)
+					cellData[i] = new CellData((CellInfoLte) c);
+				else if (c instanceof CellInfoCdma)
+					cellData[i] = new CellData((CellInfoCdma) c);
+				else if (c instanceof CellInfoWcdma)
+					cellData[i] = new CellData((CellInfoWcdma) c);
+			}
+			setCell(operator, cellData);
 		}
-		setCell(operator, cellData);
 		return this;
 	}
 
-	public Data setCell(String operator, @NonNull CellData[] data) {
+	private Data setCell(String operator, @NonNull CellData[] data) {
 		this.cell = data;
 		this.networkOperator = operator;
 		return this;
