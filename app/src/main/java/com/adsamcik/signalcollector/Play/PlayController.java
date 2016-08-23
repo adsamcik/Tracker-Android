@@ -1,12 +1,8 @@
 package com.adsamcik.signalcollector.play;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
-import android.content.IntentSender;
 import android.support.annotation.NonNull;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
@@ -14,7 +10,6 @@ import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Success;
-import com.adsamcik.signalcollector.interfaces.IContextCallback;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;

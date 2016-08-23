@@ -29,7 +29,6 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;

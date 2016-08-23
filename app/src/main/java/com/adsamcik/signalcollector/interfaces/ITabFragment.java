@@ -1,8 +1,6 @@
 package com.adsamcik.signalcollector.interfaces;
 
-import android.app.Activity;
 import android.support.design.widget.FloatingActionButton;
-import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 
 import com.adsamcik.signalcollector.classes.Success;

@@ -1,27 +1,10 @@
 package com.adsamcik.signalcollector;
 
-import android.app.Activity;
-import android.content.Context;
-import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.AsyncTask;
-import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.v4.content.ContextCompat;
 import android.util.Log;
-
-import com.adsamcik.signalcollector.classes.Success;
-import com.google.android.gms.tasks.Task;
-
-import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
 
 public class NoiseTracker {
 	public static final int PERMISSION_ID = 14159195;

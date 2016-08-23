@@ -5,7 +5,6 @@
     <color name="colorAccent">@color/colorPrimary</color>
     <color name="colorUserAccuracy">#80365fb3</color>
     <color name="cardBackground">#424242</color>
-    <color name="background">#363636</color>
     <color name="background_splash">@color/colorPrimary</color>
     <color name="textPrimary">#FFFFFF</color>
     <color name="textSecondary">#919191</color>

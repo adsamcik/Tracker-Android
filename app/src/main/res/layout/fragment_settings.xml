@@ -15,7 +15,6 @@
                   android:paddingTop="@dimen/activity_vertical_margin">
 
         <TextView
-            android:id="@+id/tracking_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/settings_automaticTracking"
@@ -31,7 +30,6 @@
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
-            android:id="@+id/tracking_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center">
@@ -67,7 +65,6 @@
         </RelativeLayout>
 
         <TextView
-            android:id="@+id/autoupload_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="15dp"
@@ -84,7 +81,6 @@
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
-            android:id="@+id/autoupload_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center">
@@ -120,7 +116,6 @@
         </RelativeLayout>
 
         <TextView
-            android:id="@+id/play_loginTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="15dp"
@@ -148,7 +143,6 @@
 
 
         <TextView
-            android:id="@+id/tracker_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
@@ -195,7 +189,6 @@
             android:textSize="@dimen/setting_text_size"/>
 
         <TextView
-            android:id="@+id/other_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="15dp"

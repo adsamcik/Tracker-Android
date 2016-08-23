@@ -19,7 +19,6 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 

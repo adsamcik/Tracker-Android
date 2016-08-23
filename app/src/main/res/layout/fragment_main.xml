@@ -10,7 +10,6 @@
               tools:context=".fragments.FragmentMain">
 
     <RelativeLayout
-        android:id="@+id/layout_main"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/cardBackground"
@@ -70,7 +69,6 @@
         >
 
         <TextView
-            android:id="@+id/textWifiTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/main_wifi_title"
@@ -103,7 +101,6 @@
         android:padding="@dimen/main_data_padding">
 
         <TextView
-            android:id="@+id/textCellTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/main_cell_title"

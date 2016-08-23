@@ -117,6 +117,7 @@ public class Setting {
 		SharedPreferences sp = getPreferences(context);
 		StatDay result = new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0);
 		Set<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
+		//noinspection Convert2streamapi
 		for(StatDay stat : set)
 			result.add(stat);
 		return result;
