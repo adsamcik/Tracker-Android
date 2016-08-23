@@ -10,9 +10,13 @@ android {
         targetSdkVersion 24
         versionCode 82
         versionName "2.0.0 Noise"
+        jackOptions {
+            enabled true
+        }
     }
     buildTypes {
         release_nominify {
+
             minifyEnabled false
         }
         release {
@@ -41,4 +45,3 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
-apply plugin: 'me.tatarka.retrolambda'

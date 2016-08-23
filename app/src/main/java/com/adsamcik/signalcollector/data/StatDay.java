@@ -5,10 +5,13 @@ public class StatDay {
 	private int wifi;
 	private int cell;
 	private int locations;
+	private int minutes;
 
-	public StatDay() {}
+	public StatDay() {
+	}
 
-	public StatDay(int locations, int wifi, int cell, int age) {
+	public StatDay(int minutes, int locations, int wifi, int cell, int age) {
+		this.minutes = minutes;
 		this.wifi = wifi;
 		this.cell = cell;
 		this.locations = locations;
@@ -23,6 +26,7 @@ public class StatDay {
 		locations += day.locations;
 		wifi += day.wifi;
 		cell += day.cell;
+		minutes += day.minutes;
 	}
 
 	public StatDay addCell(int value) {
@@ -32,6 +36,11 @@ public class StatDay {
 
 	public StatDay addWifi(int value) {
 		wifi += value;
+		return this;
+	}
+
+	public StatDay addMinutes(int value) {
+		minutes += value;
 		return this;
 	}
 
@@ -54,5 +63,9 @@ public class StatDay {
 
 	public int getLocations() {
 		return locations;
+	}
+
+	public int getMinutes() {
+		return minutes;
 	}
 }

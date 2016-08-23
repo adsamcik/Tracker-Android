@@ -212,6 +212,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					fadeOutAnimation.setFillAfter(true);
 					progressBar.startAnimation(fadeOutAnimation);
 
+					//todo fab can be hidden by this when other tab is active
 					new Handler().postDelayed(fabUp::hide, 600);
 					new Handler().postDelayed(() -> {
 						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));

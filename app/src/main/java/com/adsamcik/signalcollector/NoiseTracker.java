@@ -52,8 +52,10 @@ public class NoiseTracker {
 
 	public NoiseTracker stop() {
 		audioRecorder.stop();
-		task.cancel(true);
-		task = null;
+		if (task != null) {
+			task.cancel(true);
+			task = null;
+		}
 		currentIndex = 0;
 		return this;
 	}

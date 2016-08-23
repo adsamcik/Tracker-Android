@@ -57,6 +57,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 	private final float MIN_DISTANCE_M = 5;
 
+	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
+
 	public static Intent service;
 
 	private static long lockedUntil;
@@ -140,14 +142,19 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
-		d.setLocation(location).setActivity(currentActivity);
 
 		if(noiseTracker != null) {
-			noiseTracker.start();
-			double value = noiseTracker.getSample(10);
-			if(value >= 0)
-				d.setNoise(value);
+			if(Assist.evaluateActivity(currentActivity) == 1) {
+				noiseTracker.start();
+				double value = noiseTracker.getSample(10);
+				if (value >= 0)
+					d.setNoise(value);
+			}
+			else
+				noiseTracker.stop();
 		}
+
+		d.setLocation(location).setActivity(currentActivity);
 
 		data.add(d);
 		dataEcho = d;
@@ -339,6 +346,9 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(false);
+
+		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+		sp.edit().putInt(Setting.STATS_MINUTES, sp.getInt(Setting.STATS_MINUTES, 0) + (int)((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 	}
 
 	@Nullable

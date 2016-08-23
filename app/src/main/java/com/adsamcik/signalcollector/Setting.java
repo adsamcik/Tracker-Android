@@ -30,6 +30,7 @@ public class Setting {
 	public static final String STATS_WIFI_FOUND = "statsWifiFound";
 	public static final String STATS_CELL_FOUND = "statsCellFound";
 	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";
+	public static final String STATS_MINUTES = "statsMinutes";
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 
@@ -97,7 +98,7 @@ public class Setting {
 			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);
 
-			stats.add(new StatDay(sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), dayDiff));
+			stats.add(new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), dayDiff));
 
 			if (stringStats == null)
 				stringStats = new HashSet<>();
@@ -114,7 +115,7 @@ public class Setting {
 
 	public static StatDay countStats(@NonNull Context context) {
 		SharedPreferences sp = getPreferences(context);
-		StatDay result = new StatDay(sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0);
+		StatDay result = new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0);
 		Set<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
 		for(StatDay stat : set)
 			result.add(stat);
