@@ -32,6 +32,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
@@ -54,7 +55,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
 	private final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
-	private final float MIN_DISTANCE_M = 5;
+	private final float MIN_DISTANCE_M = 0;
 
 	public static Intent service;
 
@@ -90,6 +91,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	private PowerManager powerManager;
 	private PowerManager.WakeLock wakeLock;
 
+	private NoiseTracker noiseTracker;
+
 	static boolean isAutoLocked() {
 		return System.currentTimeMillis() < lockedUntil;
 	}
@@ -116,13 +119,12 @@ public class TrackerService extends Service implements SensorEventListener {
 				FirebaseCrash.log("wifiScanTime " + wifiScanTime + " previous position time " + prevScanPos.getTime() + " current time " + d.time + " timeDiff " + timeDiff);
 			float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
-			Log.d(TAG, "dist to wifi " + distTo);
+			//Log.d(TAG, "dist to wifi " + distTo);
 			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI || distTo < 0)
 				wifiScanData = null;
 			else
 				d.setWifi(wifiScanData, wifiScanTime);
-		}
-		else
+		} else
 			d = new Data(System.currentTimeMillis());
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
@@ -139,6 +141,12 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
 		d.setLocation(location).setActivity(currentActivity);
+
+		if(noiseTracker != null) {
+			double value = noiseTracker.getSample(10);
+			if(value >= 0)
+				d.setNoise(value);
+		}
 
 		data.add(d);
 		dataEcho = d;
@@ -303,6 +311,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		startForeground(1, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
+		if (Setting.getPreferences(this).getBoolean(Setting.TRACKING_NOISE_ENABLED, false))
+			noiseTracker = new NoiseTracker().start();
 		return super.onStartCommand(intent, flags, startId);
 	}
 

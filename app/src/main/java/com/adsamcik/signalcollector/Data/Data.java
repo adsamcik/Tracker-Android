@@ -30,6 +30,8 @@ public class Data implements Serializable {
 	public float pressure;
 	public int activity;
 
+	public double noise;
+
 	public Data(long time) {
 		this.time = time;
 	}
@@ -48,7 +50,7 @@ public class Data implements Serializable {
 	}
 
 	public Data setWifi(ScanResult[] data, long time) {
-		if(data != null) {
+		if (data != null) {
 			wifi = new WifiData[data.length];
 			for (int i = 0; i < data.length; i++)
 				wifi[i] = new WifiData(data[i]);
@@ -59,6 +61,12 @@ public class Data implements Serializable {
 
 	public Data setActivity(int activity) {
 		this.activity = activity;
+		return this;
+	}
+
+	public Data setNoise(double noise) {
+		if (noise > 0)
+			this.noise = noise;
 		return this;
 	}
 

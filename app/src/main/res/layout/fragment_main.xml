@@ -145,6 +145,13 @@
             android:textAppearance="?android:attr/textAppearanceMedium"/>
 
         <TextView
+            android:id="@+id/textNoise"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+        <TextView
             android:id="@+id/textActivity"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -1,39 +1,132 @@
 package com.adsamcik.signalcollector;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.os.AsyncTask;
+import android.os.Build;
+import android.support.annotation.NonNull;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.classes.Success;
+import com.google.android.gms.tasks.Task;
+
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+
 public class NoiseTracker {
+	public static final int PERMISSION_ID = 14159195;
 	private final String TAG = "SignalsNoise";
 	private final double REFERENCE = 0.00002;
 	private final int SAMPLING = 44100;
 	private final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-	private final AudioRecord audioRecorder = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, 2 * bufferSize);
+	private final AudioRecord audioRecorder;
+
+	private short currentIndex = -1;
+	private final short MAX_HISTORY_SIZE = 20;
+	private final short MAX_HISTORY_INDEX = MAX_HISTORY_SIZE - 1;
+	private final short[] values = new short[MAX_HISTORY_SIZE];
+
+	private AsyncTask task;
+
+	public NoiseTracker() {
+		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+	}
+
+	public NoiseTracker start() {
+		if (audioRecorder.getState() == AudioRecord.RECORDSTATE_STOPPED)
+			audioRecorder.startRecording();
+		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED)
+			task = new NoiseCheckTask().execute(audioRecorder);
+		return this;
+	}
+
+	public NoiseTracker stop() {
+		audioRecorder.stop();
+		task.cancel(true);
+		task = null;
+		currentIndex = 0;
+		return this;
+	}
+
+	public double getSample(final int seconds) {
+		if (currentIndex == 0)
+			return -1;
+		final short s = seconds > currentIndex ? currentIndex : (short)seconds;
+		int avg = 0;
+		for (int i = currentIndex - s; i <= currentIndex; i++)
+			avg += values[i];
+
+		avg /= s;
+		currentIndex = 0;
+		return avg;
+	}
+
 
 	private double getAmplitude() {
 		short[] buffer = new short[bufferSize];
 		audioRecorder.read(buffer, 0, bufferSize);
 		int max = 0;
-		for(short s : buffer) {
-			if(Math.abs(s) > max) {
+		for (short s : buffer) {
+			if (Math.abs(s) > max) {
 				max = Math.abs(s);
 			}
 		}
-		Log.d(TAG, "max " + max + " count " + buffer.length);
 		return max;
 	}
 
-	public double GetNoiseLevel() {
+	public double getNoiseLevel() {
 		return 20 * Math.log10(Math.abs(getAmplitude()));
 	}
 
-	public void Record() {
-		audioRecorder.startRecording();
+	public Success<Double> getValue() {
+		return new Success<>(getAmplitude());
 	}
 
-	public void Stop() {
-		audioRecorder.stop();
+	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
+		private final int SKIP_BUFFERS = 20;
+
+		@Override
+		protected Void doInBackground(AudioRecord... records) {
+			AudioRecord audio = records[0];
+			while (true) {
+				int state = audio.getState();
+				if (state == AudioRecord.STATE_UNINITIALIZED)
+					continue;
+				else if (state < 0 || audio.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
+					break;
+
+				try {
+					Thread.sleep(500);
+					values[++currentIndex] = getApproxAmplitude();
+					if (currentIndex >= MAX_HISTORY_INDEX)
+						break;
+				} catch (InterruptedException e) {
+					//Log.w(TAG, e.getMessage() + " interrupted");
+					break;
+				}
+			}
+			stop();
+			return null;
+		}
+
+
+		private short getApproxAmplitude() {
+			short[] buffer = new short[bufferSize];
+			audioRecorder.read(buffer, 0, bufferSize);
+			int val = 0;
+			for (int i = 0; i < buffer.length; i += SKIP_BUFFERS)
+				val += (short) Math.abs(buffer[i]);
+			return (short) (val / (buffer.length / SKIP_BUFFERS));
+		}
 	}
 }

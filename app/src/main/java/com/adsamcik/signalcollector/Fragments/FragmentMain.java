@@ -46,7 +46,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
-	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
 
 	private AnimatedVectorDrawable playToPause, pauseToPlay;
@@ -70,6 +70,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		textWifiTime = (TextView) view.findViewById(R.id.textWifiTime);
 		textTime = (TextView) view.findViewById(R.id.textTime);
 		textPressure = (TextView) view.findViewById(R.id.textPressure);
+		textNoise = (TextView) view.findViewById(R.id.textNoise);
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
 		textCollected = (TextView) view.findViewById(R.id.textCollected);
 
@@ -330,6 +331,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				layoutOther.setVisibility(View.VISIBLE);
 			} else
 				layoutOther.setVisibility(View.GONE);
+
+			if (d.noise > 0) {
+				textNoise.setText(String.format(res.getString(R.string.main_noise), d.noise, Assist.amplitudeToDbm(d.noise)));
+				textNoise.setVisibility(View.VISIBLE);
+			} else
+				textNoise.setVisibility(View.GONE);
 
 			textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
 		}

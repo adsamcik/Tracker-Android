@@ -19,6 +19,7 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -143,8 +144,8 @@ public class Assist {
 			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
-			//if (ContextCompat.checkSelfPermission(instance, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-			//    permissions.add(Manifest.permission.RECORD_AUDIO);
+			if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+			    permissions.add(android.Manifest.permission.RECORD_AUDIO);
 
 			if (permissions.size() == 0)
 				return null;
@@ -175,7 +176,7 @@ public class Assist {
 	 * @param isBackground true if NOT activated by user
 	 * @return  true if upload can be initiated
 	 */
-	public static boolean canUpload(@NonNull Context c, boolean isBackground) {
+	public static boolean canUpload(final @NonNull Context c, final boolean isBackground) {
 		if(!isInitialized() || connectivityManager == null)
 			initialize(c);
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
@@ -193,7 +194,7 @@ public class Assist {
 	 * @param number    number
 	 * @return  stringified number
 	 */
-	public static String easierToReadNumber(int number) {
+	public static String easierToReadNumber(final int number) {
 		StringBuilder sb = new StringBuilder(number);
 		for (int i = sb.length(); i > 0; i -= 3)
 			sb.insert(i, " ");
@@ -212,12 +213,21 @@ public class Assist {
 	}
 
 	/**
+	 * Converts amplitude to dbm
+	 * @param amplitude amplitude
+	 * @return  dbm
+	 */
+	public static double amplitudeToDbm(final double amplitude) {
+		return 20 * Math.log10(Math.abs(amplitude));
+	}
+
+	/**
 	 * 0 still/default
 	 * 1 foot
 	 * 2 vehicle
 	 * 3 tilting
 	 */
-	public static int evaluateActivity(int val) {
+	public static int evaluateActivity(final int val) {
 		switch (val) {
 			case DetectedActivity.STILL:
 				return 0;
