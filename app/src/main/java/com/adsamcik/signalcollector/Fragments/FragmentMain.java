@@ -272,6 +272,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		TrackerService.onNewDataFound = null;
 		TrackerService.onServiceStateChange = null;
 		progressBar.setVisibility(View.INVISIBLE);
+		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
+		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.colorAccent)));
 	}
 
 	@Override
