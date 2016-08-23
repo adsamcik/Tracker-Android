@@ -55,7 +55,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
 	private final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
-	private final float MIN_DISTANCE_M = 0;
+	private final float MIN_DISTANCE_M = 5;
 
 	public static Intent service;
 
