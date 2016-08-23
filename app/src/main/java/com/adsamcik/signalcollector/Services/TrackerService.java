@@ -143,6 +143,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		d.setLocation(location).setActivity(currentActivity);
 
 		if(noiseTracker != null) {
+			noiseTracker.start();
 			double value = noiseTracker.getSample(10);
 			if(value >= 0)
 				d.setNoise(value);
@@ -321,6 +322,9 @@ public class TrackerService extends Service implements SensorEventListener {
 	public void onDestroy() {
 		stopForeground(true);
 		service = null;
+
+		if(noiseTracker != null)
+			noiseTracker.stop();
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);

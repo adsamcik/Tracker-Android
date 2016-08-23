@@ -333,7 +333,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				layoutOther.setVisibility(View.GONE);
 
 			if (d.noise > 0) {
-				textNoise.setText(String.format(res.getString(R.string.main_noise), d.noise, Assist.amplitudeToDbm(d.noise)));
+				textNoise.setText(String.format(res.getString(R.string.main_noise), (int)d.noise, (int)Assist.amplitudeToDbm(d.noise)));
 				textNoise.setVisibility(View.VISIBLE);
 			} else
 				textNoise.setVisibility(View.GONE);

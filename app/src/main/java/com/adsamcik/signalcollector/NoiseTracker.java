@@ -59,37 +59,17 @@ public class NoiseTracker {
 	}
 
 	public double getSample(final int seconds) {
-		if (currentIndex == 0)
+		Log.d(TAG, "count " + currentIndex);
+		if (currentIndex == -1)
 			return -1;
-		final short s = seconds > currentIndex ? currentIndex : (short)seconds;
+		final short s = seconds > currentIndex ? currentIndex : (short) seconds;
 		int avg = 0;
 		for (int i = currentIndex - s; i <= currentIndex; i++)
 			avg += values[i];
 
-		avg /= s;
+		avg /= s + 1;
 		currentIndex = 0;
 		return avg;
-	}
-
-
-	private double getAmplitude() {
-		short[] buffer = new short[bufferSize];
-		audioRecorder.read(buffer, 0, bufferSize);
-		int max = 0;
-		for (short s : buffer) {
-			if (Math.abs(s) > max) {
-				max = Math.abs(s);
-			}
-		}
-		return max;
-	}
-
-	public double getNoiseLevel() {
-		return 20 * Math.log10(Math.abs(getAmplitude()));
-	}
-
-	public Success<Double> getValue() {
-		return new Success<>(getAmplitude());
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {

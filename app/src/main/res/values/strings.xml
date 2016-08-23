@@ -16,7 +16,7 @@
     <string name="main_cell_count">%1$d in range</string>
     <string name="main_accuracy">Accuracy %1$d m</string>
     <string name="main_pressure">Pressure %1$f hPa</string>
-    <string name="main_noise">Noise is %1$f (guessing %2$f dbm)</string>
+    <string name="main_noise">Noise is %1$d (guessing %2$d dbm)</string>
     <string name="main_activity">Activity %1$s</string>
 
     <string name="stats_weekly_title">Last 7 days</string>
