@@ -208,11 +208,16 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
 					AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
-					fadeOutAnimation.setDuration(500);
+					fadeOutAnimation.setDuration(300);
 					fadeOutAnimation.setFillAfter(true);
 					progressBar.startAnimation(fadeOutAnimation);
 
-					new Handler().postDelayed(fabUp::hide, 1500);
+					new Handler().postDelayed(fabUp::hide, 600);
+					new Handler().postDelayed(() -> {
+						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+						progressBar.setProgress(0);
+					}, 1500);
 				}
 			}
 
@@ -335,7 +340,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				layoutOther.setVisibility(View.GONE);
 
 			if (d.noise > 0) {
-				textNoise.setText(String.format(res.getString(R.string.main_noise), (int)d.noise, (int)Assist.amplitudeToDbm(d.noise)));
+				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
 				textNoise.setVisibility(View.VISIBLE);
 			} else
 				textNoise.setVisibility(View.GONE);
