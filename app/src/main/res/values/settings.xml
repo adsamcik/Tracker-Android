@@ -29,5 +29,5 @@
     <string name="settings_track_wifi">Wifi</string>
     <string name="settings_track_cell">Cell</string>
     <string name="settings_track_pressure">Pressure</string>
-    <string name="settings_track_noise">Noise</string>
+    <string name="settings_track_noise">Noise β</string>
 </resources>
