@@ -37,7 +37,7 @@ public class PlayIntentService extends IntentService {
 			int confidence = detectedActivity.getConfidence();
 			//String mostProbableName = Assist.getActivityName(detectedActivity.getType());
 
-			//Log.d(TAG, Assist.getActivityName(detectedActivity.getType()) + " confident " + confidence);
+			Log.d(TAG, Assist.getActivityName(detectedActivity.getType()) + " confident " + confidence);
 
 			if(TrackerService.service != null) {
 				Intent i = new Intent("SCActivity");

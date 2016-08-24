@@ -153,10 +153,17 @@ public class MainActivity extends FragmentActivity {
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
+		if(requestCode == 0)
+			return;
+		boolean success = true;
 		for (int grantResult : grantResults) {
-			if (grantResult != PackageManager.PERMISSION_GRANTED)
-				return;
+			if (grantResult != PackageManager.PERMISSION_GRANTED) {
+				success = false;
+				break;
+			}
 		}
+		ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
+		adapter.getInstance(viewPager.getCurrentItem()).onPermissionResponse(requestCode, success);
 	}
 
 	@Override

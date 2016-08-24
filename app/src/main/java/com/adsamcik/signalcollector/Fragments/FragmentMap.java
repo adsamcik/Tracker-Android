@@ -67,7 +67,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private Circle userRadius;
 	private Marker userCenter;
 
-	private Bundle bundle;
+	@Override
+	public void onPermissionResponse(int requestCode, boolean success) {
+
+	}
 
 	/**
 	 * Check if permission to access fine location is granted
@@ -79,7 +82,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else if (request)
-			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 0);
+			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 200);
 		return false;
 	}
 

@@ -3,12 +3,14 @@ package com.adsamcik.signalcollector.fragments;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.content.res.ResourcesCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -28,11 +30,13 @@ import com.adsamcik.signalcollector.Setting;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "FSettings";
+	private final int PERMISSION_NOISE = 401;
 
 	private String[] mTrackingString, mAutoupString;
 	private ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
 	private ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
 	private TextView textView_PlayLog, mAutoupDesc, mTrackDesc;
+	private Switch switchNoise;
 
 	private SharedPreferences mSharedPreferences;
 
@@ -90,16 +94,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
-		mSharedPreferences = Setting.getPreferences(getActivity());
+		final Context c = getContext();
+		mSharedPreferences = Setting.getPreferences(c);
 		final Resources resources = getResources();
 
-		Context c;
-		if ((c = getContext()) != null) {
-			try {
-				((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
-			} catch (Exception e) {
-				Log.d(TAG, "Failed to set version");
-			}
+		try {
+			((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
+		} catch (Exception e) {
+			Log.d(TAG, "Failed to set version");
 		}
 
 		mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, getContext().getTheme());
@@ -150,14 +152,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				PlayController.initializeGamesClient(rootView, getActivity());
 		});
 
-		/*rootView.findViewById(R.id.ib_leaderboards).setOnClickListener(new View.OnClickListener() {
-		    @Override
-			public void onClick(View v) {
-				PlayController.gamesController.showLeaderboard("CgkIw77dzcwdEAIQCw");
-
-			}
-		});*/
-
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
 			alertDialogBuilder.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
@@ -169,17 +163,25 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			alertDialogBuilder.create().show();
 		});
 
-		setSwitchChangeListener(Setting.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
-		setSwitchChangeListener(Setting.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
-		setSwitchChangeListener(Setting.TRACKING_PRESSURE_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackPressure), true);
-		setSwitchChangeListener(Setting.TRACKING_NOISE_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackNoise), false);
+		setSwitchChangeListener(c, Setting.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
+		setSwitchChangeListener(c, Setting.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
+		setSwitchChangeListener(c, Setting.TRACKING_PRESSURE_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackPressure), true);
+
+		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
+		switchNoise.setChecked(Setting.getPreferences(c).getBoolean(Setting.TRACKING_NOISE_ENABLED, false));
+		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			if (b && Setting.getPreferences(c).getBoolean(Setting.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(c, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+				requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, PERMISSION_NOISE);
+			} else
+				Setting.getPreferences(c).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, b).apply();
+		});
 
 		return rootView;
 	}
 
-	private void setSwitchChangeListener(final String name, Switch s, boolean defaultState) {
-		s.setChecked(Setting.getPreferences(getActivity()).getBoolean(name, defaultState));
-		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> Setting.getPreferences(getActivity()).edit().putBoolean(name, b).apply());
+	private void setSwitchChangeListener(final Context context, final String name, Switch s, final boolean defaultState) {
+		s.setChecked(Setting.getPreferences(context).getBoolean(name, defaultState));
+		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> Setting.getPreferences(context).edit().putBoolean(name, b).apply());
 	}
 
 	@Override
@@ -192,6 +194,20 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public void onLeave() {
 
+	}
+
+	@Override
+	public void onPermissionResponse(int requestCode, boolean success) {
+		switch (requestCode) {
+			case PERMISSION_NOISE:
+				if (success)
+					Setting.getPreferences(getContext()).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, true).apply();
+				else
+					switchNoise.setChecked(false);
+				break;
+			default:
+				throw new UnsupportedOperationException("Permissions with request code " + requestCode + " has no defined behavior");
+		}
 	}
 
 	@Override

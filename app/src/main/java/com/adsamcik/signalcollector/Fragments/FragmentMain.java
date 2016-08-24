@@ -279,6 +279,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	@Override
+	public void onPermissionResponse(int requestCode, boolean success) {
+
+	}
+
+	@Override
 	public ITabFragment newInstance() {
 		return new FragmentMain();
 	}

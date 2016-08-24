@@ -19,5 +19,11 @@ public interface ITabFragment{
 	 */
 	void onLeave();
 
+	/**
+	 * Called when permissions result comes back
+	 * @param success success
+	 */
+	void onPermissionResponse(int requestCode, boolean success);
+
 	ITabFragment newInstance();
 }
