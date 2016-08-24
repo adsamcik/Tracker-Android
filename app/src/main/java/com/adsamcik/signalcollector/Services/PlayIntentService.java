@@ -12,7 +12,7 @@ import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
 
 public class PlayIntentService extends IntentService {
-	private static final String TAG = PlayIntentService.class.getSimpleName();
+	private static final String TAG = "Signals" + PlayIntentService.class.getSimpleName();
 	PowerManager powerManager;
 
 	public PlayIntentService() {
@@ -28,7 +28,7 @@ public class PlayIntentService extends IntentService {
 
 	@Override
 	protected void onHandleIntent(Intent intent) {
-		if(ActivityRecognitionResult.hasResult(intent)) {
+		if (ActivityRecognitionResult.hasResult(intent)) {
 			//Extract the result from the Response
 			ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
 			DetectedActivity detectedActivity = result.getMostProbableActivity();
@@ -39,12 +39,12 @@ public class PlayIntentService extends IntentService {
 
 			Log.d(TAG, Assist.getActivityName(detectedActivity.getType()) + " confident " + confidence);
 
-			if(TrackerService.service != null) {
+			if (TrackerService.service != null) {
 				Intent i = new Intent("SCActivity");
 				i.putExtra("confidence", confidence);
 				i.putExtra("activity", detectedActivity.getType());
 				sendBroadcast(i);
-			} else if(confidence >= ActivityController.REQUIRED_CONFIDENCE && Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+			} else if (confidence >= ActivityController.REQUIRED_CONFIDENCE && Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				trackerService.putExtra("backTrack", true);
