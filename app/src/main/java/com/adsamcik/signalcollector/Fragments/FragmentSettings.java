@@ -6,7 +6,9 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
@@ -29,8 +31,8 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
-	private final String TAG = "FSettings";
-	private final int PERMISSION_NOISE = 401;
+	private final String TAG = "SignalsSettings";
+	private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
 
 	private String[] mTrackingString, mAutoupString;
 	private ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
@@ -170,9 +172,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Setting.getPreferences(c).getBoolean(Setting.TRACKING_NOISE_ENABLED, false));
 		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
-			if (b && Setting.getPreferences(c).getBoolean(Setting.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(c, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-				requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, PERMISSION_NOISE);
-			} else
+			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(c, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
+			else
 				Setting.getPreferences(c).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, b).apply();
 		});
 
@@ -199,7 +201,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
 		switch (requestCode) {
-			case PERMISSION_NOISE:
+			case REQUEST_CODE_PERMISSIONS_MICROPHONE:
 				if (success)
 					Setting.getPreferences(getContext()).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, true).apply();
 				else
