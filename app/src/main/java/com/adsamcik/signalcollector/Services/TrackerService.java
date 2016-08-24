@@ -56,6 +56,9 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 	private final float MIN_DISTANCE_M = 5;
 
+	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
+	private final float MAX_NOISE_TRACKING_SPEED_M = (float)(MAX_NOISE_TRACKING_SPEED_KM / 3.6);
+
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 
 	public static Intent service;
@@ -143,7 +146,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			d.setPressure(pressureValue);
 
 		if(noiseTracker != null) {
-			if(Assist.evaluateActivity(currentActivity) == 1) {
+			if(Assist.evaluateActivity(currentActivity) == 1 && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
 				noiseTracker.start();
 				double value = noiseTracker.getSample(10);
 				if (value >= 0)
