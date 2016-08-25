@@ -57,7 +57,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private final float MIN_DISTANCE_M = 5;
 
 	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
-	private final float MAX_NOISE_TRACKING_SPEED_M = (float)(MAX_NOISE_TRACKING_SPEED_KM / 3.6);
+	private final float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
 
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 
@@ -145,14 +145,13 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
 
-		if(noiseTracker != null) {
-			if(Assist.evaluateActivity(currentActivity) == 1 && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
+		if (noiseTracker != null) {
+			if (Assist.evaluateActivity(currentActivity) == 1 && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
 				noiseTracker.start();
 				double value = noiseTracker.getSample(10);
 				if (value >= 0)
 					d.setNoise(value);
-			}
-			else
+			} else
 				noiseTracker.stop();
 		}
 
@@ -188,27 +187,37 @@ public class TrackerService extends Service implements SensorEventListener {
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
-		if (backgroundActivated) {
-			Intent stopIntent = new Intent(this, NotificationReceiver.class);
-			PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+		Intent stopIntent = new Intent(this, NotificationReceiver.class);
+		stopIntent.putExtra("action", backgroundActivated ? 0 : 1);
+		PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+		if (backgroundActivated)
 			builder.addAction(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);
-		}
+		else
+			builder.addAction(R.drawable.ic_pause, "Stop", stop);
 
 		if (!gpsAvailable)
 			builder.setContentText("Looking for GPS");
-		else {
-			if (d.wifi != null)
-				if (d.cell != null)
-					builder.setContentText("Found " + d.wifi.length + " wifi and " + d.cell.length + " cell");
-				else
-					builder.setContentText("Found " + d.wifi.length + " wifi");
-			else if (d.cell != null)
-				builder.setContentText("Found " + d.cell.length + " cell");
-			else
-				builder.setContentText("Nothing found");
-		}
+		else
+			builder.setContentText(buildNotificationText(d));
 
 		return builder.build();
+	}
+
+	private String buildNotificationText(final Data d) {
+		StringBuilder sb = new StringBuilder();
+		if (d.wifi != null)
+			sb.append(d.wifi.length).append(" wifi ");
+		if (d.cell != null)
+			sb.append(d.cell.length).append(" cell ");
+		if (d.pressure > 0)
+			sb.append(d.pressure).append(" hPa ");
+		if (d.noise > 0)
+			sb.append(Assist.amplitudeToDbm(d.noise)).append(" dB ");
+		if (sb.length() > 0)
+			sb.setLength(sb.length() - 1);
+		else
+			sb.append("Nothing found");
+		return sb.toString();
 	}
 
 	private void saveData() {
@@ -332,7 +341,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		stopForeground(true);
 		service = null;
 
-		if(noiseTracker != null)
+		if (noiseTracker != null)
 			noiseTracker.stop();
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
@@ -350,7 +359,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			wifiManager.setWifiEnabled(false);
 
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		sp.edit().putInt(Setting.STATS_MINUTES, sp.getInt(Setting.STATS_MINUTES, 0) + (int)((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
+		sp.edit().putInt(Setting.STATS_MINUTES, sp.getInt(Setting.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 	}
 
 	@Nullable

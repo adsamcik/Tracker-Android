@@ -6,6 +6,7 @@ import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.data.StatDay;
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.gson.Gson;
 
 import java.util.Calendar;
@@ -46,21 +47,14 @@ public class Setting {
 	private static SharedPreferences sharedPreferences;
 
 	/**
-	 * Initialize shared preferences. It's usually good to call it.
-	 *
-	 * @param c context
-	 */
-	public static void initializeSharedPreferences(@NonNull Context c) {
-		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.getApplicationContext());
-	}
-
-	/**
 	 * Will stop tracking until phone is connected to charger
 	 *
 	 * @param c context
 	 */
 	public static void stopTillRecharge(@NonNull Context c) {
 		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
+		if(TrackerService.service != null)
+			c.stopService(TrackerService.service);
 	}
 
 	/**
