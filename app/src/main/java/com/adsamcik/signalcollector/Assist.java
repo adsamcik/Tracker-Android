@@ -251,7 +251,7 @@ public class Assist {
 			case DetectedActivity.TILTING:
 				return 3;
 			default:
-				return 0;
+				return 3;
 		}
 	}
 
