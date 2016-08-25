@@ -12,6 +12,7 @@ import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
 
@@ -61,8 +62,9 @@ public class Assist {
 
 	/**
 	 * Gets SW navbar height
+	 *
 	 * @param c context
-	 * @return  height, 0 if HW navbar is present
+	 * @return height, 0 if HW navbar is present
 	 */
 	public static int getNavBarHeight(@NonNull Context c) {
 		Resources r = c.getResources();
@@ -74,8 +76,9 @@ public class Assist {
 
 	/**
 	 * Checks if device has SW or HW navbar
+	 *
 	 * @param windowManager Window Manager
-	 * @return  true if SW navbar is present
+	 * @return true if SW navbar is present
 	 */
 	public static boolean hasNavBar(WindowManager windowManager) {
 		Display d = windowManager.getDefaultDisplay();
@@ -112,13 +115,14 @@ public class Assist {
 
 	/**
 	 * Generates position between two passed positions based on time
-	 * @param locationOne   first location
-	 * @param locationTwo   second location
-	 * @param time  Value between 0 and 1. 0 is locationOne, 1 is locationTwo
-	 * @return  interpolated location
+	 *
+	 * @param locationOne first location
+	 * @param locationTwo second location
+	 * @param time        Value between 0 and 1. 0 is locationOne, 1 is locationTwo
+	 * @return interpolated location
 	 */
 	public static Location interpolateLocation(@NonNull Location locationOne, @NonNull Location locationTwo, double time) {
-		if(time < 0 || time > 1)
+		if (time < 0 || time > 1)
 			throw new IllegalArgumentException("Time must be between 0 and 1. is " + time);
 		Location l = new Location("interpolation");
 		l.setLatitude(locationOne.getLatitude() + (locationTwo.getLatitude() - locationOne.getLatitude()) * time);
@@ -131,6 +135,7 @@ public class Assist {
 	 * Checks if required permission are available
 	 * ACCESS_FINE_LOCATION - GPS
 	 * READ_PHONE_STATE - IMEI
+	 *
 	 * @param context context
 	 * @return permissions that app does not have, null if api is lower than 23 or all permission are acquired
 	 */
@@ -144,7 +149,7 @@ public class Assist {
 				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
 			if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-			    permissions.add(android.Manifest.permission.RECORD_AUDIO);
+				permissions.add(android.Manifest.permission.RECORD_AUDIO);
 
 			if (permissions.size() == 0)
 				return null;
@@ -156,12 +161,13 @@ public class Assist {
 
 	/**
 	 * Checks if background tracking can be activated
-	 * @param c context
-	 * @param evalActivity  evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
+	 *
+	 * @param c            context
+	 * @param evalActivity evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
 	 * @return true if background tracking can be activated
 	 */
 	public static boolean canBackgroundTrack(@NonNull Context c, int evalActivity) {
-		if(!isInitialized())
+		if (!isInitialized())
 			initialize(c);
 		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(c).getBoolean(Setting.STOP_TILL_RECHARGE, false))
 			return false;
@@ -171,12 +177,13 @@ public class Assist {
 
 	/**
 	 * Checks if upload can be initiated
-	 * @param c context
+	 *
+	 * @param c            context
 	 * @param isBackground true if NOT activated by user
-	 * @return  true if upload can be initiated
+	 * @return true if upload can be initiated
 	 */
 	public static boolean canUpload(final @NonNull Context c, final boolean isBackground) {
-		if(!isInitialized() || connectivityManager == null)
+		if (!isInitialized() || connectivityManager == null)
 			initialize(c);
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
 		if (isBackground) {
@@ -190,8 +197,9 @@ public class Assist {
 
 	/**
 	 * Converts numbers to easier to read format (spaces after every 3 digits)
-	 * @param number    number
-	 * @return  stringified number
+	 *
+	 * @param number number
+	 * @return stringified number
 	 */
 	public static String easierToReadNumber(final int number) {
 		StringBuilder sb = new StringBuilder(number);
@@ -201,7 +209,6 @@ public class Assist {
 	}
 
 	/**
-	 *
 	 * @return Device imei
 	 */
 	@SuppressLint("HardwareIds")
@@ -213,8 +220,9 @@ public class Assist {
 
 	/**
 	 * Converts amplitude to dbm
+	 *
 	 * @param amplitude amplitude
-	 * @return  dbm
+	 * @return dbm
 	 */
 	public static double amplitudeToDbm(final double amplitude) {
 		return 20 * Math.log10(Math.abs(amplitude));
@@ -287,6 +295,6 @@ public class Assist {
 		int minute = (int) coordinate;
 		coordinate = (coordinate - minute) * 60;
 		int second = (int) coordinate;
-		return String.format(Locale.ENGLISH, "%02d", degree) + "° " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\"";
+		return String.format(Locale.ENGLISH, "%02d", degree) + "\u00B0 " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\"";
 	}
 }
