@@ -96,6 +96,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private PowerManager.WakeLock wakeLock;
 
 	private NoiseTracker noiseTracker;
+	private boolean noiseActive = false;
 
 	static boolean isAutoLocked() {
 		return System.currentTimeMillis() < lockedUntil;
@@ -146,13 +147,17 @@ public class TrackerService extends Service implements SensorEventListener {
 			d.setPressure(pressureValue);
 
 		if (noiseTracker != null) {
-			if (Assist.evaluateActivity(currentActivity) == 1 && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
+			int evalActivity = Assist.evaluateActivity(currentActivity);
+			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
 				noiseTracker.start();
 				double value = noiseTracker.getSample(10);
 				if (value >= 0)
 					d.setNoise(value);
-			} else
+				noiseActive = true;
+			} else {
 				noiseTracker.stop();
+				noiseActive = false;
+			}
 		}
 
 		d.setLocation(location).setActivity(currentActivity);
@@ -188,7 +193,7 @@ public class TrackerService extends Service implements SensorEventListener {
 				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
 		Intent stopIntent = new Intent(this, NotificationReceiver.class);
-		stopIntent.putExtra("action", backgroundActivated ? 0 : 1);
+		stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);
 		PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 		if (backgroundActivated)
 			builder.addAction(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);

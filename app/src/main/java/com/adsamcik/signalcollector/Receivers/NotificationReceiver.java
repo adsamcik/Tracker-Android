@@ -8,15 +8,14 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.Setting;
-import com.google.firebase.crash.FirebaseCrash;
 
 public class NotificationReceiver extends BroadcastReceiver {
 	private final String TAG = "SignalsNotifiReceiver";
-	public static final String TYPE_STRING = "type";
+	public static final String ACTION_STRING = "action";
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		int value = intent.getIntExtra(TYPE_STRING, -1);
+		int value = intent.getIntExtra(ACTION_STRING, -1);
 		switch (value) {
 			case 0:
 				Setting.stopTillRecharge(context);
