@@ -1,6 +1,6 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-        android:width="48dp"
-        android:height="48dp"
+        android:width="24dp"
+        android:height="24dp"
         android:viewportWidth="@integer/viewport_width"
         android:viewportHeight="@integer/viewport_height">
 
@@ -10,8 +10,8 @@
         android:pivotY="@integer/viewport_center_y">
 
         <path
-            android:name="@string/nPause"
-            android:pathData="@string/path_pause"
+            android:name="@string/nPlay"
+            android:pathData="@string/path_play"
             android:fillColor="@color/textPrimary"/>
 
     </group>
