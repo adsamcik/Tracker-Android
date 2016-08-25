@@ -16,6 +16,7 @@ import com.google.firebase.crash.FirebaseCrash;
 import java.io.IOException;
 import java.nio.charset.Charset;
 
+import okhttp3.Call;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -64,10 +65,11 @@ public class UploadService extends JobService {
 				.addFormDataPart("data", serialized)
 				.build();
 		Request request = new Request.Builder().url(Network.URL_DATA_UPLOAD).post(formBody).build();
-
 		try {
 			Response response = this.client.newCall(request).execute();
-			if (response.isSuccessful()) {
+			boolean isSuccessful = response.isSuccessful();
+			response.close();
+			if (isSuccessful) {
 				deleteFile(name);
 				DataStore.incSizeOfData(-size);
 				return true;
@@ -83,7 +85,6 @@ public class UploadService extends JobService {
 	 * @return true if started
 	 */
 	private boolean uploadAll(final boolean background) {
-		Log.d(TAG, "upload all started");
 		final Context c = getApplicationContext();
 		DataStore.setContext(c);
 		if (!Assist.isInitialized())
@@ -131,6 +132,9 @@ public class UploadService extends JobService {
 					} else
 						break;
 				}
+
+				DataStore.cleanup();
+				DataStore.recountDataSize();
 			});
 
 			thread.start();
