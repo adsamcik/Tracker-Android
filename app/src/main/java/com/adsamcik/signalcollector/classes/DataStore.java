@@ -41,9 +41,11 @@ public class DataStore {
 	private static final int MAX_FILE_SIZE = 1048576;
 
 	private static WeakReference<Context> contextWeak;
+
 	private static Context getContext() {
 		return contextWeak.get();
 	}
+
 	public static void setContext(Context c) {
 		if (c != null)
 			contextWeak = new WeakReference<>(c.getApplicationContext());
@@ -211,7 +213,7 @@ public class DataStore {
 	}
 
 	private static void initSizeOfData() {
-		if(approxSize == -1)
+		if (approxSize == -1)
 			approxSize = Setting.getPreferences().getLong(KEY_SIZE, 0);
 	}
 
@@ -437,20 +439,26 @@ public class DataStore {
 				String data = "";
 				if (field.getType().isArray())
 					data = arrayToJSON((Object[]) field.get(o));
-				else if (typeName.equals("double"))
-					data = Double.toString(field.getDouble(o));
-				else if (typeName.equals("long"))
-					data = Long.toString(field.getLong(o));
-				else if (typeName.equals("float"))
-					data = Float.toString(field.getFloat(o));
-				else if (typeName.equals("String")) {
-					String val = (String) field.get(o);
-					if (val != null)
-						data = "\"" + val.replace("\"", "\\\"") + "\"";
-				} else if (typeName.equals("int")) {
+				else if (typeName.equals("int")) {
 					int value = field.getInt(o);
 					if (value != 0)
 						data = Integer.toString(value);
+				} else if (typeName.equals("double")) {
+					double val = field.getDouble(o);
+					if (val != 0)
+						data = Double.toString(field.getDouble(o));
+				} else if (typeName.equals("long")) {
+					long val = field.getLong(o);
+					if (val != 0)
+						data = Long.toString(field.getLong(o));
+				} else if (typeName.equals("float")) {
+					float val = field.getFloat(o);
+					if (val != 0)
+						data = Float.toString(field.getFloat(o));
+				} else if (typeName.equals("String")) {
+					String val = (String) field.get(o);
+					if (val != null)
+						data = "\"" + val.replace("\"", "\\\"") + "\"";
 				} else if (typeName.equals("boolean"))
 					data = Boolean.toString(field.getBoolean(o));
 				else if (!field.getType().isPrimitive())
