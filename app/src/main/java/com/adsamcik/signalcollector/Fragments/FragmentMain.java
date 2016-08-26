@@ -344,6 +344,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
 				textNoise.setVisibility(View.VISIBLE);
+			} else if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false)) {
+				textNoise.setText(res.getString(R.string.main_noise_not_tracked));
+				textNoise.setVisibility(View.VISIBLE);
 			} else
 				textNoise.setVisibility(View.GONE);
 
