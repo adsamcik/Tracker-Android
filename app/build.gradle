@@ -8,7 +8,7 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 24
-        versionCode 84
+        versionCode 85
         versionName "2.0.0 Notification 2"
         jackOptions {
             enabled true
