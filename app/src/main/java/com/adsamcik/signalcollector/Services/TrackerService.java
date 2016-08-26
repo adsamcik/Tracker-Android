@@ -43,7 +43,9 @@ import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.google.firebase.crash.FirebaseCrash;
 
+import java.math.RoundingMode;
 import java.nio.charset.Charset;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -186,9 +188,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
 				.setSmallIcon(R.drawable.ic_signals_notification)  // the status icon
-				.setTicker("Collection started")  // the status text
+				.setTicker("Signals tracker is active")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
-				.setContentTitle(getResources().getString(R.string.app_name))// the label of the entry
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
 
@@ -201,23 +202,27 @@ public class TrackerService extends Service implements SensorEventListener {
 			builder.addAction(R.drawable.ic_pause, "Stop", stop);
 
 		if (!gpsAvailable)
-			builder.setContentText("Looking for GPS");
-		else
+			builder.setContentTitle("Looking for GPS");
+		else {
+			builder.setContentTitle("Tracking");
 			builder.setContentText(buildNotificationText(d));
+		}
 
 		return builder.build();
 	}
 
 	private String buildNotificationText(final Data d) {
 		StringBuilder sb = new StringBuilder();
+		DecimalFormat df = new DecimalFormat("#.#");
+		df.setRoundingMode(RoundingMode.HALF_UP);
 		if (d.wifi != null)
 			sb.append(d.wifi.length).append(" wifi ");
 		if (d.cell != null)
 			sb.append(d.cell.length).append(" cell ");
 		if (d.pressure > 0)
-			sb.append(d.pressure).append(" hPa ");
+			sb.append(df.format(d.pressure)).append(" hPa ");
 		if (d.noise > 0)
-			sb.append(Assist.amplitudeToDbm(d.noise)).append(" dB ");
+			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");
 		if (sb.length() > 0)
 			sb.setLength(sb.length() - 1);
 		else
