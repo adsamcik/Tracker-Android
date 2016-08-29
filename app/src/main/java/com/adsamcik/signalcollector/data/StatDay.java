@@ -29,6 +29,7 @@ public class StatDay {
 		wifi += day.wifi;
 		cell += day.cell;
 		minutes += day.minutes;
+		upload += day.upload;
 	}
 
 	public StatDay addCell(int value) {
