@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
@@ -67,7 +68,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
 		StatDay weekStats = Setting.countStats(getActivity());
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), String.valueOf(weekStats.getUploaded()));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.getUploaded()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
