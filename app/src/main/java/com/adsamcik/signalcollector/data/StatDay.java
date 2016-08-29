@@ -6,16 +6,18 @@ public class StatDay {
 	private int cell;
 	private int locations;
 	private int minutes;
+	private long upload;
 
 	public StatDay() {
 	}
 
-	public StatDay(int minutes, int locations, int wifi, int cell, int age) {
+	public StatDay(int minutes, int locations, int wifi, int cell, int age, long upload) {
 		this.minutes = minutes;
 		this.wifi = wifi;
 		this.cell = cell;
 		this.locations = locations;
 		this.age = age;
+		this.upload = upload;
 	}
 
 	public void add(int cellCount, int wifiCount) {
@@ -67,5 +69,9 @@ public class StatDay {
 
 	public int getMinutes() {
 		return minutes;
+	}
+
+	public long getUploaded() {
+		return upload;
 	}
 }

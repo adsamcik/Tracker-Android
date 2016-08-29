@@ -67,21 +67,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
 		StatDay weekStats = Setting.countStats(getActivity());
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
+		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), String.valueOf(weekStats.getUploaded()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		return view;
-	}
-
-	@Override
-	public void onStart() {
-		super.onStart();
-		long time = System.currentTimeMillis();
-		time -= time % 600000;
-		time += 120000;
-		if (DataStore.exists(GENERAL_STAT_FILE)) {
-			DataStore.deleteFile(GENERAL_STAT_FILE);
-		}
 	}
 
 	/**

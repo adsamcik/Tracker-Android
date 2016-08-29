@@ -25,6 +25,7 @@
     <string name="stats_weekly_collected_cell">Cell data collected</string>
     <string name="stats_weekly_collected_location">Collections performed</string>
     <string name="stats_weekly_minutes">Minutes spent tracking</string>
+    <string name="stats_weekly_uploaded">Uploaded data</string>
 
     <string name="main_collected">Collected %1$s</string>
 

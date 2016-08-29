@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.services;
 import android.app.job.JobParameters;
 import android.app.job.JobService;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.util.Log;
 
@@ -16,7 +17,6 @@ import com.google.firebase.crash.FirebaseCrash;
 import java.io.IOException;
 import java.nio.charset.Charset;
 
-import okhttp3.Call;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -70,6 +70,8 @@ public class UploadService extends JobService {
 			boolean isSuccessful = response.isSuccessful();
 			response.close();
 			if (isSuccessful) {
+				SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+				sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + size).apply();
 				deleteFile(name);
 				DataStore.incSizeOfData(-size);
 				return true;

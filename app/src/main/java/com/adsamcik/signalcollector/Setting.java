@@ -32,6 +32,7 @@ public class Setting {
 	public static final String STATS_CELL_FOUND = "statsCellFound";
 	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";
 	public static final String STATS_MINUTES = "statsMinutes";
+	public static final String STATS_UPLOADED = "statsUploadKilobytes";
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 
@@ -53,7 +54,7 @@ public class Setting {
 	 */
 	public static void stopTillRecharge(@NonNull Context c) {
 		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
-		if(TrackerService.service != null)
+		if (TrackerService.service != null)
 			c.stopService(TrackerService.service);
 	}
 
@@ -92,7 +93,7 @@ public class Setting {
 			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);
 
-			stats.add(new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), dayDiff));
+			stats.add(getCurrent(sp));
 
 			if (stringStats == null)
 				stringStats = new HashSet<>();
@@ -109,12 +110,16 @@ public class Setting {
 
 	public static StatDay countStats(@NonNull Context context) {
 		SharedPreferences sp = getPreferences(context);
-		StatDay result = new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0);
+		StatDay result = getCurrent(sp);
 		Set<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
 		//noinspection Convert2streamapi
-		for(StatDay stat : set)
+		for (StatDay stat : set)
 			result.add(stat);
 		return result;
+	}
+
+	private static StatDay getCurrent(SharedPreferences sp) {
+		return new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0, sp.getInt(STATS_CELL_FOUND, 0));
 	}
 
 	private static Set<StatDay> fromJson(Set<String> set, int age) {
