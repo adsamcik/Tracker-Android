@@ -458,7 +458,7 @@ public class DataStore {
 				} else if (typeName.equals("String")) {
 					String val = (String) field.get(o);
 					if (val != null)
-						data = "\"" + val.replace("\"", "\\\"") + "\"";
+						data = "\"" + val.replace("\\","\\\\").replace("\"", "\\\"") + "\"";
 				} else if (typeName.equals("boolean"))
 					data = Boolean.toString(field.getBoolean(o));
 				else if (!field.getType().isPrimitive())
