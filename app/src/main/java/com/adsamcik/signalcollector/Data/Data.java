@@ -16,8 +16,9 @@ import java.util.List;
 public class Data implements Serializable {
 	public final long time;
 
-	public CellData[] cell = null;
+	public CellData activeCell = null;
 	public String networkOperator = null;
+	public int cellCount = -1;
 
 	public WifiData[] wifi = null;
 	public long wifiTime;
@@ -72,34 +73,30 @@ public class Data implements Serializable {
 
 	public Data setCell(String operator, List<CellInfo> data) {
 		if (data != null) {
-			CellData[] cellData = new CellData[data.size()];
 			for (int i = 0; i < data.size(); i++) {
 				CellInfo c = data.get(i);
-				if (c instanceof CellInfoGsm)
-					cellData[i] = new CellData((CellInfoGsm) c);
-				else if (c instanceof CellInfoLte)
-					cellData[i] = new CellData((CellInfoLte) c);
-				else if (c instanceof CellInfoCdma)
-					cellData[i] = new CellData((CellInfoCdma) c);
-				else if (c instanceof CellInfoWcdma)
-					cellData[i] = new CellData((CellInfoWcdma) c);
+				if(c.isRegistered()) {
+					if (c instanceof CellInfoGsm)
+						setCell(operator, new CellData((CellInfoGsm) c));
+					else if (c instanceof CellInfoLte)
+						setCell(operator, new CellData((CellInfoLte) c));
+					else if (c instanceof CellInfoCdma)
+						setCell(operator, new CellData((CellInfoCdma) c));
+					else if (c instanceof CellInfoWcdma)
+						setCell(operator, new CellData((CellInfoWcdma) c));
+				}
 			}
-			setCell(operator, cellData);
 		}
 		return this;
 	}
 
-	private Data setCell(String operator, @NonNull CellData[] data) {
-		this.cell = data;
+	private Data setCell(String operator, @NonNull CellData activeCell) {
+		this.activeCell = activeCell;
 		this.networkOperator = operator;
 		return this;
 	}
 
 	public CellData getActiveCell() {
-		for (CellData cd : cell) {
-			if (cd.isRegistered)
-				return cd;
-		}
-		return null;
+		return activeCell;
 	}
 }

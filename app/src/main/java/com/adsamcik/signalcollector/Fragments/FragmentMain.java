@@ -315,14 +315,14 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			} else if (lastWifiTime - d.time > 10000)
 				layoutWifi.setVisibility(View.GONE);
 
-			if (d.cell != null) {
+			if (d.cellCount != -1) {
 				CellData active = d.getActiveCell();
 				if (active != null) {
 					textCurrentCell.setVisibility(View.VISIBLE);
 					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
 				} else
 					textCurrentCell.setVisibility(View.GONE);
-				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cell.length));
+				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
 				layoutCell.setVisibility(View.VISIBLE);
 			} else
 				layoutCell.setVisibility(View.GONE);

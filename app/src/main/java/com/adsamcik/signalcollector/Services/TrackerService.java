@@ -217,8 +217,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		df.setRoundingMode(RoundingMode.HALF_UP);
 		if (d.wifi != null)
 			sb.append(d.wifi.length).append(" wifi ");
-		if (d.cell != null)
-			sb.append(d.cell.length).append(" cell ");
+		if (d.cellCount != -1)
+			sb.append(d.cellCount).append(" cell ");
 		if (d.pressure > 0)
 			sb.append(df.format(d.pressure)).append(" hPa ");
 		if (d.noise > 0)
@@ -244,8 +244,8 @@ public class TrackerService extends Service implements SensorEventListener {
 		for (Data d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
-			if (d.cell != null)
-				cellCount += d.cell.length;
+			if (d.cellCount != -1)
+				cellCount += d.cellCount;
 		}
 
 		sp.edit().putInt(Setting.STATS_WIFI_FOUND, wifiCount).putInt(Setting.STATS_CELL_FOUND, cellCount).putInt(Setting.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
