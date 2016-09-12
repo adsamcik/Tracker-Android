@@ -143,7 +143,7 @@ public class TrackerService extends Service implements SensorEventListener {
 		}
 
 		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
-			d.setCell(telephonyManager.getNetworkOperator(), telephonyManager.getAllCellInfo());
+			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
 
 		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
 			d.setPressure(pressureValue);
