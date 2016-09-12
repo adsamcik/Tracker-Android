@@ -9,14 +9,13 @@ android {
         minSdkVersion 21
         targetSdkVersion 24
         versionCode 88
-        versionName "2.0.0 Stats 3"
+        versionName "2.0.0 Network 1"
         jackOptions {
             enabled true
         }
     }
     buildTypes {
         release_nominify {
-
             minifyEnabled false
         }
         release {
