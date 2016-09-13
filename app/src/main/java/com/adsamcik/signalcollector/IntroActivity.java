@@ -11,6 +11,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
@@ -28,24 +29,26 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		addSlide(AppIntro2Fragment.newInstance("Signals", "is app used for gathering information about your surrounding", R.drawable.signals_logo, Color.parseColor("#3F51B5")));
-		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, noise, IMEI (device identification)", R.drawable.intro_cloud, Color.parseColor("#3E89C6")));
+		addSlide(AppIntro2Fragment.newInstance("Signals", "is app used for gathering information about your surrounding", R.drawable.signals_logo, Color.parseColor("#363636")));
+		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, noise, IMEI (device identification)", R.drawable.intro_cloud, Color.parseColor("#2F4C37")));
+		addSlide(AppIntro2Fragment.newInstance("Permissions", "Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.", R.drawable.intro_permissions, Color.parseColor("#276339")));
 		if (Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {
-			addSlide(AppIntro2Fragment.newInstance("Permissions", "Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.", R.drawable.intro_permissions, Color.parseColor("#3F64BB")));
-			askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.READ_PHONE_STATE}, 2);
+			askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.READ_PHONE_STATE}, 3);
 		}
-		addSlide(AppIntro2Fragment.newInstance("Automatization", "Signals can automatically track and upload all data. Can be disabled or tweaked.", R.drawable.intro_autotracking, Color.parseColor("#3E77C1")));
+		addSlide(AppIntro2Fragment.newInstance("Noise", "Noise is very cool, but recording audio might be more sensitive permission, it's not mandatory but remember only 1 number (nosie value) is collected per second.", R.drawable.intro_permissions, Color.parseColor("#20793A")));
+		askForPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 4);
+		addSlide(AppIntro2Fragment.newInstance("Smart", "Signals can automatically track and upload all data. Can be disabled or tweaked.", R.drawable.intro_autotracking, Color.parseColor("#18903C")));
 		if (PlayController.isPlayServiceAvailable(getApplicationContext()))
-			addSlide(AppIntro2Fragment.newInstance("Google Play Games", "Allows you to earn achievements", R.drawable.intro_games, Color.parseColor("#3D9CCC")));
+			addSlide(AppIntro2Fragment.newInstance("Google Play Games", "Allows you to earn achievements", R.drawable.intro_games, Color.parseColor("#11A63D")));
 
 		// Hide Skip/Done button.
 		Window window = getWindow();
 		window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
 		window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-		window.setStatusBarColor(Color.parseColor("#3D9CCC"));
+		window.setStatusBarColor(Color.parseColor("#11A63D"));
 
 		setProgressButtonEnabled(true);
-		setNavBarColor("#3D9CCC");
+		setNavBarColor("#11A63D");
 		skipButtonEnabled = false;
 		//setNextPageSwipeLock(true);
 		//setSwipeLock(true);
@@ -102,11 +105,16 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-		for (int grantResult : grantResults) {
-			if (grantResult != PackageManager.PERMISSION_GRANTED) {
-				Toast.makeText(this, "Both permissions are required.", Toast.LENGTH_SHORT).show();
-				CheckAllTrackingPermissions();
+		if(permissions.length == 2) {
+			for (int grantResult : grantResults) {
+				if (grantResult != PackageManager.PERMISSION_GRANTED) {
+					Toast.makeText(this, "Both permissions are required.", Toast.LENGTH_SHORT).show();
+					CheckAllTrackingPermissions();
+				}
 			}
+		}
+		else if(permissions.length == 1) {
+			Toast.makeText(this, "Noise can be enabled in settings.", Toast.LENGTH_SHORT).show();
 		}
 	}
 }
