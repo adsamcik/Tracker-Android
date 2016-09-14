@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
+import android.text.format.DateUtils;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.services.TrackerService;
@@ -14,6 +16,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class Setting {
+	private static final String TAG = "SignalsSetting";
 	public static final int UPLOAD_JOB = 513;
 
 	public static final String SCHEDULED_UPLOAD = "uploadSCHEDULED";
@@ -85,17 +88,13 @@ public class Setting {
 	}
 
 	public static void checkStatsDay(@NonNull Context context) {
-		long now = Calendar.getInstance().getTime().getTime();
+		Calendar c = Calendar.getInstance();
+		long now = c.getTimeInMillis();
 		SharedPreferences sp = getPreferences(context);
 		int dayDiff = (int) (now - sp.getLong(Setting.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
-			long roundDay = dayDiff * Assist.DAY_IN_MILLISECONDS;
 			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);
-
-			for (StatDay day: stats) {
-				//if(day.age())
-			}
 
 			stats.add(getCurrent(sp));
 
@@ -108,7 +107,19 @@ public class Setting {
 			for (StatDay day : stats)
 				stringStats.add(gson.toJson(day));
 
-			sp.edit().putLong(STATS_STAT_LAST_DAY, roundDay).putStringSet(STATS_LAST_7_DAYS, stringStats).apply();
+			c.set(Calendar.HOUR, 0);
+			c.set(Calendar.MINUTE, 0);
+			c.set(Calendar.SECOND, 0);
+			c.set(Calendar.MILLISECOND, 0);
+			sp.edit()
+					.putLong(STATS_STAT_LAST_DAY, c.getTimeInMillis())
+					.putStringSet(STATS_LAST_7_DAYS, stringStats)
+					.putInt(STATS_MINUTES, 0)
+					.putInt(STATS_LOCATIONS_FOUND, 0)
+					.putInt(STATS_WIFI_FOUND, 0)
+					.putInt(STATS_CELL_FOUND, 0)
+					.putInt(STATS_CELL_FOUND, 0)
+					.apply();
 		}
 	}
 
