@@ -45,7 +45,7 @@ public class UploadService extends JobService {
 	 * @param name name of file where the data is saved (Function will clear the file afterwards)
 	 * @param size size of data uploaded
 	 */
-	private boolean upload(final String data, final String name, final long size) {
+	private boolean upload(final String data, final String name) {
 		if (data.isEmpty()) {
 			FirebaseCrash.report(new Exception("data are empty"));
 			return false;
@@ -70,8 +70,6 @@ public class UploadService extends JobService {
 			boolean isSuccessful = response.isSuccessful();
 			response.close();
 			if (isSuccessful) {
-				SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-				sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + size).apply();
 				deleteFile(name);
 				DataStore.incSizeOfData(-size);
 				return true;
@@ -103,6 +101,7 @@ public class UploadService extends JobService {
 
 				queued = files.length;
 				originalQueueLength = files.length;
+				long originalSize = DataStore.recountDataSize();
 				for (String fileName : files) {
 					if (!Thread.currentThread().isInterrupted()) {
 						if (fileName == null || fileName.trim().length() == 0) {
@@ -122,13 +121,11 @@ public class UploadService extends JobService {
 							builder.setCharAt(0, '[');
 							builder.append(']');
 						}
-						long size = builder.toString().getBytes(Charset.defaultCharset()).length;
 						if (Assist.canUpload(c, background)) {
-							if (!upload(builder.toString(), fileName, size))
+							if (!upload(builder.toString(), fileName))
 								DataStore.requestUpload(c, true);
 							queued--;
 							DataStore.onUpload(calculateUploadPercentage());
-							Log.d(TAG, "upload successful " + calculateUploadPercentage());
 						} else
 							break;
 					} else
@@ -136,7 +133,10 @@ public class UploadService extends JobService {
 				}
 
 				DataStore.cleanup();
-				DataStore.recountDataSize();
+				long afterSize = DataStore.recountDataSize();
+
+				SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+				sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + (originalSize - afterSize)).apply();
 			});
 
 			thread.start();
