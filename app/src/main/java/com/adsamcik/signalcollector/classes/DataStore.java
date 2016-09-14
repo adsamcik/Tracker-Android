@@ -211,6 +211,7 @@ public class DataStore {
 		for (String fileName : fileNames)
 			size += sizeOf(fileName);
 		Setting.getPreferences().edit().putLong(KEY_SIZE, size).apply();
+		approxSize = size;
 		return size;
 	}
 

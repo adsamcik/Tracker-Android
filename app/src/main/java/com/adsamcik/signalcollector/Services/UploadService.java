@@ -71,7 +71,6 @@ public class UploadService extends JobService {
 			response.close();
 			if (isSuccessful) {
 				deleteFile(name);
-				DataStore.incSizeOfData(-size);
 				return true;
 			}
 		} catch (IOException e) {
