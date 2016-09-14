@@ -105,6 +105,7 @@ public class DataStore {
 	public static void requestUpload(@NonNull Context c, boolean isBackground) {
 		if (contextWeak.get() == null)
 			setContext(c);
+
 		SharedPreferences sp = Setting.getPreferences(c);
 		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || !isBackground) {
@@ -113,8 +114,9 @@ public class DataStore {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
 				//todo implement roaming upload
-				if (activeNetwork == null || activeNetwork.getType() == ConnectivityManager.TYPE_WIFI)
+				if (activeNetwork == null || activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+				}
 				else {
 					if (Build.VERSION.SDK_INT >= 24)
 						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
@@ -282,10 +284,7 @@ public class DataStore {
 		}
 
 
-		String fileName = DATA_FILE + id;
-
-		Log.d(TAG, "saving to " + fileName);
-		if (!saveStringAppend(fileName, data))
+		if (!saveStringAppend(DATA_FILE + id, data))
 			return 1;
 
 		int size = data.getBytes(Charset.defaultCharset()).length;
