@@ -214,7 +214,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
 						progressBar.setProgress(0);
-					}, 1500);
+					}, 1000);
 				}
 			}
 
