@@ -105,16 +105,17 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-		if(permissions.length == 2) {
+		if (permissions.length == 2) {
 			for (int grantResult : grantResults) {
 				if (grantResult != PackageManager.PERMISSION_GRANTED) {
 					Toast.makeText(this, "Both permissions are required.", Toast.LENGTH_SHORT).show();
 					CheckAllTrackingPermissions();
 				}
 			}
-		}
-		else if(permissions.length == 1) {
-			Toast.makeText(this, "Noise can be enabled in settings.", Toast.LENGTH_SHORT).show();
+		} else if (permissions.length == 1) {
+			Setting.getPreferences(getApplicationContext()).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, grantResults[0] == PackageManager.PERMISSION_GRANTED).apply();
+			if (grantResults[0] != PackageManager.PERMISSION_GRANTED)
+				Toast.makeText(this, "Noise can be enabled in settings.", Toast.LENGTH_SHORT).show();
 		}
 	}
 }
