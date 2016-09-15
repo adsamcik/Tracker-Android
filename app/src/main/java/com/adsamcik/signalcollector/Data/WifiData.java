@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.data;
 
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 
 import java.io.Serializable;
@@ -12,6 +13,7 @@ public class WifiData implements Serializable {
 	public final String capabilities;
 	public final int frequency;
 	public final int level;
+	public final int bar;
 	public int centerFreq0;
 	public int centerFreq1;
 	public int channelWidth;
@@ -27,5 +29,6 @@ public class WifiData implements Serializable {
 		}
 		this.frequency = sr.frequency;
 		this.level = sr.level;
+		this.bar = WifiManager.calculateSignalLevel(sr.level, 10);
 	}
 }
