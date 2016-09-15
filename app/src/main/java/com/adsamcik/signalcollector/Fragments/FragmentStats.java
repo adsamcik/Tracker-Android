@@ -14,21 +14,29 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.classes.Table;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
@@ -59,7 +67,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
-		((LinearLayout) view.findViewById(R.id.statsLayout)).addView(weeklyStats.getLayout(), 0);
 		Resources r = getResources();
 
 		Setting.checkStatsDay(getActivity());
@@ -72,11 +79,38 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
+		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
+		GetPublicStats();
 		return view;
+	}
+
+	private void GetPublicStats() {
+		OkHttpClient client = new OkHttpClient();
+		Request request = new Request.Builder()
+				.url(Network.URL_STATS)
+				.build();
+		Callback c = new Callback() {
+			@Override
+			public void onFailure(Call call, IOException e) {
+
+			}
+
+			@Override
+			public void onResponse(Call call, Response response) throws IOException {
+				String body = response.body().string();
+				if(body.startsWith("[")) {
+					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {
+					}.getType());
+					getActivity().runOnUiThread(() -> GenerateStatsTable(stats));
+				}
+			}
+		};
+		client.newCall(request).enqueue(c);
 	}
 
 	/**
 	 * Generates table from List of stats
+	 *
 	 * @param stats list of stats
 	 */
 	private void GenerateStatsTable(List<Stat> stats) {
@@ -84,13 +118,15 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
-			Table table = new Table(c, s.statData.size(), s.showPosition);
-			table.setTitle(s.name);
-			for (int y = 0; y < s.statData.size(); y++) {
-				StatData sd = s.statData.get(y);
-				table.addRow().addData(sd.id, sd.value);
+			if (s.data != null) {
+				Table table = new Table(c, s.data.size(), s.showPosition);
+				table.setTitle(s.name);
+				for (int y = 0; y < s.data.size(); y++) {
+					StatData sd = s.data.get(y);
+					table.addRow().addData(sd.id, sd.value);
+				}
+				table.addToViewGroup(ll, true, (i + 1) * 150);
 			}
-			ll.addView(table.getLayout());
 		}
 	}
 
