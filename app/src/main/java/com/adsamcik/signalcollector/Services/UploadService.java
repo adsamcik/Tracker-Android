@@ -43,7 +43,6 @@ public class UploadService extends JobService {
 	 *
 	 * @param data json array of Data
 	 * @param name name of file where the data is saved (Function will clear the file afterwards)
-	 * @param size size of data uploaded
 	 */
 	private boolean upload(final String data, final String name) {
 		if (data.isEmpty()) {
