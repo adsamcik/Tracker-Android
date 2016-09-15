@@ -84,8 +84,10 @@ public class Data implements Serializable {
 						setCell(operator, new CellData((CellInfoCdma) c));
 					else if (c instanceof CellInfoWcdma)
 						setCell(operator, new CellData((CellInfoWcdma) c));
+					break;
 				}
 			}
+			cellCount = data.size();
 		}
 		return this;
 	}
