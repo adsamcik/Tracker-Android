@@ -10,14 +10,14 @@ public class Stat {
 	public final String name;
 	public final String type;
 	public final boolean showPosition;
-	public final List<StatData> statData;
+	public final List<StatData> data;
 
 
-	public Stat(String name, String type, boolean showPosition, List<StatData> statData) {
+	public Stat(String name, String type, boolean showPosition, List<StatData> data) {
 		this.name = name;
 		this.type = type;
 		this.showPosition = showPosition;
-		this.statData = statData;
+		this.data = data;
 	}
 
 	public Stat(JsonReader reader) throws IOException {
@@ -52,7 +52,7 @@ public class Stat {
 		this.name = name;
 		this.type = type;
 		this.showPosition = showPosition;
-		this.statData = statData;
+		this.data = statData;
 	}
 
 	private List<StatData> readData(JsonReader reader) throws IOException {
