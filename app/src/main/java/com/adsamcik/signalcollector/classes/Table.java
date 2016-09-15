@@ -4,8 +4,12 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
+import android.text.Layout;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
@@ -46,10 +50,34 @@ public class Table {
 		layout.setLayoutParams(lp);
 	}
 
+	public void addToViewGroup(ViewGroup viewGroup, int index, boolean animate, long delay) {
+		if (index >= 0)
+			viewGroup.addView(layout, index);
+		else
+			viewGroup.addView(layout);
+
+		if(animate) {
+			layout.setTranslationY(viewGroup.getHeight());
+			layout.setAlpha(0);
+			layout.animate()
+					.translationY(0)
+					.setInterpolator(new DecelerateInterpolator(3.f))
+					.setDuration(700)
+					.setStartDelay(delay)
+					.alpha(1)
+					.start();
+		}
+	}
+
+	public void addToViewGroup(ViewGroup viewGroup, boolean animate, long delay) {
+		addToViewGroup(viewGroup, -1, animate, delay);
+	}
+
 	/**
 	 * Sets single title for whole table
+	 *
 	 * @param title title
-	 * @return  this table
+	 * @return this table
 	 */
 	public Table setTitle(String title) {
 		TextView label = new TextView(context);
@@ -64,7 +92,8 @@ public class Table {
 
 	/**
 	 * Adds new row to the table
-	 * @return  this table
+	 *
+	 * @return this table
 	 */
 	public Table addRow() {
 		TableRow row = new TableRow(context);
@@ -85,9 +114,10 @@ public class Table {
 
 	/**
 	 * Adds data to 2 columns on the last row, only use this with 2 columns (+1 if row numbering is enabled)
+	 *
 	 * @param name  row name
 	 * @param value row value
-	 * @return  this table
+	 * @return this table
 	 */
 	public Table addData(String name, String value) {
 		if (rows.size() == 0) {
@@ -100,10 +130,11 @@ public class Table {
 
 	/**
 	 * Adds data to 2 columns on the passed row, only use this with 2 columns (+1 if row numbering is enabled)
+	 *
 	 * @param name  row name
 	 * @param value row value
 	 * @param row   row
-	 * @return  this table
+	 * @return this table
 	 */
 	public Table addData(String name, String value, TableRow row) {
 		TextView textId = new TextView(context);
@@ -123,6 +154,7 @@ public class Table {
 
 	/**
 	 * Removed all rows from the table
+	 *
 	 * @return this table
 	 */
 	public Table clear() {
@@ -133,7 +165,8 @@ public class Table {
 
 	/**
 	 * Returns table layout
-	 * @return  layout
+	 *
+	 * @return layout
 	 */
 	public TableLayout getLayout() {
 		return layout;
