@@ -8,6 +8,7 @@ import android.widget.Button;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.classes.Network;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.games.Games;
 
@@ -78,7 +79,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 			activity.startActivityForResult(Games.Leaderboards.getLeaderboardIntent(client, id), REQUEST_LEADERBOARD);
 	}
 
-	public String getUserID() {
+	private String getUserID() {
 		return client.isConnected() ? Games.Players.getCurrentPlayerId(client) : null;
 	}
 
@@ -90,7 +91,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	public void onConnected(Bundle bundle) {
 		updateUI(true);
 		if (!Setting.getPreferences().getBoolean(Setting.REGISTERED_USER, false)) {
-			//todo register user on the server
+			Network.registerUser(getUserID(), client.getContext());
 		}
 	}
 
