@@ -71,7 +71,7 @@
             android:name=".services.TrackerService"
             android:exported="false"/>
         <service
-            android:name=".services.PlayIntentService"
+            android:name=".services.ActivityService"
             android:exported="false"/>
 
         <service

@@ -38,7 +38,6 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
-import com.adsamcik.signalcollector.play.ActivityController;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.google.firebase.crash.FirebaseCrash;
@@ -85,10 +84,8 @@ public class TrackerService extends Service implements SensorEventListener {
 	private WifiReceiver wifiReceiver;
 	private SensorManager mSensorManager;
 	private Sensor mPressure;
-	private BroadcastReceiver activityReceiver;
 
 	private float pressureValue;
-	private int currentActivity = -1;
 	private boolean wifiEnabled = false;
 
 	private int saveAttemptsFailed = 0;
@@ -149,7 +146,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			d.setPressure(pressureValue);
 
 		if (noiseTracker != null) {
-			int evalActivity = Assist.evaluateActivity(currentActivity);
+			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
 			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
 				noiseTracker.start();
 				double value = noiseTracker.getSample(10);
@@ -162,7 +159,7 @@ public class TrackerService extends Service implements SensorEventListener {
 			}
 		}
 
-		d.setLocation(location).setActivity(currentActivity);
+		d.setLocation(location).setActivity(ActivityService.lastActivity);
 
 		data.add(d);
 		dataEcho = d;
@@ -274,21 +271,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (!PlayController.apiActivity)
 			PlayController.initializeActivityClient(appContext);
 
-		activityReceiver = new BroadcastReceiver() {
-			@Override
-			public void onReceive(Context context, Intent intent) {
-				if (intent.getIntExtra("confidence", -1) >= ActivityController.REQUIRED_CONFIDENCE) {
-					currentActivity = intent.getIntExtra("activity", -1);
-					int evalActivity = Assist.evaluateActivity(currentActivity);
-					int backTrackVal = Setting.getPreferences(getApplicationContext()).getInt(Setting.BACKGROUND_TRACKING, 1);
-					if (backgroundActivated && (evalActivity == 0 || (backTrackVal == 1 && evalActivity == 2) || backTrackVal == 0))
-						stopSelf();
-				}
-			}
-		};
-
-		PlayController.registerActivityReceiver(activityReceiver, getApplicationContext());
-
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
 				updateData(location);
@@ -357,7 +339,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
 		unregisterReceiver(wifiReceiver);
-		PlayController.unregisterActivityReceiver(activityReceiver, getApplicationContext());
 		mSensorManager.unregisterListener(this);
 
 		saveData();

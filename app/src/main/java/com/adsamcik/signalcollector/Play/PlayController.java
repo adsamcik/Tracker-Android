@@ -3,13 +3,16 @@ package com.adsamcik.signalcollector.play;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -18,30 +21,39 @@ import com.google.android.gms.location.ActivityRecognition;
 import com.google.firebase.crash.FirebaseCrash;
 
 public class PlayController {
-	public static final String TAG = "SignalsPlay";
+	private static final String TAG = "SignalsPlay";
 
 	private static GoogleApiClient gapiActivityClient, gapiGamesClient;
 	public static boolean apiActivity = false;
 	public static boolean apiGames = false;
 
-	public static ActivityController activityController;
 	public static GamesController gamesController;
 
 	public static Success<String> initializeActivityClient(@NonNull Context context) {
 		if (isPlayServiceAvailable(context)) {
-			if(gapiActivityClient == null) {
+			if (gapiActivityClient == null) {
 				final Context appContext = context.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
 					return new Success<>("Failed to initialize automatic tracking");
 				}
-				activityController = new ActivityController(context);
 				gapiActivityClient = new GoogleApiClient.Builder(appContext)
 						.addApi(ActivityRecognition.API)
-						.addConnectionCallbacks(activityController)
-						.build();
+						.addOnConnectionFailedListener(connectionResult -> {
+							FirebaseCrash.report(new Throwable("Failed to initialize activity " + connectionResult.getErrorMessage() + " code " + connectionResult.getErrorCode()));
+						})
+						.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+							@Override
+							public void onConnected(@Nullable Bundle bundle) {
+								ActivityService.requestUpdate(gapiActivityClient, context);
+							}
 
-				activityController.setClient(gapiActivityClient);
+							@Override
+							public void onConnectionSuspended(int i) {
+
+							}
+						})
+						.build();
 			}
 			gapiActivityClient.connect();
 			apiActivity = true;
@@ -52,20 +64,27 @@ public class PlayController {
 
 	public static Success<String> initializeActivityClient(@NonNull FragmentActivity activity) {
 		if (isPlayServiceAvailable(activity)) {
-			if(gapiActivityClient == null) {
+			if (gapiActivityClient == null) {
 				final Context appContext = activity.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
 					return new Success<>("Failed to initialize automatic tracking");
 				}
-				activityController = new ActivityController(appContext);
 				gapiActivityClient = new GoogleApiClient.Builder(appContext)
 						.addApi(ActivityRecognition.API)
-						.addConnectionCallbacks(activityController)
-						.enableAutoManage(activity, ActivityController.GOOGLE_API_ID, null)
-						.build();
+						.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+							@Override
+							public void onConnected(@Nullable Bundle bundle) {
+								ActivityService.requestUpdate(gapiActivityClient, activity);
+							}
 
-				activityController.setClient(gapiActivityClient);
+							@Override
+							public void onConnectionSuspended(int i) {
+
+							}
+						})
+						.enableAutoManage(activity, ActivityService.GOOGLE_API_ID, null)
+						.build();
 			}
 			gapiActivityClient.connect();
 			apiActivity = true;
@@ -76,7 +95,7 @@ public class PlayController {
 
 	public static Success<String> initializeGamesClient(@NonNull View v, @NonNull FragmentActivity activity) {
 		if (isPlayServiceAvailable(activity)) {
-			if(gapiGamesClient == null) {
+			if (gapiGamesClient == null) {
 				gamesController = new GamesController();
 				gapiGamesClient = new GoogleApiClient.Builder(activity)
 						.addApi(Games.API)
@@ -106,21 +125,6 @@ public class PlayController {
 		Games.signOut(gapiGamesClient);
 		gapiGamesClient.disconnect();
 		Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, false).apply();
-	}
-
-	public static void registerActivityReceiver(BroadcastReceiver receiver, Context context) {
-		if (apiActivity) {
-			//Filter the Intent and register broadcast receiver
-			IntentFilter filter = new IntentFilter();
-			filter.addAction("SCActivity");
-			context.registerReceiver(receiver, filter);
-		} else
-			Log.w(TAG, "Registration failed - play api not initialized");
-	}
-
-	public static void unregisterActivityReceiver(BroadcastReceiver receiver, Context context) {
-		if (apiActivity)
-			context.unregisterReceiver(receiver);
 	}
 
 	public static boolean isLogged() {
