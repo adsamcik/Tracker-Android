@@ -134,7 +134,7 @@ public class Setting {
 	}
 
 	private static StatDay getCurrent(SharedPreferences sp) {
-		return new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0, sp.getInt(STATS_CELL_FOUND, 0));
+		return new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0, sp.getLong(STATS_UPLOADED, 0));
 	}
 
 	private static Set<StatDay> fromJson(Set<String> set, int age) {
