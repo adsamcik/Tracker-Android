@@ -4,7 +4,8 @@
                                                  xmlns:tools="http://schemas.android.com/tools"
                                                  android:layout_width="match_parent"
                                                  android:layout_height="match_parent"
-                                                 tools:context=".MainActivity">
+                                                 tools:context=".MainActivity"
+                                                 android:clipChildren="false">
 
     <android.support.design.widget.AppBarLayout
         android:id="@+id/AppBar"
@@ -38,18 +39,21 @@
         android:layout_marginBottom="@dimen/navbar_height"
         android:layout_marginEnd="11dp"
         android:layout_marginStart="11dp"
+        android:clipChildren="false"
         android:orientation="vertical">
 
-        <RelativeLayout
+        <android.support.design.widget.CoordinatorLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clipChildren="false"
             android:layout_marginBottom="@dimen/fab_margin">
 
             <android.support.design.widget.FloatingActionButton
                 android:id="@+id/fabTwo"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:layout_centerInParent="true"
+                android:layout_width="@dimen/fab_size"
+                android:layout_height="@dimen/fab_size"
+                android:layout_gravity="center"
+                android:clipChildren="false"
                 android:src="@drawable/ic_cloud_upload_24dp"/>
 
             <ProgressBar
@@ -62,15 +66,15 @@
                 android:progress="0"
                 android:progressDrawable="@drawable/circular"
                 android:visibility="invisible"/>
-        </RelativeLayout>
+        </android.support.design.widget.CoordinatorLayout>
 
 
         <android.support.design.widget.FloatingActionButton
             android:id="@+id/fabOne"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_width="@dimen/fab_size"
+            android:layout_height="@dimen/fab_size"
             android:layout_gravity="center"
-            android:layout_margin="5dp"
+            android:clipChildren="false"
             android:src="@drawable/ic_pause"/>
     </LinearLayout>
 </android.support.design.widget.CoordinatorLayout>
