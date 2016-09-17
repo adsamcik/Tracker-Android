@@ -71,10 +71,10 @@ public class UploadService extends JobService {
 				deleteFile(name);
 				return true;
 			}
+			return false;
 		} catch (IOException e) {
-			//catch
+			return false;
 		}
-		return false;
 	}
 
 	/**
@@ -130,16 +130,19 @@ public class UploadService extends JobService {
 				}
 
 				DataStore.cleanup();
-				long afterSize = DataStore.recountDataSize();
-
-				SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-				sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + (originalSize - afterSize)).apply();
+				updateUploadedStat(originalSize - DataStore.recountDataSize());
 			});
 
 			thread.start();
 			return true;
 		}
 		return false;
+	}
+
+	void updateUploadedStat(long uploaded) {
+		FirebaseCrash.report(new Throwable("uploaded " + uploaded));
+		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+		sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + uploaded).apply();
 	}
 
 	@Override
@@ -151,6 +154,7 @@ public class UploadService extends JobService {
 	public boolean onStopJob(JobParameters jobParameters) {
 		if (thread != null && thread.isAlive())
 			thread.interrupt();
+		updateUploadedStat(DataStore.sizeOfData() - DataStore.recountDataSize());
 		DataStore.cleanup();
 		queued = 0;
 		return false;
