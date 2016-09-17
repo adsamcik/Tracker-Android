@@ -27,7 +27,7 @@ public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
 	private static Thread thread;
 	private final OkHttpClient client = new OkHttpClient();
-	private static int queued;
+	private static int queued = 0;
 	private static int originalQueueLength;
 
 	public static int getUploadPercentage() {
@@ -36,6 +36,10 @@ public class UploadService extends JobService {
 
 	private static int calculateUploadPercentage() {
 		return (int) ((1 - (queued / (double) originalQueueLength)) * 100);
+	}
+
+	public static boolean isUploading() {
+		return  queued > 0;
 	}
 
 	/**
@@ -82,6 +86,7 @@ public class UploadService extends JobService {
 	 * @return true if started
 	 */
 	private boolean uploadAll(final boolean background) {
+		DataStore.onUpload(0);
 		final Context c = getApplicationContext();
 		DataStore.setContext(c);
 		if (!Assist.isInitialized())
@@ -100,6 +105,7 @@ public class UploadService extends JobService {
 				originalQueueLength = files.length;
 				long originalSize = DataStore.recountDataSize();
 				for (String fileName : files) {
+					queued--;
 					if (!Thread.currentThread().isInterrupted()) {
 						if (fileName == null || fileName.trim().length() == 0) {
 							Log.e(DataStore.TAG, "Null or empty file name was in load and upload task. This should not happen.");
@@ -121,7 +127,6 @@ public class UploadService extends JobService {
 						if (Assist.canUpload(c, background)) {
 							if (!upload(builder.toString(), fileName))
 								DataStore.requestUpload(c, true);
-							queued--;
 							DataStore.onUpload(calculateUploadPercentage());
 						} else
 							break;

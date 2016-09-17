@@ -11,6 +11,7 @@ import android.graphics.drawable.AnimatedVectorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
@@ -18,6 +19,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -155,6 +157,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		else if (status < 0 || status > 3)
 			throw new RuntimeException("Status is out of range");
 
+		Log.d("TAG", "setting status " + status);
 		switch (status) {
 			case 0:
 				fabUp.hide();
@@ -184,50 +187,35 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		Network.cloudStatus = status;
 	}
 
-	void updateUploadProgress(final Context context, final int percentage) {
+	void updateUploadProgress(final int percentage) {
+		final Context context = getContext();
 		progressBar.setVisibility(View.VISIBLE);
-		ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
-		animation.setDuration(400);
-		animation.setInterpolator(new LinearInterpolator());
-		animation.start();
-		animation.addListener(new Animator.AnimatorListener() {
-			@Override
-			public void onAnimationStart(Animator animator) {
-
-			}
-
-			@Override
-			public void onAnimationEnd(Animator animator) {
-				if (percentage == 100) {
+		fabUp.setElevation(0);
+		Log.d("TAG", "percentage " + percentage);
+		if (percentage == 0) {
+			progressBar.setIndeterminate(true);
+		} else {
+			progressBar.setIndeterminate(false);
+			ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
+			animation.setDuration(400);
+			if (percentage == 100) {
+				new Handler().postDelayed(() -> {
 					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
 					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
-					AlphaAnimation fadeOutAnimation = new AlphaAnimation(1.0f, 0.0f);//fade from 1 to 0 alpha
-					fadeOutAnimation.setDuration(300);
-					fadeOutAnimation.setFillAfter(true);
-					progressBar.startAnimation(fadeOutAnimation);
+					progressBar.animate().alpha(0).setDuration(400).start();
 
 					//todo fab can be hidden by this when other tab is active
-					new Handler().postDelayed(fabUp::hide, 600);
+					new Handler().postDelayed(fabUp::hide, 400);
 					new Handler().postDelayed(() -> {
 						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-						progressBar.setProgress(0);
-					}, 1000);
-				}
+					}, 800);
+				}, 600);
 			}
-
-			@Override
-			public void onAnimationCancel(Animator animator) {
-
-			}
-
-			@Override
-			public void onAnimationRepeat(Animator animator) {
-
-			}
-		});
+			animation.start();
+		}
 	}
 
 	@Override
@@ -235,9 +223,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
-		int percentage = UploadService.getUploadPercentage();
-		if (percentage > 0)
-			updateUploadProgress(activity, percentage);
+		progressBar.setAlpha(1);
+		progressBar.setProgress(0);
+
+		if (UploadService.isUploading())
+			updateUploadProgress(UploadService.getUploadPercentage());
+
 		fabTrack.show();
 
 		if (playToPause == null) {
@@ -254,7 +245,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				}
 		);
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
-		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateCollected(progress)));
+		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateUploadProgress(progress)));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.service != null ? 1 : 0));
 
@@ -264,6 +255,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		if (layoutWifi != null)
 			updateData(activity);
+
 		return new Success<>();
 	}
 
@@ -273,7 +265,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		DataStore.setOnUploadProgress(null);
 		TrackerService.onNewDataFound = null;
 		TrackerService.onServiceStateChange = null;
-		progressBar.setVisibility(View.INVISIBLE);
+		progressBar.setVisibility(View.GONE);
+		fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
 		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
 		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.colorAccent)));
 	}
@@ -286,17 +279,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	@Override
 	public ITabFragment newInstance() {
 		return new FragmentMain();
-	}
-
-	private void updateCollected(int progress) {
-		long size;
-		if (progress == 100) {
-			DataStore.cleanup();
-			size = DataStore.recountDataSize();
-		} else
-			size = DataStore.sizeOfData();
-		updateUploadProgress(getContext(), progress);
-		setCollected(size);
 	}
 
 	private void updateData(@NonNull Context context) {

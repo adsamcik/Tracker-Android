@@ -48,24 +48,32 @@
             android:clipChildren="false"
             android:layout_marginBottom="@dimen/fab_margin">
 
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="82dp"
+                android:layout_height="82dp"
+                android:layout_gravity="center"
+                android:max="100"
+                android:progress="0"
+                android:indeterminateOnly="false"
+                android:indeterminate="true"
+                android:indeterminateTint="@color/colorAccent"
+                android:progressTint="@color/colorAccent"
+                android:progressDrawable="@drawable/circular"
+                android:visibility="gone"/>
+
+
             <android.support.design.widget.FloatingActionButton
                 android:id="@+id/fabTwo"
                 android:layout_width="@dimen/fab_size"
                 android:layout_height="@dimen/fab_size"
                 android:layout_gravity="center"
                 android:clipChildren="false"
+                app:backgroundTint="@color/textPrimary"
+                android:tint="@color/colorAccent"
+                app:borderWidth="0dp"
                 android:src="@drawable/ic_cloud_upload_24dp"/>
 
-            <ProgressBar
-                android:id="@+id/progressBar"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="66dp"
-                android:layout_height="66dp"
-                android:layout_centerInParent="true"
-                android:max="100"
-                android:progress="0"
-                android:progressDrawable="@drawable/circular"
-                android:visibility="invisible"/>
         </android.support.design.widget.CoordinatorLayout>
 
 
@@ -75,6 +83,7 @@
             android:layout_height="@dimen/fab_size"
             android:layout_gravity="center"
             android:clipChildren="false"
+            app:borderWidth="0dp"
             android:src="@drawable/ic_pause"/>
     </LinearLayout>
 </android.support.design.widget.CoordinatorLayout>
