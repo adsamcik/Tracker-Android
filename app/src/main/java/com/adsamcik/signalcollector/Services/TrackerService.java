@@ -101,6 +101,10 @@ public class TrackerService extends Service implements SensorEventListener {
 		return System.currentTimeMillis() < lockedUntil;
 	}
 
+	public static boolean isBackgroundActivated() {
+		return backgroundActivated;
+	}
+
 	public static void setAutoLock() {
 		if (backgroundActivated)
 			lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;

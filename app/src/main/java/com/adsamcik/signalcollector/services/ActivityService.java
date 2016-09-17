@@ -9,6 +9,7 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
@@ -54,7 +55,7 @@ public class ActivityService extends IntentService {
 
 			if(lastConfidence >= REQUIRED_CONFIDENCE) {
 				if (TrackerService.service != null) {
-					if (lastActivity == DetectedActivity.STILL)
+					if (TrackerService.isBackgroundActivated() && lastActivity == DetectedActivity.STILL)
 						stopService(TrackerService.service);
 				} else if (Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
