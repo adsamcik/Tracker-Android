@@ -52,16 +52,16 @@ public class ActivityService extends IntentService {
 			lastActivity = detectedActivity.getType();
 			lastTime = System.currentTimeMillis();
 
-			if (TrackerService.service != null) {
-				Intent i = new Intent("SCActivity");
-				i.putExtra("confidence", lastConfidence);
-				i.putExtra("activity", lastActivity);
-				sendBroadcast(i);
-			} else if (lastConfidence >= REQUIRED_CONFIDENCE && Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
-				Intent trackerService = new Intent(this, TrackerService.class);
-				trackerService.putExtra("approxSize", DataStore.sizeOfData());
-				trackerService.putExtra("backTrack", true);
-				startService(trackerService);
+			if(lastConfidence >= REQUIRED_CONFIDENCE) {
+				if (TrackerService.service != null) {
+					if (lastActivity == DetectedActivity.STILL)
+						stopService(TrackerService.service);
+				} else if (Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+					Intent trackerService = new Intent(this, TrackerService.class);
+					trackerService.putExtra("approxSize", DataStore.sizeOfData());
+					trackerService.putExtra("backTrack", true);
+					startService(trackerService);
+				}
 			}
 		} else {
 			Log.d(TAG, "Intent had no data returned");
