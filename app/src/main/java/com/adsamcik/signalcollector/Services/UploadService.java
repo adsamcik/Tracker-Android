@@ -50,7 +50,6 @@ public class UploadService extends JobService {
 			return false;
 		}
 
-		Log.d(TAG, "upload started");
 		final String serialized = "{\"imei\":" + Assist.getImei() +
 				",\"device\":\"" + Build.MODEL +
 				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
@@ -63,7 +62,7 @@ public class UploadService extends JobService {
 				.addFormDataPart("imei", Assist.getImei())
 				.addFormDataPart("data", serialized)
 				.build();
-		Request request = new Request.Builder().url(Network.URL_DATA_UPLOAD).post(formBody).build();
+		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
 		try {
 			Response response = this.client.newCall(request).execute();
 			boolean isSuccessful = response.isSuccessful();
