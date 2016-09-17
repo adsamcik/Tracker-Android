@@ -4,10 +4,8 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
-import android.text.Layout;
 import android.util.Log;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.TableLayout;
@@ -24,19 +22,19 @@ public class Table {
 	private final TableLayout layout;
 	private final Context context;
 	private final ArrayList<TableRow> rows;
-	private final boolean showIndex;
+	private final boolean showNumber;
 
 	/**
 	 * Table constructor
 	 *
 	 * @param context   context
 	 * @param rowCount  number of rows (used to initialze array holding rows)
-	 * @param showIndex should index be the first column?
+	 * @param showNumber show number of row (starts at 1)
 	 */
-	public Table(Context context, int rowCount, boolean showIndex) {
+	public Table(Context context, int rowCount, boolean showNumber) {
 		this.context = context;
 		this.rows = new ArrayList<>(rowCount);
-		this.showIndex = showIndex;
+		this.showNumber = showNumber;
 
 		layout = new TableLayout(context);
 		Resources r = context.getResources();
@@ -56,7 +54,7 @@ public class Table {
 		else
 			viewGroup.addView(layout);
 
-		if(animate) {
+		if (animate) {
 			layout.setTranslationY(viewGroup.getHeight());
 			layout.setAlpha(0);
 			layout.animate()
@@ -99,9 +97,9 @@ public class Table {
 		TableRow row = new TableRow(context);
 		row.setPadding(0, 0, 0, 20);
 
-		if (showIndex) {
+		if (showNumber) {
 			TextView rowNum = new TextView(context);
-			rowNum.setText(String.format(Locale.UK, "%d", rows.size()));
+			rowNum.setText(String.format(Locale.UK, "%d", rows.size() + 1));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			rowNum.setTextSize(15);
 			row.addView(rowNum);
