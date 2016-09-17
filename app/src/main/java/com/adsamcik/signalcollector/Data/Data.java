@@ -73,6 +73,7 @@ public class Data implements Serializable {
 
 	public Data setCell(String operator, List<CellInfo> data) {
 		if (data != null) {
+			cellCount = data.size();
 			for (int i = 0; i < data.size(); i++) {
 				CellInfo c = data.get(i);
 				if(c.isRegistered()) {
@@ -87,7 +88,6 @@ public class Data implements Serializable {
 					break;
 				}
 			}
-			cellCount = data.size();
 		}
 		return this;
 	}

@@ -315,7 +315,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			} else if (lastWifiTime - d.time > 10000)
 				layoutWifi.setVisibility(View.GONE);
 
-			if (d.cellCount != -1) {
+			if (d.cellCount > -1) {
 				CellData active = d.getActiveCell();
 				if (active != null) {
 					textCurrentCell.setVisibility(View.VISIBLE);
