@@ -158,12 +158,12 @@ public class MainActivity extends FragmentActivity {
 		}
 
 		Context context = getApplicationContext();
-		SharedPreferences sp = Setting.getPreferences(context);
-		if (!sp.getBoolean(Setting.SENT_TOKEN_TO_SERVER, false)) {
+		//SharedPreferences sp = Setting.getPreferences(context);
+		//if (!sp.getBoolean(Setting.SENT_TOKEN_TO_SERVER, false)) {
 			String token = FirebaseInstanceId.getInstance().getToken();
 			if (token != null)
 				Network.registerToken(token, context);
-		}
+		//}
 	}
 
 	@Override
