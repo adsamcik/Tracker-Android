@@ -51,14 +51,6 @@ public class IntroActivity extends AppIntro2 {
 		setProgressButtonEnabled(true);
 		setNavBarColor("#11A63D");
 		skipButtonEnabled = false;
-		//setNextPageSwipeLock(true);
-		//setSwipeLock(true);
-
-
-		// Turn vibration on and set intensity.
-		// NOTE: you will probably need to ask VIBRATE permission in Manifest.
-		//setVibrate(true);
-		//setVibrateIntensity(30);
 	}
 
 	/**
@@ -74,9 +66,6 @@ public class IntroActivity extends AppIntro2 {
 
 			if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
-
-			//if (ContextCompat.checkSelfPermission(instance, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-			//    permissions.add(Manifest.permission.RECORD_AUDIO);
 
 			if (permissions.size() == 0)
 				return true;
