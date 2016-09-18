@@ -166,7 +166,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		setSwitchChangeListener(c, Setting.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
 		setSwitchChangeListener(c, Setting.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
-		setSwitchChangeListener(c, Setting.TRACKING_PRESSURE_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackPressure), true);
 
 		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Setting.getPreferences(c).getBoolean(Setting.TRACKING_NOISE_ENABLED, false));

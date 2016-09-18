@@ -28,9 +28,6 @@ public class Setting {
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
 
 	//Local tracking stats
-	//deprecated left to ensure removal from all test devices
-	public static final String STATS_STAT_WEEK = "statsStatWeek";
-
 	public static final String STATS_WIFI_FOUND = "statsWifiFound";
 	public static final String STATS_CELL_FOUND = "statsCellFound";
 	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";
@@ -43,7 +40,6 @@ public class Setting {
 
 	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
-	public static final String TRACKING_PRESSURE_ENABLED = "trackingPressureEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
 
 	static final int MAX_DAY_DIFF_STATS = 7;

@@ -171,15 +171,6 @@
             android:textSize="@dimen/setting_text_size"/>
 
         <Switch
-            android:id="@+id/switchTrackPressure"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_track_pressure"
-            android:textSize="@dimen/setting_text_size"/>
-
-        <Switch
             android:id="@+id/switchTrackNoise"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
