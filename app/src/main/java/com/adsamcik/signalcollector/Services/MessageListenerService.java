@@ -29,7 +29,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		if(type == null)
 			return;
 
-		String title = message.getNotification().getTitle();
+		String title = data.get("title");
 		String msg = data.get("message");
 		switch(MessageType.values()[Integer.parseInt(type)]) {
 			case Notification:
@@ -59,7 +59,8 @@ public class MessageListenerService extends FirebaseMessagingService {
 				.setContentText(message)
 				.setAutoCancel(true)
 				.setSound(defaultSoundUri)
-				.setContentIntent(pendingIntent);
+				.setContentIntent(pendingIntent)
+				.setStyle(new Notification.BigTextStyle().bigText(message));
 
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
