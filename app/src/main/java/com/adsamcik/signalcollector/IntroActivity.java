@@ -4,6 +4,7 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -11,7 +12,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
-import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
@@ -29,17 +29,18 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		addSlide(AppIntro2Fragment.newInstance("Signals", "is app used for gathering information about your surrounding", R.drawable.signals_logo, Color.parseColor("#363636")));
-		addSlide(AppIntro2Fragment.newInstance("What is collected", "wifi, cell, GPS position, pressure, noise, IMEI (device identification)", R.drawable.intro_cloud, Color.parseColor("#2F4C37")));
-		addSlide(AppIntro2Fragment.newInstance("Permissions", "Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.", R.drawable.intro_permissions, Color.parseColor("#276339")));
+		Resources r = getResources();
+		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome), R.drawable.signals_logo, Color.parseColor("#363636")));
+		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_collected_title), r.getString(R.string.intro_collected), R.drawable.intro_cloud, Color.parseColor("#2F4C37")));
+		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_permissions_title), r.getString(R.string.intro_permissions), R.drawable.intro_permissions, Color.parseColor("#276339")));
 		if (Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {
 			askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.READ_PHONE_STATE}, 3);
 		}
-		addSlide(AppIntro2Fragment.newInstance("Noise", "Noise is very cool, but recording audio might be more sensitive permission, it's not mandatory but remember only 1 number (nosie value) is collected per second.", R.drawable.intro_permissions, Color.parseColor("#20793A")));
+		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_permissions_noise_title),r.getString(R.string.intro_permissions_noise), R.drawable.intro_permissions, Color.parseColor("#20793A")));
 		askForPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 4);
-		addSlide(AppIntro2Fragment.newInstance("Smart", "Signals can automatically track and upload all data. Can be disabled or tweaked.", R.drawable.intro_autotracking, Color.parseColor("#18903C")));
+		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_smart_title), r.getString(R.string.intro_smart), R.drawable.intro_autotracking, Color.parseColor("#18903C")));
 		if (PlayController.isPlayServiceAvailable(getApplicationContext()))
-			addSlide(AppIntro2Fragment.newInstance("Google Play Games", "Allows you to earn achievements", R.drawable.intro_games, Color.parseColor("#11A63D")));
+			addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_gplay_title), r.getString(R.string.intro_gplay), R.drawable.intro_games, Color.parseColor("#11A63D")));
 
 		// Hide Skip/Done button.
 		Window window = getWindow();
