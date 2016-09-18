@@ -7,7 +7,7 @@
     <string name="intro_permissions_title">Permission</string>
     <string name="intro_permissions">Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.</string>
     <string name="intro_permissions_noise">Noise permission</string>
-    <string name="intro_permissions_noise_title">Noise is very cool, but recording audio might be more sensitive permission, it's not mandatory but remember only 1 number (noise value) is collected per second.</string>
+    <string name="intro_permissions_noise_title">Noise is very cool, but recording audio might be more sensitive permission, it\'s not mandatory but remember only 1 number (noise value) is collected per second.</string>
     <string name="intro_smart_title">Smart collecting/uploading</string>
     <string name="intro_smart">Signals can automatically track and upload all data. Can be disabled or tweaked.</string>
     <string name="intro_gplay_title">Google Play</string>
