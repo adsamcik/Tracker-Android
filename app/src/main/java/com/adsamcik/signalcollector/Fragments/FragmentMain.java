@@ -157,7 +157,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		else if (status < 0 || status > 3)
 			throw new RuntimeException("Status is out of range");
 
-		Log.d("TAG", "setting status " + status);
 		switch (status) {
 			case 0:
 				fabUp.hide();
@@ -191,7 +190,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		final Context context = getContext();
 		progressBar.setVisibility(View.VISIBLE);
 		fabUp.setElevation(0);
-		Log.d("TAG", "percentage " + percentage);
 		if (percentage == 0) {
 			progressBar.setIndeterminate(true);
 		} else {
