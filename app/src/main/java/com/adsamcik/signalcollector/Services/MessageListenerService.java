@@ -23,17 +23,14 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 	@Override
 	public void onMessageReceived(RemoteMessage message){
-
 		Map<String, String> data = message.getData();
 
-		String type = message.getMessageType();
+		String type = data.get("type");
 		if(type == null)
 			return;
 
-		String title = data.get("title");
-		String msg = message.getNotification().getBody();
-
-		message.getNotification().notify();
+		String title = message.getNotification().getTitle();
+		String msg = data.get("message");
 		switch(MessageType.values()[Integer.parseInt(type)]) {
 			case Notification:
 				sendNotification(title, msg);
@@ -43,7 +40,6 @@ public class MessageListenerService extends FirebaseMessagingService {
 				PlayController.gamesController.earnAchievement(data.get("achievement-id"));
 				break;
 		}
-		Log.d(TAG, title + msg);
 	}
 
 	/**
