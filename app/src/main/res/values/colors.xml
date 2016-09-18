@@ -8,4 +8,5 @@
     <color name="background_splash">@color/colorPrimary</color>
     <color name="textPrimary">#FFFFFF</color>
     <color name="textSecondary">#919191</color>
+    <color name="error">#d32f2f</color>
 </resources>

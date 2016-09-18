@@ -192,6 +192,18 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		fabUp.setElevation(0);
 		if (percentage == 0) {
 			progressBar.setIndeterminate(true);
+		} else if (percentage == -1) {
+			progressBar.animate().alpha(0).setDuration(400).start();
+			fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error)));
+			fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+			fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp));
+			new Handler().postDelayed(() -> {
+				if (fabUp != null) {
+					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+					setCloudStatus(1);
+				}
+			}, 1000);
 		} else {
 			progressBar.setIndeterminate(false);
 			ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
@@ -207,8 +219,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					//todo fab can be hidden by this when other tab is active
 					new Handler().postDelayed(fabUp::hide, 400);
 					new Handler().postDelayed(() -> {
-						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+						if (fabUp != null) {
+							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+						}
 					}, 800);
 				}, 600);
 			}
@@ -267,6 +281,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
 		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
 		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.colorAccent)));
+		fabUp = null;
+		fabTrack = null;
 	}
 
 	@Override

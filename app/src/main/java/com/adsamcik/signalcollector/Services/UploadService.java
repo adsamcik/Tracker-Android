@@ -98,6 +98,7 @@ public class UploadService extends JobService {
 				if (files == null || files.length == 0) {
 					Log.e(DataStore.TAG, "No file names were entered");
 					FirebaseCrash.report(new Throwable("No file names were entered"));
+					DataStore.onUpload(-1);
 					return;
 				}
 
@@ -125,13 +126,20 @@ public class UploadService extends JobService {
 							builder.append(']');
 						}
 						if (Assist.canUpload(c, background)) {
-							if (!upload(builder.toString(), fileName))
+							if (!upload(builder.toString(), fileName)) {
 								DataStore.requestUpload(c, true);
+								DataStore.onUpload(-1);
+								break;
+							}
 							DataStore.onUpload(calculateUploadPercentage());
-						} else
+						} else {
+							DataStore.onUpload(-1);
 							break;
-					} else
+						}
+					} else {
+						DataStore.onUpload(-1);
 						break;
+					}
 				}
 
 				DataStore.cleanup();
