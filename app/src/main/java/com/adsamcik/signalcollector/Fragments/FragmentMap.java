@@ -116,8 +116,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
-			else
-				locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
+			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 		} else
 			return new Success<>("App does not have required permissions.");
 
@@ -139,7 +138,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			fragmentTransaction.add(R.id.MapLayout, mapFragment);
 			fragmentTransaction.commit();
 			mapFragment.getMapAsync(this);
-			Log.d(TAG, this + " create map");
 			initialized = true;
 		}
 		return new Success<>();
@@ -200,6 +198,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
+		userRadius = null;
+		userCenter = null;
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
@@ -277,23 +277,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			userRadius.setRadius(accuracy);
 			userCenter.setPosition(latlng);
 		}
-	}
-
-
-	//todo map is always null
-	private final String SAVE_LAT = "MAP_LAT";
-	private final String SAVE_LNG = "MAP_LNG";
-	private final String SAVE_ZOOM = "MAP_ZOOM";
-
-	@Override
-	public void onSaveInstanceState(Bundle outState) {
-		if (map != null) {
-			CameraPosition cp = map.getCameraPosition();
-			outState.putDouble(SAVE_LAT, cp.target.latitude);
-			outState.putDouble(SAVE_LNG, cp.target.longitude);
-			outState.putFloat(SAVE_ZOOM, cp.zoom);
-		}
-		super.onSaveInstanceState(outState);
 	}
 
 	private class UpdateLocationListener implements LocationListener {
