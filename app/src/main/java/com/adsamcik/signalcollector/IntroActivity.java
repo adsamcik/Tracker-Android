@@ -42,7 +42,6 @@ public class IntroActivity extends AppIntro2 {
 		if (PlayController.isPlayServiceAvailable(getApplicationContext()))
 			addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_gplay_title), r.getString(R.string.intro_gplay), R.drawable.intro_games, Color.parseColor("#11A63D")));
 
-		// Hide Skip/Done button.
 		Window window = getWindow();
 		window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
 		window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
@@ -86,11 +85,6 @@ public class IntroActivity extends AppIntro2 {
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
 		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable(getApplicationContext()))
 			PlayController.initializeGamesClient(findViewById(android.R.id.content), this);
-	}
-
-	@Override
-	public void onBackPressed() {
-
 	}
 
 	@Override
