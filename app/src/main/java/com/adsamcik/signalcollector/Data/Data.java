@@ -28,18 +28,12 @@ public class Data implements Serializable {
 	public double altitude;
 	public float accuracy;
 
-	public float pressure;
 	public int activity;
 
 	public double noise;
 
 	public Data(long time) {
 		this.time = time;
-	}
-
-	public Data setPressure(float pressure) {
-		this.pressure = pressure;
-		return this;
 	}
 
 	public Data setLocation(@NonNull Location location) {

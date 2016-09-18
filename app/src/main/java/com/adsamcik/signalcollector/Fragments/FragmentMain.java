@@ -44,7 +44,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
-	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textPressure, textActivity, textCollected, textNoise;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
 
 	private AnimatedVectorDrawable playToPause, pauseToPlay;
@@ -67,7 +67,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		textWifiCount = (TextView) view.findViewById(R.id.textWifiCount);
 		textWifiTime = (TextView) view.findViewById(R.id.textWifiTime);
 		textTime = (TextView) view.findViewById(R.id.textTime);
-		textPressure = (TextView) view.findViewById(R.id.textPressure);
 		textNoise = (TextView) view.findViewById(R.id.textNoise);
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
 		textCollected = (TextView) view.findViewById(R.id.textCollected);
@@ -330,12 +329,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					Assist.coordsToString(d.latitude),
 					Assist.coordsToString(d.longitude),
 					(int) d.altitude));
-
-			if (d.pressure > 0) {
-				textPressure.setText(String.format(res.getString(R.string.main_pressure), d.pressure));
-				layoutOther.setVisibility(View.VISIBLE);
-			} else
-				layoutOther.setVisibility(View.GONE);
 
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));

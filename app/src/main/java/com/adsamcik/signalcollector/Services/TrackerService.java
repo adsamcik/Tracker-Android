@@ -48,7 +48,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TrackerService extends Service implements SensorEventListener {
+public class TrackerService extends Service {
 	//Constants
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
@@ -82,10 +82,7 @@ public class TrackerService extends Service implements SensorEventListener {
 	private TelephonyManager telephonyManager;
 	private WifiManager wifiManager;
 	private WifiReceiver wifiReceiver;
-	private SensorManager mSensorManager;
-	private Sensor mPressure;
 
-	private float pressureValue;
 	private boolean wifiEnabled = false;
 
 	private int saveAttemptsFailed = 0;
@@ -145,9 +142,6 @@ public class TrackerService extends Service implements SensorEventListener {
 
 		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
 			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
-
-		if (sp.getBoolean(Setting.TRACKING_PRESSURE_ENABLED, true))
-			d.setPressure(pressureValue);
 
 		if (noiseTracker != null) {
 			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
@@ -220,8 +214,6 @@ public class TrackerService extends Service implements SensorEventListener {
 			sb.append(d.wifi.length).append(" wifi ");
 		if (d.cellCount != -1)
 			sb.append(d.cellCount).append(" cell ");
-		if (d.pressure > 0)
-			sb.append(df.format(d.pressure)).append(" hPa ");
 		if (d.noise > 0)
 			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");
 		if (sb.length() > 0)
@@ -309,12 +301,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		wifiManager.startScan();
 		registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
 
-		mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-		if (mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
-			mPressure = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
-			mSensorManager.registerListener(this, mPressure, SensorManager.SENSOR_DELAY_UI);
-		}
-
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 	}
@@ -343,7 +329,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
 		unregisterReceiver(wifiReceiver);
-		mSensorManager.unregisterListener(this);
 
 		saveData();
 		if (onServiceStateChange != null)
@@ -363,14 +348,6 @@ public class TrackerService extends Service implements SensorEventListener {
 		return null;
 	}
 
-	@Override
-	public void onSensorChanged(SensorEvent event) {
-		pressureValue = event.values[0];
-	}
-
-	@Override
-	public void onAccuracyChanged(Sensor sensor, int accuracy) {
-	}
 
 	private class WifiReceiver extends BroadcastReceiver {
 		@Override
