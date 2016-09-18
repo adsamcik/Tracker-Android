@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -21,6 +23,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.classes.SnackMaker;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.fragments.FragmentMain;
@@ -29,7 +32,9 @@ import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +55,7 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+
 		setContentView(R.layout.activity_main);
 
 		DataStore.setContext(this);
@@ -149,11 +155,19 @@ public class MainActivity extends FragmentActivity {
 
 			viewPager.addOnPageChangeListener(pageChangeListener);
 		}
+
+		Context context = getApplicationContext();
+		SharedPreferences sp = Setting.getPreferences(context);
+		if (!sp.getBoolean(Setting.SENT_TOKEN_TO_SERVER, false)) {
+			String token = FirebaseInstanceId.getInstance().getToken();
+			if (token != null)
+				Network.registerToken(token, context);
+		}
 	}
 
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-		if(requestCode == 0)
+		if (requestCode == 0)
 			return;
 		boolean success = true;
 		for (int grantResult : grantResults) {
@@ -203,7 +217,7 @@ public class MainActivity extends FragmentActivity {
 
 			mInstanceList[position] = instance;
 
-			if(createInstance)
+			if (createInstance)
 				pageChangeListener.onPageSelected(viewPager.getCurrentItem());
 
 
