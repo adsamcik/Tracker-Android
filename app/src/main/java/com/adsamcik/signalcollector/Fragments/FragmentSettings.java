@@ -155,11 +155,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
-			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
-			alertDialogBuilder.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
-					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
-
-					})
+			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext(), R.style.AlertDialog);
+			alertDialogBuilder
+					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
+					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {})
 					.setMessage(getResources().getText(R.string.alert_clear_text));
 
 			alertDialogBuilder.create().show();

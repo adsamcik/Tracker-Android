@@ -26,4 +26,9 @@
         <item name="android:windowTranslucentStatus">true</item>
     </style>
 
+    <style name="AlertDialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:colorPrimary">@color/colorPrimary</item>
+        <item name="android:colorAccent">@color/textPrimary</item>
+    </style>
+
 </resources>
