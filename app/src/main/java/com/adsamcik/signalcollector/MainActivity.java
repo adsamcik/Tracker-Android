@@ -18,6 +18,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -220,11 +221,15 @@ public class MainActivity extends FragmentActivity {
 			if (createInstance)
 				pageChangeListener.onPageSelected(viewPager.getCurrentItem());
 
-
+			//Log.d(TAG, "new instance " + instance + " index " + position);
 			return instance;
 		}
 
 		public ITabFragment getInstance(int position) {
+			/*if (mInstanceList == null)
+				Log.d(TAG, "get failed cause null " + position);
+			else
+				Log.d(TAG, "get instance " + mInstanceList[position] + " index " + position);*/
 			return mInstanceList == null || position >= mInstanceList.length ? null : mInstanceList[position];
 		}
 
