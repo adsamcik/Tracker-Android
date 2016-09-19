@@ -103,6 +103,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 					}.getType());
 					getActivity().runOnUiThread(() -> GenerateStatsTable(stats));
 				}
+				response.close();
 			}
 		};
 		client.newCall(request).enqueue(c);
