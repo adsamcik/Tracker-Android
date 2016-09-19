@@ -302,6 +302,13 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		if (d != null) {
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
 
+			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
+
+			textPosition.setText(String.format(res.getString(R.string.main_position),
+					Assist.coordsToString(d.latitude),
+					Assist.coordsToString(d.longitude),
+					(int) d.altitude));
+
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
 				layoutWifi.setVisibility(View.VISIBLE);
@@ -323,23 +330,21 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				layoutCell.setVisibility(View.GONE);
 
 
-			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
-
-			textPosition.setText(String.format(res.getString(R.string.main_position),
-					Assist.coordsToString(d.latitude),
-					Assist.coordsToString(d.longitude),
-					(int) d.altitude));
-
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
 				textNoise.setVisibility(View.VISIBLE);
+				layoutOther.setVisibility(View.VISIBLE);
 			} else if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false)) {
 				textNoise.setText(res.getString(R.string.main_noise_not_tracked));
 				textNoise.setVisibility(View.VISIBLE);
+				layoutOther.setVisibility(View.VISIBLE);
 			} else
 				textNoise.setVisibility(View.GONE);
 
-			textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
+			if(d.activity != -1) {
+				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
+				layoutOther.setVisibility(View.VISIBLE);
+			}
 		}
 	}
 
