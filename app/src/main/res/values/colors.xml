@@ -4,9 +4,9 @@
     <color name="colorPrimaryDark">#00593c</color>
     <color name="colorAccent">@color/colorPrimary</color>
     <color name="colorUserAccuracy">#80365fb3</color>
-    <color name="cardBackground">#424242</color>
     <color name="background_splash">@color/colorPrimary</color>
     <color name="textPrimary">#FFFFFF</color>
     <color name="textSecondary">#919191</color>
     <color name="error">#d32f2f</color>
+    <color name="cardBackground">#424242</color>
 </resources>

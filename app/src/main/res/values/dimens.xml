@@ -3,10 +3,11 @@
     <dimen name="activity_horizontal_margin">16dp</dimen>
     <dimen name="activity_vertical_margin">16dp</dimen>
     <dimen name="navbar_height">64dp</dimen>
-    <dimen name="main_data_padding">15dp</dimen>
-    <dimen name="main_card_elevation">3dp</dimen>
+    <dimen name="main_data_padding">16dp</dimen>
+    <dimen name="main_card_elevation">2dp</dimen>
     <dimen name="main_card_spacing">10dp</dimen>
-    <dimen name="main_info_font_size">17sp</dimen>
+    <dimen name="main_info_primary_text_size">24sp</dimen>
+    <dimen name="main_info_secondary_text_size">16sp</dimen>
     <dimen name="setting_item_padding">15dp</dimen>
     <dimen name="setting_title_text_size">16sp</dimen>
     <dimen name="setting_text_size">18sp</dimen>

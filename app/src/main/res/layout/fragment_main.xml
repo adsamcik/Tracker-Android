@@ -12,141 +12,134 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/cardBackground"
+        android:background="@drawable/card_background"
         android:elevation="@dimen/main_card_elevation"
         android:padding="@dimen/main_data_padding"
-        android:textColor="@color/textSecondary">
+        android:textColor="@color/textSecondary"
+        android:textSize="@dimen/main_info_secondary_text_size">
 
         <TextView
             android:id="@+id/textTime"
+            style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
-            android:textSize="@dimen/main_info_font_size"
             />
 
         <TextView
             android:id="@+id/textAccuracy"
+            style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="false"
             android:layout_alignParentStart="false"
             android:layout_centerVertical="true"
             android:gravity="bottom"
-            android:textSize="@dimen/main_info_font_size"
             />
 
         <TextView
             android:id="@+id/textCollected"
+            style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignBottom="@+id/textPosition"
             android:gravity="bottom"
-            android:textSize="@dimen/main_info_font_size"
             />
 
         <TextView
             android:id="@+id/textPosition"
+            style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
             android:gravity="end"
             android:lineSpacingExtra="7dp"
-            android:textSize="@dimen/main_info_font_size"
             tools:ignore="RelativeOverlap"/>
 
     </RelativeLayout>
 
     <LinearLayout
-        android:orientation="vertical"
         android:id="@+id/layout_wifi"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/main_card_spacing"
-        android:background="@color/cardBackground"
+        android:background="@drawable/card_background"
         android:elevation="@dimen/main_card_elevation"
+        android:orientation="vertical"
         android:padding="@dimen/main_data_padding"
         >
 
         <TextView
+            style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/main_wifi_title"
-            android:textColor="@color/textSecondary"
-            android:textSize="18sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/textWifiCount"
+            style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textAppearance="?android:attr/textAppearanceLarge"/>
+            android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/textWifiTime"
+            style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""/>
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 
     <LinearLayout
-        android:orientation="vertical"
         android:id="@+id/layout_cells"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/main_card_spacing"
-        android:background="@color/cardBackground"
+        android:background="@drawable/card_background"
         android:elevation="@dimen/main_card_elevation"
+        android:orientation="vertical"
         android:padding="@dimen/main_data_padding">
 
         <TextView
+            style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/main_cell_title"
-            android:textColor="@color/textSecondary"
-            android:textIsSelectable="false"
-            android:textSize="18sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/textCurrentCell"
+            style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textAppearance="?android:attr/textAppearanceLarge"/>
+            android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/textCells"
+            style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textAppearance="?android:attr/textAppearanceLarge"/>
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 
     <LinearLayout
-        android:orientation="vertical"
         android:id="@+id/layout_other"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/main_card_spacing"
-        android:background="@color/cardBackground"
+        android:background="@drawable/card_background"
         android:elevation="@dimen/main_card_elevation"
+        android:orientation="vertical"
         android:padding="@dimen/main_data_padding">
 
         <TextView
             android:id="@+id/textNoise"
+            style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textAppearance="?android:attr/textAppearanceMedium"/>
+            android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/textActivity"
+            style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textAppearance="?android:attr/textAppearanceMedium"/>
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 
 </LinearLayout>
