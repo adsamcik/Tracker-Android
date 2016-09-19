@@ -28,7 +28,7 @@
 
     <style name="AlertDialog" parent="android:Theme.Material.Dialog.Alert">
         <item name="android:colorPrimary">@color/colorPrimary</item>
-        <item name="android:colorAccent">@color/textPrimary</item>
+        <item name="android:colorAccent">@color/textAccent</item>
     </style>
 
     <style name="CardSecondaryText">
