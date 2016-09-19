@@ -22,7 +22,7 @@ public class NoiseTracker {
 	private AsyncTask task;
 
 	public NoiseTracker() {
-		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 	}
 
 	public NoiseTracker start() {
