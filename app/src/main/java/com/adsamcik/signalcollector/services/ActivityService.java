@@ -73,22 +73,22 @@ public class ActivityService extends IntentService {
 	 * Checks if background tracking can be activated
 	 *
 	 * @param c            context
-	 * @param evalActivity evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
+	 * @param evalActivity evaluated activity
 	 * @return true if background tracking can be activated
 	 */
 	private boolean canBackgroundTrack(int evalActivity) {
-		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(c).getBoolean(Setting.STOP_TILL_RECHARGE, false))
+		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(this).getBoolean(Setting.STOP_TILL_RECHARGE, false))
 			return false;
 		int val = Setting.getPreferences(this).getInt(Setting.BACKGROUND_TRACKING, 1);
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}
 
 	/**
-	 * Checks if background tracking can be activated
+	 * Checks if background tracking should stop
 	 *
 	 * @param c            context
-	 * @param evalActivity evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
-	 * @return true if background tracking can be activated
+	 * @param evalActivity evaluated activity
+	 * @return true if background tracking can continue running
 	 */
 	private boolean canContinueBackgroundTracking(int evalActivity) {
 		if (evalActivity == 0)
