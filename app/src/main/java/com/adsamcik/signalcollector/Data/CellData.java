@@ -16,10 +16,9 @@ import android.telephony.CellSignalStrengthWcdma;
 import java.io.Serializable;
 
 
-@SuppressWarnings({"WeakerAccess", "unused"})
 public class CellData implements Serializable {
 	public final int type;
-	public int id;
+	public final int id;
 	public int mcc;
 	public int mnc;
 	public final int dbm;
