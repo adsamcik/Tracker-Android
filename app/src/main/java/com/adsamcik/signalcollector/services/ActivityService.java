@@ -53,11 +53,11 @@ public class ActivityService extends IntentService {
 			lastActivity = detectedActivity.getType();
 			lastTime = System.currentTimeMillis();
 
-			if(lastConfidence >= REQUIRED_CONFIDENCE) {
+			if (lastConfidence >= REQUIRED_CONFIDENCE) {
 				if (TrackerService.service != null) {
-					if (TrackerService.isBackgroundActivated() && lastActivity == DetectedActivity.STILL)
+					if (TrackerService.isBackgroundActivated() && canContinueBackgroundTracking(lastActivity))
 						stopService(TrackerService.service);
-				} else if (Assist.canBackgroundTrack(this, Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+				} else if (canBackgroundTrack(Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("approxSize", DataStore.sizeOfData());
 					trackerService.putExtra("backTrack", true);
@@ -67,5 +67,33 @@ public class ActivityService extends IntentService {
 		} else {
 			Log.d(TAG, "Intent had no data returned");
 		}
+	}
+
+	/**
+	 * Checks if background tracking can be activated
+	 *
+	 * @param c            context
+	 * @param evalActivity evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
+	 * @return true if background tracking can be activated
+	 */
+	private boolean canBackgroundTrack(int evalActivity) {
+		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(c).getBoolean(Setting.STOP_TILL_RECHARGE, false))
+			return false;
+		int val = Setting.getPreferences(this).getInt(Setting.BACKGROUND_TRACKING, 1);
+		return val != 0 && (val == evalActivity || val > evalActivity);
+	}
+
+	/**
+	 * Checks if background tracking can be activated
+	 *
+	 * @param c            context
+	 * @param evalActivity evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
+	 * @return true if background tracking can be activated
+	 */
+	private boolean canContinueBackgroundTracking(int evalActivity) {
+		if (evalActivity == 0)
+			return false;
+		int val = Setting.getPreferences(this).getInt(Setting.BACKGROUND_TRACKING, 1);
+		return val == 2 || (val == 1 && (evalActivity == 1 || evalActivity == 3));
 	}
 }

@@ -160,22 +160,6 @@ public class Assist {
 	}
 
 	/**
-	 * Checks if background tracking can be activated
-	 *
-	 * @param c            context
-	 * @param evalActivity evaluated activity, see {@link #evaluateActivity(int) evaluateActivity}
-	 * @return true if background tracking can be activated
-	 */
-	public static boolean canBackgroundTrack(@NonNull Context c, int evalActivity) {
-		if (!isInitialized())
-			initialize(c);
-		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(c).getBoolean(Setting.STOP_TILL_RECHARGE, false))
-			return false;
-		int val = Setting.getPreferences(c).getInt(Setting.BACKGROUND_TRACKING, 1);
-		return val != 0 && (val == evalActivity || val > evalActivity);
-	}
-
-	/**
 	 * Checks if upload can be initiated
 	 *
 	 * @param c            context
