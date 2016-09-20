@@ -21,7 +21,10 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
+import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.classes.Animate;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.Success;
@@ -127,9 +130,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				locationListener.moveToMyPosition();
 		});
 
+		LayoutInflater inflater = LayoutInflater.from(getContext());
+		final View menu = inflater.inflate(R.layout.fab_menu, null, false);
+		menu.setX(((LinearLayout) fabOne.getParent()).getX() - Assist.dpToPx(getContext(), 100));
+		menu.setY(((LinearLayout) fabOne.getParent()).getY() - fabOne.getY() - Assist.dpToPx(getContext(), 40));
+		//registerForContextMenu(layout);
+		((ViewGroup) view).addView(menu);
+		menu.setVisibility(View.GONE);
+
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
-		fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
+		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
+		fabTwo.setOnClickListener(v -> Animate.RevealShow(menu, menu.getWidth() / 2, menu.getHeight()));
 
 		if (!initialized) {
 			//SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
@@ -140,6 +152,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			mapFragment.getMapAsync(this);
 			initialized = true;
 		}
+
+
+
 		return new Success<>();
 	}
 
@@ -156,6 +171,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		else
 			view = inflater.inflate(R.layout.no_play_services, container, false);
+
 		return view;
 	}
 

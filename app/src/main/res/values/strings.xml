@@ -8,9 +8,10 @@
 
     <string name="main_last_update">%1$s</string>
     <string name="main_position">N %1$s\nW %2$s\nAlt: %3$d m</string>
-    <string name="main_wifi_title">WiFi:</string>
+    <string name="main_wifi_title_disabled">WiFi disabled</string>
+    <string name="main_wifi_title_updated">WiFi found %2$dm before collection</string>
+    <string name="main_wifi_title_not_updated">WiFi not updated this collection</string>
     <string name="main_wifi_count">%1$d in range</string>
-    <string name="main_wifi_time">found %1$dms and %2$dm before collection</string>
     <string name="main_cell_title">Signal:</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
     <string name="main_cell_count">%1$d in range</string>

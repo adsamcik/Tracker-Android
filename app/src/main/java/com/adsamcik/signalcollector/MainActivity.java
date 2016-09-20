@@ -123,6 +123,8 @@ public class MainActivity extends FragmentActivity {
 
 				@Override
 				public void onPageSelected(int position) {
+					fabOne.hide();
+					fabTwo.hide();
 					if (prevFragment != null)
 						prevFragment.onLeave();
 

@@ -73,17 +73,11 @@
             style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/main_wifi_title"
+            android:id="@+id/textWifiTitle"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/textWifiCount"
-            style="@style/CardPrimaryText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:id="@+id/textWifiTime"
             style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>

@@ -134,9 +134,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		//todo check if up to date
-		fabOne.hide();
-		fabTwo.hide();
-
 		return new Success<>();
 	}
 

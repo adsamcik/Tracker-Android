@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.fragments;
 
-import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
@@ -11,7 +10,6 @@ import android.graphics.drawable.AnimatedVectorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
@@ -19,12 +17,9 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AlphaAnimation;
-import android.view.animation.LinearInterpolator;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -44,7 +39,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
-	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTime, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTitle, textCurrentCell, textCellTitle, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
 
 	private AnimatedVectorDrawable playToPause, pauseToPlay;
@@ -62,10 +57,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		textAccuracy = (TextView) view.findViewById(R.id.textAccuracy);
 		textPosition = (TextView) view.findViewById(R.id.textPosition);
-		textCellCount = (TextView) view.findViewById(R.id.textCells);
+		textCellTitle = (TextView) view.findViewById(R.id.textCells);
 		textCurrentCell = (TextView) view.findViewById(R.id.textCurrentCell);
 		textWifiCount = (TextView) view.findViewById(R.id.textWifiCount);
-		textWifiTime = (TextView) view.findViewById(R.id.textWifiTime);
+		textWifiTitle = (TextView) view.findViewById(R.id.textWifiTitle);
 		textTime = (TextView) view.findViewById(R.id.textTime);
 		textNoise = (TextView) view.findViewById(R.id.textNoise);
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
@@ -75,9 +70,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutCell = (LinearLayout) view.findViewById(R.id.layout_cells);
 		layoutOther = (LinearLayout) view.findViewById(R.id.layout_other);
 
-		layoutWifi.setVisibility(View.GONE);
+		/*layoutWifi.setVisibility(View.GONE);
 		layoutCell.setVisibility(View.GONE);
-		layoutOther.setVisibility(View.GONE);
+		layoutOther.setVisibility(View.GONE);*/
 
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
@@ -312,10 +307,12 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
 				layoutWifi.setVisibility(View.VISIBLE);
-				textWifiTime.setText(String.format(res.getString(R.string.main_wifi_time), d.time - d.wifiTime, TrackerService.distanceToWifi));
+				textWifiTitle.setText(String.format(res.getString(R.string.main_wifi_title_updated), d.time - d.wifiTime, TrackerService.distanceToWifi));
 				lastWifiTime = d.time;
 			} else if (lastWifiTime - d.time > 10000)
 				layoutWifi.setVisibility(View.GONE);
+			else
+				textWifiTitle.setText(res.getString(R.string.main_wifi_title_not_updated));
 
 			if (d.cellCount > -1) {
 				CellData active = d.getActiveCell();
@@ -324,7 +321,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
 				} else
 					textCurrentCell.setVisibility(View.GONE);
-				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
+				textCellTitle.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
 				layoutCell.setVisibility(View.VISIBLE);
 			} else
 				layoutCell.setVisibility(View.GONE);
