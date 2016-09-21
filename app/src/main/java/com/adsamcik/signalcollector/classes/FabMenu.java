@@ -98,7 +98,7 @@ public class FabMenu {
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 
-		menu.setX(fabPos[0] - Assist.dpToPx(context, 160) + fab.getWidth());
+		menu.setX(context.getResources().getDisplayMetrics().widthPixels -  Assist.dpToPx(context, 166));
 		menu.setY(fabPos[1] - menu.getHeight() / 2 + 10);
 
 		final int pos[] = calculateRevealCenter();
