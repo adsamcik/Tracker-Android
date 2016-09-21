@@ -2,17 +2,18 @@
 <android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
                                                  xmlns:app="http://schemas.android.com/apk/res-auto"
                                                  xmlns:tools="http://schemas.android.com/tools"
+                                                 android:id="@+id/root"
                                                  android:layout_width="match_parent"
                                                  android:layout_height="match_parent"
-                                                 tools:context=".MainActivity"
-                                                 android:clipChildren="false">
+                                                 android:clipChildren="false"
+                                                 tools:context=".MainActivity">
 
     <android.support.design.widget.AppBarLayout
         android:id="@+id/AppBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="24dp"
-        android:background="@color/colorPrimary">
+        android:background="@color/colorPrimary"
+        android:paddingTop="24dp">
 
         <android.support.design.widget.TabLayout
             android:id="@+id/tabs"
@@ -45,21 +46,21 @@
         <android.support.design.widget.CoordinatorLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:clipChildren="false"
-            android:layout_marginBottom="@dimen/fab_margin">
+            android:layout_marginBottom="@dimen/fab_margin"
+            android:clipChildren="false">
 
             <ProgressBar
                 android:id="@+id/progressBar"
                 android:layout_width="82dp"
                 android:layout_height="82dp"
                 android:layout_gravity="center"
+                android:indeterminate="true"
+                android:indeterminateOnly="false"
+                android:indeterminateTint="@color/colorAccent"
                 android:max="100"
                 android:progress="0"
-                android:indeterminateOnly="false"
-                android:indeterminate="true"
-                android:indeterminateTint="@color/colorAccent"
-                android:progressTint="@color/colorAccent"
                 android:progressDrawable="@drawable/circular"
+                android:progressTint="@color/colorAccent"
                 android:visibility="gone"/>
 
 
@@ -69,10 +70,10 @@
                 android:layout_height="@dimen/fab_size"
                 android:layout_gravity="center"
                 android:clipChildren="false"
-                app:backgroundTint="@color/textPrimary"
+                android:src="@drawable/ic_cloud_upload_24dp"
                 android:tint="@color/colorAccent"
-                app:borderWidth="0dp"
-                android:src="@drawable/ic_cloud_upload_24dp"/>
+                app:backgroundTint="@color/textPrimary"
+                app:borderWidth="0dp"/>
 
         </android.support.design.widget.CoordinatorLayout>
 
@@ -83,7 +84,7 @@
             android:layout_height="@dimen/fab_size"
             android:layout_gravity="center"
             android:clipChildren="false"
-            app:borderWidth="0dp"
-            android:src="@drawable/ic_pause"/>
+            android:src="@drawable/ic_pause"
+            app:borderWidth="0dp"/>
     </LinearLayout>
 </android.support.design.widget.CoordinatorLayout>

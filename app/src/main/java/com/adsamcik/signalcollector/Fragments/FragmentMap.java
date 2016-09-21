@@ -23,8 +23,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.classes.Animate;
+import com.adsamcik.signalcollector.classes.FabMenu;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.Success;
@@ -53,9 +52,9 @@ import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
-	private static final String TAG = "Signals map";
+	private static final String TAG = "SignalsMap";
 	private static final String[] availableTypes = {"Wifi", "Cell"};
-	private static int typeIndex = 0;
+	private String type;
 	private boolean initialized = false;
 	private GoogleMap map;
 	private TileProvider tileProvider;
@@ -69,6 +68,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	private Circle userRadius;
 	private Marker userCenter;
+
+	private FabMenu menu;
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
@@ -123,6 +124,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return new Success<>("App does not have required permissions.");
 
+		menu.setFab(fabTwo);
+
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
@@ -130,18 +133,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				locationListener.moveToMyPosition();
 		});
 
-		LayoutInflater inflater = LayoutInflater.from(getContext());
-		final View menu = inflater.inflate(R.layout.fab_menu, null, false);
-		menu.setX(((LinearLayout) fabOne.getParent()).getX() - Assist.dpToPx(getContext(), 100));
-		menu.setY(((LinearLayout) fabOne.getParent()).getY() - fabOne.getY() - Assist.dpToPx(getContext(), 40));
-		//registerForContextMenu(layout);
-		((ViewGroup) view).addView(menu);
-		menu.setVisibility(View.GONE);
-
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
-		fabTwo.setOnClickListener(v -> Animate.RevealShow(menu, menu.getWidth() / 2, menu.getHeight()));
+		fabTwo.setOnClickListener(v -> menu.show(activity));
+		menu.setCallback((val) -> changeMapOverlay(val, fabTwo));
 
 		if (!initialized) {
 			//SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
@@ -152,7 +148,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			mapFragment.getMapAsync(this);
 			initialized = true;
 		}
-
 
 
 		return new Success<>();
@@ -172,6 +167,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		else
 			view = inflater.inflate(R.layout.no_play_services, container, false);
 
+		Context c = getContext();
+		menu = new FabMenu((ViewGroup) container.getParent(), c);
+		menu.addItem("Wifi", c);
+		menu.addItem("Cell", c);
 		return view;
 	}
 
@@ -186,22 +185,23 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 *
 	 * @param index new overlay string index
 	 */
-	private void changeMapOverlay(int index, @NonNull FloatingActionButton fab) {
+	private void changeMapOverlay(@NonNull String type, @NonNull FloatingActionButton fab) {
 		if (map == null) {
 			FirebaseCrash.report(new Throwable("changeMapOverlay should not be called before map is initialized"));
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
 			return;
-		} else if (index < 0 || index >= availableTypes.length)
-			throw new RuntimeException("Index is out of range");
+		}
 
-		if (index != typeIndex || activeOverlay == null) {
-			typeIndex = index;
+		Log.d(TAG, type);
+
+		if (!type.equals(this.type) || activeOverlay == null) {
+			this.type = type;
 			if (activeOverlay != null)
 				activeOverlay.remove();
 			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		}
 
-		switch (availableTypes[typeIndex]) {
+		switch (type) {
 			case "Wifi":
 				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
 				break;
@@ -220,7 +220,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
 			public URL getTileUrl(int x, int y, int zoom) {
-				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, availableTypes[typeIndex]);
+				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, type);
 
 				if (!checkTileExists(x, y, zoom))
 					return null;
