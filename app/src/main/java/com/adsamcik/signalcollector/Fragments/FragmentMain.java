@@ -4,6 +4,7 @@ import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.AnimatedVectorDrawable;
@@ -295,6 +296,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		setCollected(DataStore.sizeOfData());
 
 		if (d != null) {
+			SharedPreferences sp = Setting.getPreferences(context);
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
 
 			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
@@ -306,41 +308,39 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
-				layoutWifi.setVisibility(View.VISIBLE);
-				textWifiTitle.setText(String.format(res.getString(R.string.main_wifi_title_updated), d.time - d.wifiTime, TrackerService.distanceToWifi));
+				textWifiTitle.setText(String.format(res.getString(R.string.main_wifi_title_updated), TrackerService.distanceToWifi));
 				lastWifiTime = d.time;
-			} else if (lastWifiTime - d.time > 10000)
-				layoutWifi.setVisibility(View.GONE);
-			else
+				layoutWifi.setVisibility(View.VISIBLE);
+			} else if (lastWifiTime - d.time > 10000) {
 				textWifiTitle.setText(res.getString(R.string.main_wifi_title_not_updated));
+				layoutWifi.setVisibility(View.VISIBLE);
+			} else {
+				layoutWifi.setVisibility(View.GONE);
+			}
 
-			if (d.cellCount > -1) {
+			if (d.cellCount == -1) {
+				layoutCell.setVisibility(View.GONE);
+			} else {
 				CellData active = d.getActiveCell();
 				if (active != null) {
 					textCurrentCell.setVisibility(View.VISIBLE);
 					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
 				} else
 					textCurrentCell.setVisibility(View.GONE);
-				textCellTitle.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
+				textCellTitle.setText(String.format(res.getString(R.string.main_cell_title_update), d.cellCount));
 				layoutCell.setVisibility(View.VISIBLE);
-			} else
-				layoutCell.setVisibility(View.GONE);
+			}
 
 
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
-				textNoise.setVisibility(View.VISIBLE);
-				layoutOther.setVisibility(View.VISIBLE);
 			} else if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false)) {
-				textNoise.setText(res.getString(R.string.main_noise_not_tracked));
-				textNoise.setVisibility(View.VISIBLE);
-				layoutOther.setVisibility(View.VISIBLE);
+				textNoise.setText(res.getString(R.string.main_noise_not_collected));
 			} else
-				textNoise.setVisibility(View.GONE);
+				textNoise.setText(res.getString(R.string.main_noise_disabled));
 
-			if(d.activity != -1) {
+			if (d.activity != -1) {
 				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
-				layoutOther.setVisibility(View.VISIBLE);
 			}
 		}
 	}

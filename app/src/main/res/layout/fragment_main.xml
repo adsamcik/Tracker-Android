@@ -7,7 +7,8 @@
               android:paddingLeft="@dimen/activity_horizontal_margin"
               android:paddingRight="@dimen/activity_horizontal_margin"
               android:paddingTop="@dimen/activity_vertical_margin"
-              tools:context=".fragments.FragmentMain">
+              tools:context=".fragments.FragmentMain"
+              android:animateLayoutChanges="true">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -97,7 +98,6 @@
             style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/main_cell_title"
             android:textStyle="bold"/>
 
         <TextView
