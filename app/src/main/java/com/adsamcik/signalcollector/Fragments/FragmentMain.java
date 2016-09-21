@@ -71,15 +71,14 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		layoutCell = (LinearLayout) view.findViewById(R.id.layout_cells);
 		layoutOther = (LinearLayout) view.findViewById(R.id.layout_other);
 
-		/*layoutWifi.setVisibility(View.GONE);
+		layoutWifi.setVisibility(View.GONE);
 		layoutCell.setVisibility(View.GONE);
-		layoutOther.setVisibility(View.GONE);*/
+		layoutOther.setVisibility(View.GONE);
 
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
 
-		if (fabTrack != null)
-			updateData(getContext());
+		updateData(getContext());
 
 		return view;
 	}
@@ -159,6 +158,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				break;
 			case 1:
 				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
+				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
@@ -212,7 +212,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					progressBar.animate().alpha(0).setDuration(400).start();
 
 					//todo fab can be hidden by this when other tab is active
-					new Handler().postDelayed(fabUp::hide, 400);
+					new Handler().postDelayed(() -> {
+						if (fabUp != null)
+							fabUp.hide();
+					}, 400);
 					new Handler().postDelayed(() -> {
 						if (fabUp != null) {
 							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
@@ -296,7 +299,6 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		setCollected(DataStore.sizeOfData());
 
 		if (d != null) {
-			SharedPreferences sp = Setting.getPreferences(context);
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
 
 			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
