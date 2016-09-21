@@ -21,7 +21,6 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.classes.FabMenu;
 import com.adsamcik.signalcollector.classes.Network;
@@ -53,7 +52,6 @@ import java.util.Locale;
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
 	private static final String TAG = "SignalsMap";
-	private static final String[] availableTypes = {"Wifi", "Cell"};
 	private String type;
 	private boolean initialized = false;
 	private GoogleMap map;
@@ -134,10 +132,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		fabTwo.show();
-		fabTwo.setImageResource(R.drawable.ic_network_cell_24dp);
+		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 		fabTwo.setOnClickListener(v -> menu.show(activity));
-		menu.setCallback((val) -> changeMapOverlay(val, fabTwo));
+		menu.setCallback(this::changeMapOverlay);
 
 		if (!initialized) {
 			//SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
@@ -168,6 +166,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			view = inflater.inflate(R.layout.no_play_services, container, false);
 
 		Context c = getContext();
+		assert container != null;
 		menu = new FabMenu((ViewGroup) container.getParent(), c);
 		menu.addItem("Wifi", c);
 		menu.addItem("Cell", c);
@@ -183,31 +182,19 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	/**
 	 * Change map overlay
 	 *
-	 * @param index new overlay string index
 	 */
-	private void changeMapOverlay(@NonNull String type, @NonNull FloatingActionButton fab) {
+	private void changeMapOverlay(@NonNull String type) {
 		if (map == null) {
 			FirebaseCrash.report(new Throwable("changeMapOverlay should not be called before map is initialized"));
 			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
 			return;
 		}
 
-		Log.d(TAG, type);
-
 		if (!type.equals(this.type) || activeOverlay == null) {
 			this.type = type;
 			if (activeOverlay != null)
 				activeOverlay.remove();
 			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
-		}
-
-		switch (type) {
-			case "Wifi":
-				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_cell_24dp));
-				break;
-			case "Cell":
-				fab.setImageDrawable(ContextCompat.getDrawable(getContext(), R.drawable.ic_network_wifi_24dp));
-				break;
 		}
 	}
 
