@@ -248,6 +248,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+		changeMapOverlay("Wifi");
 	}
 
 	/**
