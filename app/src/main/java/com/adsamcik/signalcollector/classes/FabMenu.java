@@ -8,6 +8,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.TextView;
 
@@ -95,6 +96,7 @@ public class FabMenu {
 		ObjectAnimator mAnimator;
 		mAnimator = ObjectAnimator.ofFloat(fab, View.X, View.Y, path);
 		mAnimator.setDuration(FAB_MOVEMENT_LENGTH);
+		mAnimator.setInterpolator(new AccelerateInterpolator(1.5f));
 		final int pos[] = calculateRevealCenter();
 		Animate.RevealHide(menu, pos[0], pos[1], () -> {
 			wrapper.setVisibility(View.INVISIBLE);
@@ -120,7 +122,7 @@ public class FabMenu {
 		ObjectAnimator mAnimator;
 		mAnimator = ObjectAnimator.ofFloat(fab, View.X, View.Y, path);
 		mAnimator.setDuration(FAB_MOVEMENT_LENGTH);
-		mAnimator.setInterpolator(new DecelerateInterpolator());
+		mAnimator.setInterpolator(new DecelerateInterpolator(1f));
 		mAnimator.addListener(new Animator.AnimatorListener() {
 
 			@Override
