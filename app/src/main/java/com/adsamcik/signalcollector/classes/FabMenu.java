@@ -110,7 +110,7 @@ public class FabMenu {
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 
-		menu.setX(fabPos[0] - Assist.dpToPx(context, 200));
+		menu.setX(fabPos[0] - Assist.dpToPx(context, 166) + fab.getWidth());
 		menu.setY(fabPos[1] - menu.getHeight() / 2);
 
 		Path path = new Path();
