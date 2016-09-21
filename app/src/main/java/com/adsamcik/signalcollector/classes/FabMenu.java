@@ -1,20 +1,11 @@
 package com.adsamcik.signalcollector.classes;
 
-import android.animation.Animator;
-import android.animation.ArgbEvaluator;
-import android.animation.ObjectAnimator;
-import android.animation.PropertyValuesHolder;
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.graphics.Path;
-import android.os.Handler;
 import android.support.design.widget.FloatingActionButton;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AccelerateInterpolator;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.Assist;
@@ -27,11 +18,11 @@ import java.util.List;
 public class FabMenu {
 	private final String TAG = "SignalsFabMenu";
 
-	private final int FAB_TARGET_X = -150;
+	/*private final int FAB_TARGET_X = -150;
 	private final int FAB_TARGET_Y = -50;
-	private final int FAB_MOVEMENT_LENGTH = 200;
 	private final int FAB_ARC_X = -75;
-	private final int FAB_ARC_Y = 50;
+	private final int FAB_ARC_Y = 50;*/
+	private final int FAB_MOVEMENT_LENGTH = 200;
 
 	private FloatingActionButton fab;
 	private float originalFabX;
@@ -94,9 +85,6 @@ public class FabMenu {
 	}
 
 	public void hide() {
-		Path path = new Path();
-		path.moveTo(FAB_TARGET_X, FAB_TARGET_Y);
-		path.quadTo(FAB_ARC_X, FAB_ARC_Y, originalFabX, originalFabY);
 		wrapper.setOnClickListener(null);
 		final int pos[] = calculateRevealCenter();
 		Animate.RevealHide(menu, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));

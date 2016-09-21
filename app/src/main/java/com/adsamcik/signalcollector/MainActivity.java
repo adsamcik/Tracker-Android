@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -18,7 +17,6 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -33,7 +31,6 @@ import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
-import com.google.firebase.FirebaseApp;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
 

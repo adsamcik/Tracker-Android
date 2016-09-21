@@ -8,7 +8,6 @@ import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;

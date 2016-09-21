@@ -1,13 +1,10 @@
 package com.adsamcik.signalcollector.play;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentActivity;
-import android.util.Log;
 import android.view.View;
 
 import com.adsamcik.signalcollector.Setting;
@@ -39,9 +36,7 @@ public class PlayController {
 				}
 				gapiActivityClient = new GoogleApiClient.Builder(appContext)
 						.addApi(ActivityRecognition.API)
-						.addOnConnectionFailedListener(connectionResult -> {
-							FirebaseCrash.report(new Throwable("Failed to initialize activity " + connectionResult.getErrorMessage() + " code " + connectionResult.getErrorCode()));
-						})
+						.addOnConnectionFailedListener(connectionResult -> FirebaseCrash.report(new Throwable("Failed to initialize activity " + connectionResult.getErrorMessage() + " code " + connectionResult.getErrorCode())))
 						.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
 							@Override
 							public void onConnected(@Nullable Bundle bundle) {

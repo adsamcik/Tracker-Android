@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.classes.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;

@@ -4,8 +4,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
-import android.text.format.DateUtils;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.services.TrackerService;

@@ -12,11 +12,9 @@ import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
 
-import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.android.gms.location.DetectedActivity;
 
 import java.util.ArrayList;

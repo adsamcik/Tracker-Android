@@ -72,7 +72,6 @@ public class ActivityService extends IntentService {
 	/**
 	 * Checks if background tracking can be activated
 	 *
-	 * @param c            context
 	 * @param evalActivity evaluated activity
 	 * @return true if background tracking can be activated
 	 */
@@ -86,7 +85,6 @@ public class ActivityService extends IntentService {
 	/**
 	 * Checks if background tracking should stop
 	 *
-	 * @param c            context
 	 * @param evalActivity evaluated activity
 	 * @return true if background tracking can continue running
 	 */

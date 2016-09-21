@@ -1,7 +1,5 @@
 package com.adsamcik.signalcollector.services;
 
-import android.util.Log;
-
 import com.adsamcik.signalcollector.classes.Network;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.FirebaseInstanceIdService;
