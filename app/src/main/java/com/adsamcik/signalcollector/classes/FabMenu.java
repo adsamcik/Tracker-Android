@@ -1,9 +1,14 @@
 package com.adsamcik.signalcollector.classes;
 
 import android.animation.Animator;
+import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.Path;
+import android.os.Handler;
 import android.support.design.widget.FloatingActionButton;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -93,15 +98,8 @@ public class FabMenu {
 		path.moveTo(FAB_TARGET_X, FAB_TARGET_Y);
 		path.quadTo(FAB_ARC_X, FAB_ARC_Y, originalFabX, originalFabY);
 		wrapper.setOnClickListener(null);
-		ObjectAnimator mAnimator;
-		mAnimator = ObjectAnimator.ofFloat(fab, View.X, View.Y, path);
-		mAnimator.setDuration(FAB_MOVEMENT_LENGTH);
-		mAnimator.setInterpolator(new AccelerateInterpolator(1.5f));
 		final int pos[] = calculateRevealCenter();
-		Animate.RevealHide(menu, pos[0], pos[1], () -> {
-			wrapper.setVisibility(View.INVISIBLE);
-			mAnimator.start();
-		});
+		Animate.RevealHide(menu, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
 	}
 
 	public void show(Context context) {
@@ -112,41 +110,11 @@ public class FabMenu {
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 
-		menu.setX(fabPos[0] - Assist.dpToPx(context, 166) + fab.getWidth());
-		menu.setY(fabPos[1] - menu.getHeight() / 2);
+		menu.setX(fabPos[0] - Assist.dpToPx(context, 160) + fab.getWidth());
+		menu.setY(fabPos[1] - menu.getHeight() / 2 + 10);
 
-		Path path = new Path();
-		path.moveTo(originalFabX, originalFabY);
-		path.quadTo(FAB_ARC_X, FAB_ARC_Y, FAB_TARGET_X, FAB_TARGET_Y);
-
-		ObjectAnimator mAnimator;
-		mAnimator = ObjectAnimator.ofFloat(fab, View.X, View.Y, path);
-		mAnimator.setDuration(FAB_MOVEMENT_LENGTH);
-		mAnimator.setInterpolator(new DecelerateInterpolator(1f));
-		mAnimator.addListener(new Animator.AnimatorListener() {
-
-			@Override
-			public void onAnimationStart(Animator animator) {
-
-			}
-
-			@Override
-			public void onAnimationEnd(Animator animator) {
-				final int pos[] = calculateRevealCenter();
-				Animate.RevealShow(menu, pos[0], pos[1]);
-			}
-
-			@Override
-			public void onAnimationCancel(Animator animator) {
-
-			}
-
-			@Override
-			public void onAnimationRepeat(Animator animator) {
-
-			}
-		});
-		mAnimator.start();
+		final int pos[] = calculateRevealCenter();
+		Animate.RevealShow(menu, pos[0], pos[1], 0);
 		wrapper.setOnClickListener(closeClickListener);
 	}
 }

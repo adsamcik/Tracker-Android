@@ -12,13 +12,13 @@ public class Animate {
 	public static void RevealShow(View view) {
 		int cx = view.getWidth() / 2;
 		int cy = view.getHeight() / 2;
-		RevealShow(view, cx, cy);
+		RevealShow(view, cx, cy, 0);
 	}
 
-	public static void RevealShow(View view, int cx, int cy) {
+	public static void RevealShow(View view, int cx, int cy, int intialRadius) {
 		float finalRadius = (float) Math.hypot(cx, cy);
 
-		Animator anim = ViewAnimationUtils.createCircularReveal(view, cx, cy, 0, finalRadius);
+		Animator anim = ViewAnimationUtils.createCircularReveal(view, cx, cy, intialRadius, finalRadius);
 
 		view.setVisibility(View.VISIBLE);
 		anim.start();
@@ -27,23 +27,23 @@ public class Animate {
 	public static void RevealHide(View view, @Nullable ICallback onDoneCallback) {
 		int cx = view.getWidth() / 2;
 		int cy = view.getHeight() / 2;
-		RevealHide(view, cx, cy, onDoneCallback);
+		RevealHide(view, cx, cy, 0, onDoneCallback);
 	}
 
-	public static void RevealHide(View view, int cx, int cy, @Nullable ICallback onDoneCallback) {
+	public static void RevealHide(View view, int cx, int cy, int endRadius, @Nullable ICallback onDoneCallback) {
 		float initialRadius = (float) Math.hypot(cx, cy);
 
-		Animator anim = ViewAnimationUtils.createCircularReveal(view, cx, cy, initialRadius, 0);
-
+		Animator anim = ViewAnimationUtils.createCircularReveal(view, cx, cy, initialRadius, endRadius);
 		anim.addListener(new AnimatorListenerAdapter() {
 			@Override
 			public void onAnimationEnd(Animator animation) {
 				super.onAnimationEnd(animation);
 				view.setVisibility(View.INVISIBLE);
-				if(onDoneCallback != null)
+				if (onDoneCallback != null)
 					onDoneCallback.callback();
 			}
 		});
 		anim.start();
 	}
+
 }
