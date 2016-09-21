@@ -2,8 +2,11 @@ package com.adsamcik.signalcollector.classes;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.support.annotation.Nullable;
 import android.view.View;
 import android.view.ViewAnimationUtils;
+
+import com.adsamcik.signalcollector.interfaces.ICallback;
 
 public class Animate {
 	public static void RevealShow(View view) {
@@ -21,10 +24,13 @@ public class Animate {
 		anim.start();
 	}
 
-	public static void RevealHide(View view) {
+	public static void RevealHide(View view, @Nullable ICallback onDoneCallback) {
 		int cx = view.getWidth() / 2;
 		int cy = view.getHeight() / 2;
+		RevealHide(view, cx, cy, onDoneCallback);
+	}
 
+	public static void RevealHide(View view, int cx, int cy, @Nullable ICallback onDoneCallback) {
 		float initialRadius = (float) Math.hypot(cx, cy);
 
 		Animator anim = ViewAnimationUtils.createCircularReveal(view, cx, cy, initialRadius, 0);
@@ -33,7 +39,9 @@ public class Animate {
 			@Override
 			public void onAnimationEnd(Animator animation) {
 				super.onAnimationEnd(animation);
-				view.setVisibility(View.GONE);
+				view.setVisibility(View.INVISIBLE);
+				if(onDoneCallback != null)
+					onDoneCallback.callback();
 			}
 		});
 		anim.start();
