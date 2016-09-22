@@ -2,13 +2,13 @@
               xmlns:tools="http://schemas.android.com/tools"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
+              android:animateLayoutChanges="true"
               android:orientation="vertical"
               android:paddingBottom="@dimen/navbar_height"
               android:paddingLeft="@dimen/activity_horizontal_margin"
               android:paddingRight="@dimen/activity_horizontal_margin"
               android:paddingTop="@dimen/activity_vertical_margin"
-              tools:context=".fragments.FragmentMain"
-              android:animateLayoutChanges="true">
+              tools:context=".fragments.FragmentMain">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -71,10 +71,10 @@
         >
 
         <TextView
+            android:id="@+id/textWifiTitle"
             style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:id="@+id/textWifiTitle"
             android:textStyle="bold"/>
 
         <TextView
@@ -95,6 +95,7 @@
         android:padding="@dimen/main_data_padding">
 
         <TextView
+            android:id="@+id/textCellTitle"
             style="@style/CardSecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -102,12 +103,6 @@
 
         <TextView
             android:id="@+id/textCurrentCell"
-            style="@style/CardPrimaryText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:id="@+id/textCells"
             style="@style/CardPrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>

@@ -58,7 +58,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		textAccuracy = (TextView) view.findViewById(R.id.textAccuracy);
 		textPosition = (TextView) view.findViewById(R.id.textPosition);
-		textCellTitle = (TextView) view.findViewById(R.id.textCells);
+		textCellTitle = (TextView) view.findViewById(R.id.textCellTitle);
 		textCurrentCell = (TextView) view.findViewById(R.id.textCurrentCell);
 		textWifiCount = (TextView) view.findViewById(R.id.textWifiCount);
 		textWifiTitle = (TextView) view.findViewById(R.id.textWifiTitle);
@@ -334,6 +334,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			}
 
 
+			layoutOther.setVisibility(View.VISIBLE);
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
 			} else if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false)) {
@@ -341,8 +342,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			} else
 				textNoise.setText(res.getString(R.string.main_noise_disabled));
 
-			if (d.activity != -1) {
+			if (d.activity == -1)
+				textActivity.setVisibility(View.GONE);
+			else {
 				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
+				textActivity.setVisibility(View.VISIBLE);
 			}
 		}
 	}
