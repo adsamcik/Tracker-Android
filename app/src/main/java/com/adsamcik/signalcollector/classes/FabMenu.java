@@ -48,8 +48,8 @@ public class FabMenu {
 
 	public FabMenu setFab(FloatingActionButton fab) {
 		this.fab = fab;
-		originalFabX = fab.getX();
-		originalFabY = fab.getY();
+		//originalFabX = fab.getX();
+		//originalFabY = fab.getY();
 		return this;
 	}
 
