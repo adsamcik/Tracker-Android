@@ -3,13 +3,13 @@ apply from: 'key.gradle'
 
 android {
     compileSdkVersion 24
-    buildToolsVersion '24.0.1'
+    buildToolsVersion '24.0.2'
     defaultConfig {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 24
-        versionCode 92
-        versionName "2.0.0 Materialize 1"
+        versionCode 94
+        versionName "2.0.0 Materialize 1.2"
         jackOptions {
             enabled true
         }
@@ -38,9 +38,9 @@ dependencies {
     compile 'com.google.android.gms:play-services-maps:9.6.0'
     compile 'com.google.android.gms:play-services-location:9.6.0'
     compile 'com.google.android.gms:play-services-games:9.6.0'
-    compile 'com.google.firebase:firebase-core:9.4.0'
-    compile 'com.google.firebase:firebase-crash:9.4.0'
-    compile 'com.google.firebase:firebase-messaging:9.4.0'
+    compile 'com.google.firebase:firebase-core:9.6.0'
+    compile 'com.google.firebase:firebase-crash:9.6.0'
+    compile 'com.google.firebase:firebase-messaging:9.6.0'
 }
 
 apply plugin: 'com.google.gms.google-services'

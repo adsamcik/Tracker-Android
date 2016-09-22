@@ -68,14 +68,17 @@ public class UploadService extends JobService {
 		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
 		try {
 			Response response = this.client.newCall(request).execute();
+			int code = response.code();
 			boolean isSuccessful = response.isSuccessful();
 			response.close();
 			if (isSuccessful) {
 				deleteFile(name);
 				return true;
 			}
+			FirebaseCrash.report(new Throwable("Upload failed " + code));
 			return false;
 		} catch (IOException e) {
+			FirebaseCrash.report(e);
 			return false;
 		}
 	}
@@ -128,15 +131,18 @@ public class UploadService extends JobService {
 							if (!upload(builder.toString(), fileName)) {
 								DataStore.requestUpload(c, true);
 								DataStore.onUpload(-1);
+								FirebaseCrash.report(new Throwable("File failed to upload"));
 								break;
 							}
 							DataStore.onUpload(calculateUploadPercentage());
 						} else {
 							DataStore.onUpload(-1);
+							FirebaseCrash.report(new Throwable("Can't upload"));
 							break;
 						}
 					} else {
 						DataStore.onUpload(-1);
+						FirebaseCrash.report(new Throwable("Interrupted"));
 						break;
 					}
 				}
