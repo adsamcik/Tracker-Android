@@ -131,18 +131,15 @@ public class UploadService extends JobService {
 							if (!upload(builder.toString(), fileName)) {
 								DataStore.requestUpload(c, true);
 								DataStore.onUpload(-1);
-								FirebaseCrash.report(new Throwable("File failed to upload"));
 								break;
 							}
 							DataStore.onUpload(calculateUploadPercentage());
 						} else {
 							DataStore.onUpload(-1);
-							FirebaseCrash.report(new Throwable("Can't upload"));
 							break;
 						}
 					} else {
 						DataStore.onUpload(-1);
-						FirebaseCrash.report(new Throwable("Interrupted"));
 						break;
 					}
 				}
@@ -158,7 +155,6 @@ public class UploadService extends JobService {
 	}
 
 	void updateUploadedStat(long uploaded) {
-		FirebaseCrash.report(new Throwable("uploaded " + uploaded));
 		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
 		sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + uploaded).apply();
 	}
@@ -172,7 +168,6 @@ public class UploadService extends JobService {
 	public boolean onStopJob(JobParameters jobParameters) {
 		if (thread != null && thread.isAlive())
 			thread.interrupt();
-		updateUploadedStat(DataStore.sizeOfData() - DataStore.recountDataSize());
 		DataStore.cleanup();
 		queued = 0;
 		return false;
