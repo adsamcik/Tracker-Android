@@ -25,8 +25,8 @@ public class FabMenu {
 	private final int FAB_MOVEMENT_LENGTH = 200;
 
 	private FloatingActionButton fab;
-	private float originalFabX;
-	private float originalFabY;
+	//private float originalFabX;
+	//private float originalFabY;
 
 	private ViewGroup wrapper;
 	private ViewGroup menu;
@@ -35,6 +35,8 @@ public class FabMenu {
 	private List<TextView> items = new ArrayList<>();
 
 	private View.OnClickListener closeClickListener = (p) -> hide();
+
+	private boolean isVisible = false;
 
 	public FabMenu(ViewGroup viewGroup, Context context) {
 		wrapper = (ViewGroup) LayoutInflater.from(context).inflate(R.layout.fab_menu, viewGroup, false);
@@ -85,6 +87,9 @@ public class FabMenu {
 	}
 
 	public void hide() {
+		if (!isVisible)
+			return;
+		isVisible = false;
 		wrapper.setOnClickListener(null);
 		final int pos[] = calculateRevealCenter();
 		Animate.RevealHide(menu, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
@@ -93,12 +98,15 @@ public class FabMenu {
 	public void show(Context context) {
 		if (fab == null)
 			throw new NullPointerException("Fab is null");
+		if (isVisible)
+			return;
+		isVisible = true;
 		wrapper.setVisibility(View.VISIBLE);
 		menu.setVisibility(View.INVISIBLE);
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 
-		menu.setX(context.getResources().getDisplayMetrics().widthPixels -  Assist.dpToPx(context, 166));
+		menu.setX(context.getResources().getDisplayMetrics().widthPixels - Assist.dpToPx(context, 166));
 		menu.setY(fabPos[1] - menu.getHeight() / 2 + 10);
 
 		final int pos[] = calculateRevealCenter();

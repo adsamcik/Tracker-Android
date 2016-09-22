@@ -99,6 +99,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				locationManager.removeUpdates(locationListener);
 		}
 		locationListener.cleanup();
+		menu.hide();
 	}
 
 	@Override
