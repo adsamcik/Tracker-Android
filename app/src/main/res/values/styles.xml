@@ -38,7 +38,7 @@
 
     <style name="CardPrimaryText">
         <item name="android:textColor">@color/textSecondary</item>
-        <item name="android:textSize">@dimen/main_info_secondary_text_size</item>
+        <item name="android:textSize">@dimen/main_info_primary_text_size</item>
     </style>
 
 </resources>
