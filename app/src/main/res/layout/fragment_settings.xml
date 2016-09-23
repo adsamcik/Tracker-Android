@@ -26,7 +26,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:textColor="@color/colorPrimary"
+            android:textColor="@color/textPrimary"
+            android:paddingTop="@dimen/setting_item_padding"
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
@@ -41,7 +42,7 @@
                 android:layout_margin="10dp"
                 android:contentDescription="@string/autotracking_disabled_description"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textDisabled"/>
 
             <ImageView
                 android:id="@+id/tracking_onfoot"
@@ -51,7 +52,7 @@
                 android:layout_toEndOf="@id/tracking_none"
                 android:contentDescription="@string/autotracking_onfoot_description"
                 android:src="@drawable/ic_directions_walk_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textDisabled"/>
 
             <ImageView
                 android:id="@+id/tracking_always"
@@ -61,13 +62,13 @@
                 android:layout_toEndOf="@id/tracking_onfoot"
                 android:contentDescription="@string/autotracking_onfootvehicle_description"
                 android:src="@drawable/ic_directions_car_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textDisabled"/>
         </RelativeLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="15dp"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_automaticUpload"
             android:textColor="@color/textSecondary"
             android:textSize="@dimen/setting_title_text_size"/>
@@ -77,7 +78,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:textColor="@color/colorPrimary"
+            android:textColor="@color/textPrimary"
+            android:paddingTop="@dimen/setting_item_padding"
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
@@ -92,7 +94,7 @@
                 android:layout_margin="10dp"
                 android:contentDescription="@string/autoupload_disabled_description"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textDisabled"/>
 
             <ImageView
                 android:id="@+id/autoupload_wifi"
@@ -102,7 +104,7 @@
                 android:layout_toEndOf="@id/autoupload_disabled"
                 android:contentDescription="@string/autoupload_wifi_description"
                 android:src="@drawable/ic_network_wifi_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textDisabled"/>
 
             <ImageView
                 android:id="@+id/autoupload_always"
@@ -112,13 +114,13 @@
                 android:layout_toEndOf="@id/autoupload_wifi"
                 android:contentDescription="@string/autoupload_always_description"
                 android:src="@drawable/ic_autorenew_black_24dp"
-                android:tint="@color/textSecondary"/>
+                android:tint="@color/textDisabled"/>
         </RelativeLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="15dp"
+            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_playGames"
             android:textColor="@color/textSecondary"
             android:textSize="@dimen/setting_title_text_size"/>
@@ -127,13 +129,12 @@
             android:id="@+id/play_loginButton"
             style="@style/SettingsButton"
             android:text="@string/settings_playGamesLogin"
-            android:textSize="@dimen/setting_text_size"
-            />
+            android:textSize="@dimen/setting_text_size"/>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="3dp"
-            android:background="@color/cardBackground"/>
+            android:background="@color/dividerColor"/>
 
         <Button
             android:id="@+id/play_achievements"
@@ -145,11 +146,11 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track"
             android:textColor="@color/textSecondary"
-            android:textSize="@dimen/setting_title_text_size"/>
+            android:textSize="@dimen/setting_title_text_size"
+            android:id="@+id/textView"/>
 
         <Switch
             android:id="@+id/switchTrackWifi"
@@ -158,7 +159,8 @@
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_wifi"
-            android:textSize="@dimen/setting_text_size"/>
+            android:textSize="@dimen/setting_text_size"
+            style="@style/PrimaryText"/>
 
 
         <Switch
@@ -168,7 +170,8 @@
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_cell"
-            android:textSize="@dimen/setting_text_size"/>
+            android:textSize="@dimen/setting_text_size"
+            style="@style/PrimaryText"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
@@ -177,7 +180,8 @@
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_noise"
-            android:textSize="@dimen/setting_text_size"/>
+            android:textSize="@dimen/setting_text_size"
+            style="@style/PrimaryText"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -192,7 +196,6 @@
             style="@style/SettingsButton"
             android:backgroundTint="@color/colorAccent"
             android:text="@string/settings_clear"
-            android:textSize="@dimen/setting_text_size"
             />
 
         <TextView
