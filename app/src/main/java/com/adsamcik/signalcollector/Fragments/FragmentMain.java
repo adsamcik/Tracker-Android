@@ -261,7 +261,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
 
-		TrackerService.dataEcho = new Data(200).setActivity(1).setCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
+		//TrackerService.dataEcho = new Data(200).setActivity(1).setCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
 			updateData(activity);
