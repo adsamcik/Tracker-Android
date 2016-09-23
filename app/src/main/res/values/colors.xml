@@ -6,8 +6,12 @@
     <color name="textAccent">#2BB400</color>
     <color name="colorUserAccuracy">#80365fb3</color>
     <color name="background_splash">@color/colorPrimary</color>
-    <color name="textPrimary">#FFFFFF</color>
-    <color name="textSecondary">#919191</color>
+    <color name="textPrimary">#FFFFFFFF</color>
+    <color name="textSecondary">#B2FFFFFF</color>
+    <color name="textDisabled">#80FFFFFF</color>
+    <color name="dividerColor">#33FFFFFF</color>
     <color name="error">#d32f2f</color>
     <color name="cardBackground">#424242</color>
+    <color name="activeIcon">#8AFFFFFF</color>
+    <color name="inactiveIcon">#61FFFFFF</color>
 </resources>

@@ -8,15 +8,17 @@
 
     <string name="main_last_update">%1$s</string>
     <string name="main_position">N %1$s\nW %2$s\nAlt: %3$d m</string>
-    <string name="main_wifi_title_updated">WiFi found %1$dm before collection</string>
-    <string name="main_wifi_title_not_updated">WiFi not updated this collection</string>
+    <string name="main_wifi_title">Wifi</string>
+    <string name="main_wifi_updated">found %1$dm before collection</string>
+    <string name="main_wifi_not_updated">not updated this collection</string>
     <string name="main_wifi_count">%1$d in range</string>
-    <string name="main_cell_title_airplane">Cell is not collected in airplane mode</string>
-    <string name="main_cell_title_update">Cell in range %1$d</string>
+    <string name="main_cell_title">Cell</string>
+    <string name="main_cell_count">Cell in range %1$d</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
     <string name="main_accuracy">Accuracy %1$d m</string>
-    <string name="main_noise">Noise %1$d (guessing %2$d dbm)</string>
-    <string name="main_noise_not_collected">Noise tracking only active on foot</string>
+    <string name="main_other">Other</string>
+    <string name="main_noise">Noise %1$d (%2$d dB)</string>
+    <string name="main_noise_not_collected">Noise only active on foot</string>
     <string name="main_noise_disabled">Noise disabled</string>
     <string name="main_activity">Activity %1$s</string>
 
