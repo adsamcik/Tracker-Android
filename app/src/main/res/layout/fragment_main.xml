@@ -15,13 +15,11 @@
         android:layout_height="wrap_content"
         android:background="@drawable/card_background"
         android:elevation="@dimen/main_card_elevation"
-        android:padding="@dimen/main_data_padding"
-        android:textColor="@color/textSecondary"
-        android:textSize="@dimen/main_info_secondary_text_size">
+        android:padding="@dimen/main_data_padding">
 
         <TextView
             android:id="@+id/textTime"
-            style="@style/CardSecondaryText"
+            style="@style/SecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
@@ -29,7 +27,7 @@
 
         <TextView
             android:id="@+id/textAccuracy"
-            style="@style/CardSecondaryText"
+            style="@style/SecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="false"
@@ -40,7 +38,7 @@
 
         <TextView
             android:id="@+id/textCollected"
-            style="@style/CardSecondaryText"
+            style="@style/SecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignBottom="@+id/textPosition"
@@ -49,7 +47,7 @@
 
         <TextView
             android:id="@+id/textPosition"
-            style="@style/CardSecondaryText"
+            style="@style/SecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
@@ -67,21 +65,28 @@
         android:background="@drawable/card_background"
         android:elevation="@dimen/main_card_elevation"
         android:orientation="vertical"
-        android:padding="@dimen/main_data_padding"
-        >
+        android:padding="@dimen/main_data_padding">
+
 
         <TextView
-            android:id="@+id/textWifiTitle"
-            style="@style/CardSecondaryText"
+            style="@style/SecondaryText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/main_wifi_title"/>
+
+        <TextView
+            android:id="@+id/textWifiCollection"
+            style="@style/SecondaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/textWifiCount"
-            style="@style/CardPrimaryText"
+            style="@style/PrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
+
     </LinearLayout>
 
     <LinearLayout
@@ -95,15 +100,21 @@
         android:padding="@dimen/main_data_padding">
 
         <TextView
-            android:id="@+id/textCellTitle"
-            style="@style/CardSecondaryText"
+            style="@style/SecondaryText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/main_cell_title"/>
+
+        <TextView
+            android:id="@+id/textCurrentCell"
+            style="@style/PrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textStyle="bold"/>
 
         <TextView
-            android:id="@+id/textCurrentCell"
-            style="@style/CardPrimaryText"
+            android:id="@+id/textCellCount"
+            style="@style/PrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
     </LinearLayout>
@@ -119,14 +130,20 @@
         android:padding="@dimen/main_data_padding">
 
         <TextView
+            style="@style/SecondaryText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/main_other"/>
+
+        <TextView
             android:id="@+id/textNoise"
-            style="@style/CardPrimaryText"
+            style="@style/PrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/textActivity"
-            style="@style/CardPrimaryText"
+            style="@style/PrimaryText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
     </LinearLayout>

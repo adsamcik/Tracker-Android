@@ -4,10 +4,10 @@ import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.AnimatedVectorDrawable;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -40,7 +40,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
-	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiTitle, textCurrentCell, textCellTitle, textActivity, textCollected, textNoise;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiCollection, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
 
 	private AnimatedVectorDrawable playToPause, pauseToPlay;
@@ -58,10 +58,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		textAccuracy = (TextView) view.findViewById(R.id.textAccuracy);
 		textPosition = (TextView) view.findViewById(R.id.textPosition);
-		textCellTitle = (TextView) view.findViewById(R.id.textCellTitle);
+		textCellCount = (TextView) view.findViewById(R.id.textCellCount);
 		textCurrentCell = (TextView) view.findViewById(R.id.textCurrentCell);
 		textWifiCount = (TextView) view.findViewById(R.id.textWifiCount);
-		textWifiTitle = (TextView) view.findViewById(R.id.textWifiTitle);
+		textWifiCollection = (TextView) view.findViewById(R.id.textWifiCollection);
 		textTime = (TextView) view.findViewById(R.id.textTime);
 		textNoise = (TextView) view.findViewById(R.id.textNoise);
 		textActivity = (TextView) view.findViewById(R.id.textActivity);
@@ -261,7 +261,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
 
-		//TrackerService.dataEcho = new Data(200).setPressure(50).setActivity(1).setCell("test", new CellData[0]).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
+		TrackerService.dataEcho = new Data(200).setActivity(1).setCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
 			updateData(activity);
@@ -310,11 +310,11 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
-				textWifiTitle.setText(String.format(res.getString(R.string.main_wifi_title_updated), TrackerService.distanceToWifi));
+				textWifiCollection.setText(String.format(res.getString(R.string.main_wifi_updated), TrackerService.distanceToWifi));
 				lastWifiTime = d.time;
 				layoutWifi.setVisibility(View.VISIBLE);
 			} else if (lastWifiTime - d.time > 10000) {
-				textWifiTitle.setText(res.getString(R.string.main_wifi_title_not_updated));
+				textWifiCollection.setText(res.getString(R.string.main_wifi_not_updated));
 				layoutWifi.setVisibility(View.VISIBLE);
 			} else {
 				layoutWifi.setVisibility(View.GONE);
@@ -329,7 +329,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
 				} else
 					textCurrentCell.setVisibility(View.GONE);
-				textCellTitle.setText(String.format(res.getString(R.string.main_cell_title_update), d.cellCount));
+				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
 				layoutCell.setVisibility(View.VISIBLE);
 			}
 
