@@ -97,18 +97,15 @@ public class Assist {
 	}
 
 	public static int dpToPx(@NonNull Context c, int dp) {
-		DisplayMetrics displayMetrics = c.getResources().getDisplayMetrics();
-		return Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
+		return Math.round(dp * c.getResources().getDisplayMetrics().density);
 	}
 
 	public static int pxToDp(@NonNull Context c, int px) {
-		DisplayMetrics displayMetrics = c.getResources().getDisplayMetrics();
-		return Math.round(px / (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
+		return Math.round(px / c.getResources().getDisplayMetrics().density);
 	}
 
 	public static int ptToPx(@NonNull Context c, int pt) {
-		final float scale = c.getResources().getDisplayMetrics().density;
-		return (int) (pt * scale + 0.5f);
+		return (int) (pt * c.getResources().getDisplayMetrics().density + 0.5f);
 	}
 
 	/**
