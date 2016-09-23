@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.data;
 import android.location.Location;
 import android.net.wifi.ScanResult;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.telephony.CellInfo;
 import android.telephony.CellInfoCdma;
 import android.telephony.CellInfoGsm;
@@ -86,7 +87,7 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	private Data setCell(String operator, @NonNull CellData activeCell) {
+	private Data setCell(@Nullable String operator, @Nullable CellData activeCell) {
 		this.activeCell = activeCell;
 		this.networkOperator = operator;
 		return this;
