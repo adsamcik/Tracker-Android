@@ -60,9 +60,11 @@ public class UploadService extends JobService {
 				",\"version\":" + BuildConfig.VERSION_CODE + "," +
 				"\"data\":" + data + "}";
 
+		String imei = Assist.getImei();
 		RequestBody formBody = new MultipartBody.Builder()
 				.setType(MultipartBody.FORM)
-				.addFormDataPart("imei", Assist.getImei())
+				.addFormDataPart("imei", imei)
+				.addFormDataPart("hash", Network.generateVerificationString(imei, serialized))
 				.addFormDataPart("data", serialized)
 				.build();
 		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
