@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -121,6 +122,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 					generateStats(body, activity);
 					if (refreshLayout != null && refreshLayout.isRefreshing())
 						activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
+					Setting.getPreferences(getContext()).edit().putLong(Setting.GENERAL_STATS_LAST_UPDATE, Assist.getDayInUTC()).apply();
 				}
 			}
 		};
