@@ -1,13 +1,16 @@
 package com.adsamcik.signalcollector.classes;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
+import android.text.Layout;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.LinearLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
@@ -159,6 +162,10 @@ public class Table {
 		layout.removeAllViewsInLayout();
 		rows.clear();
 		return this;
+	}
+
+	public void destroy(Activity activity) {
+		activity.runOnUiThread(() -> ((LinearLayout)layout.getParent()).removeView(layout));
 	}
 
 	/**
