@@ -82,10 +82,9 @@ public class Setting {
 	}
 
 	public static void checkStatsDay(@NonNull Context context) {
-		Calendar c = Calendar.getInstance();
-		long now = c.getTimeInMillis();
+		long todayUTC = Assist.getDayInUTC();
 		SharedPreferences sp = getPreferences(context);
-		int dayDiff = (int) (now - sp.getLong(Setting.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
+		int dayDiff = (int) (todayUTC - sp.getLong(Setting.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
 			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);
@@ -101,12 +100,8 @@ public class Setting {
 			for (StatDay day : stats)
 				stringStats.add(gson.toJson(day));
 
-			c.set(Calendar.HOUR, 0);
-			c.set(Calendar.MINUTE, 0);
-			c.set(Calendar.SECOND, 0);
-			c.set(Calendar.MILLISECOND, 0);
 			sp.edit()
-					.putLong(STATS_STAT_LAST_DAY, c.getTimeInMillis())
+					.putLong(STATS_STAT_LAST_DAY, todayUTC)
 					.putStringSet(STATS_LAST_7_DAYS, stringStats)
 					.putInt(STATS_MINUTES, 0)
 					.putInt(STATS_LOCATIONS_FOUND, 0)
