@@ -30,8 +30,8 @@ public class Table {
 	/**
 	 * Table constructor
 	 *
-	 * @param context   context
-	 * @param rowCount  number of rows (used to initialze array holding rows)
+	 * @param context    context
+	 * @param rowCount   number of rows (used to initialze array holding rows)
 	 * @param showNumber show number of row (starts at 1)
 	 */
 	public Table(Context context, int rowCount, boolean showNumber) {
@@ -165,7 +165,11 @@ public class Table {
 	}
 
 	public void destroy(Activity activity) {
-		activity.runOnUiThread(() -> ((LinearLayout)layout.getParent()).removeView(layout));
+		activity.runOnUiThread(() -> {
+			LinearLayout ll = ((LinearLayout) layout.getParent());
+			if (ll != null)
+				ll.removeView(layout);
+		});
 	}
 
 	/**
