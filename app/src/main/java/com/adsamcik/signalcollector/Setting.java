@@ -34,13 +34,14 @@ public class Setting {
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 
-	public static final String STATS_VERSION = "statsVersion";
+	public static final String GENERAL_STATS_LAST_UPDATE = "generalStatsLastUpdate";
+	public static final String USER_STATS_LAST_UPDATE = "userStatsLastUpdate";
 
 	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
 
-	static final int MAX_DAY_DIFF_STATS = 7;
+	private static final int MAX_DAY_DIFF_STATS = 7;
 
 	private static SharedPreferences sharedPreferences;
 

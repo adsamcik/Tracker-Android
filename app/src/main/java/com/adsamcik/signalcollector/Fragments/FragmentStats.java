@@ -2,13 +2,13 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
-import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.util.JsonReader;
 import android.view.LayoutInflater;
@@ -85,15 +85,22 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
-		GetPublicStats();
+
+		Activity activity = getActivity();
+		SharedPreferences sp = Setting.getPreferences(activity);
+
+		if (!DataStore.exists(GENERAL_STAT_FILE) || Assist.getDayInUTC() > sp.getLong(Setting.GENERAL_STATS_LAST_UPDATE, 0))
+			getPublicStats();
+		else
+			generateStats(DataStore.loadString(GENERAL_STAT_FILE), activity);
 
 		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
-		refreshLayout.setOnRefreshListener(this::GetPublicStats);
+		refreshLayout.setOnRefreshListener(this::getPublicStats);
 		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
 		return view;
 	}
 
-	private void GetPublicStats() {
+	private void getPublicStats() {
 		OkHttpClient client = new OkHttpClient();
 		Request request = new Request.Builder()
 				.url(Network.URL_STATS)
@@ -111,14 +118,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				if (body.startsWith("[")) {
 					DataStore.saveString(GENERAL_STAT_FILE, body);
 					Activity activity = getActivity();
-					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {}.getType());
-					if(publicStats != null) {
-						for(Table t : publicStats) {
-							t.destroy(activity);
-						}
-					}
-					activity.runOnUiThread(() -> publicStats = GenerateStatsTable(stats));
-					if (refreshLayout != null)
+					generateStats(body, activity);
+					if (refreshLayout != null && refreshLayout.isRefreshing())
 						activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
 				}
 			}
@@ -126,7 +127,18 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		client.newCall(request).enqueue(c);
 	}
 
-	private void GetUserStats() {
+	private void generateStats(String json, Activity activity) {
+		List<Stat> stats = new Gson().fromJson(json, new TypeToken<List<Stat>>() {
+		}.getType());
+		if (publicStats != null) {
+			for (Table t : publicStats) {
+				t.destroy(activity);
+			}
+		}
+		activity.runOnUiThread(() -> publicStats = generateStatsTable(stats));
+	}
+
+	private void getUserStats() {
 		OkHttpClient client = new OkHttpClient();
 		Request request = new Request.Builder()
 				.url(Network.URL_USER_STATS)
@@ -142,7 +154,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				String body = response.body().string();
 				if (body.startsWith("[")) {
 					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {}.getType());
-					getActivity().runOnUiThread(() -> GenerateStatsTable(stats));
+					getActivity().runOnUiThread(() -> generateStatsTable(stats));
 				}
 				response.close();
 			}
@@ -155,7 +167,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 *
 	 * @param stats list of stats
 	 */
-	private ArrayList<Table> GenerateStatsTable(List<Stat> stats) {
+	private ArrayList<Table> generateStatsTable(List<Stat> stats) {
 		ArrayList<Table> items = new ArrayList<>();
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
