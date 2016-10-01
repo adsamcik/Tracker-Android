@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.icu.util.TimeZone;
 import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -18,6 +19,7 @@ import android.view.WindowManager;
 import com.google.android.gms.location.DetectedActivity;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -275,5 +277,15 @@ public class Assist {
 		coordinate = (coordinate - minute) * 60;
 		int second = (int) coordinate;
 		return String.format(Locale.ENGLISH, "%02d", degree) + "\u00B0 " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\"";
+	}
+
+	public static long getDayInUTC() {
+		Calendar c = Calendar.getInstance();
+		c.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+		c.set(Calendar.HOUR_OF_DAY, 0);
+		c.set(Calendar.MINUTE, 0);
+		c.set(Calendar.SECOND, 0);
+		c.set(Calendar.MILLISECOND, 0);
+		return c.getTimeInMillis();
 	}
 }
