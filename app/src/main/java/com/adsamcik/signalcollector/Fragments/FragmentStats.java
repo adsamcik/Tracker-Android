@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
 import android.os.Bundle;
@@ -7,6 +8,8 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.util.JsonReader;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -16,6 +19,7 @@ import android.widget.LinearLayout;
 import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.classes.Table;
@@ -41,14 +45,14 @@ import okhttp3.Response;
 public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
-	private static long lastRequest = 0;
 
 	private Table weeklyStats;
+	private ArrayList<Table> publicStats = null;
 	private View view;
 
-	//todo add user stats
-	//todo add last day stats
+	private SwipeRefreshLayout refreshLayout;
 
+	//todo add user stats
 	//todo Improve stats updating
 
 	@Override
@@ -60,6 +64,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onDestroyView() {
 		((LinearLayout) view.findViewById(R.id.statsLayout)).removeAllViews();
+		publicStats.clear();
 		super.onDestroyView();
 	}
 
@@ -81,6 +86,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
 		GetPublicStats();
+
+		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
+		refreshLayout.setOnRefreshListener(this::GetPublicStats);
+		Context c = getContext();
+		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
 		return view;
 	}
 
@@ -98,9 +108,41 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			@Override
 			public void onResponse(Call call, Response response) throws IOException {
 				String body = response.body().string();
-				if(body.startsWith("[")) {
-					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {
-					}.getType());
+				response.close();
+				if (body.startsWith("[")) {
+					DataStore.saveString(GENERAL_STAT_FILE, body);
+					Activity activity = getActivity();
+					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {}.getType());
+					if(publicStats != null) {
+						for(Table t : publicStats) {
+							t.destroy(activity);
+						}
+					}
+					activity.runOnUiThread(() -> publicStats = GenerateStatsTable(stats));
+					if (refreshLayout != null)
+						activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
+				}
+			}
+		};
+		client.newCall(request).enqueue(c);
+	}
+
+	private void GetUserStats() {
+		OkHttpClient client = new OkHttpClient();
+		Request request = new Request.Builder()
+				.url(Network.URL_USER_STATS)
+				.build();
+		Callback c = new Callback() {
+			@Override
+			public void onFailure(Call call, IOException e) {
+
+			}
+
+			@Override
+			public void onResponse(Call call, Response response) throws IOException {
+				String body = response.body().string();
+				if (body.startsWith("[")) {
+					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {}.getType());
 					getActivity().runOnUiThread(() -> GenerateStatsTable(stats));
 				}
 				response.close();
@@ -114,7 +156,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 *
 	 * @param stats list of stats
 	 */
-	private void GenerateStatsTable(List<Stat> stats) {
+	private ArrayList<Table> GenerateStatsTable(List<Stat> stats) {
+		ArrayList<Table> items = new ArrayList<>();
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		for (int i = 0; i < stats.size(); i++) {
@@ -127,8 +170,10 @@ public class FragmentStats extends Fragment implements ITabFragment {
 					table.addRow().addData(sd.id, sd.value);
 				}
 				table.addToViewGroup(ll, true, (i + 1) * 150);
+				items.add(table);
 			}
 		}
+		return items;
 	}
 
 	@Override
