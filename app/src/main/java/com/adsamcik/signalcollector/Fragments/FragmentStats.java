@@ -89,7 +89,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
 		refreshLayout.setOnRefreshListener(this::GetPublicStats);
-		Context c = getContext();
 		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
 		return view;
 	}
