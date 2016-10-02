@@ -276,7 +276,7 @@ public class DataStore {
 		}
 
 
-		if (!saveStringAppend(DATA_FILE + id, data))
+		if (!saveJsonArrayAppend(DATA_FILE + id, data))
 			return 1;
 
 		int size = data.getBytes(Charset.defaultCharset()).length;
@@ -314,7 +314,7 @@ public class DataStore {
 	 * @param data     Json data to be saved
 	 * @return Success
 	 */
-	public static boolean saveStringAppend(String fileName, String data) {
+	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) {
 		StringBuilder sb = new StringBuilder(data);
 		if (sb.charAt(0) == '[')
 			sb.setCharAt(0, ',');
@@ -335,13 +335,23 @@ public class DataStore {
 		}
 	}
 
+	public static String loadJsonArrayAppend(String fileName) {
+		StringBuilder sb = loadStringAsBuilder(fileName);
+		if (sb != null && sb.length() != 0) {
+			sb.setCharAt(0, '[');
+			sb.append(']');
+			return sb.toString();
+		}
+		return null;
+	}
+
 	/**
 	 * Load string file as StringBuilder
 	 *
 	 * @param fileName file name
 	 * @return content of file as StringBuilder
 	 */
-	public static StringBuilder loadStringAsBuilder(String fileName) {
+	public static StringBuilder loadStringAsBuilder(@NonNull String fileName) {
 		if (!exists(fileName))
 			return null;
 
