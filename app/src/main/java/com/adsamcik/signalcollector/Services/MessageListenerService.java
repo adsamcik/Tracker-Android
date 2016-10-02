@@ -30,6 +30,8 @@ public class MessageListenerService extends FirebaseMessagingService {
 		final String MESSAGE = "message";
 		final String TYPE = "type";
 
+		DataStore.setContext(getApplicationContext());
+
 		Map<String, String> data = message.getData();
 
 		String type = data.get(TYPE);
