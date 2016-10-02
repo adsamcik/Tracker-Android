@@ -74,13 +74,20 @@ public class Assist {
 		return 0;
 	}
 
+	public static DisplayMetrics getDisplayMetrics(@NonNull WindowManager windowManager) {
+		Display d = windowManager.getDefaultDisplay();
+		DisplayMetrics realDisplayMetrics = new DisplayMetrics();
+		d.getRealMetrics(realDisplayMetrics);
+		return  realDisplayMetrics;
+	}
+
 	/**
 	 * Checks if device has SW or HW navbar
 	 *
 	 * @param windowManager Window Manager
 	 * @return true if SW navbar is present
 	 */
-	public static boolean hasNavBar(WindowManager windowManager) {
+	public static boolean hasNavBar(@NonNull WindowManager windowManager) {
 		Display d = windowManager.getDefaultDisplay();
 
 		DisplayMetrics realDisplayMetrics = new DisplayMetrics();
