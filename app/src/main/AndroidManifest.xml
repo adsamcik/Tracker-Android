@@ -12,7 +12,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="com.google.android.c2dm.permission.SEND"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application
         android:allowBackup="false"
@@ -21,13 +21,13 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         tools:ignore="GoogleAppIndexingWarning">
-
         <activity
             android:name=".LaunchActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
+
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
@@ -43,24 +43,28 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar"/>
 
+        <activity
+            android:name=".RecentUploadsActivity"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/AppTheme"/>
+
         <receiver android:name=".receivers.BatteryStateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_BATTERY_LOW"/>
             </intent-filter>
         </receiver>
-
         <receiver android:name=".receivers.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-
         <receiver android:name=".receivers.ChargingReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
             </intent-filter>
         </receiver>
-
         <receiver android:name=".receivers.NotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -73,7 +77,6 @@
         <service
             android:name=".services.ActivityService"
             android:exported="false"/>
-
         <service
             android:name=".services.InstanceIDListenerService"
             tools:ignore="ExportedService">
@@ -81,7 +84,6 @@
                 <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
             </intent-filter>
         </service>
-
         <service
             android:name=".services.MessageListenerService"
             tools:ignore="ExportedService">
@@ -89,7 +91,6 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
-
         <service
             android:name=".services.UploadService"
             android:exported="false"
