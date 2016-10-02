@@ -51,8 +51,6 @@ public class DataStore {
 			contextWeak = new WeakReference<>(c.getApplicationContext());
 	}
 
-	private static boolean isSaveAllowed = true;
-
 	private static ICallback onDataChanged;
 	private static IValueCallback<Integer> onUploadProgress;
 
@@ -116,8 +114,7 @@ public class DataStore {
 				//todo implement roaming upload
 				if (activeNetwork == null || activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
-				}
-				else {
+				} else {
 					if (Build.VERSION.SDK_INT >= 24)
 						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
 					else
@@ -175,7 +172,6 @@ public class DataStore {
 	 * Handles any leftover files that could have been corrupted by some issue and reorders existing files
 	 */
 	public static void cleanup() {
-		isSaveAllowed = false;
 		File[] files = getContext().getFilesDir().listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<String> renamedFiles = new ArrayList<>();
@@ -191,7 +187,6 @@ public class DataStore {
 			renameFile(item, DATA_FILE + item);
 
 		Preferences.get().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
-		isSaveAllowed = true;
 		if (onDataChanged != null) {
 			if (renamedFiles.size() > 0)
 				onDataChanged.callback();
@@ -248,7 +243,6 @@ public class DataStore {
 	 * Clears all data files
 	 */
 	public static void clearAllData() {
-		isSaveAllowed = false;
 		SharedPreferences sp = Preferences.get();
 		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Preferences.SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
@@ -259,7 +253,6 @@ public class DataStore {
 			if (name.startsWith(DATA_FILE))
 				deleteFile(name);
 		}
-		isSaveAllowed = true;
 		onDataChanged();
 	}
 
@@ -270,8 +263,6 @@ public class DataStore {
 	 * @return returns state value 2 - new file, 1 - error during saving, 0 - no new file, saved successfully
 	 */
 	public static int saveData(String data) {
-		if (!isSaveAllowed)
-			return 1;
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
@@ -303,20 +294,17 @@ public class DataStore {
 	 */
 	@SuppressWarnings("SameParameterValue")
 	public static boolean saveString(String fileName, String data) {
-		if (isSaveAllowed) {
-			try {
-				FileOutputStream outputStream = getContext().openFileOutput(fileName, Context.MODE_PRIVATE);
-				OutputStreamWriter osw = new OutputStreamWriter(outputStream);
-				osw.write(data);
-				osw.close();
-			} catch (Exception e) {
-				e.printStackTrace();
-				FirebaseCrash.report(e);
-				return false;
-			}
-			return true;
-		} else
+		try {
+			FileOutputStream outputStream = getContext().openFileOutput(fileName, Context.MODE_PRIVATE);
+			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
+			osw.write(data);
+			osw.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+			FirebaseCrash.report(e);
 			return false;
+		}
+		return true;
 	}
 
 	/**
@@ -327,27 +315,24 @@ public class DataStore {
 	 * @return Success
 	 */
 	private static boolean saveStringAppend(String fileName, String data) {
-		if (isSaveAllowed) {
-			StringBuilder sb = new StringBuilder(data);
-			if (sb.charAt(0) == '[')
-				sb.setCharAt(0, ',');
-			else
-				sb.insert(0, ',');
+		StringBuilder sb = new StringBuilder(data);
+		if (sb.charAt(0) == '[')
+			sb.setCharAt(0, ',');
+		else
+			sb.insert(0, ',');
 
-			data = sb.toString();
-			FileOutputStream outputStream;
-			try {
-				outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND);
-				outputStream.write(data.getBytes());
-				outputStream.close();
-				return true;
-			} catch (Exception e) {
-				e.printStackTrace();
-				FirebaseCrash.report(e);
-				return false;
-			}
-		} else
+		data = sb.toString();
+		FileOutputStream outputStream;
+		try {
+			outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND);
+			outputStream.write(data.getBytes());
+			outputStream.close();
+			return true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			FirebaseCrash.report(e);
 			return false;
+		}
 	}
 
 	/**
@@ -458,7 +443,7 @@ public class DataStore {
 				} else if (typeName.equals("String")) {
 					String val = (String) field.get(o);
 					if (val != null)
-						data = "\"" + val.replace("\\","\\\\").replace("\"", "\\\"") + "\"";
+						data = "\"" + val.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
 				} else if (typeName.equals("boolean"))
 					data = Boolean.toString(field.getBoolean(o));
 				else if (!field.getType().isPrimitive())
