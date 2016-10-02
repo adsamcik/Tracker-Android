@@ -9,11 +9,10 @@ import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.gson.Gson;
 
-import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Set;
 
-public class Setting {
+public class Preferences {
 	private static final String TAG = "SignalsSetting";
 	public static final int UPLOAD_JOB = 513;
 
@@ -51,7 +50,7 @@ public class Setting {
 	 * @param c context
 	 */
 	public static void stopTillRecharge(@NonNull Context c) {
-		getPreferences(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
+		get(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
 		if (TrackerService.service != null)
 			c.stopService(TrackerService.service);
 	}
@@ -63,7 +62,7 @@ public class Setting {
 	 * @param c Non-null context
 	 * @return Shared preferences
 	 */
-	public static SharedPreferences getPreferences(@NonNull Context c) {
+	public static SharedPreferences get(@NonNull Context c) {
 		if (sharedPreferences == null)
 			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.getApplicationContext());
 		return sharedPreferences;
@@ -76,7 +75,7 @@ public class Setting {
 	 *
 	 * @return Shared preferences
 	 */
-	public static SharedPreferences getPreferences() {
+	public static SharedPreferences get() {
 		if (sharedPreferences == null)
 			throw new RuntimeException("Shared preferences are null and no context was provided");
 		return sharedPreferences;
@@ -84,8 +83,8 @@ public class Setting {
 
 	public static void checkStatsDay(@NonNull Context context) {
 		long todayUTC = Assist.getDayInUTC();
-		SharedPreferences sp = getPreferences(context);
-		int dayDiff = (int) (todayUTC - sp.getLong(Setting.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
+		SharedPreferences sp = get(context);
+		int dayDiff = (int) (todayUTC - sp.getLong(Preferences.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
 			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);
@@ -114,7 +113,7 @@ public class Setting {
 	}
 
 	public static StatDay countStats(@NonNull Context context) {
-		SharedPreferences sp = getPreferences(context);
+		SharedPreferences sp = get(context);
 		StatDay result = getCurrent(sp);
 		Set<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
 		//noinspection Convert2streamapi

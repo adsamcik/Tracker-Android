@@ -22,12 +22,12 @@ import android.widget.ImageView;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Setting;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -47,7 +47,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ColorStateList mDefaultState;
 
 	private void updateTracking(int select) {
-		mSharedPreferences.edit().putInt(Setting.BACKGROUND_TRACKING, select).apply();
+		mSharedPreferences.edit().putInt(Preferences.BACKGROUND_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -70,7 +70,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void updateAutoup(int select) {
-		mSharedPreferences.edit().putInt(Setting.AUTO_UPLOAD, select).apply();
+		mSharedPreferences.edit().putInt(Preferences.AUTO_UPLOAD, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -96,7 +96,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
 		final Context c = getContext();
-		mSharedPreferences = Setting.getPreferences(c);
+		mSharedPreferences = Preferences.get(c);
 		final Resources resources = getResources();
 
 		try {
@@ -128,8 +128,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		mAutoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
 		mAutoupAlways.setOnClickListener(v -> updateAutoup(2));
 
-		updateTracking(mSharedPreferences.getInt(Setting.BACKGROUND_TRACKING, 1));
-		updateAutoup(mSharedPreferences.getInt(Setting.AUTO_UPLOAD, 1));
+		updateTracking(mSharedPreferences.getInt(Preferences.BACKGROUND_TRACKING, 1));
+		updateAutoup(mSharedPreferences.getInt(Preferences.AUTO_UPLOAD, 1));
 
 		textView_PlayLog = (TextView) rootView.findViewById(R.id.play_loginButton);
 
@@ -163,24 +163,24 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			alertDialogBuilder.create().show();
 		});
 
-		setSwitchChangeListener(c, Setting.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
-		setSwitchChangeListener(c, Setting.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
+		setSwitchChangeListener(c, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
+		setSwitchChangeListener(c, Preferences.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
 
 		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
-		switchNoise.setChecked(Setting.getPreferences(c).getBoolean(Setting.TRACKING_NOISE_ENABLED, false));
+		switchNoise.setChecked(Preferences.get(c).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false));
 		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(c, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
 			else
-				Setting.getPreferences(c).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, b).apply();
+				Preferences.get(c).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
 		});
 
 		return rootView;
 	}
 
 	private void setSwitchChangeListener(final Context context, final String name, Switch s, final boolean defaultState) {
-		s.setChecked(Setting.getPreferences(context).getBoolean(name, defaultState));
-		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> Setting.getPreferences(context).edit().putBoolean(name, b).apply());
+		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
+		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> Preferences.get(context).edit().putBoolean(name, b).apply());
 	}
 
 	@Override
@@ -198,7 +198,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		switch (requestCode) {
 			case REQUEST_CODE_PERMISSIONS_MICROPHONE:
 				if (success)
-					Setting.getPreferences(getContext()).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, true).apply();
+					Preferences.get(getContext()).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, true).apply();
 				else
 					switchNoise.setChecked(false);
 				break;

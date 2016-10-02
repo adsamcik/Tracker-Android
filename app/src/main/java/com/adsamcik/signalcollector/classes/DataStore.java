@@ -12,7 +12,7 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
@@ -84,7 +84,7 @@ public class DataStore {
 	 * @return Returns data file names
 	 */
 	public static String[] getDataFileNames(boolean includeLast) {
-		int maxID = Setting.getPreferences(getContext()).getInt(KEY_FILE_ID, -1);
+		int maxID = Preferences.get(getContext()).getInt(KEY_FILE_ID, -1);
 		if (maxID < 0)
 			return null;
 		if (!includeLast)
@@ -106,10 +106,10 @@ public class DataStore {
 		if (contextWeak.get() == null)
 			setContext(c);
 
-		SharedPreferences sp = Setting.getPreferences(c);
-		int autoUpload = sp.getInt(Setting.AUTO_UPLOAD, 1);
+		SharedPreferences sp = Preferences.get(c);
+		int autoUpload = sp.getInt(Preferences.AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || !isBackground) {
-			JobInfo.Builder jb = new JobInfo.Builder(Setting.UPLOAD_JOB, new ComponentName(c, UploadService.class));
+			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(c, UploadService.class));
 			if (!isBackground) {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -136,7 +136,7 @@ public class DataStore {
 			pb.putInt(KEY_IS_AUTOUPLOAD, isBackground ? 1 : 0);
 			jb.setExtras(pb);
 			((JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
-			sp.edit().putBoolean(Setting.SCHEDULED_UPLOAD, true).apply();
+			sp.edit().putBoolean(Preferences.SCHEDULED_UPLOAD, true).apply();
 		}
 	}
 
@@ -190,7 +190,7 @@ public class DataStore {
 		for (String item : renamedFiles)
 			renameFile(item, DATA_FILE + item);
 
-		Setting.getPreferences().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
+		Preferences.get().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 		isSaveAllowed = true;
 		if (onDataChanged != null) {
 			if (renamedFiles.size() > 0)
@@ -210,14 +210,14 @@ public class DataStore {
 		long size = 0;
 		for (String fileName : fileNames)
 			size += sizeOf(fileName);
-		Setting.getPreferences().edit().putLong(KEY_SIZE, size).apply();
+		Preferences.get().edit().putLong(KEY_SIZE, size).apply();
 		approxSize = size;
 		return size;
 	}
 
 	private static void initSizeOfData() {
 		if (approxSize == -1)
-			approxSize = Setting.getPreferences().getLong(KEY_SIZE, 0);
+			approxSize = Preferences.get().getLong(KEY_SIZE, 0);
 	}
 
 	/**
@@ -249,8 +249,8 @@ public class DataStore {
 	 */
 	public static void clearAllData() {
 		isSaveAllowed = false;
-		SharedPreferences sp = Setting.getPreferences();
-		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Setting.SCHEDULED_UPLOAD).apply();
+		SharedPreferences sp = Preferences.get();
+		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Preferences.SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
 		File[] files = getContext().getFilesDir().listFiles();
 
@@ -272,7 +272,7 @@ public class DataStore {
 	public static int saveData(String data) {
 		if (!isSaveAllowed)
 			return 1;
-		SharedPreferences sp = Setting.getPreferences();
+		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
 		int id = sp.getInt(KEY_FILE_ID, 0);

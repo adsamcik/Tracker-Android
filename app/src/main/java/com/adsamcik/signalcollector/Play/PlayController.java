@@ -7,7 +7,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
 
-import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.common.ConnectionResult;
@@ -119,7 +119,7 @@ public class PlayController {
 		gamesController.logout();
 		Games.signOut(gapiGamesClient);
 		gapiGamesClient.disconnect();
-		Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, false).apply();
+		Preferences.get().edit().putBoolean(Preferences.REGISTERED_USER, false).apply();
 	}
 
 	public static boolean isLogged() {

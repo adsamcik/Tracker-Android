@@ -7,7 +7,6 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.AnimatedVectorDrawable;
-import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -26,10 +25,10 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
@@ -123,7 +122,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		if (requiredPermissions == null) {
 			if (TrackerService.service == null) {
-				Setting.getPreferences(activity).edit().putBoolean(Setting.STOP_TILL_RECHARGE, false).apply();
+				Preferences.get(activity).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(activity, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				activity.startService(trackerService);
@@ -337,7 +336,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			layoutOther.setVisibility(View.VISIBLE);
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
-			} else if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false)) {
+			} else if (Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false)) {
 				textNoise.setText(res.getString(R.string.main_noise_not_collected));
 			} else
 				textNoise.setText(res.getString(R.string.main_noise_disabled));

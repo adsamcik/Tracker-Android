@@ -7,7 +7,7 @@ import android.view.View;
 import android.widget.Button;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.Network;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.games.Games;
@@ -45,7 +45,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 			new AsyncHttpClient().post(Network.URL_TOKEN_REGISTRATION, rp, new AsyncHttpResponseHandler() {
 				@Override
 				public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-					Setting.getPreferences().edit().putBoolean(Setting.REGISTERED_USER, true).apply();
+					Preferences.get().edit().putBoolean(Preferences.REGISTERED_USER, true).apply();
 				}
 
 				@Override
@@ -90,7 +90,7 @@ public class GamesController implements GoogleApiClient.ConnectionCallbacks {
 	@Override
 	public void onConnected(Bundle bundle) {
 		updateUI(true);
-		if (!Setting.getPreferences().getBoolean(Setting.REGISTERED_USER, false)) {
+		if (!Preferences.get().getBoolean(Preferences.REGISTERED_USER, false)) {
 			Network.registerUser(getUserID(), client.getContext());
 		}
 	}

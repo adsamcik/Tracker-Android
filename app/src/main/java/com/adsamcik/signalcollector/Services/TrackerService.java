@@ -28,10 +28,10 @@ import android.telephony.TelephonyManager;
 
 import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.play.PlayController;
@@ -128,15 +128,15 @@ public class TrackerService extends Service {
 		} else
 			d = new Data(System.currentTimeMillis());
 
-		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
+		SharedPreferences sp = Preferences.get(getApplicationContext());
 
-		if (sp.getBoolean(Setting.TRACKING_WIFI_ENABLED, true)) {
+		if (sp.getBoolean(Preferences.TRACKING_WIFI_ENABLED, true)) {
 			wifiManager.startScan();
 			prevScanPos = location;
 			prevScanPos.setTime(d.time);
 		}
 
-		if (sp.getBoolean(Setting.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
+		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
 			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
 
 		if (noiseTracker != null) {
@@ -222,14 +222,14 @@ public class TrackerService extends Service {
 	private void saveData() {
 		if (data.size() == 0) return;
 
-		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		Setting.checkStatsDay(getApplicationContext());
+		SharedPreferences sp = Preferences.get(getApplicationContext());
+		Preferences.checkStatsDay(getApplicationContext());
 
 		int wifiCount, cellCount, locations;
 
-		wifiCount = sp.getInt(Setting.STATS_WIFI_FOUND, 0);
-		cellCount = sp.getInt(Setting.STATS_CELL_FOUND, 0);
-		locations = sp.getInt(Setting.STATS_LOCATIONS_FOUND, 0);
+		wifiCount = sp.getInt(Preferences.STATS_WIFI_FOUND, 0);
+		cellCount = sp.getInt(Preferences.STATS_CELL_FOUND, 0);
+		locations = sp.getInt(Preferences.STATS_LOCATIONS_FOUND, 0);
 		for (Data d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
@@ -237,7 +237,7 @@ public class TrackerService extends Service {
 				cellCount += d.cellCount;
 		}
 
-		sp.edit().putInt(Setting.STATS_WIFI_FOUND, wifiCount).putInt(Setting.STATS_CELL_FOUND, cellCount).putInt(Setting.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
+		sp.edit().putInt(Preferences.STATS_WIFI_FOUND, wifiCount).putInt(Preferences.STATS_CELL_FOUND, cellCount).putInt(Preferences.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
@@ -308,7 +308,7 @@ public class TrackerService extends Service {
 		startForeground(1, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
-		if (Setting.getPreferences(this).getBoolean(Setting.TRACKING_NOISE_ENABLED, false))
+		if (Preferences.get(this).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false))
 			noiseTracker = new NoiseTracker().start();
 		return super.onStartCommand(intent, flags, startId);
 	}
@@ -334,8 +334,8 @@ public class TrackerService extends Service {
 		if (!wifiEnabled)
 			wifiManager.setWifiEnabled(false);
 
-		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		sp.edit().putInt(Setting.STATS_MINUTES, sp.getInt(Setting.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
+		SharedPreferences sp = Preferences.get(getApplicationContext());
+		sp.edit().putInt(Preferences.STATS_MINUTES, sp.getInt(Preferences.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 	}
 
 	@Nullable

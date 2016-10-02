@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.icu.util.TimeZone;
 import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -152,7 +151,7 @@ public class Assist {
 			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
-			if (Setting.getPreferences(context).getBoolean(Setting.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+			if (Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.RECORD_AUDIO);
 
 			if (permissions.size() == 0)
@@ -175,7 +174,7 @@ public class Assist {
 			initialize(c);
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
 		if (isBackground) {
-			int aVal = Setting.getPreferences(c).getInt(Setting.AUTO_UPLOAD, 1);
+			int aVal = Preferences.get(c).getInt(Preferences.AUTO_UPLOAD, 1);
 			return activeNetwork != null && activeNetwork.isConnectedOrConnecting() &&
 					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||
 							(aVal == 2 && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE && !activeNetwork.isRoaming()));

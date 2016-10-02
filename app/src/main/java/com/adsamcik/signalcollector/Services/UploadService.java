@@ -9,8 +9,8 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.Setting;
 import com.adsamcik.signalcollector.classes.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -97,7 +97,7 @@ public class UploadService extends JobService {
 			Assist.initialize(c);
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
-				Setting.getPreferences(c).edit().putBoolean(Setting.SCHEDULED_UPLOAD, false).apply();
+				Preferences.get(c).edit().putBoolean(Preferences.SCHEDULED_UPLOAD, false).apply();
 				String[] files = DataStore.getDataFileNames(!background);
 				if (files == null || files.length == 0) {
 					Log.e(DataStore.TAG, "No file names were entered");
@@ -157,8 +157,8 @@ public class UploadService extends JobService {
 	}
 
 	void updateUploadedStat(long uploaded) {
-		SharedPreferences sp = Setting.getPreferences(getApplicationContext());
-		sp.edit().putLong(Setting.STATS_UPLOADED, sp.getLong(Setting.STATS_UPLOADED, 0) + uploaded).apply();
+		SharedPreferences sp = Preferences.get(getApplicationContext());
+		sp.edit().putLong(Preferences.STATS_UPLOADED, sp.getLong(Preferences.STATS_UPLOADED, 0) + uploaded).apply();
 	}
 
 	@Override

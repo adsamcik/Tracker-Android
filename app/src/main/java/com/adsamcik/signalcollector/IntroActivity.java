@@ -77,7 +77,7 @@ public class IntroActivity extends AppIntro2 {
 	@SuppressLint("CommitPrefEdits")
 	@Override
 	public void onDonePressed(Fragment currentFragment) {
-		Setting.getPreferences(this).edit().putBoolean(Setting.HAS_BEEN_LAUNCHED, true).apply();
+		Preferences.get(this).edit().putBoolean(Preferences.HAS_BEEN_LAUNCHED, true).apply();
 		startActivity(new Intent(this, MainActivity.class));
 	}
 
@@ -97,7 +97,7 @@ public class IntroActivity extends AppIntro2 {
 				}
 			}
 		} else if (permissions.length == 1) {
-			Setting.getPreferences(getApplicationContext()).edit().putBoolean(Setting.TRACKING_NOISE_ENABLED, grantResults[0] == PackageManager.PERMISSION_GRANTED).apply();
+			Preferences.get(getApplicationContext()).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, grantResults[0] == PackageManager.PERMISSION_GRANTED).apply();
 			if (grantResults[0] != PackageManager.PERMISSION_GRANTED)
 				Toast.makeText(this, "Noise can be enabled in settings.", Toast.LENGTH_SHORT).show();
 		}

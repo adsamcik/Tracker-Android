@@ -6,8 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.services.TrackerService;
-import com.adsamcik.signalcollector.Setting;
 
 public class NotificationReceiver extends BroadcastReceiver {
 	private final String TAG = "SignalsNotifiReceiver";
@@ -18,7 +18,7 @@ public class NotificationReceiver extends BroadcastReceiver {
 		int value = intent.getIntExtra(ACTION_STRING, -1);
 		switch (value) {
 			case 0:
-				Setting.stopTillRecharge(context);
+				Preferences.stopTillRecharge(context);
 				break;
 			case 1:
 				context.stopService(TrackerService.service);

@@ -71,7 +71,7 @@ public class MainActivity extends FragmentActivity {
 
 		Assist.initialize(this);
 
-		if (Setting.getPreferences(this).getBoolean(Setting.SCHEDULED_UPLOAD, false))
+		if (Preferences.get(this).getBoolean(Preferences.SCHEDULED_UPLOAD, false))
 			DataStore.requestUpload(this, true);
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
@@ -157,8 +157,8 @@ public class MainActivity extends FragmentActivity {
 		}
 
 		Context context = getApplicationContext();
-		//SharedPreferences sp = Setting.getPreferences(context);
-		//if (!sp.getBoolean(Setting.SENT_TOKEN_TO_SERVER, false)) {
+		//SharedPreferences sp = Preferences.get(context);
+		//if (!sp.getBoolean(Preferences.SENT_TOKEN_TO_SERVER, false)) {
 			String token = FirebaseInstanceId.getInstance().getToken();
 			if (token != null)
 				Network.registerToken(token, context);

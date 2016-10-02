@@ -9,7 +9,7 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
@@ -76,9 +76,9 @@ public class ActivityService extends IntentService {
 	 * @return true if background tracking can be activated
 	 */
 	private boolean canBackgroundTrack(int evalActivity) {
-		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Setting.getPreferences(this).getBoolean(Setting.STOP_TILL_RECHARGE, false))
+		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Preferences.get(this).getBoolean(Preferences.STOP_TILL_RECHARGE, false))
 			return false;
-		int val = Setting.getPreferences(this).getInt(Setting.BACKGROUND_TRACKING, 1);
+		int val = Preferences.get(this).getInt(Preferences.BACKGROUND_TRACKING, 1);
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}
 
@@ -91,7 +91,7 @@ public class ActivityService extends IntentService {
 	private boolean canContinueBackgroundTracking(int evalActivity) {
 		if (evalActivity == 0)
 			return false;
-		int val = Setting.getPreferences(this).getInt(Setting.BACKGROUND_TRACKING, 1);
+		int val = Preferences.get(this).getInt(Preferences.BACKGROUND_TRACKING, 1);
 		return val == 2 || (val == 1 && (evalActivity == 1 || evalActivity == 3));
 	}
 }
