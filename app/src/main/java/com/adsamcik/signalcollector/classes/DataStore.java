@@ -17,8 +17,10 @@ import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -335,12 +337,36 @@ public class DataStore {
 		}
 	}
 
+	/**
+	 * Loads json array that was saved with append method
+	 *
+	 * @param fileName file name
+	 * @return proper json array
+	 */
 	public static String loadJsonArrayAppend(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
 		if (sb != null && sb.length() != 0) {
 			sb.setCharAt(0, '[');
 			sb.append(']');
 			return sb.toString();
+		}
+		return null;
+	}
+
+	/**
+	 * Loads whole json array and than finds last object and converts it to java object
+	 *
+	 * @param fileName  file name
+	 * @param tClass class of the resulting object
+	 * @return last object of json array or null
+	 */
+	public static <T> T loadLastObjectJsonArrayAppend(String fileName, Class<T> tClass) {
+		StringBuilder sb = loadStringAsBuilder(fileName);
+		if (sb == null)
+			return null;
+		for (int i = sb.length() - 1; i >= 0; i--) {
+			if (sb.charAt(i) == '{')
+				return new Gson().fromJson(sb.substring(i), tClass);
 		}
 		return null;
 	}
