@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Bundle;
@@ -17,12 +18,14 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Setting;
+import com.adsamcik.signalcollector.RecentUploadsActivity;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.classes.Table;
+import com.adsamcik.signalcollector.classes.UploadStats;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
@@ -35,7 +38,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -48,6 +50,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private static final String USER_STAT_FILE = "user_stats_cache_file";
 
 	private Table weeklyStats;
+	private Table lastUpload;
 	private ArrayList<Table> publicStats = null;
 	private View view;
 
@@ -75,22 +78,47 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
 		Resources r = getResources();
 
-		Setting.checkStatsDay(getActivity());
+		boolean lastUploadAvailable = false;
+
+		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(Preferences.RECENT_UPLOADS_FILE, UploadStats.class);
+		if (us != null) {
+			lastUpload = new Table(getContext(), 4, false);
+			lastUpload.setTitle("Last upload");
+			lastUpload.addRow().addData("Wifi found", us.wifi + " (new " + us.newWifi + ")");
+			lastUpload.addRow().addData("Cell found", us.cell + " (new " + us.newCell + ")");
+			lastUpload.addRow().addData("Noise collected", String.valueOf(us.noiseCollections));
+			lastUpload.addRow().addData("New locations", String.valueOf(us.newLocations));
+			lastUpload.addRow().addData("Upload size", String.valueOf(us.uploadSize));
+			lastUpload.getLayout().setOnClickListener(view1 -> {
+				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
+				// create the transition animation - the images in the layouts
+				// of both activities are defined with android:transitionName="robot"
+				//ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(getActivity(), lastUpload.getLayout(), "lastUpload");
+				startActivity(intent);
+			});
+			lastUpload.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
+		} else {
+			if (lastUpload != null)
+				lastUpload.destroy(getActivity());
+			lastUploadAvailable = true;
+		}
+
+		Preferences.checkStatsDay(getActivity());
 
 		weeklyStats.clear();
 		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
-		StatDay weekStats = Setting.countStats(getActivity());
+		StatDay weekStats = Preferences.countStats(getActivity());
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.getUploaded()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
-		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
+		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), lastUploadAvailable ? 1 : 0, false, 0);
 
 		Activity activity = getActivity();
-		SharedPreferences sp = Setting.getPreferences(activity);
+		SharedPreferences sp = Preferences.get(activity);
 
-		if (!DataStore.exists(GENERAL_STAT_FILE) || Assist.getDayInUTC() > sp.getLong(Setting.GENERAL_STATS_LAST_UPDATE, 0))
+		if (!DataStore.exists(GENERAL_STAT_FILE) || Assist.getDayInUTC() > sp.getLong(Preferences.GENERAL_STATS_LAST_UPDATE, 0))
 			getPublicStats();
 		else
 			generateStats(DataStore.loadString(GENERAL_STAT_FILE), activity);
@@ -122,7 +150,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 					generateStats(body, activity);
 					if (refreshLayout != null && refreshLayout.isRefreshing())
 						activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-					Setting.getPreferences(getContext()).edit().putLong(Setting.GENERAL_STATS_LAST_UPDATE, Assist.getDayInUTC()).apply();
+					Preferences.get(getContext()).edit().putLong(Preferences.GENERAL_STATS_LAST_UPDATE, Assist.getDayInUTC()).apply();
 				}
 			}
 		};
@@ -155,7 +183,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			public void onResponse(Call call, Response response) throws IOException {
 				String body = response.body().string();
 				if (body.startsWith("[")) {
-					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {}.getType());
+					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {
+					}.getType());
 					getActivity().runOnUiThread(() -> generateStatsTable(stats));
 				}
 				response.close();
