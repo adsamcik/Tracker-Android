@@ -1,7 +1,9 @@
 package com.adsamcik.signalcollector;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
+import android.support.v4.app.NavUtils;
 import android.view.View;
 import android.widget.LinearLayout;
 
@@ -23,7 +25,7 @@ public class RecentUploadsActivity extends Activity {
 		t.getLayout().setTransitionName("lastUpload");
 		t.addToViewGroup((LinearLayout) findViewById(R.id.recent_uploads_layout), 0, false, 0);
 		findViewById(R.id.back_button).setOnClickListener(view -> {
-			finish();
+			NavUtils.navigateUpFromSameTask(this);
 		});
 	}
 }

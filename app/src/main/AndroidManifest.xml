@@ -34,8 +34,9 @@
 
         <activity
             android:name=".MainActivity"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTop"
             android:screenOrientation="portrait"
+            android:alwaysRetainTaskState="true"
             android:theme="@style/AppTheme"/>
 
         <activity
@@ -45,7 +46,6 @@
 
         <activity
             android:name=".RecentUploadsActivity"
-            android:launchMode="singleInstance"
             android:screenOrientation="portrait"
             android:parentActivityName=".MainActivity"
             android:theme="@style/AppTheme"/>
