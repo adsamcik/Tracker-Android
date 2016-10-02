@@ -314,7 +314,7 @@ public class DataStore {
 	 * @param data     Json data to be saved
 	 * @return Success
 	 */
-	private static boolean saveStringAppend(String fileName, String data) {
+	public static boolean saveStringAppend(String fileName, String data) {
 		StringBuilder sb = new StringBuilder(data);
 		if (sb.charAt(0) == '[')
 			sb.setCharAt(0, ',');
