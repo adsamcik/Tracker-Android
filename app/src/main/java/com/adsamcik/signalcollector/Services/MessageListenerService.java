@@ -41,6 +41,10 @@ public class MessageListenerService extends FirebaseMessagingService {
 		switch (MessageType.values()[Integer.parseInt(type)]) {
 			case UploadReport:
 				UploadStats us = parseAndSaveUploadReport(data);
+				if (us.newLocations == 0)
+					sendNotification("New upload summary", "No new locations tracked. Try visiting new places.");
+				else
+					sendNotification("New upload summary", "Tracked " + us.newLocations + " new places. Good job.");
 				break;
 			case Notification:
 				sendNotification(data.get(TITLE), data.get(MESSAGE));
