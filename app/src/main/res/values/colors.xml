@@ -9,7 +9,7 @@
     <color name="textPrimary">#FFFFFFFF</color>
     <color name="textSecondary">#B2FFFFFF</color>
     <color name="textDisabled">#80FFFFFF</color>
-    <color name="dividerColor">#33FFFFFF</color>
+    <color name="dividerColor">#1FFFFFFF</color>
     <color name="error">#d32f2f</color>
     <color name="cardBackground">#424242</color>
     <color name="activeIcon">#8AFFFFFF</color>
