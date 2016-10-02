@@ -118,19 +118,12 @@ public class UploadService extends JobService {
 							continue;
 						}
 
-						StringBuilder builder = DataStore.loadStringAsBuilder(fileName);
-
-						if (builder == null || builder.length() == 0) {
-							String issue = builder == null ? "does not exist" : "is empty";
-							Log.e(DataStore.TAG, "File " + fileName + " " + issue + ". This should not happen.");
-							FirebaseCrash.report(new Exception("File " + fileName + " " + issue + ". This should not happen."));
+						String data = DataStore.loadJsonArrayAppend(fileName);
+						if(data == null)
 							continue;
-						} else {
-							builder.setCharAt(0, '[');
-							builder.append(']');
-						}
+
 						if (Assist.canUpload(c, background)) {
-							if (!upload(builder.toString(), fileName)) {
+							if (!upload(data, fileName)) {
 								DataStore.requestUpload(c, true);
 								DataStore.onUpload(-1);
 								break;

@@ -80,7 +80,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			uploadSize = Long.parseLong(data.get(SIZE));
 
 		UploadStats us = new UploadStats(wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize);
-		DataStore.saveStringAppend(Preferences.RECENT_UPLOADS_FILE, new Gson().toJson(us));
+		DataStore.saveJsonArrayAppend(Preferences.RECENT_UPLOADS_FILE, new Gson().toJson(us));
 		return us;
 	}
 
