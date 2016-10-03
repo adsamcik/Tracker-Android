@@ -24,8 +24,6 @@ public class RecentUploadsActivity extends Activity {
 		t.addRow().addData("Noise collected", "50");
 		t.getLayout().setTransitionName("lastUpload");
 		t.addToViewGroup((LinearLayout) findViewById(R.id.recent_uploads_layout), 0, false, 0);
-		findViewById(R.id.back_button).setOnClickListener(view -> {
-			NavUtils.navigateUpFromSameTask(this);
-		});
+		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));
 	}
 }
