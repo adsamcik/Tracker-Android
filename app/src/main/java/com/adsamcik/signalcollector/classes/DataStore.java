@@ -12,12 +12,15 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
@@ -32,9 +35,14 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 
 public class DataStore {
 	public static final String TAG = "DATA-STORE";
+
+	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 	private static final String DATA_FILE = "dataStore";
 	private static final String KEY_FILE_ID = "saveFileID";
 	private static final String KEY_SIZE = "totalSize";
@@ -356,8 +364,8 @@ public class DataStore {
 	/**
 	 * Loads whole json array and than finds last object and converts it to java object
 	 *
-	 * @param fileName  file name
-	 * @param tClass class of the resulting object
+	 * @param fileName file name
+	 * @param tClass   class of the resulting object
 	 * @return last object of json array or null
 	 */
 	public static <T> T loadLastObjectJsonArrayAppend(String fileName, Class<T> tClass) {
@@ -501,5 +509,28 @@ public class DataStore {
 		out = out.substring(0, out.length() - 1);
 		out += "}";
 		return out;
+	}
+
+	public static void lookForOlderUploads() {
+		SharedPreferences sp = Preferences.get(contextWeak.get());
+		long oldestUpload = sp.getLong(Preferences.OLDEST_RECENT_UPLOAD, -1);
+		if (oldestUpload != -1) {
+			long now = System.currentTimeMillis();
+			long diff = now - oldestUpload;
+			long days = diff / Assist.DAY_IN_MILLISECONDS;
+			if (days > 30) {
+				ArrayList<UploadStats> stats = new Gson().fromJson(DataStore.loadJsonArrayAppend(RECENT_UPLOADS_FILE), new TypeToken<List<Stat>>() {
+				}.getType());
+				for (int i = 0; i < stats.size(); i++) {
+					if (now - stats.get(i).time > (long) Assist.DAY_IN_MILLISECONDS * 30)
+						stats.remove(i--);
+				}
+
+				if (stats.size() > 0)
+					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, stats.get(0).time).apply();
+				else
+					sp.edit().remove(Preferences.OLDEST_RECENT_UPLOAD).apply();
+			}
+		}
 	}
 }

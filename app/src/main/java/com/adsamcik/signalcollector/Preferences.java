@@ -29,18 +29,23 @@ public class Preferences {
 	public static final String STATS_CELL_FOUND = "statsCellFound";
 	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";
 	public static final String STATS_MINUTES = "statsMinutes";
-	public static final String STATS_UPLOADED = "statsUploadKilobytes";
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 
+	public static final String AVAILABLE_MAPS = "availableMaps";
+
+	public static final String OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
+
+	//obsolete
+	public static final String STATS_UPLOADED = "statsUploadKilobytes";
+
 	public static final String GENERAL_STATS_LAST_UPDATE = "generalStatsLastUpdate";
 	public static final String USER_STATS_LAST_UPDATE = "userStatsLastUpdate";
+	public static final String AVAILABLE_MAPS_LAST_UPDATE = "availableMapsLastUpdate";
 
 	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
-
-	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 
 	private static final int MAX_DAY_DIFF_STATS = 7;
 

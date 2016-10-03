@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.support.annotation.NonNull;
@@ -44,6 +45,9 @@ public class MessageListenerService extends FirebaseMessagingService {
 		switch (MessageType.values()[Integer.parseInt(type)]) {
 			case UploadReport:
 				UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
+				SharedPreferences sp = Preferences.get(getApplicationContext());
+				if(!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
+					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
 				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
 				if (us.newLocations == 0)
@@ -91,7 +95,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			uploadSize = Long.parseLong(data.get(SIZE));
 
 		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize);
-		DataStore.saveJsonArrayAppend(Preferences.RECENT_UPLOADS_FILE, new Gson().toJson(us));
+		DataStore.saveJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(us));
 		return us;
 	}
 
