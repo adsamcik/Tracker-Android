@@ -68,7 +68,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onDestroyView() {
 		((LinearLayout) view.findViewById(R.id.statsLayout)).removeAllViews();
-		publicStats.clear();
+		if (publicStats != null)
+			publicStats.clear();
 		super.onDestroyView();
 	}
 
