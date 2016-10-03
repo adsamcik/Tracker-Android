@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.classes;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Path;
 import android.support.design.widget.FloatingActionButton;
@@ -12,6 +13,10 @@ import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,7 +27,7 @@ public class FabMenu {
 	private final int FAB_TARGET_Y = -50;
 	private final int FAB_ARC_X = -75;
 	private final int FAB_ARC_Y = 50;*/
-	private final int FAB_MOVEMENT_LENGTH = 200;
+	//private final int FAB_MOVEMENT_LENGTH = 200;
 
 	private FloatingActionButton fab;
 	//private float originalFabX;
@@ -32,7 +37,7 @@ public class FabMenu {
 	private ViewGroup menu;
 	private IValueCallback<String> callback;
 
-	private List<TextView> items = new ArrayList<>();
+	//private List<TextView> items = new ArrayList<>();
 
 	private View.OnClickListener closeClickListener = (p) -> hide();
 
@@ -64,12 +69,24 @@ public class FabMenu {
 		return this;
 	}
 
-	public FabMenu addItem(final String name, final Context context) {
-		TextView tv = (TextView) LayoutInflater.from(context).inflate(R.layout.fab_menu_button, menu, false);
+	public FabMenu addItems(final String jsonStringArray, final Activity activity) throws JSONException {
+		JSONArray array = new JSONArray(jsonStringArray);
+		for (int i = 0; i < array.length(); i++)
+			addItem(array.getString(i), activity);
+		return this;
+	}
+
+	public FabMenu addItem(final String name, final Activity activity) {
+		TextView tv = (TextView) LayoutInflater.from(activity).inflate(R.layout.fab_menu_button, menu, false);
 		tv.setText(name);
 		tv.setOnClickListener(v -> callback(name));
-		menu.addView(tv);
-		items.add(tv);
+		activity.runOnUiThread(() -> menu.addView(tv));
+		//items.add(tv);
+		return this;
+	}
+
+	public FabMenu clear() {
+		menu.removeAllViews();
 		return this;
 	}
 

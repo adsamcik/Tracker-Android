@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
@@ -22,6 +23,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.FabMenu;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
@@ -45,9 +48,18 @@ import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 import com.google.firebase.crash.FirebaseCrash;
 
+import org.json.JSONException;
+
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
@@ -68,6 +80,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private Marker userCenter;
 
 	private FabMenu menu;
+
+	private boolean isActive = false;
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
@@ -92,6 +106,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
+		isActive = false;
 		if (checkLocationPermission(getContext(), false)) {
 			if (locationManager == null)
 				FirebaseCrash.log("Location manager is null on leave");
@@ -123,7 +138,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return new Success<>("App does not have required permissions.");
 
-		menu.setFab(fabTwo);
+		isActive = true;
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
@@ -132,6 +147,46 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				locationListener.moveToMyPosition();
 		});
 
+		menu.clear();
+		SharedPreferences sp = Preferences.get(activity);
+		long lastUpdate = sp.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
+		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
+			OkHttpClient client = new OkHttpClient();
+			Request request = new Request.Builder().url(Network.URL_MAPS_AVAILABLE).build();
+
+			client.newCall(request).enqueue(new Callback() {
+				@Override
+				public void onFailure(Call call, IOException e) {
+
+				}
+
+				@Override
+				public void onResponse(Call call, Response response) throws IOException {
+					String json = response.body().string();
+					try {
+						menu.addItems(json, activity);
+						if (isActive)
+							fabTwo.show();
+					} catch (JSONException e) {
+						FirebaseCrash.report(e);
+					}
+					sp.edit()
+							.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
+							.putString(Preferences.AVAILABLE_MAPS, json)
+							.apply();
+				}
+			});
+		} else {
+			try {
+				menu.addItems(sp.getString(Preferences.AVAILABLE_MAPS, null), activity);
+				fabTwo.show();
+			}
+			catch (JSONException e) {
+				FirebaseCrash.report(e);
+			}
+		}
+
+		menu.setFab(fabTwo);
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
@@ -169,8 +224,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		Context c = getContext();
 		assert container != null;
 		menu = new FabMenu((ViewGroup) container.getParent(), c);
-		menu.addItem("Wifi", c);
-		menu.addItem("Cell", c);
 		return view;
 	}
 
@@ -182,7 +235,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	/**
 	 * Change map overlay
-	 *
 	 */
 	private void changeMapOverlay(@NonNull String type) {
 		if (map == null) {
