@@ -43,7 +43,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 		switch (MessageType.values()[Integer.parseInt(type)]) {
 			case UploadReport:
-				UploadStats us = parseAndSaveUploadReport(data);
+				UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
 				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
 				if (us.newLocations == 0)
@@ -61,7 +61,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		}
 	}
 
-	private UploadStats parseAndSaveUploadReport(Map<String, String> data) {
+	private UploadStats parseAndSaveUploadReport(long time, Map<String, String> data) {
 		final String WIFI = "wifi";
 		final String NEW_WIFI = "newWifi";
 		final String CELL = "cell";
@@ -90,7 +90,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		if (data.containsKey(SIZE))
 			uploadSize = Long.parseLong(data.get(SIZE));
 
-		UploadStats us = new UploadStats(wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize);
+		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize);
 		DataStore.saveJsonArrayAppend(Preferences.RECENT_UPLOADS_FILE, new Gson().toJson(us));
 		return us;
 	}
