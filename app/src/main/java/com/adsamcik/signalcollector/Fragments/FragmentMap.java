@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -48,6 +49,7 @@ import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 import com.google.firebase.crash.FirebaseCrash;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 
 import java.io.IOException;
@@ -64,7 +66,7 @@ import okhttp3.Response;
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
 	private static final String TAG = "SignalsMap";
-	private String type;
+	private String type = null;
 	private boolean initialized = false;
 	private GoogleMap map;
 	private TileProvider tileProvider;
@@ -163,13 +165,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				@Override
 				public void onResponse(Call call, Response response) throws IOException {
 					String json = response.body().string();
-					try {
-						menu.addItems(json, activity);
-						if (isActive)
-							fabTwo.show();
-					} catch (JSONException e) {
-						FirebaseCrash.report(e);
-					}
+					addItemsToMenu(json, activity, fabTwo);
 					sp.edit()
 							.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
 							.putString(Preferences.AVAILABLE_MAPS, json)
@@ -177,13 +173,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				}
 			});
 		} else {
-			try {
-				menu.addItems(sp.getString(Preferences.AVAILABLE_MAPS, null), activity);
-				fabTwo.show();
-			}
-			catch (JSONException e) {
-				FirebaseCrash.report(e);
-			}
+			addItemsToMenu(sp.getString(Preferences.AVAILABLE_MAPS, null), activity, fabTwo);
 		}
 
 		menu.setFab(fabTwo);
@@ -205,6 +195,24 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 
 		return new Success<>();
+	}
+
+	private void addItemsToMenu(final String jsonStringArray, final Activity activity, final @Nullable FloatingActionButton fab) {
+		menu.clear();
+		try {
+			JSONArray array = new JSONArray(jsonStringArray);
+			if (array.length() == 0)
+				return;
+			changeMapOverlay(array.getString(0));
+			for (int i = 0; i < array.length(); i++)
+				menu.addItem(array.getString(i), activity);
+		} catch (Exception e) {
+			FirebaseCrash.report(e);
+			return;
+		}
+		if (fab != null) {
+			fab.show();
+		}
 	}
 
 	@Nullable
@@ -237,18 +245,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * Change map overlay
 	 */
 	private void changeMapOverlay(@NonNull String type) {
-		if (map == null) {
-			FirebaseCrash.report(new Throwable("changeMapOverlay should not be called before map is initialized"));
-			Log.e("Map", "changeMapOverlay should not be called before map is initialized");
-			return;
-		}
-
-		if (!type.equals(this.type) || activeOverlay == null) {
-			this.type = type;
+		if (map != null && (!type.equals(this.type) || activeOverlay == null)) {
 			if (activeOverlay != null)
 				activeOverlay.remove();
 			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		}
+		this.type = type;
 	}
 
 	@Override
@@ -301,7 +303,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
-		changeMapOverlay("Wifi");
+		if (type != null)
+			changeMapOverlay(type);
 	}
 
 	/**

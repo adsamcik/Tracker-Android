@@ -37,7 +37,7 @@ public class FabMenu {
 	private ViewGroup menu;
 	private IValueCallback<String> callback;
 
-	//private List<TextView> items = new ArrayList<>();
+	//private ArrayList<TextView> items = new ArrayList<>();
 
 	private View.OnClickListener closeClickListener = (p) -> hide();
 
@@ -85,7 +85,19 @@ public class FabMenu {
 		return this;
 	}
 
+	/*public CharSequence getItem(int index) {
+		if (items.size() > index)
+			return items.get(index).getText();
+		return null;
+	}
+
+	public void removeItem(int index) {
+		if (items.size() > index)
+			menu.removeViewAt(index);
+	}*/
+
 	public FabMenu clear() {
+		//items.clear();
 		menu.removeAllViews();
 		return this;
 	}
