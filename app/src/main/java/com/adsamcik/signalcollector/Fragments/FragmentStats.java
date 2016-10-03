@@ -81,7 +81,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		boolean lastUploadAvailable = false;
 
-		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(Preferences.RECENT_UPLOADS_FILE, UploadStats.class);
+		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null) {
 			lastUpload = new Table(getContext(), 4, false);
 			lastUpload.setTitle("Last upload");
