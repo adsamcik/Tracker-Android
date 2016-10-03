@@ -7,9 +7,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.RecentUploadsActivity;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.UploadStats;
 import com.adsamcik.signalcollector.play.PlayController;
@@ -41,16 +44,18 @@ public class MessageListenerService extends FirebaseMessagingService {
 		switch (MessageType.values()[Integer.parseInt(type)]) {
 			case UploadReport:
 				UploadStats us = parseAndSaveUploadReport(data);
+				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
+
 				if (us.newLocations == 0)
-					sendNotification("New upload summary", "No new locations tracked. Try visiting new places.");
+					sendNotification("New upload summary", "No new locations tracked. Try visiting new places.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 				else
-					sendNotification("New upload summary", "Tracked " + us.newLocations + " new places. Good job.");
+					sendNotification("New upload summary", "Tracked " + us.newLocations + " new places. Good job.",  PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 				break;
 			case Notification:
-				sendNotification(data.get(TITLE), data.get(MESSAGE));
+				sendNotification(data.get(TITLE), data.get(MESSAGE), null);
 				break;
 			case Achievement:
-				sendNotification(data.get(TITLE), data.get(MESSAGE));
+				sendNotification(data.get(TITLE), data.get(MESSAGE), null);
 				PlayController.gamesController.earnAchievement(data.get("achievement-id"));
 				break;
 		}
@@ -91,14 +96,17 @@ public class MessageListenerService extends FirebaseMessagingService {
 	}
 
 	/**
-	 * Create and show a simple notification containing the received GCM value.
+	 * Create and show notification
 	 *
-	 * @param message GCM value received.
+	 * @param title title
+	 * @param message message
+	 * @param pendingIntent intent if special action is wanted
 	 */
-	private void sendNotification(String title, String message) {
+	private void sendNotification(@NonNull String title, @NonNull String message, @Nullable PendingIntent pendingIntent) {
 		Intent intent = new Intent(this, MainActivity.class);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-		PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
+		if (pendingIntent == null)
+			pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
 
 		Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
 		Notification.Builder notificationBuilder = new Notification.Builder(this)
