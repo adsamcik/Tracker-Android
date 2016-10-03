@@ -97,10 +97,10 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				startActivity(intent);
 			});
 			lastUpload.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
+			lastUploadAvailable = true;
 		} else {
 			if (lastUpload != null)
 				lastUpload.destroy(getActivity());
-			lastUploadAvailable = true;
 		}
 
 		Preferences.checkStatsDay(getActivity());
