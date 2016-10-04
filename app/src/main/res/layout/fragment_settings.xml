@@ -133,7 +133,7 @@
 
         <View
             android:layout_width="match_parent"
-            android:layout_height="3dp"
+            android:layout_height="@dimen/divider_height"
             android:background="@color/dividerColor"/>
 
         <Button
@@ -162,6 +162,10 @@
             android:textSize="@dimen/setting_text_size"
             style="@style/PrimaryText"/>
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
 
         <Switch
             android:id="@+id/switchTrackCell"
@@ -172,6 +176,11 @@
             android:text="@string/settings_track_cell"
             android:textSize="@dimen/setting_text_size"
             style="@style/PrimaryText"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
@@ -200,6 +209,11 @@
             android:text="@string/settings_allow_notifications"
             android:textSize="@dimen/setting_text_size"
             style="@style/PrimaryText"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
 
         <Button
             android:id="@+id/other_clear"
