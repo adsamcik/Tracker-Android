@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.services.TrackerService;
@@ -32,12 +33,13 @@ public class Preferences {
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 
+	public static final String STATS_UPLOADED = "statsUploaded";
+	//obsolete
+	public static final String STATS_UPLOADED_OLD = "statsUploadKilobytes";
+
 	public static final String AVAILABLE_MAPS = "availableMaps";
 
 	public static final String OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
-
-	//obsolete
-	public static final String STATS_UPLOADED = "statsUploadKilobytes";
 
 	public static final String GENERAL_STATS_LAST_UPDATE = "generalStatsLastUpdate";
 	public static final String USER_STATS_LAST_UPDATE = "userStatsLastUpdate";
@@ -88,15 +90,20 @@ public class Preferences {
 		return sharedPreferences;
 	}
 
-	public static void checkStatsDay(@NonNull Context context) {
+	public static void checkStatsDay(@Nullable Context context) {
+		if(sharedPreferences == null) {
+			if(context == null)
+				throw new RuntimeException("Shared preferences and context are null");
+			else
+				sharedPreferences = get(context);
+		}
 		long todayUTC = Assist.getDayInUTC();
-		SharedPreferences sp = get(context);
-		int dayDiff = (int) (todayUTC - sp.getLong(Preferences.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
+		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
-			Set<String> stringStats = sp.getStringSet(STATS_LAST_7_DAYS, null);
+			Set<String> stringStats = sharedPreferences.getStringSet(STATS_LAST_7_DAYS, null);
 			Set<StatDay> stats = fromJson(stringStats, dayDiff);
 
-			stats.add(getCurrent(sp));
+			stats.add(getCurrent(sharedPreferences));
 
 			if (stringStats == null)
 				stringStats = new HashSet<>();
@@ -107,7 +114,7 @@ public class Preferences {
 			for (StatDay day : stats)
 				stringStats.add(gson.toJson(day));
 
-			sp.edit()
+			sharedPreferences.edit()
 					.putLong(STATS_STAT_LAST_DAY, todayUTC)
 					.putStringSet(STATS_LAST_7_DAYS, stringStats)
 					.putInt(STATS_MINUTES, 0)

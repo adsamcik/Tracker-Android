@@ -108,7 +108,6 @@ public class UploadService extends JobService {
 
 				queued = files.length;
 				originalQueueLength = files.length;
-				long originalSize = DataStore.recountDataSize();
 				for (String fileName : files) {
 					queued--;
 					if (!Thread.currentThread().isInterrupted()) {
@@ -140,18 +139,12 @@ public class UploadService extends JobService {
 				}
 
 				DataStore.cleanup();
-				updateUploadedStat(originalSize - DataStore.recountDataSize());
 			});
 
 			thread.start();
 			return true;
 		}
 		return false;
-	}
-
-	void updateUploadedStat(long uploaded) {
-		SharedPreferences sp = Preferences.get(getApplicationContext());
-		sp.edit().putLong(Preferences.STATS_UPLOADED, sp.getLong(Preferences.STATS_UPLOADED, 0) + uploaded).apply();
 	}
 
 	@Override

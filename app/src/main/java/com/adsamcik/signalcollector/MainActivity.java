@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -157,12 +158,16 @@ public class MainActivity extends FragmentActivity {
 		}
 
 		Context context = getApplicationContext();
-		//SharedPreferences sp = Preferences.get(context);
+		//todo uncomment this when server is ready
+		SharedPreferences sp = Preferences.get(context);
 		//if (!sp.getBoolean(Preferences.SENT_TOKEN_TO_SERVER, false)) {
 			String token = FirebaseInstanceId.getInstance().getToken();
 			if (token != null)
 				Network.registerToken(token, context);
 		//}
+
+		if(sp.contains(Preferences.STATS_UPLOADED_OLD))
+			sp.edit().remove(Preferences.STATS_UPLOADED_OLD).apply();
 	}
 
 	@Override

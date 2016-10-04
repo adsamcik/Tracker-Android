@@ -34,7 +34,9 @@ public class MessageListenerService extends FirebaseMessagingService {
 		final String MESSAGE = "message";
 		final String TYPE = "type";
 
-		DataStore.setContext(getApplicationContext());
+		Context context = getApplicationContext();
+
+		DataStore.setContext(context);
 
 		Map<String, String> data = message.getData();
 
@@ -45,7 +47,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		switch (MessageType.values()[Integer.parseInt(type)]) {
 			case UploadReport:
 				UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
-				SharedPreferences sp = Preferences.get(getApplicationContext());
+				SharedPreferences sp = Preferences.get(context);
 				if(!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
 					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
 				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
@@ -74,6 +76,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		final String COLLECTIONS = "collections";
 		final String NEW_LOCATIONS = "newLocations";
 		final String SIZE = "uploadSize";
+		final Context context = getApplicationContext();
 
 		int wifi = 0, cell = 0, noise = 0, collections = 0, newLocations = 0, newWifi = 0, newCell = 0;
 		long uploadSize = 0;
@@ -96,6 +99,10 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize);
 		DataStore.saveJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(us));
+
+		Preferences.checkStatsDay(context);
+		SharedPreferences sp = Preferences.get(context);
+		sp.edit().putLong(Preferences.STATS_UPLOADED, sp.getLong(Preferences.STATS_UPLOADED, 0) + uploadSize).apply();
 		return us;
 	}
 
