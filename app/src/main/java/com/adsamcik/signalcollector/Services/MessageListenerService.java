@@ -67,7 +67,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		}
 	}
 
-	private UploadStats parseAndSaveUploadReport(long time, Map<String, String> data) {
+	private UploadStats parseAndSaveUploadReport(final long time, final Map<String, String> data) {
 		final String WIFI = "wifi";
 		final String NEW_WIFI = "newWifi";
 		final String CELL = "cell";
@@ -113,7 +113,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 	 * @param message message
 	 * @param pendingIntent intent if special action is wanted
 	 */
-	private void sendNotification(@NonNull String title, @NonNull String message, @Nullable PendingIntent pendingIntent) {
+	private void sendNotification(@NonNull final String title, @NonNull final String message, @Nullable PendingIntent pendingIntent) {
 		Intent intent = new Intent(this, MainActivity.class);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 		if (pendingIntent == null)
