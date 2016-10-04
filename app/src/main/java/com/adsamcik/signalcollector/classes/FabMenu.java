@@ -96,9 +96,9 @@ public class FabMenu {
 			menu.removeViewAt(index);
 	}*/
 
-	public FabMenu clear() {
+	public FabMenu clear(final Activity activity) {
 		//items.clear();
-		menu.removeAllViews();
+		activity.runOnUiThread(() -> menu.removeAllViews());
 		return this;
 	}
 

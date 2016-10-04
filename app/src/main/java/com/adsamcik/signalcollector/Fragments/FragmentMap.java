@@ -149,7 +149,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				locationListener.moveToMyPosition();
 		});
 
-		menu.clear();
+		menu.clear(activity);
 		SharedPreferences sp = Preferences.get(activity);
 		long lastUpdate = sp.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
 		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
@@ -198,7 +198,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	}
 
 	private void addItemsToMenu(final String jsonStringArray, final Activity activity, final @Nullable FloatingActionButton fab) {
-		menu.clear();
+		menu.clear(activity);
 		try {
 			JSONArray array = new JSONArray(jsonStringArray);
 			if (array.length() == 0)
