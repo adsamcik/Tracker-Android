@@ -157,7 +157,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext(), R.style.AlertDialog);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
-					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {})
+					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
+					})
 					.setMessage(getResources().getText(R.string.alert_clear_text));
 
 			alertDialogBuilder.create().show();
@@ -174,6 +175,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			else
 				Preferences.get(c).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
 		});
+
+		setSwitchChangeListener(c, Preferences.NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotifications), true);
 
 		return rootView;
 	}

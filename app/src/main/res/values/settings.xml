@@ -29,4 +29,5 @@
     <string name="settings_track_wifi">Wifi</string>
     <string name="settings_track_cell">Cell</string>
     <string name="settings_track_noise">Noise β</string>
+    <string name="settings_allow_notifications">Allow notifications</string>
 </resources>

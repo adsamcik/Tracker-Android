@@ -191,6 +191,16 @@
             android:textColor="@color/textSecondary"
             android:textSize="@dimen/setting_title_text_size"/>
 
+        <Switch
+            android:id="@+id/switchNotifications"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:text="@string/settings_allow_notifications"
+            android:textSize="@dimen/setting_text_size"
+            style="@style/PrimaryText"/>
+
         <Button
             android:id="@+id/other_clear"
             style="@style/SettingsButton"

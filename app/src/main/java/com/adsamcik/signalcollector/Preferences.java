@@ -49,6 +49,8 @@ public class Preferences {
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
 
+	public static final String NOTIFICATIONS_ENABLED = "notificationsEnabled";
+
 	private static final int MAX_DAY_DIFF_STATS = 7;
 
 	private static SharedPreferences sharedPreferences;
