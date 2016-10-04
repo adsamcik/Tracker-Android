@@ -128,8 +128,8 @@ public class MessageListenerService extends FirebaseMessagingService {
 	}
 
 	public enum MessageType {
-		UploadReport,
 		Notification,
-		Achievement
+		Achievement,
+		UploadReport
 	}
 }
