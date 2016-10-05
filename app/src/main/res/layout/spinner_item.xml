@@ -8,5 +8,4 @@
     android:gravity="start"
     android:textColor="@color/textPrimary"
     android:padding="@dimen/setting_item_padding"
-    android:minWidth="100dp"
-    />
+    android:minWidth="100dp"/>
