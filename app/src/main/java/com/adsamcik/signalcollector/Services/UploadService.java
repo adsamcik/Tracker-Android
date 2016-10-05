@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.services;
 import android.app.job.JobParameters;
 import android.app.job.JobService;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Build;
 import android.util.Log;
 
@@ -139,6 +138,7 @@ public class UploadService extends JobService {
 				}
 
 				DataStore.cleanup();
+				DataStore.recountDataSize();
 			});
 
 			thread.start();
@@ -157,6 +157,7 @@ public class UploadService extends JobService {
 		if (thread != null && thread.isAlive())
 			thread.interrupt();
 		DataStore.cleanup();
+		DataStore.recountDataSize();
 		queued = 0;
 		return false;
 	}
