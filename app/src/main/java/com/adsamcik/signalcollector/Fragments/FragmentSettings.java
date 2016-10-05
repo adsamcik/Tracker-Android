@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -185,7 +186,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			try {
 				JSONArray array = new JSONArray(jsonStringArray);
 				if (array.length() == 0) {
-					((RelativeLayout)mapOverlaySpinner.getParent()).setVisibility(View.GONE);
+					getActivity().runOnUiThread(() -> ((RelativeLayout) mapOverlaySpinner.getParent()).setVisibility(View.GONE));
 					return;
 				}
 				String defaultItem;
@@ -203,7 +204,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				}
 			} catch (Exception e) {
 				FirebaseCrash.report(e);
-				((RelativeLayout)mapOverlaySpinner.getParent()).setVisibility(View.GONE);
+				getActivity().runOnUiThread(() -> ((RelativeLayout) mapOverlaySpinner.getParent()).setVisibility(View.GONE));
 				return;
 			}
 			final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, list);
