@@ -42,4 +42,9 @@
         <item name="android:textSize">@dimen/primary_text_size</item>
     </style>
 
+    <style name="SettingsText">
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textSize">@dimen/setting_text_size</item>
+    </style>
+
 </resources>
