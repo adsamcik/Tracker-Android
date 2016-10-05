@@ -2,6 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="fill_parent"
             android:layout_height="fill_parent"
+            xmlns:tools="http://schemas.android.com/tools"
             android:overScrollMode="never"
             android:scrollbars="none">
 
@@ -26,8 +27,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:textColor="@color/textPrimary"
             android:paddingTop="@dimen/setting_item_padding"
+            android:textColor="@color/textPrimary"
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
@@ -78,8 +79,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:textColor="@color/textPrimary"
             android:paddingTop="@dimen/setting_item_padding"
+            android:textColor="@color/textPrimary"
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
@@ -144,23 +145,22 @@
 
 
         <TextView
+            android:id="@+id/textView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track"
             android:textColor="@color/textSecondary"
-            android:textSize="@dimen/setting_title_text_size"
-            android:id="@+id/textView"/>
+            android:textSize="@dimen/setting_title_text_size"/>
 
         <Switch
             android:id="@+id/switchTrackWifi"
+            style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_track_wifi"
-            android:textSize="@dimen/setting_text_size"
-            style="@style/PrimaryText"/>
+            android:text="@string/settings_track_wifi"/>
 
         <View
             android:layout_width="match_parent"
@@ -169,13 +169,12 @@
 
         <Switch
             android:id="@+id/switchTrackCell"
+            style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_track_cell"
-            android:textSize="@dimen/setting_text_size"
-            style="@style/PrimaryText"/>
+            android:text="@string/settings_track_cell"/>
 
         <View
             android:layout_width="match_parent"
@@ -184,13 +183,12 @@
 
         <Switch
             android:id="@+id/switchTrackNoise"
+            style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_track_noise"
-            android:textSize="@dimen/setting_text_size"
-            style="@style/PrimaryText"/>
+            android:text="@string/settings_track_noise"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -200,15 +198,40 @@
             android:textColor="@color/textSecondary"
             android:textSize="@dimen/setting_title_text_size"/>
 
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/SettingsText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_default_map_overlay"
+                android:layout_centerVertical="true"
+                />
+
+            <Spinner
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:id="@+id/setting_map_overlay_spinner"
+                android:paddingStart="@dimen/setting_item_padding"
+                android:paddingEnd="@dimen/setting_item_padding"/>
+        </RelativeLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
+
         <Switch
             android:id="@+id/switchNotifications"
+            style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_allow_notifications"
-            android:textSize="@dimen/setting_text_size"
-            style="@style/PrimaryText"/>
+            android:text="@string/settings_allow_notifications"/>
 
         <View
             android:layout_width="match_parent"

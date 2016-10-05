@@ -48,6 +48,7 @@ public class Preferences {
 	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
+	public static final String DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
 
 	public static final String NOTIFICATIONS_ENABLED = "notificationsEnabled";
 

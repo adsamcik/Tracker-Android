@@ -150,32 +150,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		menu.clear(activity);
-		SharedPreferences sp = Preferences.get(activity);
-		long lastUpdate = sp.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
-		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
-			OkHttpClient client = new OkHttpClient();
-			Request request = new Request.Builder().url(Network.URL_MAPS_AVAILABLE).build();
-
-			client.newCall(request).enqueue(new Callback() {
-				@Override
-				public void onFailure(Call call, IOException e) {
-
-				}
-
-				@Override
-				public void onResponse(Call call, Response response) throws IOException {
-					String json = response.body().string();
-					addItemsToMenu(json, activity, fabTwo);
-					sp.edit()
-							.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
-							.putString(Preferences.AVAILABLE_MAPS, json)
-							.apply();
-				}
-			});
-		} else {
-			addItemsToMenu(sp.getString(Preferences.AVAILABLE_MAPS, null), activity, fabTwo);
-		}
-
+		Assist.getMapOverlays(Preferences.get(activity), value -> addItemsToMenu(value, activity, fabTwo));
 		menu.setFab(fabTwo);
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
@@ -203,9 +178,27 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			JSONArray array = new JSONArray(jsonStringArray);
 			if (array.length() == 0)
 				return;
-			changeMapOverlay(array.getString(0));
-			for (int i = 0; i < array.length(); i++)
-				menu.addItem(array.getString(i), activity);
+			SharedPreferences sp = Preferences.get(activity);
+			String defaultItem;
+			if (!sp.contains(Preferences.DEFAULT_MAP_OVERLAY)) {
+				defaultItem = array.getString(0);
+				sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, defaultItem).apply();
+			} else
+				defaultItem = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, null);
+			for (int i = 0; i < array.length(); i++) {
+				String item = array.getString(i);
+				menu.addItem(item, activity);
+				if (item.equals(defaultItem)) {
+					changeMapOverlay(item);
+					defaultItem = null;
+				}
+			}
+
+			if (defaultItem != null) {
+				defaultItem = array.getString(0);
+				changeMapOverlay(defaultItem);
+				sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, defaultItem).apply();
+			}
 		} catch (Exception e) {
 			FirebaseCrash.report(e);
 			return;

@@ -17,17 +17,28 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
+import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
+import com.google.firebase.crash.FirebaseCrash;
+
+import org.json.JSONArray;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -95,18 +106,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
-		final Context c = getContext();
-		mSharedPreferences = Preferences.get(c);
+		final Context context = getContext();
+		mSharedPreferences = Preferences.get(context);
 		final Resources resources = getResources();
 
 		try {
-			((TextView) rootView.findViewById(R.id.versionNum)).setText(c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName);
+			((TextView) rootView.findViewById(R.id.versionNum)).setText(context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName);
 		} catch (Exception e) {
 			Log.d(TAG, "Failed to set version");
 		}
 
-		mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, getContext().getTheme());
-		mDefaultState = ResourcesCompat.getColorStateList(resources, R.color.default_value, getContext().getTheme());
+		mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, context.getTheme());
+		mDefaultState = ResourcesCompat.getColorStateList(resources, R.color.default_value, context.getTheme());
 
 		mTrackingString = resources.getStringArray(R.array.background_tracking_options);
 		mAutoupString = resources.getStringArray(R.array.automatic_upload_options);
@@ -154,7 +165,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
-			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext(), R.style.AlertDialog);
+			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
 					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
@@ -164,19 +175,72 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			alertDialogBuilder.create().show();
 		});
 
-		setSwitchChangeListener(c, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
-		setSwitchChangeListener(c, Preferences.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
+		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
 
-		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
-		switchNoise.setChecked(Preferences.get(c).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false));
-		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
-			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(c, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
-			else
-				Preferences.get(c).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
+		Assist.getMapOverlays(Preferences.get(context), jsonStringArray -> {
+			final List<String> list = new ArrayList<>();
+			int selectIndex = -1;
+			SharedPreferences sp = Preferences.get(context);
+
+			try {
+				JSONArray array = new JSONArray(jsonStringArray);
+				if (array.length() == 0) {
+					((RelativeLayout)mapOverlaySpinner.getParent()).setVisibility(View.GONE);
+					return;
+				}
+				String defaultItem;
+				if (!sp.contains(Preferences.DEFAULT_MAP_OVERLAY)) {
+					defaultItem = array.getString(0);
+					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, defaultItem).apply();
+				} else
+					defaultItem = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, null);
+
+				for (int i = 0; i < array.length(); i++) {
+					String item = array.getString(i);
+					list.add(item);
+					if(selectIndex == -1 && item.equals(defaultItem))
+						selectIndex = i;
+				}
+			} catch (Exception e) {
+				FirebaseCrash.report(e);
+				((RelativeLayout)mapOverlaySpinner.getParent()).setVisibility(View.GONE);
+				return;
+			}
+			final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, list);
+			adapter.setDropDownViewResource(R.layout.spinner_item);
+			mapOverlaySpinner.setAdapter(adapter);
+			if(selectIndex == -1) {
+				sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(0)).apply();
+				selectIndex = 0;
+			}
+			mapOverlaySpinner.setSelection(selectIndex);
+
+			mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+				@Override
+				public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+					Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
+				}
+
+				@Override
+				public void onNothingSelected(AdapterView<?> adapterView) {
+
+				}
+			});
 		});
 
-		setSwitchChangeListener(c, Preferences.NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotifications), true);
+		setSwitchChangeListener(context, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
+		setSwitchChangeListener(context, Preferences.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
+
+		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
+		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false));
+		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
+			else
+				Preferences.get(context).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
+		});
+
+		setSwitchChangeListener(context, Preferences.NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotifications), true);
 
 		return rootView;
 	}
