@@ -240,7 +240,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				Preferences.get(context).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
 		});
 
-		setSwitchChangeListener(context, Preferences.NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotifications), true);
+		setSwitchChangeListener(context, Preferences.UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotifications), true);
 
 		return rootView;
 	}

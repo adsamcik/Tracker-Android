@@ -50,7 +50,7 @@ public class Preferences {
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
 	public static final String DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
 
-	public static final String NOTIFICATIONS_ENABLED = "notificationsEnabled";
+	public static final String UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";
 
 	private static final int MAX_DAY_DIFF_STATS = 7;
 

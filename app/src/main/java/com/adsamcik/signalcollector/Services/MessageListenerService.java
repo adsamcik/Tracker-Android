@@ -52,10 +52,12 @@ public class MessageListenerService extends FirebaseMessagingService {
 					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
 				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
-				if (us.newLocations == 0)
-					sendNotification("New upload summary", "No new locations tracked. Try visiting new places.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
-				else
-					sendNotification("New upload summary", "Tracked " + us.newLocations + " new places. Good job.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+				if (Preferences.get().getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+					if (us.newLocations == 0)
+						sendNotification("New upload summary", "No new locations tracked. Try visiting new places.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+					else
+						sendNotification("New upload summary", "Tracked " + us.newLocations + " new places. Good job.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+				}
 				break;
 			case Notification:
 				sendNotification(data.get(TITLE), data.get(MESSAGE), null);
@@ -114,9 +116,6 @@ public class MessageListenerService extends FirebaseMessagingService {
 	 * @param pendingIntent intent if special action is wanted
 	 */
 	private void sendNotification(@NonNull final String title, @NonNull final String message, @Nullable PendingIntent pendingIntent) {
-		if (!Preferences.get().getBoolean(Preferences.NOTIFICATIONS_ENABLED, true))
-			return;
-
 		Intent intent = new Intent(this, MainActivity.class);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 		if (pendingIntent == null)
