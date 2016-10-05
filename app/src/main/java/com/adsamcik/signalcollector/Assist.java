@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.location.Location;
@@ -15,12 +16,22 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
 
+import com.adsamcik.signalcollector.classes.Network;
+import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.android.gms.location.DetectedActivity;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class Assist {
 	public static final int SECOND_IN_MILLISECONDS = 1000;
@@ -293,5 +304,41 @@ public class Assist {
 		c.set(Calendar.SECOND, 0);
 		c.set(Calendar.MILLISECOND, 0);
 		return c.getTimeInMillis();
+	}
+
+	public static void getMapOverlays(final SharedPreferences sharedPreferences, final IValueCallback<String> callback) {
+		long lastUpdate = sharedPreferences.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
+		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
+			if(!isConnected() && lastUpdate != -1) {
+				callback.callback(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null));
+				return;
+			}
+
+			OkHttpClient client = new OkHttpClient();
+			Request request = new Request.Builder().url(Network.URL_MAPS_AVAILABLE).build();
+
+			client.newCall(request).enqueue(new Callback() {
+				@Override
+				public void onFailure(Call call, IOException e) {
+
+				}
+
+				@Override
+				public void onResponse(Call call, Response response) throws IOException {
+					String json = response.body().string();
+					sharedPreferences.edit()
+							.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
+							.putString(Preferences.AVAILABLE_MAPS, json)
+							.apply();
+					callback.callback(json);
+				}
+			});
+		} else {
+			callback.callback(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null));
+		}
+	}
+
+	public static boolean isConnected() {
+		return connectivityManager.getActiveNetworkInfo().isConnected();
 	}
 }
