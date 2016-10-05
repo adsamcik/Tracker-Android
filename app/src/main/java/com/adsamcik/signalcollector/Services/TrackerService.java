@@ -303,6 +303,7 @@ public class TrackerService extends Service {
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
+		lockedUntil = 0;
 		TrackerService.service = intent;
 		backgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false);
 		startForeground(1, generateNotification(false, null));
