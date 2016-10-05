@@ -47,6 +47,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 		switch (MessageType.values()[Integer.parseInt(type)]) {
 			case UploadReport:
+				DataStore.removeOldRecentUploads();
 				UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
 				if (!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
 					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();

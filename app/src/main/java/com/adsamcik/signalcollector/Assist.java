@@ -340,4 +340,8 @@ public class Assist {
 	public static boolean isConnected() {
 		return connectivityManager.getActiveNetworkInfo().isConnected();
 	}
+
+	public static int getAgeInDays(long time) {
+		return (int)((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS);
+	}
 }

@@ -328,6 +328,9 @@ public class DataStore {
 		else
 			sb.insert(0, ',');
 
+		if (sb.charAt(sb.length() - 1) == ']')
+			sb.deleteCharAt(sb.length() - 1);
+
 		data = sb.toString();
 		FileOutputStream outputStream;
 		try {
@@ -508,18 +511,17 @@ public class DataStore {
 		return out;
 	}
 
-	public static void lookForOlderUploads() {
+	public static void removeOldRecentUploads() {
 		SharedPreferences sp = Preferences.get(contextWeak.get());
 		long oldestUpload = sp.getLong(Preferences.OLDEST_RECENT_UPLOAD, -1);
 		if (oldestUpload != -1) {
-			long now = System.currentTimeMillis();
-			long diff = now - oldestUpload;
-			long days = diff / Assist.DAY_IN_MILLISECONDS;
+			long days = Assist.getAgeInDays(oldestUpload);
 			if (days > 30) {
-				ArrayList<UploadStats> stats = new Gson().fromJson(DataStore.loadJsonArrayAppend(RECENT_UPLOADS_FILE), new TypeToken<List<Stat>>() {
+				Gson gson = new Gson();
+				ArrayList<UploadStats> stats = gson.fromJson(DataStore.loadJsonArrayAppend(RECENT_UPLOADS_FILE), new TypeToken<List<Stat>>() {
 				}.getType());
 				for (int i = 0; i < stats.size(); i++) {
-					if (now - stats.get(i).time > (long) Assist.DAY_IN_MILLISECONDS * 30)
+					if (Assist.getAgeInDays(stats.get(i).time) > 30)
 						stats.remove(i--);
 				}
 
@@ -527,6 +529,8 @@ public class DataStore {
 					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, stats.get(0).time).apply();
 				else
 					sp.edit().remove(Preferences.OLDEST_RECENT_UPLOAD).apply();
+
+				DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats));
 			}
 		}
 	}

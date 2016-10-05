@@ -30,6 +30,7 @@ import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.google.android.gms.tasks.Task;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -82,7 +83,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		boolean lastUploadAvailable = false;
 
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
-		if (us != null) {
+		if (us != null && Assist.getAgeInDays(us.time) < 30) {
 			lastUpload = new Table(getContext(), 4, false);
 			lastUpload.setTitle("Last upload");
 			lastUpload.addRow().addData("Wifi found", us.wifi + " (new " + us.newWifi + ")");
@@ -103,6 +104,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			if (lastUpload != null)
 				lastUpload.destroy(getActivity());
 		}
+
+		new Thread(DataStore::removeOldRecentUploads).start();
 
 		Preferences.checkStatsDay(getActivity());
 
