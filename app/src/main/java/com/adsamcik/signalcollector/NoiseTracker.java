@@ -7,16 +7,13 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 public class NoiseTracker {
-	public static final int PERMISSION_ID = 14159195;
 	private final String TAG = "SignalsNoise";
-	private final double REFERENCE = 0.00002;
 	private final int SAMPLING = 44100;
 	private final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
 	private final AudioRecord audioRecorder;
 
 	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
-	private final short MAX_HISTORY_INDEX = MAX_HISTORY_SIZE - 1;
 	private final short[] values = new short[MAX_HISTORY_SIZE];
 
 	private AsyncTask task;
@@ -73,6 +70,7 @@ public class NoiseTracker {
 				try {
 					Thread.sleep(500);
 					values[++currentIndex] = getApproxAmplitude();
+					short MAX_HISTORY_INDEX = MAX_HISTORY_SIZE - 1;
 					if (currentIndex >= MAX_HISTORY_INDEX)
 						break;
 				} catch (InterruptedException e) {

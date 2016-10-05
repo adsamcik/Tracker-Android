@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.classes;
 
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.Path;
 import android.support.design.widget.FloatingActionButton;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,10 +14,6 @@ import com.adsamcik.signalcollector.interfaces.IValueCallback;
 
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class FabMenu {
 	private final String TAG = "SignalsFabMenu";

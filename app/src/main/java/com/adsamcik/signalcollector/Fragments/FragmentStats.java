@@ -239,20 +239,5 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	public ITabFragment newInstance() {
 		return new FragmentStats();
 	}
-
-	private List<Stat> readJsonStream(InputStream in) throws IOException {
-		try (JsonReader reader = new JsonReader(new InputStreamReader(in, "UTF-8"))) {
-			return readStatDataArray(reader);
-		}
-	}
-
-	private List<Stat> readStatDataArray(JsonReader reader) throws IOException {
-		List<Stat> l = new ArrayList<>();
-		reader.beginArray();
-		while (reader.hasNext())
-			l.add(new Stat(reader));
-		reader.endArray();
-		return l;
-	}
 }
 

@@ -1,18 +1,15 @@
 package com.adsamcik.signalcollector;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.NavUtils;
 import android.text.format.DateFormat;
-import android.view.View;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Table;
 import com.adsamcik.signalcollector.classes.UploadStats;
 import com.adsamcik.signalcollector.data.Stat;
-import com.adsamcik.signalcollector.data.StatDay;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 

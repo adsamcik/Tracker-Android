@@ -21,7 +21,6 @@ public class ActivityService extends IntentService {
 	private PowerManager powerManager;
 	public static int lastActivity;
 	public static int lastConfidence;
-	public static long lastTime;
 
 	public static final int GOOGLE_API_ID = 77285;
 	public static final int REQUIRED_CONFIDENCE = 75;
@@ -51,7 +50,6 @@ public class ActivityService extends IntentService {
 
 			lastConfidence = detectedActivity.getConfidence();
 			lastActivity = detectedActivity.getType();
-			lastTime = System.currentTimeMillis();
 
 			if (lastConfidence >= REQUIRED_CONFIDENCE) {
 				if (TrackerService.service != null) {

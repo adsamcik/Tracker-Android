@@ -17,7 +17,6 @@ import android.view.Display;
 import android.view.WindowManager;
 
 import com.adsamcik.signalcollector.classes.Network;
-import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.android.gms.location.DetectedActivity;
 

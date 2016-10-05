@@ -23,7 +23,6 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.BufferedReader;
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -35,8 +34,6 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 
 public class DataStore {
@@ -172,7 +169,7 @@ public class DataStore {
 	 * Checks if file exists
 	 *
 	 * @param fileName file name
-	 * @return existance of file
+	 * @return existence of file
 	 */
 	public static boolean exists(String fileName) {
 		return new File(getContext().getFilesDir().getAbsolutePath() + "/" + fileName).exists();

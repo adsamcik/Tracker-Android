@@ -19,7 +19,6 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,18 +49,10 @@ import com.google.android.gms.maps.model.UrlTileProvider;
 import com.google.firebase.crash.FirebaseCrash;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 
-import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
@@ -82,8 +73,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private Marker userCenter;
 
 	private FabMenu menu;
-
-	private boolean isActive = false;
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
@@ -108,7 +97,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		isActive = false;
 		if (checkLocationPermission(getContext(), false)) {
 			if (locationManager == null)
 				FirebaseCrash.log("Location manager is null on leave");
@@ -139,8 +127,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 		} else
 			return new Success<>("App does not have required permissions.");
-
-		isActive = true;
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
