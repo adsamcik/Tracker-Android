@@ -10,7 +10,9 @@ import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.gson.Gson;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class Preferences {
@@ -93,6 +95,10 @@ public class Preferences {
 		return sharedPreferences;
 	}
 
+	/**
+	 * Checks if current day should be archived and clears up old StatDays
+	 * @param context context
+	 */
 	public static void checkStatsDay(@Nullable Context context) {
 		if(sharedPreferences == null) {
 			if(context == null)
@@ -104,7 +110,7 @@ public class Preferences {
 		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
 			Set<String> stringStats = sharedPreferences.getStringSet(STATS_LAST_7_DAYS, null);
-			Set<StatDay> stats = fromJson(stringStats, dayDiff);
+			List<StatDay> stats = fromJson(stringStats, dayDiff);
 
 			stats.add(getCurrent(sharedPreferences));
 
@@ -129,22 +135,38 @@ public class Preferences {
 		}
 	}
 
+	/**
+	 * Counts all stats and combines them to a single StatDay object
+	 * @param context context
+	 * @return sum of all StatDays
+	 */
 	public static StatDay countStats(@NonNull Context context) {
 		SharedPreferences sp = get(context);
 		StatDay result = getCurrent(sp);
-		Set<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
+		List<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
 		//noinspection Convert2streamapi
 		for (StatDay stat : set)
 			result.add(stat);
 		return result;
 	}
 
+	/**
+	 * Creates stat day with today values
+	 * @param sp shared preferences
+	 * @return Today StatDay
+	 */
 	private static StatDay getCurrent(SharedPreferences sp) {
 		return new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0, sp.getLong(STATS_UPLOADED, 0));
 	}
 
-	private static Set<StatDay> fromJson(Set<String> set, int age) {
-		Set<StatDay> statDays = new HashSet<>();
+	/**
+	 * Method loads data to list and checks if they are not too old
+	 * @param set string set
+	 * @param age how much should stats age
+	 * @return list with items that are not too old
+	 */
+	private static List<StatDay> fromJson(Set<String> set, int age) {
+		List<StatDay> statDays = new ArrayList<>();
 		if (set == null)
 			return statDays;
 		Gson gson = new Gson();
