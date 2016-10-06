@@ -206,7 +206,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	}
 
 	/**
-	 * Change map overlay
+	 * Changes overlay of the map
+	 * @param type exact case-sensitive name of the overlay
 	 */
 	private void changeMapOverlay(@NonNull String type) {
 		if (map != null && (!type.equals(this.type) || activeOverlay == null)) {
