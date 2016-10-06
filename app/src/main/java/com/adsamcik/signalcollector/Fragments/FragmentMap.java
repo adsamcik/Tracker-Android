@@ -137,7 +137,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		menu.clear(activity);
-		Assist.getMapOverlays(Preferences.get(activity), value -> addItemsToMenu(value, activity, fabTwo));
+		Assist.getMapOverlays(Preferences.get(activity), value -> activity.runOnUiThread(() -> addItemsToMenu(value, activity, fabTwo)));
 		menu.setFab(fabTwo);
 		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
