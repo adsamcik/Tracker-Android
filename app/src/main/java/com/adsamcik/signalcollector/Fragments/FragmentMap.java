@@ -137,9 +137,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		menu.clear(activity);
-		Assist.getMapOverlays(Preferences.get(activity), value -> activity.runOnUiThread(() -> addItemsToMenu(value, activity, fabTwo)));
+		Assist.getMapOverlays(Preferences.get(activity), value -> {
+			if (fabTwo != null) {
+				activity.runOnUiThread(() -> addItemsToMenu(value, activity));
+				fabTwo.show();
+			}
+		});
 		menu.setFab(fabTwo);
-		fabTwo.show();
 		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 		fabTwo.setOnClickListener(v -> menu.show(activity));
@@ -159,7 +163,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		return new Success<>();
 	}
 
-	private void addItemsToMenu(final ArrayList<String> stringArray, final Activity activity, final @Nullable FloatingActionButton fab) {
+	/**
+	 * Adds items to FAB menu
+	 * @param stringArray Items to add to FAB menu
+	 * @param activity activity to ensure everything runs on proper thread
+	 */
+	private void addItemsToMenu(final ArrayList<String> stringArray, final Activity activity) {
 		menu.clear(activity);
 		if (stringArray.size() > 0) {
 			menu.addItems(stringArray, activity);
@@ -167,9 +176,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			if (stringArray.indexOf(defaultOverlay) == -1)
 				defaultOverlay = stringArray.get(0);
 			changeMapOverlay(defaultOverlay);
-		}
-		if (fab != null) {
-			fab.show();
 		}
 	}
 
