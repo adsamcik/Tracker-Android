@@ -187,23 +187,22 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				if (index == -1)
 					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0)).apply();
 
-				mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-					@Override
-					public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-						Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
-					}
-
-					@Override
-					public void onNothingSelected(AdapterView<?> adapterView) {
-
-					}
-				});
-				
 				getActivity().runOnUiThread(() -> {
 					final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, stringArray);
 					adapter.setDropDownViewResource(R.layout.spinner_item);
 					mapOverlaySpinner.setAdapter(adapter);
 					mapOverlaySpinner.setSelection(selectIndex);
+					mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+						@Override
+						public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+							Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
+						}
+
+						@Override
+						public void onNothingSelected(AdapterView<?> adapterView) {
+
+						}
+					});
 				});
 			}
 			else {
