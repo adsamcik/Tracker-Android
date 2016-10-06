@@ -141,7 +141,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		Callback c = new Callback() {
 			@Override
 			public void onFailure(Call call, IOException e) {
-
+				if (refreshLayout != null && refreshLayout.isRefreshing())
+					getActivity().runOnUiThread(() -> refreshLayout.setRefreshing(false));
 			}
 
 			@Override
@@ -230,7 +231,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
-
+		if(refreshLayout != null && refreshLayout.isRefreshing())
+			refreshLayout.setRefreshing(false);
 	}
 
 	@Override
