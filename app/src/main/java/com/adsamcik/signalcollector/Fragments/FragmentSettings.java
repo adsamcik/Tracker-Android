@@ -182,15 +182,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			if(stringArray.size() > 0) {
 				SharedPreferences sp = Preferences.get(context);
 				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
-				int selectIndex = stringArray.indexOf(defaultOverlay);
-				if (selectIndex == -1) {
-					selectIndex = 0;
+				int index = stringArray.indexOf(defaultOverlay);
+				final int selectIndex = index == -1 ? 0 : index;
+				if (index == -1)
 					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0)).apply();
-				}
-				final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, stringArray);
-				adapter.setDropDownViewResource(R.layout.spinner_item);
-				mapOverlaySpinner.setAdapter(adapter);
-				mapOverlaySpinner.setSelection(selectIndex);
+
 				mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 					@Override
 					public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
@@ -201,6 +197,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					public void onNothingSelected(AdapterView<?> adapterView) {
 
 					}
+				});
+				
+				getActivity().runOnUiThread(() -> {
+					final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, stringArray);
+					adapter.setDropDownViewResource(R.layout.spinner_item);
+					mapOverlaySpinner.setAdapter(adapter);
+					mapOverlaySpinner.setSelection(selectIndex);
 				});
 			}
 			else {
