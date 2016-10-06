@@ -14,11 +14,18 @@ import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.RelativeLayout;
 
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.android.gms.location.DetectedActivity;
+import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+
+import org.json.JSONArray;
+import org.json.JSONException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -295,6 +302,9 @@ public class Assist {
 		return String.format(Locale.ENGLISH, "%02d", degree) + "\u00B0 " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\"";
 	}
 
+	/**
+	 * @return Today as a day in unix time
+	 */
 	public static long getDayInUTC() {
 		Calendar c = Calendar.getInstance();
 		c.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
@@ -305,11 +315,14 @@ public class Assist {
 		return c.getTimeInMillis();
 	}
 
-	public static void getMapOverlays(final SharedPreferences sharedPreferences, final IValueCallback<String> callback) {
-		long lastUpdate = sharedPreferences.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
+	/**
+	 * Returns ArrayList of overlays to callback. Utilizes caching. Cache is updated once in 24 hours.
+	 */
+	public static void getMapOverlays(final SharedPreferences sharedPreferences, final IValueCallback<ArrayList<String>> callback) {
+		final long lastUpdate = sharedPreferences.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
 		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
 			if(!isConnected() && lastUpdate != -1) {
-				callback.callback(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null));
+				callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
 				return;
 			}
 
@@ -319,7 +332,8 @@ public class Assist {
 			client.newCall(request).enqueue(new Callback() {
 				@Override
 				public void onFailure(Call call, IOException e) {
-
+					if(lastUpdate != - 1)
+						callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
 				}
 
 				@Override
@@ -329,18 +343,41 @@ public class Assist {
 							.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
 							.putString(Preferences.AVAILABLE_MAPS, json)
 							.apply();
-					callback.callback(json);
+					callback.callback(jsonToStringArray(json));
 				}
 			});
 		} else {
-			callback.callback(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null));
+			callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
 		}
 	}
 
+	public static ArrayList<String> jsonToStringArray(String jsonStringArray) {
+		try {
+			JSONArray array = new JSONArray(jsonStringArray);
+			ArrayList<String> list = new ArrayList<>(array.length());
+			for (int i = 0; i < array.length(); i++)
+				list.add(array.getString(i));
+			return list;
+		}
+		catch (JSONException e) {
+			FirebaseCrash.report(e);
+			return new ArrayList<>(0);
+		}
+	}
+
+	/**
+	 * Checks if user is connected to active network
+	 * @return true if connected
+	 */
 	public static boolean isConnected() {
 		return connectivityManager.getActiveNetworkInfo().isConnected();
 	}
 
+	/**
+	 * Returns how old is supplied unix time in days
+	 * @param time unix time in milliseconds
+	 * @return number of days as age (e.g. +50 = 50 days old)
+	 */
 	public static int getAgeInDays(long time) {
 		return (int)((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS);
 	}

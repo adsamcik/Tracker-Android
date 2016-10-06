@@ -511,6 +511,9 @@ public class DataStore {
 		return out;
 	}
 
+	/**
+	 * Removes all old recent uploads that are saved.
+	 */
 	public static void removeOldRecentUploads() {
 		SharedPreferences sp = Preferences.get(contextWeak.get());
 		long oldestUpload = sp.getLong(Preferences.OLDEST_RECENT_UPLOAD, -1);

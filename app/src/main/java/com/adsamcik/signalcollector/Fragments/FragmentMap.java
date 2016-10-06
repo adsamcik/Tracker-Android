@@ -52,6 +52,7 @@ import org.json.JSONArray;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
@@ -158,36 +159,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		return new Success<>();
 	}
 
-	private void addItemsToMenu(final String jsonStringArray, final Activity activity, final @Nullable FloatingActionButton fab) {
+	private void addItemsToMenu(final ArrayList<String> stringArray, final Activity activity, final @Nullable FloatingActionButton fab) {
 		menu.clear(activity);
-		try {
-			JSONArray array = new JSONArray(jsonStringArray);
-			if (array.length() == 0)
-				return;
-			SharedPreferences sp = Preferences.get(activity);
-			String defaultItem;
-			if (!sp.contains(Preferences.DEFAULT_MAP_OVERLAY)) {
-				defaultItem = array.getString(0);
-				sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, defaultItem).apply();
-			} else
-				defaultItem = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, null);
-			for (int i = 0; i < array.length(); i++) {
-				String item = array.getString(i);
-				menu.addItem(item, activity);
-				if (item.equals(defaultItem)) {
-					changeMapOverlay(item);
-					defaultItem = null;
-				}
-			}
-
-			if (defaultItem != null) {
-				defaultItem = array.getString(0);
-				changeMapOverlay(defaultItem);
-				sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, defaultItem).apply();
-			}
-		} catch (Exception e) {
-			FirebaseCrash.report(e);
-			return;
+		if (stringArray.size() > 0) {
+			menu.addItems(stringArray, activity);
+			String defaultOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
+			if (stringArray.indexOf(defaultOverlay) == -1)
+				defaultOverlay = stringArray.get(0);
+			changeMapOverlay(defaultOverlay);
 		}
 		if (fab != null) {
 			fab.show();

@@ -178,55 +178,34 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
 
-		Assist.getMapOverlays(Preferences.get(context), jsonStringArray -> {
-			final List<String> list = new ArrayList<>();
-			int selectIndex = -1;
-			SharedPreferences sp = Preferences.get(context);
-
-			try {
-				JSONArray array = new JSONArray(jsonStringArray);
-				if (array.length() == 0) {
-					getActivity().runOnUiThread(() -> ((RelativeLayout) mapOverlaySpinner.getParent()).setVisibility(View.GONE));
-					return;
+		Assist.getMapOverlays(Preferences.get(context), stringArray -> {
+			if(stringArray.size() > 0) {
+				SharedPreferences sp = Preferences.get(context);
+				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
+				int selectIndex = stringArray.indexOf(defaultOverlay);
+				if (selectIndex == -1) {
+					selectIndex = 0;
+					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0)).apply();
 				}
-				String defaultItem;
-				if (!sp.contains(Preferences.DEFAULT_MAP_OVERLAY)) {
-					defaultItem = array.getString(0);
-					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, defaultItem).apply();
-				} else
-					defaultItem = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, null);
+				final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, stringArray);
+				adapter.setDropDownViewResource(R.layout.spinner_item);
+				mapOverlaySpinner.setAdapter(adapter);
+				mapOverlaySpinner.setSelection(selectIndex);
+				mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+					@Override
+					public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+						Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
+					}
 
-				for (int i = 0; i < array.length(); i++) {
-					String item = array.getString(i);
-					list.add(item);
-					if(selectIndex == -1 && item.equals(defaultItem))
-						selectIndex = i;
-				}
-			} catch (Exception e) {
-				FirebaseCrash.report(e);
+					@Override
+					public void onNothingSelected(AdapterView<?> adapterView) {
+
+					}
+				});
+			}
+			else {
 				getActivity().runOnUiThread(() -> ((RelativeLayout) mapOverlaySpinner.getParent()).setVisibility(View.GONE));
-				return;
 			}
-			final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, list);
-			adapter.setDropDownViewResource(R.layout.spinner_item);
-			mapOverlaySpinner.setAdapter(adapter);
-			if(selectIndex == -1) {
-				sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(0)).apply();
-				selectIndex = 0;
-			}
-			mapOverlaySpinner.setSelection(selectIndex);
-
-			mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-				@Override
-				public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-					Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
-				}
-
-				@Override
-				public void onNothingSelected(AdapterView<?> adapterView) {
-
-				}
-			});
 		});
 
 		setSwitchChangeListener(context, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);

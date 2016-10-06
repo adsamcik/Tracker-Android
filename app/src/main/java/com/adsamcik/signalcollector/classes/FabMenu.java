@@ -15,6 +15,8 @@ import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import java.util.List;
+
 public class FabMenu {
 	private final String TAG = "SignalsFabMenu";
 
@@ -68,6 +70,12 @@ public class FabMenu {
 		JSONArray array = new JSONArray(jsonStringArray);
 		for (int i = 0; i < array.length(); i++)
 			addItem(array.getString(i), activity);
+		return this;
+	}
+
+	public FabMenu addItems(final List<String> stringList, final Activity activity) {
+		for (String item : stringList)
+			addItem(item, activity);
 		return this;
 	}
 
