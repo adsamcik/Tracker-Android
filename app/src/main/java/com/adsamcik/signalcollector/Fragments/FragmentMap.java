@@ -48,8 +48,6 @@ import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 import com.google.firebase.crash.FirebaseCrash;
 
-import org.json.JSONArray;
-
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
