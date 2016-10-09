@@ -77,7 +77,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
 
-		updateData(getContext());
+		Context context = getContext();
+		if(context == null)
+			context = getActivity();
+		updateData(context);
 
 		return view;
 	}
