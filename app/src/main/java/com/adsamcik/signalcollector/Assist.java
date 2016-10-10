@@ -94,7 +94,7 @@ public class Assist {
 		Display d = windowManager.getDefaultDisplay();
 		DisplayMetrics realDisplayMetrics = new DisplayMetrics();
 		d.getRealMetrics(realDisplayMetrics);
-		return  realDisplayMetrics;
+		return realDisplayMetrics;
 	}
 
 	/**
@@ -321,7 +321,7 @@ public class Assist {
 	public static void getMapOverlays(final SharedPreferences sharedPreferences, final IValueCallback<ArrayList<String>> callback) {
 		final long lastUpdate = sharedPreferences.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
 		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
-			if(!isConnected() && lastUpdate != -1) {
+			if (!isConnected() && lastUpdate != -1) {
 				callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
 				return;
 			}
@@ -332,18 +332,23 @@ public class Assist {
 			client.newCall(request).enqueue(new Callback() {
 				@Override
 				public void onFailure(Call call, IOException e) {
-					if(lastUpdate != - 1)
+					if (lastUpdate != -1)
 						callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
 				}
 
 				@Override
 				public void onResponse(Call call, Response response) throws IOException {
 					String json = response.body().string();
-					sharedPreferences.edit()
-							.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
-							.putString(Preferences.AVAILABLE_MAPS, json)
-							.apply();
-					callback.callback(jsonToStringArray(json));
+					ArrayList<String> list = jsonToStringArray(json);
+					if (list.size() > 0) {
+						sharedPreferences.edit()
+								.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
+								.putString(Preferences.AVAILABLE_MAPS, json)
+								.apply();
+						callback.callback(list);
+					} else if (lastUpdate != -1)
+						callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
+
 				}
 			});
 		} else {
@@ -358,8 +363,7 @@ public class Assist {
 			for (int i = 0; i < array.length(); i++)
 				list.add(array.getString(i));
 			return list;
-		}
-		catch (JSONException e) {
+		} catch (JSONException e) {
 			FirebaseCrash.report(e);
 			return new ArrayList<>(0);
 		}
@@ -367,6 +371,7 @@ public class Assist {
 
 	/**
 	 * Checks if user is connected to active network
+	 *
 	 * @return true if connected
 	 */
 	public static boolean isConnected() {
@@ -375,10 +380,11 @@ public class Assist {
 
 	/**
 	 * Returns how old is supplied unix time in days
+	 *
 	 * @param time unix time in milliseconds
 	 * @return number of days as age (e.g. +50 = 50 days old)
 	 */
 	public static int getAgeInDays(long time) {
-		return (int)((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS);
+		return (int) ((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS);
 	}
 }
