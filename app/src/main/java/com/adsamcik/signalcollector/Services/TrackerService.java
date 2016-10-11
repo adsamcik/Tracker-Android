@@ -143,7 +143,7 @@ public class TrackerService extends Service {
 			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
 			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
 				noiseTracker.start();
-				double value = noiseTracker.getSample(10);
+				short value = noiseTracker.getSample(10);
 				if (value >= 0)
 					d.setNoise(value);
 				noiseActive = true;

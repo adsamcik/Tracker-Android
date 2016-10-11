@@ -40,8 +40,7 @@ public class NoiseTracker {
 		return this;
 	}
 
-	public double getSample(final int seconds) {
-		Log.d(TAG, "count " + currentIndex);
+	public short getSample(final int seconds) {
 		if (currentIndex == -1)
 			return -1;
 		final short s = seconds > currentIndex ? currentIndex : (short) seconds;
@@ -51,7 +50,7 @@ public class NoiseTracker {
 
 		avg /= s + 1;
 		currentIndex = 0;
-		return avg;
+		return (short)avg;
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {

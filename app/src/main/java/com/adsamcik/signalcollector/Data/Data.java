@@ -31,7 +31,7 @@ public class Data implements Serializable {
 
 	public int activity;
 
-	public double noise;
+	public short noise;
 
 	public Data(long time) {
 		this.time = time;
@@ -60,7 +60,7 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	public Data setNoise(double noise) {
+	public Data setNoise(short noise) {
 		if (noise > 0)
 			this.noise = noise;
 		return this;
