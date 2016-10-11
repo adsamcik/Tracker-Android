@@ -469,25 +469,29 @@ public class DataStore {
 				if (field.getType().isArray())
 					data = arrayToJSON((Object[]) field.get(o));
 				else if (typeName.equals("int")) {
-					int value = field.getInt(o);
-					if (value != 0)
-						data = Integer.toString(value);
-				} else if (typeName.equals("double")) {
-					double val = field.getDouble(o);
+					int val = field.getInt(o);
 					if (val != 0)
-						data = Double.toString(field.getDouble(o));
-				} else if (typeName.equals("long")) {
-					long val = field.getLong(o);
-					if (val != 0)
-						data = Long.toString(field.getLong(o));
-				} else if (typeName.equals("float")) {
-					float val = field.getFloat(o);
-					if (val != 0)
-						data = Float.toString(field.getFloat(o));
+						data = Integer.toString(val);
 				} else if (typeName.equals("String")) {
 					String val = (String) field.get(o);
 					if (val != null)
 						data = "\"" + val.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+				} else if (typeName.equals("double")) {
+					double val = field.getDouble(o);
+					if (val != 0)
+						data = Double.toString(val);
+				} else if (typeName.equals("long")) {
+					long val = field.getLong(o);
+					if (val != 0)
+						data = Long.toString(val);
+				} else if (typeName.equals("float")) {
+					float val = field.getFloat(o);
+					if (val != 0)
+						data = Float.toString(val);
+				} else if (typeName.equals("short")) {
+					short val = field.getShort(o);
+					if (val != 0)
+						data = Short.toString(val);
 				} else if (typeName.equals("boolean"))
 					data = Boolean.toString(field.getBoolean(o));
 				else if (!field.getType().isPrimitive())
