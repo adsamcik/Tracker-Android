@@ -178,6 +178,7 @@ public class TrackerService extends Service {
 	private Notification generateNotification(boolean gpsAvailable, Data d) {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
+				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setSmallIcon(R.drawable.ic_signals_notification)  // the status icon
 				.setTicker("Signals tracker is active")  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
