@@ -431,7 +431,7 @@ public class DataStore {
 	 * @return json array
 	 */
 	public static String arrayToJSON(Object[] array) {
-		if (array == null || array.length == 0)
+		if (array == null)
 			return "";
 		String out = "[";
 		String data;
@@ -441,10 +441,8 @@ public class DataStore {
 				out += data + ",";
 		}
 
-		if (out.length() == 1)
-			return "";
-
-		out = out.substring(0, out.length() - 1);
+		if (out.length() > 1)
+			out = out.substring(0, out.length() - 1);
 		out += "]";
 		return out;
 	}
@@ -496,8 +494,10 @@ public class DataStore {
 					data = Boolean.toString(field.getBoolean(o));
 				else if (!field.getType().isPrimitive())
 					data = objectToJSON(field.get(o));
-				else
+				else {
+					FirebaseCrash.report(new Throwable("Unknown type " + typeName + " - " + field.getName()));
 					Log.e("type", "Unknown type " + typeName + " - " + field.getName());
+				}
 
 				if (!data.equals("")) {
 					out += "\"" + field.getName() + "\":";
