@@ -136,8 +136,9 @@ public class TrackerService extends Service {
 			prevScanPos.setTime(d.time);
 		}
 
-		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this))
+		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this)) {
 			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
+		}
 
 		if (noiseTracker != null) {
 			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
