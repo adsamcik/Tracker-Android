@@ -69,6 +69,7 @@ public class Data implements Serializable {
 	public Data setCell(String operator, List<CellInfo> data) {
 		if (data != null) {
 			cellCount = data.size();
+			boolean found = false;
 			for (int i = 0; i < data.size(); i++) {
 				CellInfo c = data.get(i);
 				if(c.isRegistered()) {
@@ -80,9 +81,13 @@ public class Data implements Serializable {
 						setCell(operator, new CellData((CellInfoCdma) c));
 					else if (c instanceof CellInfoWcdma)
 						setCell(operator, new CellData((CellInfoWcdma) c));
+					found = true;
 					break;
 				}
 			}
+
+			if(!found)
+				setCell("", (CellData) null);
 		}
 		return this;
 	}
