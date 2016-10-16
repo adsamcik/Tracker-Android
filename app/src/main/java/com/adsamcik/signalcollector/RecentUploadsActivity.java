@@ -24,7 +24,7 @@ public class RecentUploadsActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_recent_uploads);
 
-		ArrayList<UploadStats> recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), new TypeToken<List<Stat>>() {
+		ArrayList<UploadStats> recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), new TypeToken<List<UploadStats>>() {
 		}.getType());
 		for (UploadStats s : recent) {
 			Table t = new Table(this, 4, false);
