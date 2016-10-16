@@ -36,8 +36,9 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 
 	private SigninController(@NonNull FragmentActivity activity) {
 		activityWeakReference = new WeakReference<>(activity);
-		GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+		GoogleSignInOptions gso = new GoogleSignInOptions.Builder()
 				.requestIdToken(activity.getResources().getString(R.string.server_client_id))
+				.requestId()
 				.build();
 		client = new GoogleApiClient.Builder(activity)
 				.enableAutoManage(activity, this)
