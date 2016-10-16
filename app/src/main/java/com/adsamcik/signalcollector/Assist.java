@@ -20,6 +20,8 @@ import android.widget.RelativeLayout;
 
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
@@ -143,7 +145,7 @@ public class Assist {
 	 */
 	public static Location interpolateLocation(@NonNull Location locationOne, @NonNull Location locationTwo, double time) {
 		if (time < 0 || time > 1)
-			throw new IllegalArgumentException("Time must be between 0 and 1. is " + time);
+			FirebaseCrash.report(new IllegalArgumentException("Time must be between 0 and 1. is " + time));
 		Location l = new Location("interpolation");
 		l.setLatitude(locationOne.getLatitude() + (locationTwo.getLatitude() - locationOne.getLatitude()) * time);
 		l.setLongitude(locationOne.getLongitude() + (locationTwo.getLongitude() - locationOne.getLongitude()) * time);
@@ -388,6 +390,10 @@ public class Assist {
 		return (int) ((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS);
 	}
 
+	/**
+	 * Checks if the device looks like an emulator. This is used primarily to detect automated testing.
+	 * @return true if emulator is detected
+	 */
 	public static boolean isEmulator() {
 		return Build.FINGERPRINT.startsWith("generic")
 				|| Build.FINGERPRINT.startsWith("unknown")
@@ -397,5 +403,15 @@ public class Assist {
 				|| Build.MANUFACTURER.contains("Genymotion")
 				|| (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
 				|| "google_sdk".equals(Build.PRODUCT);
+	}
+
+	/**
+	 * Checks if play services are available
+	 * @param context context
+	 * @return true if available
+	 */
+	public static boolean isPlayServiceAvailable(@NonNull Context context) {
+		GoogleApiAvailability gaa = GoogleApiAvailability.getInstance();
+		return gaa != null && gaa.isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS;
 	}
 }
