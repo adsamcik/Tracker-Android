@@ -1,32 +1,28 @@
 package com.adsamcik.signalcollector.play;
 
-import android.app.Activity;
-import android.app.Instrumentation;
 import android.content.Intent;
-import android.graphics.Color;
-import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
 import android.widget.Button;
 
+import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.classes.SnackMaker;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.common.api.Status;
 
 import java.lang.ref.WeakReference;
 
 
 public class SigninController implements GoogleApiClient.OnConnectionFailedListener {
 	public static final int RC_SIGN_IN = 4654;
-	private GoogleApiClient client;
+	private final GoogleApiClient client;
 	private SignInButton signInButton;
 	private Button signOutButton;
-	private WeakReference<FragmentActivity> activityWeakReference;
+	private final WeakReference<FragmentActivity> activityWeakReference;
 
 	private static WeakReference<SigninController> instance;
 
@@ -39,7 +35,7 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 	private SigninController(@NonNull FragmentActivity activity) {
 		activityWeakReference = new WeakReference<>(activity);
 		GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-				.requestEmail()
+				.requestIdToken(activity.getResources().getString(R.string.server_client_id))
 				.build();
 		client = new GoogleApiClient.Builder(activity)
 				.enableAutoManage(activity, this)
@@ -50,10 +46,7 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 	public SigninController manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
 		this.signInButton = signInButton;
 		this.signOutButton = signOutButton;
-		if (client.isConnected())
-			onSignedIn();
-		else
-			onSignedOut();
+		updateButtons(client.isConnected());
 		return this;
 	}
 
@@ -63,33 +56,36 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 		return this;
 	}
 
-	public void onSignedIn() {
+	private void updateButtons(boolean signed) {
 		if (signInButton != null && signOutButton != null) {
-			signInButton.setVisibility(View.GONE);
-			signOutButton.setVisibility(View.VISIBLE);
-			signOutButton.setOnClickListener(v -> revokeAccess());
+			if(signed) {
+				signInButton.setVisibility(View.GONE);
+				signOutButton.setVisibility(View.VISIBLE);
+				signOutButton.setOnClickListener(v -> revokeAccess());
+			}
+			else {
+				signInButton.setVisibility(View.VISIBLE);
+				signOutButton.setVisibility(View.GONE);
+				signInButton.setOnClickListener((v) -> {
+					Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
+					activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+				});
+			}
 		}
+	}
+
+	public void onSignedIn() {
+		updateButtons(true);
+		new SnackMaker(activityWeakReference.get().findViewById(R.id.container)).showSnackbar("Signed in successfully");
 	}
 
 	private void onSignedOut() {
-		if (signInButton != null && signOutButton != null) {
-			signInButton.setVisibility(View.VISIBLE);
-			signOutButton.setVisibility(View.GONE);
-			signInButton.setOnClickListener((v) -> {
-				Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-				activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
-			});
-		}
+		updateButtons(false);
+		new SnackMaker(activityWeakReference.get().findViewById(R.id.container)).showSnackbar("Signed out");
 	}
 
 	private void revokeAccess() {
-		Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(
-				new ResultCallback<Status>() {
-					@Override
-					public void onResult(Status status) {
-						onSignedOut();
-					}
-				});
+		Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(status -> onSignedOut());
 	}
 
 	@Override

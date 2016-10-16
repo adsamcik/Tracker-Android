@@ -163,12 +163,12 @@ public class MainActivity extends FragmentActivity {
 		//todo uncomment this when server is ready
 		SharedPreferences sp = Preferences.get(context);
 		//if (!sp.getBoolean(Preferences.SENT_TOKEN_TO_SERVER, false)) {
-			String token = FirebaseInstanceId.getInstance().getToken();
-			if (token != null)
-				Network.registerToken(token, context);
+		String token = FirebaseInstanceId.getInstance().getToken();
+		if (token != null)
+			Network.registerToken(token, context);
 		//}
 
-		if(sp.contains(Preferences.STATS_UPLOADED_OLD))
+		if (sp.contains(Preferences.STATS_UPLOADED_OLD))
 			sp.edit().remove(Preferences.STATS_UPLOADED_OLD).apply();
 	}
 
@@ -188,7 +188,8 @@ public class MainActivity extends FragmentActivity {
 	}
 
 
-	@Override public void onActivityResult(int requestCode, int resultCode, Intent data) {
+	@Override
+	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
 		// Result returned from launching the Intent from
@@ -202,10 +203,11 @@ public class MainActivity extends FragmentActivity {
 				try {
 					String token = acct.getIdToken();
 					Network.registerUser(token, getApplicationContext());
-				} catch(NullPointerException e) {
-						//
+				} catch (NullPointerException e) {
+					FirebaseCrash.report(e);
 				}
-			}
+			} else
+				new SnackMaker(findViewById(R.id.container)).showSnackbar("Failed to sign in, check internet connection");
 		}
 	}
 
