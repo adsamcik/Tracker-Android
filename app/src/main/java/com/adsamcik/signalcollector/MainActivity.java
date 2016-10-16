@@ -18,6 +18,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -31,7 +32,11 @@ import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.play.PlayController;
+import com.adsamcik.signalcollector.play.SigninController;
+import com.adsamcik.signalcollector.services.ActivityService;
+import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
 
@@ -40,16 +45,15 @@ import java.util.Arrays;
 import java.util.List;
 
 public class MainActivity extends FragmentActivity {
-	public static final String TAG = "Signals";
+	public static final String TAG = "SignalsMainActivity";
 
 	private FloatingActionButton fabOne;
 	private FloatingActionButton fabTwo;
 
 	private ViewPager viewPager;
-
-	private SnackMaker snackMaker;
-
 	private ViewPager.OnPageChangeListener pageChangeListener;
+
+	private SigninController signinController;
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -60,13 +64,11 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(this);
 
 		View containerView = findViewById(R.id.container);
-		if (containerView != null) {
-			PlayController.initializeGamesClient(containerView, this);
-			snackMaker = new SnackMaker(containerView);
-		} else
-			FirebaseCrash.report(new Throwable("container view is null. something is wrong."));
+		SnackMaker snackMaker = new SnackMaker(containerView);
 
-		Success<String> s = PlayController.initializeActivityClient(this);
+		signinController = SigninController.getInstance(this);
+
+		Success<String> s = ActivityService.initializeActivityClient(this);
 		if (!s.getSuccess())
 			snackMaker.showSnackbar(s.value);
 
@@ -185,11 +187,25 @@ public class MainActivity extends FragmentActivity {
 		adapter.getInstance(viewPager.getCurrentItem()).onPermissionResponse(requestCode, success);
 	}
 
-	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+
+	@Override public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
-		if (requestCode == 9001 && resultCode == -1)
-			PlayController.reconnect();
+
+		// Result returned from launching the Intent from
+		//   GoogleSignInApi.getSignInIntent(...);
+		Log.d(TAG, "test");
+		if (requestCode == SigninController.RC_SIGN_IN) {
+			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
+			if (result.isSuccess()) {
+				GoogleSignInAccount acct = result.getSignInAccount();
+				try {
+					String token = acct.getIdToken();
+					Network.registerUser(token, getApplicationContext());
+				} catch(NullPointerException e) {
+						//
+				}
+			}
+		}
 	}
 
 	private class ViewPagerAdapter extends FragmentPagerAdapter {

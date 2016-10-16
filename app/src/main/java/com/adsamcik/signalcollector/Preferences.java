@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
@@ -65,8 +66,8 @@ public class Preferences {
 	 */
 	public static void stopTillRecharge(@NonNull Context c) {
 		get(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
-		if (TrackerService.service != null)
-			c.stopService(TrackerService.service);
+		if (TrackerService.isRunning())
+			c.stopService(new Intent(c, TrackerService.class));
 	}
 
 	/**

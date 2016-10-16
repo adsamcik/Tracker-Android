@@ -16,7 +16,6 @@ import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.RecentUploadsActivity;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.UploadStats;
-import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -62,10 +61,6 @@ public class MessageListenerService extends FirebaseMessagingService {
 				break;
 			case Notification:
 				sendNotification(data.get(TITLE), data.get(MESSAGE), null);
-				break;
-			case Achievement:
-				sendNotification(data.get(TITLE), data.get(MESSAGE), null);
-				PlayController.gamesController.earnAchievement(data.get("achievement-id"));
 				break;
 		}
 	}

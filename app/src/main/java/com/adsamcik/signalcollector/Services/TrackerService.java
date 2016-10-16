@@ -34,10 +34,10 @@ import com.adsamcik.signalcollector.MainActivity;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
-import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.google.firebase.crash.FirebaseCrash;
 
+import java.lang.ref.WeakReference;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.text.DecimalFormat;
@@ -58,7 +58,8 @@ public class TrackerService extends Service {
 
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 
-	public static Intent service;
+
+	private static WeakReference<TrackerService> service;
 
 	private static long lockedUntil;
 	private static boolean backgroundActivated = false;
@@ -89,6 +90,10 @@ public class TrackerService extends Service {
 
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
+
+	public static boolean isRunning() {
+		return service != null && service.get() != null;
+	}
 
 	static boolean isAutoLocked() {
 		return System.currentTimeMillis() < lockedUntil;
@@ -259,11 +264,11 @@ public class TrackerService extends Service {
 
 	@Override
 	public void onCreate() {
+		service = new WeakReference<>(this);
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
 
-		if (!PlayController.apiActivity)
-			PlayController.initializeActivityClient(appContext);
+		ActivityService.initializeActivityClient(appContext);
 
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
@@ -306,7 +311,6 @@ public class TrackerService extends Service {
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		lockedUntil = 0;
-		TrackerService.service = intent;
 		backgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false);
 		startForeground(1, generateNotification(false, null));
 		if (onServiceStateChange != null)

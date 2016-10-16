@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.fragments;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -32,14 +31,9 @@ import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.play.PlayController;
 import com.adsamcik.signalcollector.R;
-import com.google.firebase.crash.FirebaseCrash;
-
-import org.json.JSONArray;
-
-import java.util.ArrayList;
-import java.util.List;
+import com.adsamcik.signalcollector.play.SigninController;
+import com.google.android.gms.common.SignInButton;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -48,8 +42,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private String[] mTrackingString, mAutoupString;
 	private ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
 	private ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
-	private TextView textView_PlayLog, mAutoupDesc, mTrackDesc;
+	private TextView mAutoupDesc, mTrackDesc;
 	private Switch switchNoise;
+	private SignInButton signInButton;
 
 	private SharedPreferences mSharedPreferences;
 
@@ -143,27 +138,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		updateTracking(mSharedPreferences.getInt(Preferences.BACKGROUND_TRACKING, 1));
 		updateAutoup(mSharedPreferences.getInt(Preferences.AUTO_UPLOAD, 1));
 
-		textView_PlayLog = (TextView) rootView.findViewById(R.id.play_loginButton);
+		signInButton = (SignInButton)rootView.findViewById(R.id.sign_in_button);
 
-		if (PlayController.gamesController != null)
-			PlayController.gamesController.setUI(rootView);
-
-		textView_PlayLog.setOnClickListener(v -> {
-			if (!PlayController.isLogged())
-				PlayController.initializeGamesClient(rootView, getActivity());
-			else {
-				textView_PlayLog.setText(R.string.settings_playGamesLogin);
-				PlayController.destroyGamesClient();
-			}
-
-		});
-
-		rootView.findViewById(R.id.play_achievements).setOnClickListener(v -> {
-			if (PlayController.isLogged())
-				PlayController.gamesController.showAchievements(getActivity());
-			else
-				PlayController.initializeGamesClient(rootView, getActivity());
-		});
+		SigninController signinController = SigninController.getInstance(getActivity());
+		signinController.manageButton(signInButton);
 
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);

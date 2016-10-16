@@ -4,13 +4,13 @@ package com.adsamcik.signalcollector.fragments;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -30,7 +30,6 @@ import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.play.PlayController;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -118,7 +117,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (!PlayController.isPlayServiceAvailable(activity))
+		if (!Assist.isPlayServiceAvailable(activity))
 			return new Success<>("Play services are not available");
 		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
@@ -137,8 +136,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		menu.clear(activity);
 		Assist.getMapOverlays(Preferences.get(activity), value -> {
 			if (fabTwo != null) {
-				activity.runOnUiThread(() -> addItemsToMenu(value, activity));
-				fabTwo.show();
+				activity.runOnUiThread(() -> {
+					addItemsToMenu(value, activity);
+					fabTwo.show();
+				});
 			}
 		});
 		menu.setFab(fabTwo);
@@ -163,8 +164,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	/**
 	 * Adds items to FAB menu
+	 *
 	 * @param stringArray Items to add to FAB menu
-	 * @param activity activity to ensure everything runs on proper thread
+	 * @param activity    activity to ensure everything runs on proper thread
 	 */
 	private void addItemsToMenu(final ArrayList<String> stringArray, final Activity activity) {
 		menu.clear(activity);
@@ -186,7 +188,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				parent.removeView(view);
 		}
 
-		if (PlayController.isPlayServiceAvailable(getContext()))
+		if (Assist.isPlayServiceAvailable(getContext()))
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		else
 			view = inflater.inflate(R.layout.no_play_services, container, false);
@@ -205,6 +207,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	/**
 	 * Changes overlay of the map
+	 *
 	 * @param type exact case-sensitive name of the overlay
 	 */
 	private void changeMapOverlay(@NonNull String type) {

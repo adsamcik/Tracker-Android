@@ -4,26 +4,93 @@ import android.app.IntentService;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.classes.Success;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class ActivityService extends IntentService {
 	private static final String TAG = "Signals" + ActivityService.class.getSimpleName();
+	private static GoogleApiClient gapiClient;
 	private PowerManager powerManager;
 	public static int lastActivity;
 	public static int lastConfidence;
 
 	public static final int GOOGLE_API_ID = 77285;
 	public static final int REQUIRED_CONFIDENCE = 75;
+
+
+	public static Success<String> initializeActivityClient(@NonNull Context context) {
+		if (Assist.isPlayServiceAvailable(context)) {
+			if (gapiClient == null) {
+				final Context appContext = context.getApplicationContext();
+				if (appContext == null) {
+					FirebaseCrash.report(new Throwable("Application context is null"));
+					return new Success<>("Failed to initialize automatic tracking");
+				}
+				gapiClient = new GoogleApiClient.Builder(appContext)
+						.addApi(ActivityRecognition.API)
+						.addOnConnectionFailedListener(connectionResult -> FirebaseCrash.report(new Throwable("Failed to initialize activity " + connectionResult.getErrorMessage() + " code " + connectionResult.getErrorCode())))
+						.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+							@Override
+							public void onConnected(@Nullable Bundle bundle) {
+								ActivityService.requestUpdate(gapiClient, context);
+							}
+
+							@Override
+							public void onConnectionSuspended(int i) {
+
+							}
+						})
+						.build();
+			}
+			gapiClient.connect();
+			return new Success<>();
+		}
+		return new Success<>("Play services are not available");
+	}
+
+	public static Success<String> initializeActivityClient(@NonNull FragmentActivity activity) {
+		if (Assist.isPlayServiceAvailable(activity)) {
+			if (gapiClient == null) {
+				final Context appContext = activity.getApplicationContext();
+				if (appContext == null) {
+					FirebaseCrash.report(new Throwable("Application context is null"));
+					return new Success<>("Failed to initialize automatic tracking");
+				}
+				gapiClient = new GoogleApiClient.Builder(appContext)
+						.addApi(ActivityRecognition.API)
+						.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+							@Override
+							public void onConnected(@Nullable Bundle bundle) {
+								ActivityService.requestUpdate(gapiClient, activity);
+							}
+
+							@Override
+							public void onConnectionSuspended(int i) {
+
+							}
+						})
+						.enableAutoManage(activity, ActivityService.GOOGLE_API_ID, null)
+						.build();
+			}
+			gapiClient.connect();
+			return new Success<>();
+		}
+		return new Success<>("Play services are not available");
+	}
 
 	public static void requestUpdate(@NonNull GoogleApiClient client, @NonNull final Context context) {
 		Intent i = new Intent(context, ActivityService.class);
@@ -52,9 +119,9 @@ public class ActivityService extends IntentService {
 			lastActivity = detectedActivity.getType();
 
 			if (lastConfidence >= REQUIRED_CONFIDENCE) {
-				if (TrackerService.service != null) {
-					if (TrackerService.isBackgroundActivated() && canContinueBackgroundTracking(lastActivity))
-						stopService(TrackerService.service);
+				if (TrackerService.isRunning()) {
+					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastActivity))
+						stopService(new Intent(this, TrackerService.class));
 				} else if (canBackgroundTrack(Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("approxSize", DataStore.sizeOfData());
@@ -74,7 +141,7 @@ public class ActivityService extends IntentService {
 	 * @return true if background tracking can be activated
 	 */
 	private boolean canBackgroundTrack(int evalActivity) {
-		if (evalActivity == 3 || evalActivity == 0 || TrackerService.service != null || Preferences.get(this).getBoolean(Preferences.STOP_TILL_RECHARGE, false))
+		if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning() || Preferences.get(this).getBoolean(Preferences.STOP_TILL_RECHARGE, false))
 			return false;
 		int val = Preferences.get(this).getInt(Preferences.BACKGROUND_TRACKING, 1);
 		return val != 0 && (val == evalActivity || val > evalActivity);

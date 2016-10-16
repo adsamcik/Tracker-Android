@@ -16,7 +16,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
 
-import com.adsamcik.signalcollector.play.PlayController;
+import com.adsamcik.signalcollector.play.SigninController;
 import com.github.paolorotolo.appintro.AppIntro2;
 import com.github.paolorotolo.appintro.AppIntro2Fragment;
 
@@ -39,7 +39,7 @@ public class IntroActivity extends AppIntro2 {
 		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_permissions_noise_title),r.getString(R.string.intro_permissions_noise), R.drawable.intro_permissions, Color.parseColor("#20793A")));
 		askForPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 4);
 		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_smart_title), r.getString(R.string.intro_smart), R.drawable.intro_autotracking, Color.parseColor("#18903C")));
-		if (PlayController.isPlayServiceAvailable(getApplicationContext()))
+		if (Assist.isPlayServiceAvailable(this))
 			addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_gplay_title), r.getString(R.string.intro_gplay), R.drawable.intro_games, Color.parseColor("#11A63D")));
 
 		Window window = getWindow();
@@ -83,8 +83,8 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
-		if (slidesNumber == ++slideNumber && PlayController.isPlayServiceAvailable(getApplicationContext()))
-			PlayController.initializeGamesClient(findViewById(android.R.id.content), this);
+		if (slidesNumber == ++slideNumber && Assist.isPlayServiceAvailable(this))
+			SigninController.getInstance(this);
 	}
 
 	@Override

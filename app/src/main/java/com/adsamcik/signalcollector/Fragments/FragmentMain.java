@@ -118,21 +118,19 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	 * @param enable ensures intended action
 	 */
 	private void toggleCollecting(Activity activity, boolean enable) {
-		if (TrackerService.service != null == enable)
+		if (TrackerService.isRunning() == enable)
 			return;
 
 		String[] requiredPermissions = Assist.checkTrackingPermissions(activity);
 
 		if (requiredPermissions == null) {
-			if (TrackerService.service == null) {
+			if (!TrackerService.isRunning()) {
 				Preferences.get(activity).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(activity, TrackerService.class);
 				trackerService.putExtra("approxSize", DataStore.sizeOfData());
 				activity.startService(trackerService);
 			} else {
-				if (TrackerService.service == null)
-					FirebaseCrash.report(new Exception("Tracker service is null"));
-				activity.stopService(TrackerService.service);
+				activity.stopService(new Intent(activity, TrackerService.class));
 			}
 
 		} else if (Build.VERSION.SDK_INT >= 23) {
@@ -248,18 +246,18 @@ public class FragmentMain extends Fragment implements ITabFragment {
 			pauseToPlay = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play);
 		}
 
-		changeTrackerButton(TrackerService.service != null ? 1 : 0);
+		changeTrackerButton(TrackerService.isRunning() ? 1 : 0);
 		fabTrack.setOnClickListener(
 				v -> {
-					if (TrackerService.service != null)
+					if (TrackerService.isRunning())
 						TrackerService.setAutoLock();
-					toggleCollecting(activity, TrackerService.service == null);
+					toggleCollecting(activity, !TrackerService.isRunning());
 				}
 		);
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
 		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateUploadProgress(progress)));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
-		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.service != null ? 1 : 0));
+		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0));
 
 		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
 

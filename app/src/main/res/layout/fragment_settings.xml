@@ -125,26 +125,13 @@
             android:textColor="@color/textSecondary"
             android:textSize="@dimen/setting_title_text_size"/>
 
-        <Button
-            android:id="@+id/play_loginButton"
-            style="@style/SettingsButton"
-            android:text="@string/settings_playGamesLogin"
-            android:textSize="@dimen/setting_text_size"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
-
-        <Button
-            android:id="@+id/play_achievements"
-            style="@style/SettingsButton"
-            android:text="@string/achievements"
-            android:textSize="@dimen/setting_text_size"/>
-
+        <com.google.android.gms.common.SignInButton
+            android:id="@+id/sign_in_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="@dimen/setting_item_padding"/>
 
         <TextView
-            android:id="@+id/textView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="@dimen/setting_item_padding"

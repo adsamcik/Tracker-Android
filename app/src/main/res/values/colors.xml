@@ -12,6 +12,5 @@
     <color name="dividerColor">#1FFFFFFF</color>
     <color name="error">#d32f2f</color>
     <color name="cardBackground">#424242</color>
-    <color name="activeIcon">#8AFFFFFF</color>
     <color name="inactiveIcon">#61FFFFFF</color>
 </resources>

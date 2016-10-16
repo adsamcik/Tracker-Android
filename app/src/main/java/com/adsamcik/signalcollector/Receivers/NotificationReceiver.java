@@ -21,7 +21,7 @@ public class NotificationReceiver extends BroadcastReceiver {
 				Preferences.stopTillRecharge(context);
 				break;
 			case 1:
-				context.stopService(TrackerService.service);
+				context.stopService(new Intent(context, TrackerService.class));
 				break;
 			default:
 				Log.w(TAG, "Unknown value " + value);
