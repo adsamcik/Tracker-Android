@@ -10,29 +10,28 @@ import android.support.v4.app.FragmentActivity;
 import android.view.View;
 import android.widget.Button;
 
-import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.Network;
 import com.google.android.gms.auth.api.Auth;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
+
 import java.lang.ref.WeakReference;
 
 
 public class SigninController implements GoogleApiClient.OnConnectionFailedListener {
 	public static final int RC_SIGN_IN = 4654;
 	private GoogleApiClient client;
-	private WeakReference<SignInButton> buttonWeakReference;
+	private SignInButton signInButton;
+	private Button signOutButton;
 	private WeakReference<FragmentActivity> activityWeakReference;
 
 	private static WeakReference<SigninController> instance;
 
 	public static SigninController getInstance(FragmentActivity fragmentActivity) {
-		if(instance == null || instance.get() == null)
+		if (instance == null || instance.get() == null)
 			return (instance = new WeakReference<>(new SigninController(fragmentActivity))).get();
 		return instance.get();
 	}
@@ -48,33 +47,49 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 				.build();
 	}
 
-	public SigninController manageButton(SignInButton b) {
-		buttonWeakReference = new WeakReference<>(b);
-		b.setOnClickListener((v) -> {
-			Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-			activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
-		});
+	public SigninController manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
+		this.signInButton = signInButton;
+		this.signOutButton = signOutButton;
+		if (client.isConnected())
+			onSignedIn();
+		else
+			onSignedOut();
 		return this;
 	}
 
-	public SigninController forgetButton() {
-		if (buttonWeakReference != null && buttonWeakReference.get() != null)
-			buttonWeakReference.get().setOnClickListener(null);
-		buttonWeakReference = null;
+	public SigninController forgetButtons() {
+		signOutButton = null;
+		signInButton = null;
 		return this;
 	}
 
-	private void updateUI(boolean connected) {
-		SignInButton button = this.buttonWeakReference.get();
-		if (button != null) {
-			/*if (connected) {
-				button.setText(R.string.settings_playGamesLogout);
-				button.setTextColor(Color.rgb(255, 110, 110));
-			} else {
-				button.setText(R.string.settings_playGamesLogin);
-				button.setTextColor(Color.rgb(110, 255, 110));
-			}*/
+	public void onSignedIn() {
+		if (signInButton != null && signOutButton != null) {
+			signInButton.setVisibility(View.GONE);
+			signOutButton.setVisibility(View.VISIBLE);
+			signOutButton.setOnClickListener(v -> revokeAccess());
 		}
+	}
+
+	private void onSignedOut() {
+		if (signInButton != null && signOutButton != null) {
+			signInButton.setVisibility(View.VISIBLE);
+			signOutButton.setVisibility(View.GONE);
+			signInButton.setOnClickListener((v) -> {
+				Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
+				activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+			});
+		}
+	}
+
+	private void revokeAccess() {
+		Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(
+				new ResultCallback<Status>() {
+					@Override
+					public void onResult(Status status) {
+						onSignedOut();
+					}
+				});
 	}
 
 	@Override

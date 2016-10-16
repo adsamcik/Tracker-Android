@@ -129,7 +129,15 @@
             android:id="@+id/sign_in_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingTop="@dimen/setting_item_padding"/>
+            android:paddingTop="@dimen/setting_item_padding"
+            android:visibility="gone"/>
+
+        <Button
+            android:id="@+id/sign_out_button"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/signout"
+            android:visibility="gone"/>
 
         <TextView
             android:layout_width="match_parent"

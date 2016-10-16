@@ -197,6 +197,7 @@ public class MainActivity extends FragmentActivity {
 		if (requestCode == SigninController.RC_SIGN_IN) {
 			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
 			if (result.isSuccess()) {
+				signinController.onSignedIn();
 				GoogleSignInAccount acct = result.getSignInAccount();
 				try {
 					String token = acct.getIdToken();

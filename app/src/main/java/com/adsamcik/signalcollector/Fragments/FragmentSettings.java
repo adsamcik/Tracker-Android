@@ -19,6 +19,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -44,11 +45,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
 	private TextView mAutoupDesc, mTrackDesc;
 	private Switch switchNoise;
-	private SignInButton signInButton;
 
 	private SharedPreferences mSharedPreferences;
 
 	private ImageView mTrackingSelected, mAutoupSelected;
+
+	private SignInButton signInButton;
+	private Button signOutButton;
+	private SigninController signinController;
 
 	private ColorStateList mSelectedState;
 	private ColorStateList mDefaultState;
@@ -139,9 +143,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		updateAutoup(mSharedPreferences.getInt(Preferences.AUTO_UPLOAD, 1));
 
 		signInButton = (SignInButton)rootView.findViewById(R.id.sign_in_button);
-
-		SigninController signinController = SigninController.getInstance(getActivity());
-		signinController.manageButton(signInButton);
+		signOutButton = (Button) rootView.findViewById(R.id.sign_out_button);
 
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
@@ -212,12 +214,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+		signinController = SigninController.getInstance(getActivity());
+		signinController.manageButtons(signInButton, signOutButton);
 		return new Success<>();
 	}
 
 	@Override
 	public void onLeave() {
-
+		signinController.forgetButtons();
+		signinController = null;
 	}
 
 	@Override
