@@ -266,6 +266,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		if (layoutWifi != null)
 			updateData(activity);
 
+		if(Assist.isEmulator())
+			fabUp.hide();
 		return new Success<>();
 	}
 
