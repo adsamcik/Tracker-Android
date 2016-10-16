@@ -11,9 +11,9 @@ import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import com.adsamcik.signalcollector.MainActivity;
+import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.RecentUploadsActivity;
+import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.UploadStats;
 import com.adsamcik.signalcollector.R;

@@ -1,8 +1,10 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.activities;
 
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+
+import com.adsamcik.signalcollector.Preferences;
 
 public class LaunchActivity extends Activity {
 

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.activities;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -6,6 +6,8 @@ import android.support.v4.app.NavUtils;
 import android.text.format.DateFormat;
 import android.widget.LinearLayout;
 
+import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Table;
 import com.adsamcik.signalcollector.classes.UploadStats;

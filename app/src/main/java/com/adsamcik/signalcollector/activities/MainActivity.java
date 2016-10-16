@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.activities;
 
 import android.content.Context;
 import android.content.Intent;
@@ -23,6 +23,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
+import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.classes.DataStore;
 import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.classes.SnackMaker;

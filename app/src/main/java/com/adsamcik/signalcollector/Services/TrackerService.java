@@ -30,7 +30,7 @@ import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.MainActivity;
+import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
