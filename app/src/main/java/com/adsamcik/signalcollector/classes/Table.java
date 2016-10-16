@@ -140,7 +140,7 @@ public class Table {
 		TextView textId = new TextView(context);
 		textId.setText(name);
 		textId.setTextSize(15);
-		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 5f));
+		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 3f));
 		row.addView(textId);
 
 		TextView textValue = new TextView(context);
