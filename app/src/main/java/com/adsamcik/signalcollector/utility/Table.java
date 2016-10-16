@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.utility;
 
 import android.app.Activity;
 import android.content.Context;

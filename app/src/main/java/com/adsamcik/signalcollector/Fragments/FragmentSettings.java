@@ -27,13 +27,13 @@ import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.play.SigninController;
+import com.adsamcik.signalcollector.SigninController;
 import com.google.android.gms.common.SignInButton;
 
 public class FragmentSettings extends Fragment implements ITabFragment {

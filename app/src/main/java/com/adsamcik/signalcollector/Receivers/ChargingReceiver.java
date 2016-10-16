@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.utility.Preferences;
 
 public class ChargingReceiver extends BroadcastReceiver {
 	@Override

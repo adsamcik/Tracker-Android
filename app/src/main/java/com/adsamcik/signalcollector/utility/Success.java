@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.utility;
 
 public class Success<T> {
 	public final T value;

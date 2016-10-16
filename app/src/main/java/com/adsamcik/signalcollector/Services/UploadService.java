@@ -6,11 +6,11 @@ import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.BuildConfig;
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.Network;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;

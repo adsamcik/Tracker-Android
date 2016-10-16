@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.utility;
 
 import android.app.Activity;
 import android.content.Context;
@@ -8,7 +8,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 

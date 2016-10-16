@@ -93,3 +93,4 @@ app/google-services-----.json
 java_pid12832.hprof
 app/app.iml
 app/src/main/java/com/adsamcik/signalcollector/classes/Network.java
+app/src/main/java/com/adsamcik/signalcollector/utility/Network.java

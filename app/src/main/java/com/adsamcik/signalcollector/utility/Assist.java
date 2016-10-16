@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.utility;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -14,17 +14,13 @@ import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
-import android.view.View;
 import android.view.WindowManager;
-import android.widget.RelativeLayout;
 
-import com.adsamcik.signalcollector.classes.Network;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
 import com.google.firebase.crash.FirebaseCrash;
-import com.google.gson.Gson;
 
 import org.json.JSONArray;
 import org.json.JSONException;

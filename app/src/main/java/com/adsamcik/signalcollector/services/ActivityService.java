@@ -11,10 +11,10 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Success;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionResult;

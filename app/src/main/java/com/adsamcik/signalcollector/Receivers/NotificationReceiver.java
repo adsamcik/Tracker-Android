@@ -6,7 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.services.TrackerService;
 
 public class NotificationReceiver extends BroadcastReceiver {

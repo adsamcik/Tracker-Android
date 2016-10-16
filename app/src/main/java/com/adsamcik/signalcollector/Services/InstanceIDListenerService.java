@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.services;
 import android.content.pm.PackageManager;
 import android.support.v4.content.ContextCompat;
 
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.Network;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.Network;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.FirebaseInstanceIdService;
 

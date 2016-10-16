@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.data;
 
 public class UploadStats {
 	public final long time;

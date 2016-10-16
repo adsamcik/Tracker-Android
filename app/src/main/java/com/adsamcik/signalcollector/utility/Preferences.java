@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.content.Intent;

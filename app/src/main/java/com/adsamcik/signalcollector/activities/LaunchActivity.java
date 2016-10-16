@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 
-import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.utility.Preferences;
 
 public class LaunchActivity extends Activity {
 

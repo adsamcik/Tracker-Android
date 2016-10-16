@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.utility;
 
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
@@ -12,12 +12,11 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Preferences;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
+import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;

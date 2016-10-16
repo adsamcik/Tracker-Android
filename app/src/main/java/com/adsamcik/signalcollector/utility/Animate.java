@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.utility;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;

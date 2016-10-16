@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.interfaces;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.FragmentActivity;
 
-import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.utility.Success;
 
 public interface ITabFragment{
 

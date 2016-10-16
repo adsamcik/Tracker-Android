@@ -23,19 +23,19 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.Network;
-import com.adsamcik.signalcollector.classes.SnackMaker;
-import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.adsamcik.signalcollector.utility.Success;
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.play.SigninController;
+import com.adsamcik.signalcollector.SigninController;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -203,12 +203,8 @@ public class MainActivity extends FragmentActivity {
 			if (result.isSuccess()) {
 				signinController.onSignedIn();
 				GoogleSignInAccount acct = result.getSignInAccount();
-				try {
-					String token = acct.getIdToken();
-					Network.registerUser(token, getApplicationContext());
-				} catch (NullPointerException e) {
-					FirebaseCrash.report(e);
-				}
+				String token = acct.getIdToken();
+				Network.registerUser(token, getApplicationContext());
 			} else
 				new SnackMaker(findViewById(R.id.container)).showSnackbar("Failed to sign in, check internet connection");
 		}

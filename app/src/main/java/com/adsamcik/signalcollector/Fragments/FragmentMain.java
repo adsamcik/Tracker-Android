@@ -24,18 +24,17 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.Network;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.classes.Success;
+import com.adsamcik.signalcollector.utility.Success;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
-import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;

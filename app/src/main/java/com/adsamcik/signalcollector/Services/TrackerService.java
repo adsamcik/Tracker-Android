@@ -26,10 +26,10 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 
-import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;
-import com.adsamcik.signalcollector.Preferences;
-import com.adsamcik.signalcollector.classes.DataStore;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Data;

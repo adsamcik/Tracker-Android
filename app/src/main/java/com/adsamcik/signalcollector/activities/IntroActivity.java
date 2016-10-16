@@ -16,10 +16,10 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
 
-import com.adsamcik.signalcollector.Assist;
-import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.play.SigninController;
+import com.adsamcik.signalcollector.SigninController;
 import com.github.paolorotolo.appintro.AppIntro2;
 import com.github.paolorotolo.appintro.AppIntro2Fragment;
 

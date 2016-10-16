@@ -12,10 +12,10 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
-import com.adsamcik.signalcollector.Preferences;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.UploadStats;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;

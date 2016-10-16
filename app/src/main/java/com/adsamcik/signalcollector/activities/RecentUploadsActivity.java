@@ -6,12 +6,11 @@ import android.support.v4.app.NavUtils;
 import android.text.format.DateFormat;
 import android.widget.LinearLayout;
 
-import com.adsamcik.signalcollector.Assist;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.classes.DataStore;
-import com.adsamcik.signalcollector.classes.Table;
-import com.adsamcik.signalcollector.classes.UploadStats;
-import com.adsamcik.signalcollector.data.Stat;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Table;
+import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 

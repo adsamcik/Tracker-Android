@@ -1,9 +1,7 @@
-package com.adsamcik.signalcollector.classes;
+package com.adsamcik.signalcollector.utility;
 
 import android.support.design.widget.Snackbar;
 import android.view.View;
-
-import com.adsamcik.signalcollector.Assist;
 
 public class SnackMaker {
 	private final View view;
