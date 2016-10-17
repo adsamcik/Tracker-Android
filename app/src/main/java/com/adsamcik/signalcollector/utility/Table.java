@@ -79,7 +79,7 @@ public class Table {
 	 * @param title title
 	 * @return this table
 	 */
-	public Table setTitle(String title) {
+	public Table addTitle(String title) {
 		TextView label = new TextView(context);
 		label.setTextSize(18);
 		label.setText(title);

@@ -80,13 +80,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
-			lastUpload = new Table(getContext(), 4, false);
-			lastUpload.setTitle("Last upload");
-			lastUpload.addRow().addData("Wifi found", us.wifi + " (new " + us.newWifi + ")");
-			lastUpload.addRow().addData("Cell found", us.cell + " (new " + us.newCell + ")");
-			lastUpload.addRow().addData("Noise collected", String.valueOf(us.noiseCollections));
-			lastUpload.addRow().addData("New locations", String.valueOf(us.newLocations));
-			lastUpload.addRow().addData("Upload size", String.valueOf(us.uploadSize));
+			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us,(LinearLayout) view.findViewById(R.id.statsLayout), getContext());
 			lastUpload.getLayout().setOnClickListener(view1 -> {
 				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
 				// create the transition animation - the images in the layouts
@@ -94,7 +88,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				//ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(getActivity(), lastUpload.getLayout(), "lastUpload");
 				startActivity(intent);
 			});
-			lastUpload.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), 0, false, 0);
 			lastUploadAvailable = true;
 		} else {
 			if (lastUpload != null)
@@ -106,7 +99,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		Preferences.checkStatsDay(getActivity());
 
 		weeklyStats.clear();
-		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
+		weeklyStats.addTitle(r.getString(R.string.stats_weekly_title));
 		StatDay weekStats = Preferences.countStats(getActivity());
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.getUploaded()));
@@ -207,7 +200,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			Stat s = stats.get(i);
 			if (s.data != null) {
 				Table table = new Table(c, s.data.size(), s.showPosition);
-				table.setTitle(s.name);
+				table.addTitle(s.name);
 				for (int y = 0; y < s.data.size(); y++) {
 					StatData sd = s.data.get(y);
 					table.addRow().addData(sd.id, sd.value);

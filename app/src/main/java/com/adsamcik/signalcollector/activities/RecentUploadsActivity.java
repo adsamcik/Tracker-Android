@@ -1,9 +1,13 @@
 package com.adsamcik.signalcollector.activities;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.res.Resources;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.app.NavUtils;
 import android.text.format.DateFormat;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
@@ -20,15 +24,19 @@ import java.util.List;
 
 public class RecentUploadsActivity extends Activity {
 
-	public static void GenerateTableForUploadStat(@NonNull UploadStat uploadStat, @NonNull Resources resources) {
-		Table t = new Table(this, 4, false);
-		t.setTitle(DateFormat.format("dd.MM hh:mm", new Date(s.time)).toString());
-		t.addRow().addData(resources.getString(R.string.), Assist.humanReadableByteCount(s.uploadSize));
-		t.addRow().addData("New locations", String.valueOf(s.collections));
-		t.addRow().addData("Wifi found", s.wifi + " (" + s.newWifi + " new)");
-		t.addRow().addData("Cell found", s.cell + " (" + s.newCell + " new)");
-		t.addRow().addData("Noise collected", String.valueOf(s.noiseCollections));
-		t.addToViewGroup((LinearLayout) findViewById(R.id.recent_uploads_layout), 0, false, 0);
+	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context) {
+		Resources resources = context.getResources();
+		Table t = new Table(context, 4, false);
+		t.addTitle(DateFormat.format("dd.MM hh:mm", new Date(uploadStat.time)).toString());
+		t.addRow().addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize));
+		t.addRow().addData(resources.getString(R.string.recent_upload_collections), String.valueOf(uploadStat.collections));
+		t.addRow().addData(resources.getString(R.string.recent_upload_wifi), String.valueOf(uploadStat.wifi));
+		t.addRow().addData(resources.getString(R.string.recent_upload_wifi_new), String.valueOf(uploadStat.newWifi));
+		t.addRow().addData(resources.getString(R.string.recent_upload_cell), String.valueOf(uploadStat.cell));
+		t.addRow().addData(resources.getString(R.string.recent_upload_cell_new), String.valueOf(uploadStat.newCell));
+		t.addRow().addData(resources.getString(R.string.recent_upload_noise), String.valueOf(uploadStat.noiseCollections));
+		t.addToViewGroup(parent, 0, false, 0);
+		return t;
 	}
 
 	@Override
@@ -38,8 +46,9 @@ public class RecentUploadsActivity extends Activity {
 
 		ArrayList<UploadStats> recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), new TypeToken<List<UploadStats>>() {
 		}.getType());
+		Context context = getApplicationContext();
 		for (UploadStats s : recent) {
-
+			GenerateTableForUploadStat(s, (LinearLayout) findViewById(R.id.recent_uploads_layout), context);
 		}
 
 		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));
