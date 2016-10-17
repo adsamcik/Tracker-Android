@@ -5,20 +5,27 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.os.CancellationSignal;
+import android.text.method.TransformationMethod;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
 import java.util.Locale;
+
+import okhttp3.Callback;
 
 public class Table {
 	private final TableLayout layout;
@@ -107,11 +114,25 @@ public class Table {
 			TextView rowNum = new TextView(context);
 			rowNum.setText(String.format(Locale.UK, "%d", rows.size() + 1));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
-			rowNum.setTextSize(15);
+			rowNum.setTextSize(16);
 			rowNum.setTextColor(textColor);
 			row.addView(rowNum);
 		}
 
+		rows.add(row);
+		layout.addView(row);
+		return this;
+	}
+
+	public Table addButton(String text, View.OnClickListener callback) {
+		TableRow row = new TableRow(context);
+		row.setPadding(0, 30, 0, 30);
+		TextView button = new TextView(context);
+		button.setText(text.toUpperCase());
+		button.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
+		button.setOnClickListener(callback);
+		button.setTextSize(20);
+		row.addView(button);
 		rows.add(row);
 		layout.addView(row);
 		return this;
