@@ -82,12 +82,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
-			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us,(LinearLayout) view.findViewById(R.id.statsLayout), getContext());
+			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us,(LinearLayout) view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
 			lastUpload.getLayout().setOnClickListener(view1 -> {
 				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
-				// create the transition animation - the images in the layouts
-				// of both activities are defined with android:transitionName="robot"
-				//ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(getActivity(), lastUpload.getLayout(), "lastUpload");
 				startActivity(intent);
 			});
 			lastUploadAvailable = true;

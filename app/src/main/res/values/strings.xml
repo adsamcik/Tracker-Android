@@ -53,4 +53,5 @@
     <string name="recent_upload_size">Size</string>
 
     <string name="recent_uploads">Recent uploads</string>
+    <string name="most_recent_upload">Most recent upload</string>
 </resources>

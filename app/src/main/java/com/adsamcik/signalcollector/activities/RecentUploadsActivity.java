@@ -5,9 +5,11 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.NavUtils;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
@@ -25,11 +27,16 @@ import java.util.List;
 
 public class RecentUploadsActivity extends Activity {
 
-	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context) {
+	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context, @Nullable String title) {
 		Resources resources = context.getResources();
 		Table t = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
-		t.addTitle(DateFormat.format("dd.MM hh:mm", new Date(uploadStat.time)).toString());
-		t.addRow().addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize));
+		if (title == null)
+			t.addTitle(DateFormat.format("dd.MM hh:mm", new Date(uploadStat.time)).toString());
+		else
+			t.addTitle(title);
+
+		t.addRow().addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize, true));
+		Log.d("size", uploadStat.uploadSize + " size");
 		t.addRow().addData(resources.getString(R.string.recent_upload_collections), String.valueOf(uploadStat.collections));
 		t.addRow().addData(resources.getString(R.string.recent_upload_wifi), String.valueOf(uploadStat.wifi));
 		t.addRow().addData(resources.getString(R.string.recent_upload_wifi_new), String.valueOf(uploadStat.newWifi));
@@ -50,7 +57,7 @@ public class RecentUploadsActivity extends Activity {
 		}.getType());
 		Context context = getApplicationContext();
 		for (UploadStats s : recent) {
-			GenerateTableForUploadStat(s, (LinearLayout) findViewById(R.id.recent_uploads_layout), context);
+			GenerateTableForUploadStat(s, (LinearLayout) findViewById(R.id.recent_uploads_layout), context, null);
 		}
 
 		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));
