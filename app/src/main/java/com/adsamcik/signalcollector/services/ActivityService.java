@@ -117,12 +117,13 @@ public class ActivityService extends IntentService {
 
 			lastConfidence = detectedActivity.getConfidence();
 			lastActivity = detectedActivity.getType();
+			int evalActivity = Assist.evaluateActivity(detectedActivity.getType());
 
 			if (lastConfidence >= REQUIRED_CONFIDENCE) {
 				if (TrackerService.isRunning()) {
-					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastActivity))
+					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(evalActivity))
 						stopService(new Intent(this, TrackerService.class));
-				} else if (canBackgroundTrack(Assist.evaluateActivity(detectedActivity.getType())) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+				} else if (canBackgroundTrack(evalActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("approxSize", DataStore.sizeOfData());
 					trackerService.putExtra("backTrack", true);
