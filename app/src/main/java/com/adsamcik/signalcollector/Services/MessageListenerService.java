@@ -71,12 +71,13 @@ public class MessageListenerService extends FirebaseMessagingService {
 		final String CELL = "cell";
 		final String NEW_CELL = "newCell";
 		final String NOISE = "noise";
+		final String NEW_NOISE_LOCATIONS = "newNoiseLocations";
 		final String COLLECTIONS = "collections";
 		final String NEW_LOCATIONS = "newLocations";
 		final String SIZE = "uploadSize";
 		final Context context = getApplicationContext();
 
-		int wifi = 0, cell = 0, noise = 0, collections = 0, newLocations = 0, newWifi = 0, newCell = 0;
+		int wifi = 0, cell = 0, noise = 0, collections = 0, newLocations = 0, newWifi = 0, newCell = 0, newNoiseLocations = 0;
 		long uploadSize = 0;
 		if (data.containsKey(WIFI))
 			wifi = Integer.parseInt(data.get(WIFI));
@@ -92,10 +93,12 @@ public class MessageListenerService extends FirebaseMessagingService {
 			collections = Integer.parseInt(data.get(COLLECTIONS));
 		if (data.containsKey(NEW_LOCATIONS))
 			newLocations = Integer.parseInt(data.get(NEW_LOCATIONS));
+		if (data.containsKey(NEW_NOISE_LOCATIONS))
+			newNoiseLocations = Integer.parseInt(data.get(NEW_NOISE_LOCATIONS));
 		if (data.containsKey(SIZE))
 			uploadSize = Long.parseLong(data.get(SIZE));
 
-		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize);
+		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations);
 		DataStore.saveJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(us));
 
 		Preferences.checkStatsDay(context);

@@ -35,6 +35,7 @@ public class RecentUploadsActivity extends Activity {
 		t.addRow().addData(resources.getString(R.string.recent_upload_cell), String.valueOf(uploadStat.cell));
 		t.addRow().addData(resources.getString(R.string.recent_upload_cell_new), String.valueOf(uploadStat.newCell));
 		t.addRow().addData(resources.getString(R.string.recent_upload_noise), String.valueOf(uploadStat.noiseCollections));
+		t.addRow().addData(resources.getString(R.string.recent_upload_noise_new), String.valueOf(uploadStat.newNoiseLocations));
 		t.addToViewGroup(parent, 0, false, 0);
 		return t;
 	}

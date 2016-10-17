@@ -195,9 +195,6 @@ public class MainActivity extends FragmentActivity {
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
-		// Result returned from launching the Intent from
-		//   GoogleSignInApi.getSignInIntent(...);
-		Log.d(TAG, "test");
 		if (requestCode == SigninController.RC_SIGN_IN) {
 			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
 			if (result.isSuccess()) {
