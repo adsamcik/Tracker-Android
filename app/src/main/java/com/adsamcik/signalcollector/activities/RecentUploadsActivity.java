@@ -6,6 +6,7 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.NavUtils;
+import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -26,7 +27,7 @@ public class RecentUploadsActivity extends Activity {
 
 	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context) {
 		Resources resources = context.getResources();
-		Table t = new Table(context, 4, false);
+		Table t = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
 		t.addTitle(DateFormat.format("dd.MM hh:mm", new Date(uploadStat.time)).toString());
 		t.addRow().addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize));
 		t.addRow().addData(resources.getString(R.string.recent_upload_collections), String.valueOf(uploadStat.collections));

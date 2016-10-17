@@ -10,6 +10,7 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -59,7 +60,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		weeklyStats = new Table(getContext(), 4, false);
+		Context context = getContext();
+		weeklyStats = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
 	}
 
 	@Override
@@ -196,10 +198,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		ArrayList<Table> items = new ArrayList<>();
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
+		int color = ContextCompat.getColor(c, R.color.textPrimary);
 		for (int i = 0; i < stats.size(); i++) {
 			Stat s = stats.get(i);
 			if (s.data != null) {
-				Table table = new Table(c, s.data.size(), s.showPosition);
+				Table table = new Table(c, s.data.size(), s.showPosition, color);
 				table.addTitle(s.name);
 				for (int y = 0; y < s.data.size(); y++) {
 					StatData sd = s.data.get(y);

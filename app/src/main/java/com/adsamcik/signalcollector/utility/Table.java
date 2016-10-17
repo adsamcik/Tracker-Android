@@ -26,6 +26,8 @@ public class Table {
 	private final ArrayList<TableRow> rows;
 	private final boolean showNumber;
 
+	private final int textColor;
+
 	/**
 	 * Table constructor
 	 *
@@ -33,10 +35,11 @@ public class Table {
 	 * @param rowCount   number of rows (used to initialze array holding rows)
 	 * @param showNumber show number of row (starts at 1)
 	 */
-	public Table(Context context, int rowCount, boolean showNumber) {
+	public Table(Context context, int rowCount, boolean showNumber, int textColor) {
 		this.context = context;
 		this.rows = new ArrayList<>(rowCount);
 		this.showNumber = showNumber;
+		this.textColor = textColor;
 
 		layout = new TableLayout(context);
 		Resources r = context.getResources();
@@ -83,6 +86,7 @@ public class Table {
 		TextView label = new TextView(context);
 		label.setTextSize(18);
 		label.setText(title);
+		label.setTextColor(textColor);
 		label.setTypeface(null, Typeface.BOLD);
 		label.setGravity(Gravity.CENTER);
 		label.setPadding(0, 0, 0, 30);
@@ -104,6 +108,7 @@ public class Table {
 			rowNum.setText(String.format(Locale.UK, "%d", rows.size() + 1));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			rowNum.setTextSize(15);
+			rowNum.setTextColor(textColor);
 			row.addView(rowNum);
 		}
 
@@ -139,6 +144,7 @@ public class Table {
 	public Table addData(String name, String value, TableRow row) {
 		TextView textId = new TextView(context);
 		textId.setText(name);
+		textId.setTextColor(textColor);
 		textId.setTextSize(15);
 		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 3f));
 		row.addView(textId);
@@ -146,6 +152,7 @@ public class Table {
 		TextView textValue = new TextView(context);
 		textValue.setText(value);
 		textValue.setTextSize(15);
+		textValue.setTextColor(textColor);
 		textValue.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f));
 		textValue.setGravity(Gravity.END);
 		row.addView(textValue);
