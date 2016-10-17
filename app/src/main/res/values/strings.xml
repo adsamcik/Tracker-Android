@@ -41,4 +41,14 @@
     <string name="nPlay">play</string>
     <string name="nPause">pause</string>
     <string name="nPlayPauseGroup">PlayPauseGroup</string>
+
+    <string name="recent_upload_wifi">Wifi</string>
+    <string name="recent_upload_wifi_new">New wifi</string>
+    <string name="recent_upload_cell">Cell</string>
+    <string name="recent_upload_cell_new">New cell</string>
+    <string name="recent_upload_locations">Locations</string>
+    <string name="recent_upload_locations_new">New locations</string>
+    <string name="recent_upload_noise">Noise collections</string>
+    <string name="recent_upload_noise_new">New noise locations</string>
+    <string name="recent_upload_size">Size</string>
 </resources>
