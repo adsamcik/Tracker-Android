@@ -51,4 +51,6 @@
     <string name="recent_upload_noise">Noise collections</string>
     <string name="recent_upload_noise_new">New noise locations</string>
     <string name="recent_upload_size">Size</string>
+
+    <string name="recent_uploads">Recent uploads</string>
 </resources>
