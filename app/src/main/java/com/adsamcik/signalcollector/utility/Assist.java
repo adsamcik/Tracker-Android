@@ -4,12 +4,17 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.RippleDrawable;
 import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
@@ -117,6 +122,17 @@ public class Assist {
 		int displayWidth = displayMetrics.widthPixels;
 
 		return (realWidth - displayWidth) > 0 || (realHeight - displayHeight) > 0;
+	}
+
+	/**
+	 * Slightly more optimized function for conversion from dp to px
+	 *
+	 * @param dm
+	 * @param dp
+	 * @return
+	 */
+	public static int dpToPx(@NonNull DisplayMetrics dm, int dp) {
+		return Math.round(dp * dm.density);
 	}
 
 	public static int dpToPx(@NonNull Context c, int dp) {
@@ -388,6 +404,7 @@ public class Assist {
 
 	/**
 	 * Checks if the device looks like an emulator. This is used primarily to detect automated testing.
+	 *
 	 * @return true if emulator is detected
 	 */
 	public static boolean isEmulator() {
@@ -403,11 +420,31 @@ public class Assist {
 
 	/**
 	 * Checks if play services are available
+	 *
 	 * @param context context
 	 * @return true if available
 	 */
 	public static boolean isPlayServiceAvailable(@NonNull Context context) {
 		GoogleApiAvailability gaa = GoogleApiAvailability.getInstance();
 		return gaa != null && gaa.isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS;
+	}
+
+	/**
+	 * Generate ripple drawable
+	 * @param normalColor if 0, background is transparent
+	 * @param pressedColor pressed color
+	 * @return RippleDrawable
+	 */
+	public static RippleDrawable getPressedColorRippleDrawable(int normalColor, int pressedColor, @Nullable Drawable mask) {
+		return new RippleDrawable(getPressedColorSelector(pressedColor), normalColor == 0 ? null : getColorDrawableFromColor(normalColor), mask);
+	}
+
+	public static ColorStateList getPressedColorSelector(int pressedColor) {
+		return new ColorStateList(new int[][]{new int[]{}}, new int[]{pressedColor}
+		);
+	}
+
+	public static ColorDrawable getColorDrawableFromColor(int color) {
+		return new ColorDrawable(color);
 	}
 }

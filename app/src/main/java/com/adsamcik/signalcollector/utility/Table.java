@@ -5,28 +5,22 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.os.CancellationSignal;
-import android.text.method.TransformationMethod;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
 import java.util.Locale;
-
-import okhttp3.Callback;
 
 public class Table {
 	private final TableLayout layout;
@@ -141,13 +135,11 @@ public class Table {
 			TableLayout.LayoutParams lp = new TableLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 			lp.topMargin = Assist.dpToPx(displayMetrics, 4);
 			buttonRow.setLayoutParams(lp);
-			//buttonRow.setPadding(0, 30, 0, 0);
 			layout.addView(buttonRow);
 		}
 
 
 		TextView button = new TextView(context);
-		button.setPadding(0, 0, Assist.dpToPx(displayMetrics, 16), 0);
 		button.setMinimumWidth(Assist.dpToPx(displayMetrics, 88));
 		button.setHeight(Assist.dpToPx(displayMetrics, 36));
 		button.setText(text.toUpperCase());
@@ -155,7 +147,7 @@ public class Table {
 		button.setOnClickListener(callback);
 		button.setTextSize(16);
 		button.setGravity(Gravity.CENTER);
-		//buttonRow.setBackground(context.getDrawable(R.drawable.top_border));
+		button.setBackground(Assist.getPressedColorRippleDrawable(0, ContextCompat.getColor(context, R.color.colorAccent), context.getDrawable(R.drawable.rectangle)));
 		buttonRow.addView(button);
 		return this;
 	}
