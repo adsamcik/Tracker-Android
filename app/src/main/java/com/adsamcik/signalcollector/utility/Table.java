@@ -140,8 +140,9 @@ public class Table {
 
 
 		TextView button = new TextView(context);
-		button.setMinimumWidth(Assist.dpToPx(displayMetrics, 88));
-		button.setHeight(Assist.dpToPx(displayMetrics, 36));
+		button.setMinWidth(Assist.dpToPx(displayMetrics, 48));
+		button.setPadding(Assist.dpToPx(displayMetrics, 16), 0, Assist.dpToPx(displayMetrics, 16), 0);
+		button.setHeight(Assist.dpToPx(displayMetrics, 48));
 		button.setText(text.toUpperCase());
 		button.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
 		button.setOnClickListener(callback);
