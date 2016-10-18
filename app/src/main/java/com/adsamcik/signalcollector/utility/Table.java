@@ -7,6 +7,7 @@ import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.os.CancellationSignal;
 import android.text.method.TransformationMethod;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -34,6 +35,8 @@ public class Table {
 	private final boolean showNumber;
 
 	private final int textColor;
+
+	private TableRow buttonRow;
 
 	/**
 	 * Table constructor
@@ -124,21 +127,36 @@ public class Table {
 		return this;
 	}
 
+	/**
+	 * Add button to the bottom of the table
+	 *
+	 * @param text     title of the button
+	 * @param callback on click callback
+	 * @return this table
+	 */
 	public Table addButton(String text, View.OnClickListener callback) {
-		TableRow row = new TableRow(context);
-		TableLayout.LayoutParams lp = new TableLayout.LayoutParams();
-		lp.topMargin = Assist.dpToPx(context, 4);
-		row.setLayoutParams(lp);
-		row.setPadding(0, 30, 0, 20);
+		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+		if (buttonRow == null) {
+			buttonRow = new TableRow(context);
+			TableLayout.LayoutParams lp = new TableLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+			lp.topMargin = Assist.dpToPx(displayMetrics, 4);
+			buttonRow.setLayoutParams(lp);
+			//buttonRow.setPadding(0, 30, 0, 0);
+			layout.addView(buttonRow);
+		}
+
+
 		TextView button = new TextView(context);
+		button.setPadding(0, 0, Assist.dpToPx(displayMetrics, 16), 0);
+		button.setMinimumWidth(Assist.dpToPx(displayMetrics, 88));
+		button.setHeight(Assist.dpToPx(displayMetrics, 36));
 		button.setText(text.toUpperCase());
 		button.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
 		button.setOnClickListener(callback);
 		button.setTextSize(16);
-		row.setBackground(context.getDrawable(R.drawable.top_border));
-		row.addView(button);
-		rows.add(row);
-		layout.addView(row);
+		button.setGravity(Gravity.CENTER);
+		//buttonRow.setBackground(context.getDrawable(R.drawable.top_border));
+		buttonRow.addView(button);
 		return this;
 	}
 
@@ -192,6 +210,7 @@ public class Table {
 	public Table clear() {
 		layout.removeAllViewsInLayout();
 		rows.clear();
+		buttonRow = null;
 		return this;
 	}
 
