@@ -524,7 +524,7 @@ public class DataStore {
 			long days = Assist.getAgeInDays(oldestUpload);
 			if (days > 30) {
 				Gson gson = new Gson();
-				ArrayList<UploadStats> stats = gson.fromJson(DataStore.loadJsonArrayAppend(RECENT_UPLOADS_FILE), new TypeToken<List<Stat>>() {
+				ArrayList<UploadStats> stats = gson.fromJson(DataStore.loadJsonArrayAppend(RECENT_UPLOADS_FILE), new TypeToken<List<UploadStats>>() {
 				}.getType());
 				for (int i = 0; i < stats.size(); i++) {
 					if (Assist.getAgeInDays(stats.get(i).time) > 30)
