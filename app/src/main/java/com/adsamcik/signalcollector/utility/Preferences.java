@@ -35,7 +35,6 @@ public class Preferences {
 	public static final String STATS_MINUTES = "statsMinutes";
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
-
 	public static final String STATS_UPLOADED = "statsUploaded";
 	//obsolete
 	public static final String STATS_UPLOADED_OLD = "statsUploadKilobytes";
@@ -131,7 +130,7 @@ public class Preferences {
 					.putInt(STATS_LOCATIONS_FOUND, 0)
 					.putInt(STATS_WIFI_FOUND, 0)
 					.putInt(STATS_CELL_FOUND, 0)
-					.putInt(STATS_CELL_FOUND, 0)
+					.putInt(STATS_UPLOADED, 0)
 					.apply();
 		}
 	}
