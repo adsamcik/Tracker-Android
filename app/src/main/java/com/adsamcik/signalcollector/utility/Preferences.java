@@ -36,8 +36,6 @@ public class Preferences {
 	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 	public static final String STATS_UPLOADED = "statsUploaded";
-	//obsolete
-	public static final String STATS_UPLOADED_OLD = "statsUploadKilobytes";
 
 	public static final String AVAILABLE_MAPS = "availableMaps";
 

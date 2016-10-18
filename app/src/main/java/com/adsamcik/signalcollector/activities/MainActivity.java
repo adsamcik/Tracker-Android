@@ -170,9 +170,6 @@ public class MainActivity extends FragmentActivity {
 		if (token != null)
 			Network.registerToken(token, context);
 		//}
-
-		if (sp.contains(Preferences.STATS_UPLOADED_OLD))
-			sp.edit().remove(Preferences.STATS_UPLOADED_OLD).apply();
 	}
 
 	@Override
