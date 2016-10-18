@@ -126,12 +126,16 @@ public class Table {
 
 	public Table addButton(String text, View.OnClickListener callback) {
 		TableRow row = new TableRow(context);
-		row.setPadding(0, 30, 0, 30);
+		TableLayout.LayoutParams lp = new TableLayout.LayoutParams();
+		lp.topMargin = Assist.dpToPx(context, 4);
+		row.setLayoutParams(lp);
+		row.setPadding(0, 30, 0, 20);
 		TextView button = new TextView(context);
 		button.setText(text.toUpperCase());
 		button.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
 		button.setOnClickListener(callback);
-		button.setTextSize(20);
+		button.setTextSize(16);
+		row.setBackground(context.getDrawable(R.drawable.top_border));
 		row.addView(button);
 		rows.add(row);
 		layout.addView(row);

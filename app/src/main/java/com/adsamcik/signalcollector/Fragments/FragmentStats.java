@@ -55,7 +55,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private SwipeRefreshLayout refreshLayout;
 
 	//todo add user stats
-	//todo Improve stats updating
 
 	@Override
 	public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -83,7 +82,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
 			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us,(LinearLayout) view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
-			lastUpload.getLayout().setOnClickListener(view1 -> {
+			lastUpload.addButton(getString(R.string.more_uploads), v -> {
 				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
 				startActivity(intent);
 			});
