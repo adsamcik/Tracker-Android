@@ -128,7 +128,7 @@ public class Preferences {
 					.putInt(STATS_LOCATIONS_FOUND, 0)
 					.putInt(STATS_WIFI_FOUND, 0)
 					.putInt(STATS_CELL_FOUND, 0)
-					.putInt(STATS_UPLOADED, 0)
+					.putLong(STATS_UPLOADED, 0)
 					.apply();
 		}
 	}
