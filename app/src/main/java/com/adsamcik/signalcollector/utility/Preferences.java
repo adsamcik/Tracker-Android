@@ -20,6 +20,8 @@ public class Preferences {
 	private static final String TAG = "SignalsSetting";
 	public static final int UPLOAD_JOB = 513;
 
+	public static final String LAST_VERSION = "lastVersion";
+
 	public static final String SCHEDULED_UPLOAD = "uploadSCHEDULED";
 	public static final String SENT_TOKEN_TO_SERVER = "sentTokenToServer";
 	public static final String REGISTERED_USER = "playUserRegistered";
