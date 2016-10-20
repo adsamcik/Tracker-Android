@@ -193,10 +193,6 @@ public class DataStore {
 			renameFile(item, DATA_FILE + item);
 
 		Preferences.get().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
-		if (onDataChanged != null) {
-			if (renamedFiles.size() > 0)
-				onDataChanged.callback();
-		}
 	}
 
 	/**
@@ -212,6 +208,8 @@ public class DataStore {
 		for (String fileName : fileNames)
 			size += sizeOf(fileName);
 		Preferences.get().edit().putLong(KEY_SIZE, size).apply();
+		if(onDataChanged != null && approxSize != size)
+			onDataChanged();
 		approxSize = size;
 		return size;
 	}
