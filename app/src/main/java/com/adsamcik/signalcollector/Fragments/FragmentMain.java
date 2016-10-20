@@ -90,7 +90,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		else if (collected == 0)
 			setCloudStatus(0);
 		if (textCollected != null && getResources() != null)
-			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected)));
+			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
 	}
 
 	/**
