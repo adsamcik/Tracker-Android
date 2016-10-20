@@ -96,7 +96,7 @@ public class NoiseTracker {
 			return null;
 		}
 
-		
+
 		private short getApproxAmplitude() {
 			short[] buffer = new short[bufferSize];
 			audioRecorder.read(buffer, 0, bufferSize);

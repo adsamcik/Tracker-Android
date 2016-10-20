@@ -33,10 +33,19 @@ public class Data implements Serializable {
 
 	public short noise;
 
+	/**
+	 * Data constructor
+	 * @param time collection time
+	 */
 	public Data(long time) {
 		this.time = time;
 	}
 
+	/**
+	 * Sets collection location
+	 * @param location location
+	 * @return this
+	 */
 	public Data setLocation(@NonNull Location location) {
 		this.longitude = location.getLongitude();
 		this.latitude = location.getLatitude();
@@ -45,8 +54,14 @@ public class Data implements Serializable {
 		return this;
 	}
 
+	/**
+	 * Sets wifi and time of wifi collection
+	 * @param data data
+	 * @param time time of collection
+	 * @return this
+	 */
 	public Data setWifi(ScanResult[] data, long time) {
-		if (data != null) {
+		if (data != null && time > 0) {
 			wifi = new WifiData[data.length];
 			for (int i = 0; i < data.length; i++)
 				wifi[i] = new WifiData(data[i]);
@@ -55,17 +70,33 @@ public class Data implements Serializable {
 		return this;
 	}
 
+	/**
+	 * Sets activity
+	 * @param activity activity
+	 * @return this
+	 */
 	public Data setActivity(int activity) {
 		this.activity = activity;
 		return this;
 	}
 
+	/**
+	 * Sets noise value.
+	 * @param noise Noise value. Must be absolute amplitude.
+	 * @return this
+	 */
 	public Data setNoise(short noise) {
 		if (noise > 0)
 			this.noise = noise;
 		return this;
 	}
 
+	/**
+	 * Sets current active cell from nearby cells
+	 * @param operator current network operator
+	 * @param data nearby cell
+	 * @return this
+	 */
 	public Data setCell(String operator, List<CellInfo> data) {
 		if (data != null) {
 			cellCount = data.size();
@@ -92,12 +123,22 @@ public class Data implements Serializable {
 		return this;
 	}
 
+	/**
+	 * Sets active cell and network operator
+	 * @param operator cell network operator
+	 * @param activeCell active cell
+	 * @return this
+	 */
 	private Data setCell(@Nullable String operator, @Nullable CellData activeCell) {
 		this.activeCell = activeCell;
 		this.networkOperator = operator;
 		return this;
 	}
 
+	/**
+	 * Returns active cell
+	 * @return active cell
+	 */
 	public CellData getActiveCell() {
 		return activeCell;
 	}

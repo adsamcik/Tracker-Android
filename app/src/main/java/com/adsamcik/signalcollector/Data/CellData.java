@@ -27,7 +27,10 @@ public class CellData implements Serializable {
 	public final boolean isRegistered;
 
 
-	//GSM constructor
+	/**
+	 * GSM constructor
+	 * @param cing GSM cell info
+	 */
 	public CellData(CellInfoGsm cing) {
 		this.type = 0;
 		this.isRegistered = cing.isRegistered();
@@ -42,7 +45,10 @@ public class CellData implements Serializable {
 		this.level = cssg.getLevel();
 	}
 
-	//LTE constructor
+	/**
+	 * LTE constructor
+	 * @param cinl LTE cell info
+	 */
 	public CellData(CellInfoLte cinl) {
 		this.type = 3;
 		this.isRegistered = cinl.isRegistered();
@@ -57,7 +63,10 @@ public class CellData implements Serializable {
 		this.level = cssl.getLevel();
 	}
 
-	//CDMA constructor
+	/**
+	 * CDMA constructor
+	 * @param cinc cdma cell info
+	 */
 	public CellData(CellInfoCdma cinc) {
 		this.type = 1;
 		this.isRegistered = cinc.isRegistered();
@@ -70,7 +79,10 @@ public class CellData implements Serializable {
 		this.level = cssc.getLevel();
 	}
 
-	//WCDMA constructor
+	/**
+	 * WCDMA constructor
+	 * @param cinw WCDMA cell info
+	 */
 	public CellData(CellInfoWcdma cinw) {
 		this.type = 2;
 		this.isRegistered = cinw.isRegistered();
@@ -85,6 +97,10 @@ public class CellData implements Serializable {
 		this.level = cssw.getLevel();
 	}
 
+	/**
+	 * Converts int type to string
+	 * @return type of network as string
+	 */
 	public String getType() {
 		switch(type) {
 			case 0:
