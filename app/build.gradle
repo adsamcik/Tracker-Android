@@ -2,12 +2,12 @@ apply plugin: 'com.android.application'
 apply from: 'key.gradle'
 
 android {
-    compileSdkVersion 24
+    compileSdkVersion 25
     buildToolsVersion '24.0.2'
     defaultConfig {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
-        targetSdkVersion 24
+        targetSdkVersion 25
         versionCode 106
         versionName "2.0.0 Network 5.4"
         jackOptions {
@@ -29,9 +29,9 @@ android {
 }
 
 dependencies {
-    compile 'com.android.support:design:24.2.1'
-    compile 'com.android.support:appcompat-v7:24.2.1'
-    compile 'com.android.support:support-compat:24.2.1'
+    compile 'com.android.support:design:25.0.0'
+    compile 'com.android.support:appcompat-v7:25.0.0'
+    compile 'com.android.support:support-compat:25.0.0'
     compile 'com.squareup.okhttp3:okhttp:3.4.1'
     compile 'com.google.code.gson:gson:2.7'
     compile 'com.github.paolorotolo:appintro:4.1.0'
