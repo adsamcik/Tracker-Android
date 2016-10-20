@@ -13,6 +13,7 @@ import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
@@ -449,6 +450,16 @@ public class Assist {
 	public static boolean isPlayServiceAvailable(@NonNull Context context) {
 		GoogleApiAvailability gaa = GoogleApiAvailability.getInstance();
 		return gaa != null && gaa.isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS;
+	}
+
+	/**
+	 * Checks if airplane mode is turned on
+	 * @param context context
+	 * @return true if airplane mode is turned on
+	 */
+	public static boolean isAirplaneMode(@NonNull Context context) {
+		return Settings.Global.getInt(context.getContentResolver(),
+				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
 	}
 
 	/**

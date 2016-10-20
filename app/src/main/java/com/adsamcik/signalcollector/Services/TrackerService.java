@@ -91,26 +91,36 @@ public class TrackerService extends Service {
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
 
+	/**
+	 * Checks if service is running
+	 * @return true if service is running
+	 */
 	public static boolean isRunning() {
 		return service != null && service.get() != null;
 	}
 
-	static boolean isAutoLocked() {
+	/**
+	 * Checks if Tracker is auto locked
+	 * @return true if locked
+	 */
+	public static boolean isAutoLocked() {
 		return System.currentTimeMillis() < lockedUntil;
 	}
 
+	/**
+	 * Checks if tracker was activated in background
+	 * @return true if activated by the app
+	 */
 	public static boolean isBackgroundActivated() {
 		return backgroundActivated;
 	}
 
+	/**
+	 * Sets auto lock with predefined time {@link TrackerService#LOCK_TIME_IN_MINUTES}
+	 */
 	public static void setAutoLock() {
 		if (backgroundActivated)
 			lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
-	}
-
-	private static boolean isAirplaneModeOn(Context context) {
-		return Settings.Global.getInt(context.getContentResolver(),
-				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
 	}
 
 	private void updateData(Location location) {
@@ -141,13 +151,13 @@ public class TrackerService extends Service {
 			prevScanPos.setTime(d.time);
 		}
 
-		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true) && !isAirplaneModeOn(this)) {
+		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true) && !Assist.isAirplaneMode(this)) {
 			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
 		}
 
 		if (noiseTracker != null) {
 			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
-			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && !(location.hasSpeed() && location.getSpeed() > MAX_NOISE_TRACKING_SPEED_M)) {
+			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
 				noiseTracker.start();
 				short value = noiseTracker.getSample(10);
 				if (value >= 0)
@@ -179,6 +189,42 @@ public class TrackerService extends Service {
 			stopSelf();
 
 		wakeLock.release();
+	}
+
+
+	private void saveData() {
+		if (data.size() == 0) return;
+
+		SharedPreferences sp = Preferences.get(getApplicationContext());
+		Preferences.checkStatsDay(getApplicationContext());
+
+		int wifiCount, cellCount, locations;
+
+		wifiCount = sp.getInt(Preferences.STATS_WIFI_FOUND, 0);
+		cellCount = sp.getInt(Preferences.STATS_CELL_FOUND, 0);
+		locations = sp.getInt(Preferences.STATS_LOCATIONS_FOUND, 0);
+		for (Data d : data) {
+			if (d.wifi != null)
+				wifiCount += d.wifi.length;
+			if (d.cellCount != -1)
+				cellCount += d.cellCount;
+		}
+
+		sp.edit().putInt(Preferences.STATS_WIFI_FOUND, wifiCount).putInt(Preferences.STATS_CELL_FOUND, cellCount).putInt(Preferences.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
+
+		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
+		input = input.substring(1, input.length() - 1);
+
+		int result = DataStore.saveData(input);
+		if (result == 1) {
+			saveAttemptsFailed++;
+			if (saveAttemptsFailed >= 5)
+				stopSelf();
+		} else {
+			data.clear();
+			if (result == 2)
+				DataStore.requestUpload(getApplicationContext(), true);
+		}
 	}
 
 	private Notification generateNotification(boolean gpsAvailable, Data d) {
@@ -224,41 +270,6 @@ public class TrackerService extends Service {
 		else
 			sb.append("Nothing found");
 		return sb.toString();
-	}
-
-	private void saveData() {
-		if (data.size() == 0) return;
-
-		SharedPreferences sp = Preferences.get(getApplicationContext());
-		Preferences.checkStatsDay(getApplicationContext());
-
-		int wifiCount, cellCount, locations;
-
-		wifiCount = sp.getInt(Preferences.STATS_WIFI_FOUND, 0);
-		cellCount = sp.getInt(Preferences.STATS_CELL_FOUND, 0);
-		locations = sp.getInt(Preferences.STATS_LOCATIONS_FOUND, 0);
-		for (Data d : data) {
-			if (d.wifi != null)
-				wifiCount += d.wifi.length;
-			if (d.cellCount != -1)
-				cellCount += d.cellCount;
-		}
-
-		sp.edit().putInt(Preferences.STATS_WIFI_FOUND, wifiCount).putInt(Preferences.STATS_CELL_FOUND, cellCount).putInt(Preferences.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
-
-		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
-		input = input.substring(1, input.length() - 1);
-
-		int result = DataStore.saveData(input);
-		if (result == 1) {
-			saveAttemptsFailed++;
-			if (saveAttemptsFailed >= 5)
-				stopSelf();
-		} else {
-			data.clear();
-			if (result == 2)
-				DataStore.requestUpload(getApplicationContext(), true);
-		}
 	}
 
 

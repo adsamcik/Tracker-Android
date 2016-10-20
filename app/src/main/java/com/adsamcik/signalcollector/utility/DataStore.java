@@ -12,7 +12,6 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
@@ -170,6 +169,7 @@ public class DataStore {
 	 * @param fileName file name
 	 * @return existence of file
 	 */
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public static boolean exists(String fileName) {
 		return new File(getContext().getFilesDir().getAbsolutePath() + "/" + fileName).exists();
 	}

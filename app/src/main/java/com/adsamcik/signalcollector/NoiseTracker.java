@@ -4,7 +4,6 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.AsyncTask;
-import android.util.Log;
 
 public class NoiseTracker {
 	private final String TAG = "SignalsNoise";
@@ -18,10 +17,17 @@ public class NoiseTracker {
 
 	private AsyncTask task;
 
+	/**
+	 * Creates new instance of noise tracker. Does not start tracking.
+	 */
 	public NoiseTracker() {
 		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 	}
 
+	/**
+	 * Starts noise tracking.
+	 * @return this
+	 */
 	public NoiseTracker start() {
 		if (audioRecorder.getState() == AudioRecord.RECORDSTATE_STOPPED)
 			audioRecorder.startRecording();
@@ -30,6 +36,10 @@ public class NoiseTracker {
 		return this;
 	}
 
+	/**
+	 * Stops noise tracking
+	 * @return this
+	 */
 	public NoiseTracker stop() {
 		audioRecorder.stop();
 		if (task != null) {
@@ -40,6 +50,12 @@ public class NoiseTracker {
 		return this;
 	}
 
+	/**
+	 * Calculates average noise value from the last x seconds. Tracker does not save more than {@link #MAX_HISTORY_SIZE} seconds.
+	 * Noise history is cleaned after getting this sample.
+	 * @param seconds seconds from history which should be taken into account.
+	 * @return average noise (amplitude) value
+	 */
 	public short getSample(final int seconds) {
 		if (currentIndex == -1)
 			return -1;
@@ -73,7 +89,6 @@ public class NoiseTracker {
 					if (currentIndex >= MAX_HISTORY_INDEX)
 						break;
 				} catch (InterruptedException e) {
-					//Log.w(TAG, e.getMessage() + " interrupted");
 					break;
 				}
 			}
@@ -81,7 +96,7 @@ public class NoiseTracker {
 			return null;
 		}
 
-
+		
 		private short getApproxAmplitude() {
 			short[] buffer = new short[bufferSize];
 			audioRecorder.read(buffer, 0, bufferSize);

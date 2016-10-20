@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -19,7 +18,6 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -176,7 +174,7 @@ public class MainActivity extends FragmentActivity {
 			try {
 				sp.edit().remove(Preferences.STATS_UPLOADED).putInt(Preferences.LAST_VERSION, getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode).apply();
 			} catch (Exception e) {
-
+				//
 			}
 		}
 	}
@@ -206,6 +204,7 @@ public class MainActivity extends FragmentActivity {
 			if (result.isSuccess()) {
 				signinController.onSignedIn();
 				GoogleSignInAccount acct = result.getSignInAccount();
+				assert acct != null;
 				String token = acct.getIdToken();
 				Network.registerUser(token, getApplicationContext());
 			} else
