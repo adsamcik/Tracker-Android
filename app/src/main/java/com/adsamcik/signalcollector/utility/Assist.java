@@ -57,25 +57,27 @@ public class Assist {
 		return telephonyManager != null;
 	}
 
+	/**
+	 * Initializes TelephonyManager and ConnectivityManager in Assist class
+	 *
+	 * @param c context
+	 */
 	public static void initialize(Context c) {
 		telephonyManager = (TelephonyManager) c.getSystemService(Context.TELEPHONY_SERVICE);
 		connectivityManager = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 	}
 
-	@SuppressWarnings("unused")
-	public static String humanReadableByteCount(long bytes, @SuppressWarnings("SameParameterValue") boolean si) {
+	/**
+	 * Converts raw byte count to human readable byte count
+	 * @param bytes bytes
+	 * @param si if true uses decimal (1000) representation otherwise binary (1024)
+	 * @return human readable byte count
+	 */
+	public static String humanReadableByteCount(long bytes, boolean si) {
 		int unit = si ? 1000 : 1024;
 		if (bytes < unit) return bytes + " B";
 		int exp = (int) (Math.log(bytes) / Math.log(unit));
 		String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
-		return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit, exp), pre);
-	}
-
-	public static String humanReadableByteCount(long bytes) {
-		final int unit = 1024;
-		if (bytes < unit) return bytes + " B";
-		int exp = (int) (Math.log(bytes) / Math.log(unit));
-		String pre = "KMGTPE".charAt(exp - 1) + "i";
 		return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit, exp), pre);
 	}
 
@@ -91,13 +93,6 @@ public class Assist {
 		if (resourceId > 0)
 			return r.getDimensionPixelSize(resourceId);
 		return 0;
-	}
-
-	public static DisplayMetrics getDisplayMetrics(@NonNull WindowManager windowManager) {
-		Display d = windowManager.getDefaultDisplay();
-		DisplayMetrics realDisplayMetrics = new DisplayMetrics();
-		d.getRealMetrics(realDisplayMetrics);
-		return realDisplayMetrics;
 	}
 
 	/**
@@ -125,24 +120,45 @@ public class Assist {
 	}
 
 	/**
-	 * Slightly more optimized function for conversion from dp to px
+	 * Slightly more optimized function for conversion from density-independent pixels to pixels
 	 *
-	 * @param dm
-	 * @param dp
-	 * @return
+	 * @param dm display metrics
+	 * @param dp Density-independent Pixels
+	 * @return pixels
 	 */
 	public static int dpToPx(@NonNull DisplayMetrics dm, int dp) {
 		return Math.round(dp * dm.density);
 	}
 
+	/**
+	 * Function for conversion from dp to px
+	 *
+	 * @param c context
+	 * @param dp Density-independent Pixels
+	 * @return pixels
+	 */
 	public static int dpToPx(@NonNull Context c, int dp) {
 		return Math.round(dp * c.getResources().getDisplayMetrics().density);
 	}
 
+	/**
+	 * Function for conversion of pixels to density-independent pixels
+	 *
+	 * @param c context
+	 * @param px pixels
+	 * @return  Density-independent pixels
+	 */
 	public static int pxToDp(@NonNull Context c, int px) {
 		return Math.round(px / c.getResources().getDisplayMetrics().density);
 	}
 
+	/**
+	 * Function for conversion of point to pixels
+	 *
+	 * @param c context
+ 	 * @param pt point
+	 * @return pixels
+	 */
 	public static int ptToPx(@NonNull Context c, int pt) {
 		return (int) (pt * c.getResources().getDisplayMetrics().density + 0.5f);
 	}
@@ -370,6 +386,12 @@ public class Assist {
 		}
 	}
 
+	/**
+	 * Converts json to string array
+	 *
+	 * @param jsonStringArray string array in json
+	 * @return array list of strings
+	 */
 	public static ArrayList<String> jsonToStringArray(String jsonStringArray) {
 		try {
 			JSONArray array = new JSONArray(jsonStringArray);
@@ -439,12 +461,12 @@ public class Assist {
 		return new RippleDrawable(getPressedColorSelector(pressedColor), normalColor == 0 ? null : getColorDrawableFromColor(normalColor), mask);
 	}
 
-	public static ColorStateList getPressedColorSelector(int pressedColor) {
+	private static ColorStateList getPressedColorSelector(int pressedColor) {
 		return new ColorStateList(new int[][]{new int[]{}}, new int[]{pressedColor}
 		);
 	}
 
-	public static ColorDrawable getColorDrawableFromColor(int color) {
+	private static ColorDrawable getColorDrawableFromColor(int color) {
 		return new ColorDrawable(color);
 	}
 }
