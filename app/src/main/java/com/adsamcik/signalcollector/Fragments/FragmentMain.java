@@ -77,7 +77,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		setCollected(dataSize);
 
 		Context context = getContext();
-		if(context == null)
+		if (context == null)
 			context = getActivity();
 		updateData(context);
 
@@ -265,7 +265,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		if (layoutWifi != null)
 			updateData(activity);
 
-		if(Assist.isEmulator())
+		if (Assist.isEmulator())
 			fabUp.hide();
 		return new Success<>();
 	}
@@ -353,7 +353,9 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	private void updateData() {
-		updateData(getContext());
+		Context c = getContext();
+		if (c != null)
+			updateData(c);
 	}
 
 }
