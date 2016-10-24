@@ -36,8 +36,8 @@ public class RecentUploadsActivity extends Activity {
 			t.addTitle(title);
 
 		t.addRow().addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize, true));
-		Log.d("size", uploadStat.uploadSize + " size");
 		t.addRow().addData(resources.getString(R.string.recent_upload_collections), String.valueOf(uploadStat.collections));
+		t.addRow().addData(resources.getString(R.string.recent_upload_locations_new), String.valueOf(uploadStat.newLocations));
 		t.addRow().addData(resources.getString(R.string.recent_upload_wifi), String.valueOf(uploadStat.wifi));
 		t.addRow().addData(resources.getString(R.string.recent_upload_wifi_new), String.valueOf(uploadStat.newWifi));
 		t.addRow().addData(resources.getString(R.string.recent_upload_cell), String.valueOf(uploadStat.cell));
