@@ -161,7 +161,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
-							DataStore.requestUpload(getContext(), false);
+							UploadService.requestUpload(getContext(), false);
 						}
 				);
 				fabUp.show();

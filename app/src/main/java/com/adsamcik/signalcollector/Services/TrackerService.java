@@ -223,7 +223,7 @@ public class TrackerService extends Service {
 		} else {
 			data.clear();
 			if (result == 2)
-				DataStore.requestUpload(getApplicationContext(), true);
+				UploadService.requestUpload(getApplicationContext(), true);
 		}
 	}
 

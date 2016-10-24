@@ -41,7 +41,6 @@ public class DataStore {
 	private static final String DATA_FILE = "dataStore";
 	private static final String KEY_FILE_ID = "saveFileID";
 	private static final String KEY_SIZE = "totalSize";
-	public static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
 	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
 	private static final int MAX_FILE_SIZE = 1048576;
 
@@ -96,50 +95,6 @@ public class DataStore {
 		for (int i = 0; i <= maxID; i++)
 			fileNames[i] = DATA_FILE + i;
 		return fileNames;
-	}
-
-	/**
-	 * Requests upload
-	 * Call this when you want to auto-upload
-	 *
-	 * @param c            Non-null context
-	 * @param isBackground Is activated by background tracking
-	 */
-	public static void requestUpload(@NonNull Context c, boolean isBackground) {
-		if (contextWeak.get() == null)
-			setContext(c);
-
-		SharedPreferences sp = Preferences.get(c);
-		int autoUpload = sp.getInt(Preferences.AUTO_UPLOAD, 1);
-		if (autoUpload != 0 || !isBackground) {
-			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(c, UploadService.class));
-			if (!isBackground) {
-				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-				//todo implement roaming upload
-				if (activeNetwork == null || activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
-					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
-				} else {
-					if (Build.VERSION.SDK_INT >= 24)
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
-					else
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-				}
-			} else {
-				if (autoUpload == 2) {
-					if (Build.VERSION.SDK_INT >= 24)
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
-					else
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-				} else
-					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
-			}
-			PersistableBundle pb = new PersistableBundle(1);
-			pb.putInt(KEY_IS_AUTOUPLOAD, isBackground ? 1 : 0);
-			jb.setExtras(pb);
-			((JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jb.build());
-			sp.edit().putBoolean(Preferences.SCHEDULED_UPLOAD, true).apply();
-		}
 	}
 
 	/**

@@ -22,6 +22,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
+import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
@@ -77,7 +78,7 @@ public class MainActivity extends FragmentActivity {
 		Assist.initialize(this);
 
 		if (Preferences.get(this).getBoolean(Preferences.SCHEDULED_UPLOAD, false))
-			DataStore.requestUpload(this, true);
+			UploadService.requestUpload(this, true);
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
