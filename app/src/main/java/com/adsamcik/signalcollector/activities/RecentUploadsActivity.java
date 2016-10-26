@@ -8,8 +8,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NavUtils;
 import android.support.v4.content.ContextCompat;
-import android.text.format.DateFormat;
-import android.util.Log;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
@@ -21,6 +19,7 @@ import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -30,9 +29,14 @@ public class RecentUploadsActivity extends Activity {
 	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context, @Nullable String title) {
 		Resources resources = context.getResources();
 		Table t = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
-		if (title == null)
-			t.addTitle(DateFormat.format("dd.MM hh:mm", new Date(uploadStat.time)).toString());
-		else
+
+
+		if (title == null) {
+			DateFormat dateFormat = android.text.format.DateFormat.getDateFormat(context);
+			DateFormat timeFormat = android.text.format.DateFormat .getTimeFormat(context);
+			Date dateTime = new Date(uploadStat.time);
+			t.addTitle(dateFormat.format(dateTime) + " " + timeFormat.format(dateTime));
+		} else
 			t.addTitle(title);
 
 		t.addRow().addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize, true));
