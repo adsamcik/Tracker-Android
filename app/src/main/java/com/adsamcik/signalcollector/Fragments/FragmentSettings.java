@@ -40,13 +40,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
 	private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
 
-	private String[] mTrackingString, mAutoupString;
-	private ImageView mTrackingNone, mTrackingOnFoot, mTrackingAlways;
-	private ImageView mAutoupDisabled, mAutoupWifi, mAutoupAlways;
-	private TextView mAutoupDesc, mTrackDesc;
+	private String[] trackingString, autoupString;
+	private ImageView trackingNone, trackingOnFoot, trackingAlways;
+	private ImageView autoupDisabled, autoupWifi, autoupAlways;
+	private TextView autoupDesc, trackDesc, signInNoConnection;
 	private Switch switchNoise;
-
-	private SharedPreferences mSharedPreferences;
 
 	private ImageView mTrackingSelected, mAutoupSelected;
 
@@ -58,22 +56,22 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ColorStateList mDefaultState;
 
 	private void updateTracking(int select) {
-		mSharedPreferences.edit().putInt(Preferences.BACKGROUND_TRACKING, select).apply();
+		Preferences.get(getContext()).edit().putInt(Preferences.BACKGROUND_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
-				selected = mTrackingNone;
+				selected = trackingNone;
 				break;
 			case 1:
-				selected = mTrackingOnFoot;
+				selected = trackingOnFoot;
 				break;
 			case 2:
-				selected = mTrackingAlways;
+				selected = trackingAlways;
 				break;
 			default:
 				return;
 		}
-		mTrackDesc.setText(mTrackingString[select]);
+		trackDesc.setText(trackingString[select]);
 		if (mTrackingSelected != null)
 			mTrackingSelected.setImageTintList(mDefaultState);
 		selected.setImageTintList(mSelectedState);
@@ -81,22 +79,22 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void updateAutoup(int select) {
-		mSharedPreferences.edit().putInt(Preferences.AUTO_UPLOAD, select).apply();
+		Preferences.get(getContext()).edit().putInt(Preferences.AUTO_UPLOAD, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
-				selected = mAutoupDisabled;
+				selected = autoupDisabled;
 				break;
 			case 1:
-				selected = mAutoupWifi;
+				selected = autoupWifi;
 				break;
 			case 2:
-				selected = mAutoupAlways;
+				selected = autoupAlways;
 				break;
 			default:
 				return;
 		}
-		mAutoupDesc.setText(mAutoupString[select]);
+		autoupDesc.setText(autoupString[select]);
 		if (mAutoupSelected != null)
 			mAutoupSelected.setImageTintList(mDefaultState);
 		selected.setImageTintList(mSelectedState);
@@ -107,8 +105,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
 		final Context context = getContext();
-		mSharedPreferences = Preferences.get(context);
 		final Resources resources = getResources();
+		final SharedPreferences sharedPreferences = Preferences.get(getContext());
 
 		try {
 			((TextView) rootView.findViewById(R.id.versionNum)).setText(context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName);
@@ -119,30 +117,30 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, context.getTheme());
 		mDefaultState = ResourcesCompat.getColorStateList(resources, R.color.default_value, context.getTheme());
 
-		mTrackingString = resources.getStringArray(R.array.background_tracking_options);
-		mAutoupString = resources.getStringArray(R.array.automatic_upload_options);
+		trackingString = resources.getStringArray(R.array.background_tracking_options);
+		autoupString = resources.getStringArray(R.array.automatic_upload_options);
 
-		mAutoupDesc = (TextView) rootView.findViewById(R.id.autoupload_description);
-		mTrackDesc = (TextView) rootView.findViewById(R.id.tracking_description);
+		autoupDesc = (TextView) rootView.findViewById(R.id.autoupload_description);
+		trackDesc = (TextView) rootView.findViewById(R.id.tracking_description);
 
-		mTrackingNone = (ImageView) rootView.findViewById(R.id.tracking_none);
-		mTrackingNone.setOnClickListener(v -> updateTracking(0));
-		mTrackingOnFoot = (ImageView) rootView.findViewById(R.id.tracking_onfoot);
-		mTrackingOnFoot.setOnClickListener(v -> updateTracking(1));
-		mTrackingAlways = (ImageView) rootView.findViewById(R.id.tracking_always);
-		mTrackingAlways.setOnClickListener(v -> updateTracking(2));
+		trackingNone = (ImageView) rootView.findViewById(R.id.tracking_none);
+		trackingNone.setOnClickListener(v -> updateTracking(0));
+		trackingOnFoot = (ImageView) rootView.findViewById(R.id.tracking_onfoot);
+		trackingOnFoot.setOnClickListener(v -> updateTracking(1));
+		trackingAlways = (ImageView) rootView.findViewById(R.id.tracking_always);
+		trackingAlways.setOnClickListener(v -> updateTracking(2));
 
-		mAutoupDisabled = (ImageView) rootView.findViewById(R.id.autoupload_disabled);
-		mAutoupDisabled.setOnClickListener(v -> updateAutoup(0));
-		mAutoupWifi = (ImageView) rootView.findViewById(R.id.autoupload_wifi);
-		mAutoupWifi.setOnClickListener(v -> updateAutoup(1));
-		mAutoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
-		mAutoupAlways.setOnClickListener(v -> updateAutoup(2));
+		autoupDisabled = (ImageView) rootView.findViewById(R.id.autoupload_disabled);
+		autoupDisabled.setOnClickListener(v -> updateAutoup(0));
+		autoupWifi = (ImageView) rootView.findViewById(R.id.autoupload_wifi);
+		autoupWifi.setOnClickListener(v -> updateAutoup(1));
+		autoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
+		autoupAlways.setOnClickListener(v -> updateAutoup(2));
 
-		updateTracking(mSharedPreferences.getInt(Preferences.BACKGROUND_TRACKING, 1));
-		updateAutoup(mSharedPreferences.getInt(Preferences.AUTO_UPLOAD, 1));
+		updateTracking(sharedPreferences.getInt(Preferences.BACKGROUND_TRACKING, 1));
+		updateAutoup(sharedPreferences.getInt(Preferences.AUTO_UPLOAD, 1));
 
-		signInButton = (SignInButton)rootView.findViewById(R.id.sign_in_button);
+		signInButton = (SignInButton) rootView.findViewById(R.id.sign_in_button);
 		signOutButton = (Button) rootView.findViewById(R.id.sign_out_button);
 
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
@@ -159,7 +157,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
 
 		Assist.getMapOverlays(Preferences.get(context), stringArray -> {
-			if(stringArray.size() > 0) {
+			if (stringArray.size() > 0) {
 				SharedPreferences sp = Preferences.get(context);
 				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
 				int index = stringArray.indexOf(defaultOverlay);
@@ -184,8 +182,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						}
 					});
 				});
-			}
-			else {
+			} else {
 				getActivity().runOnUiThread(() -> ((RelativeLayout) mapOverlaySpinner.getParent()).setVisibility(View.GONE));
 			}
 		});
@@ -214,8 +211,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		signinController = SigninController.getInstance(getActivity());
-		signinController.manageButtons(signInButton, signOutButton);
+		if (Assist.hasNetwork()) {
+			signinController = SigninController.getInstance(getActivity());
+			signinController.manageButtons(signInButton, signOutButton);
+		} else
+			signInNoConnection.setVisibility(View.VISIBLE);
 		return new Success<>();
 	}
 

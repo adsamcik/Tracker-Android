@@ -140,6 +140,15 @@
             android:visibility="gone"/>
 
         <TextView
+            android:id="@+id/sign_in_no_connection"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/internet_connection_required"
+            android:textSize="@dimen/setting_text_size"
+            android:visibility="gone"/>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="@dimen/setting_item_padding"
