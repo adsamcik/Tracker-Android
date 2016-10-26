@@ -142,6 +142,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		signInButton = (SignInButton) rootView.findViewById(R.id.sign_in_button);
 		signOutButton = (Button) rootView.findViewById(R.id.sign_out_button);
+		signInNoConnection = (TextView) rootView.findViewById(R.id.sign_in_no_connection);
 
 		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
@@ -221,6 +222,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
+		signInButton.setVisibility(View.GONE);
+		signInNoConnection.setVisibility(View.GONE);
+		signOutButton.setVisibility(View.GONE);
 		signinController.forgetButtons();
 		signinController = null;
 	}
