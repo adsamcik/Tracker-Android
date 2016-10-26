@@ -352,7 +352,7 @@ public class Assist {
 	public static void getMapOverlays(final SharedPreferences sharedPreferences, final IValueCallback<ArrayList<String>> callback) {
 		final long lastUpdate = sharedPreferences.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
 		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
-			if (!isConnected() && lastUpdate != -1) {
+			if (!hasNetwork() && lastUpdate != -1) {
 				callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
 				return;
 			}
@@ -407,12 +407,13 @@ public class Assist {
 	}
 
 	/**
-	 * Checks if user is connected to active network
+	 * Checks if device is connecting or is connected to network
 	 *
-	 * @return true if connected
+	 * @return true if connected or connecting
 	 */
-	public static boolean isConnected() {
-		return connectivityManager.getActiveNetworkInfo().isConnected();
+	public static boolean hasNetwork() {
+		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
+		return activeNetwork != null && activeNetwork.isConnectedOrConnecting();
 	}
 
 	/**
