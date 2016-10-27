@@ -6,6 +6,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.support.annotation.NonNull;
@@ -53,10 +54,12 @@ public class MessageListenerService extends FirebaseMessagingService {
 				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
 				if (Preferences.get().getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)) {
-					if (us.newLocations == 0)
-						sendNotification("New upload summary", "No new locations tracked. Try visiting new places.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+					Resources r = getResources();
+					int locations = us.newLocations + us.newNoiseLocations;
+					if (locations == 0)
+						sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.no_new_locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 					else
-						sendNotification("New upload summary", "Tracked " + us.newLocations + " new places. Good job.", PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+						sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.new_locations, locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 				}
 				break;
 			case Notification:

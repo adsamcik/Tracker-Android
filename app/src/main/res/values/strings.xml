@@ -35,13 +35,6 @@
 
     <string name="no_play_services">Play services are not available</string>
 
-    <string name="path_play">M12,10L20,10L20,38L12,38ZM28,10L36,10L36,38L28,38Z</string>
-    <string name="path_pause">M16,24L38,24L27.3,30.8L16,38ZM16,10L27.3,17.2L38,24L16,24Z</string>
-
-    <string name="nPlay">play</string>
-    <string name="nPause">pause</string>
-    <string name="nPlayPauseGroup">PlayPauseGroup</string>
-
     <string name="recent_upload_wifi">Wifi</string>
     <string name="recent_upload_wifi_new">New wifi</string>
     <string name="recent_upload_cell">Cell</string>
@@ -55,4 +48,14 @@
     <string name="recent_uploads">Recent uploads</string>
     <string name="most_recent_upload">Most recent upload</string>
     <string name="more_uploads">More uploads</string>
+    <string name="new_upload_summary">New upload summary</string>
+    <string name="no_new_locations">No new locations tracked. Try visiting new places.</string>
+    <string name="new_locations">Found %1$d new locations. Good job!</string>
+
+    <string name="path_play">M12,10L20,10L20,38L12,38ZM28,10L36,10L36,38L28,38Z</string>
+    <string name="path_pause">M16,24L38,24L27.3,30.8L16,38ZM16,10L27.3,17.2L38,24L16,24Z</string>
+
+    <string name="nPlay">play</string>
+    <string name="nPause">pause</string>
+    <string name="nPlayPauseGroup">PlayPauseGroup</string>
 </resources>
