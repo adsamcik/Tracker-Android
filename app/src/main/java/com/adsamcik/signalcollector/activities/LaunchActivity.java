@@ -15,6 +15,7 @@ public class LaunchActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
 		if (sp.getInt(Preferences.LAST_VERSION, 0) < 113) {
 			if(DataStore.exists("general_stats_cache_file"))
