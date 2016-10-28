@@ -54,9 +54,9 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
-	private static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IValueCallback<String> callback) {
+	public static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IValueCallback<String> callback) {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
-		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS) {
+		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1) {
 			if (!Assist.hasNetwork() && lastUpdate != -1) {
 				String json = DataStore.loadString(preferenceString);
 				callback.callback(json);
@@ -71,6 +71,8 @@ public class NetworkLoader {
 				public void onFailure(Call call, IOException e) {
 					if (lastUpdate != -1)
 						callback.callback(DataStore.loadString(preferenceString));
+					else
+						callback.callback(null);
 				}
 
 				@Override
