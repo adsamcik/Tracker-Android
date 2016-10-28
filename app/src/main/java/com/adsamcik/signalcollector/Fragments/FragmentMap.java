@@ -23,6 +23,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.utility.Network;
@@ -134,7 +135,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		menu.clear(activity);
-		Assist.getMapOverlays(Preferences.get(activity), value -> {
+		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MILLISECONDS / Assist.MINUTE_IN_MILLISECONDS, activity, Preferences.AVAILABLE_MAPS_LAST_UPDATE, value -> {
 			if (fabTwo != null) {
 				activity.runOnUiThread(() -> {
 					addItemsToMenu(value, activity);

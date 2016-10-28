@@ -345,48 +345,7 @@ public class Assist {
 		c.set(Calendar.MILLISECOND, 0);
 		return c.getTimeInMillis();
 	}
-
-	/**
-	 * Returns ArrayList of overlays to callback. Utilizes caching. Cache is updated once in 24 hours.
-	 */
-	public static void getMapOverlays(final SharedPreferences sharedPreferences, final IValueCallback<ArrayList<String>> callback) {
-		final long lastUpdate = sharedPreferences.getLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, -1);
-		if (lastUpdate == -1 || System.currentTimeMillis() - lastUpdate > Assist.DAY_IN_MILLISECONDS) {
-			if (!hasNetwork() && lastUpdate != -1) {
-				callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
-				return;
-			}
-
-			OkHttpClient client = new OkHttpClient();
-			Request request = new Request.Builder().url(Network.URL_MAPS_AVAILABLE).build();
-
-			client.newCall(request).enqueue(new Callback() {
-				@Override
-				public void onFailure(Call call, IOException e) {
-					if (lastUpdate != -1)
-						callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
-				}
-
-				@Override
-				public void onResponse(Call call, Response response) throws IOException {
-					String json = response.body().string();
-					ArrayList<String> list = jsonToStringArray(json);
-					if (list.size() > 0) {
-						sharedPreferences.edit()
-								.putLong(Preferences.AVAILABLE_MAPS_LAST_UPDATE, System.currentTimeMillis())
-								.putString(Preferences.AVAILABLE_MAPS, json)
-								.apply();
-						callback.callback(list);
-					} else if (lastUpdate != -1)
-						callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
-
-				}
-			});
-		} else {
-			callback.callback(jsonToStringArray(sharedPreferences.getString(Preferences.AVAILABLE_MAPS, null)));
-		}
-	}
-
+	
 	/**
 	 * Converts json to string array
 	 *

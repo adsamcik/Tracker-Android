@@ -28,6 +28,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Success;
@@ -157,7 +159,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
 
-		Assist.getMapOverlays(Preferences.get(context), stringArray -> {
+		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MILLISECONDS / Assist.MINUTE_IN_MILLISECONDS, context, Preferences.AVAILABLE_MAPS_LAST_UPDATE, stringArray -> {
 			if (stringArray.size() > 0) {
 				SharedPreferences sp = Preferences.get(context);
 				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
