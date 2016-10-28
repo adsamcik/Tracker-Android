@@ -109,7 +109,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		Activity activity = getActivity();
 		SharedPreferences sp = Preferences.get(activity);
 
-		if (!DataStore.exists(GENERAL_STAT_FILE) || Assist.getDayInUTC() > sp.getLong(Preferences.GENERAL_STATS_LAST_UPDATE, 0))
+		if (!DataStore.exists(GENERAL_STAT_FILE) || Assist.getDayInUTC() > sp.getLong(Preferences.GENERAL_STATS, 0))
 			getPublicStats();
 		else
 			generateStats(DataStore.loadString(GENERAL_STAT_FILE), activity);
@@ -142,7 +142,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 					generateStats(body, activity);
 					if (refreshLayout != null && refreshLayout.isRefreshing())
 						activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-					Preferences.get(getContext()).edit().putLong(Preferences.GENERAL_STATS_LAST_UPDATE, Assist.getDayInUTC()).apply();
+					Preferences.get(getContext()).edit().putLong(Preferences.GENERAL_STATS, Assist.getDayInUTC()).apply();
 				}
 			}
 		};

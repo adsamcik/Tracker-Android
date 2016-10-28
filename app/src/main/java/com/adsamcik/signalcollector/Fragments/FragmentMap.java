@@ -135,7 +135,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		menu.clear(activity);
-		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MILLISECONDS / Assist.MINUTE_IN_MILLISECONDS, activity, Preferences.AVAILABLE_MAPS_LAST_UPDATE, value -> {
+		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MILLISECONDS / Assist.MINUTE_IN_MILLISECONDS, activity, Preferences.AVAILABLE_MAPS, value -> {
 			if (fabTwo != null) {
 				activity.runOnUiThread(() -> {
 					addItemsToMenu(value, activity);
@@ -225,7 +225,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		this.map = map;
 		userRadius = null;
 		userCenter = null;
-
 		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(getContext(), R.raw.map_style));
 
 		tileProvider = new UrlTileProvider(256, 256) {

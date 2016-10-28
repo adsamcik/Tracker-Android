@@ -170,14 +170,6 @@ public class MainActivity extends FragmentActivity {
 		if (token != null)
 			Network.registerToken(token, context);
 		//}
-
-		if (sp.getInt(Preferences.LAST_VERSION, 0) < 106) {
-			try {
-				sp.edit().remove(Preferences.STATS_UPLOADED).putInt(Preferences.LAST_VERSION, getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode).apply();
-			} catch (Exception e) {
-				//
-			}
-		}
 	}
 
 	@Override

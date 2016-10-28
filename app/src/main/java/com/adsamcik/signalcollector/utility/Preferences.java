@@ -39,13 +39,14 @@ public class Preferences {
 	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
 	public static final String STATS_UPLOADED = "statsUploaded";
 
-	public static final String AVAILABLE_MAPS = "availableMaps";
-
 	public static final String OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
 
-	public static final String GENERAL_STATS_LAST_UPDATE = "generalStatsLastUpdate";
-	public static final String USER_STATS_LAST_UPDATE = "userStatsLastUpdate";
-	public static final String AVAILABLE_MAPS_LAST_UPDATE = "availableMapsLastUpdate";
+	public static final String GENERAL_STATS = "generalStats";
+	public static final String USER_STATS = "userStats";
+	public static final String AVAILABLE_MAPS = "availableMaps";
+
+	public static final String OBSOLETE_GENERAL_STATS_LAST_UPDATE = "generalStatsLastUpdate";
+	public static final String OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE = "availableMapsLastUpdate";
 
 	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";

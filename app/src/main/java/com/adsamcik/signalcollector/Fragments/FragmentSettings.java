@@ -159,7 +159,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
 
-		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MILLISECONDS / Assist.MINUTE_IN_MILLISECONDS, context, Preferences.AVAILABLE_MAPS_LAST_UPDATE, stringArray -> {
+		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MILLISECONDS / Assist.MINUTE_IN_MILLISECONDS, context, Preferences.AVAILABLE_MAPS, stringArray -> {
 			if (stringArray.size() > 0) {
 				SharedPreferences sp = Preferences.get(context);
 				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
