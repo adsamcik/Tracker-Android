@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.utility;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -22,7 +21,6 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
 
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
@@ -31,17 +29,10 @@ import com.google.firebase.crash.FirebaseCrash;
 import org.json.JSONArray;
 import org.json.JSONException;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 public class Assist {
 	public static final int SECOND_IN_MILLISECONDS = 1000;
@@ -345,7 +336,7 @@ public class Assist {
 		c.set(Calendar.MILLISECOND, 0);
 		return c.getTimeInMillis();
 	}
-	
+
 	/**
 	 * Converts json to string array
 	 *
