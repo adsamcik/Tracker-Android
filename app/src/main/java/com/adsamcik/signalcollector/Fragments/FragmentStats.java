@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
@@ -44,9 +45,6 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 public class FragmentStats extends Fragment implements ITabFragment {
-	private static final String GENERAL_STAT_FILE = "general_stats_cache_file";
-	private static final String USER_STAT_FILE = "user_stats_cache_file";
-
 	private Table weeklyStats;
 	private Table lastUpload;
 	private ArrayList<Table> publicStats = null;
@@ -81,7 +79,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
-			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us,(LinearLayout) view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
+			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, (LinearLayout) view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
 			lastUpload.addButton(getString(R.string.more_uploads), v -> {
 				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
 				startActivity(intent);
@@ -106,47 +104,21 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), lastUploadAvailable ? 1 : 0, false, 0);
 
-		Activity activity = getActivity();
-		SharedPreferences sp = Preferences.get(activity);
-
-		if (!DataStore.exists(GENERAL_STAT_FILE) || Assist.getDayInUTC() > sp.getLong(Preferences.GENERAL_STATS, 0))
-			getPublicStats();
-		else
-			generateStats(DataStore.loadString(GENERAL_STAT_FILE), activity);
-
+		updateStats();
 		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
-		refreshLayout.setOnRefreshListener(this::getPublicStats);
+		refreshLayout.setOnRefreshListener(this::updateStats);
 		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
 		return view;
 	}
 
-	private void getPublicStats() {
-		OkHttpClient client = new OkHttpClient();
-		Request request = new Request.Builder()
-				.url(Network.URL_STATS)
-				.build();
-		Callback c = new Callback() {
-			@Override
-			public void onFailure(Call call, IOException e) {
-				if (refreshLayout != null && refreshLayout.isRefreshing())
-					getActivity().runOnUiThread(() -> refreshLayout.setRefreshing(false));
-			}
-
-			@Override
-			public void onResponse(Call call, Response response) throws IOException {
-				String body = response.body().string();
-				response.close();
-				if (body.startsWith("[")) {
-					DataStore.saveString(GENERAL_STAT_FILE, body);
-					Activity activity = getActivity();
-					generateStats(body, activity);
-					if (refreshLayout != null && refreshLayout.isRefreshing())
-						activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-					Preferences.get(getContext()).edit().putLong(Preferences.GENERAL_STATS, Assist.getDayInUTC()).apply();
-				}
-			}
-		};
-		client.newCall(request).enqueue(c);
+	private void updateStats() {
+		Activity activity = getActivity();
+		NetworkLoader.loadString(Network.URL_STATS, Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, value -> {
+			if (refreshLayout != null && refreshLayout.isRefreshing())
+				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
+			if (value != null)
+				generateStats(value, activity);
+		});
 	}
 
 	private void generateStats(String json, Activity activity) {
@@ -219,7 +191,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
-		if(refreshLayout != null && refreshLayout.isRefreshing())
+		if (refreshLayout != null && refreshLayout.isRefreshing())
 			refreshLayout.setRefreshing(false);
 	}
 
