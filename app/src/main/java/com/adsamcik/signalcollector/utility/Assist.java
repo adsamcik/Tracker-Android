@@ -39,6 +39,7 @@ public class Assist {
 	public static final int MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
 	public static final int HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS;
 	public static final int DAY_IN_MILLISECONDS = 24 * HOUR_IN_MILLISECONDS;
+	public static final int DAY_IN_MINUTES = DAY_IN_MILLISECONDS / MINUTE_IN_MILLISECONDS;
 
 
 	private static TelephonyManager telephonyManager;
