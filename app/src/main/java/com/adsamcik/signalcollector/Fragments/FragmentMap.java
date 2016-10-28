@@ -38,6 +38,7 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.TileOverlay;
@@ -223,6 +224,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		this.map = map;
 		userRadius = null;
 		userCenter = null;
+
+		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(getContext(), R.raw.map_style));
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
