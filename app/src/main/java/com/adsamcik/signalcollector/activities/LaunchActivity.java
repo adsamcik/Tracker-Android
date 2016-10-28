@@ -21,7 +21,7 @@ public class LaunchActivity extends Activity {
 			if(DataStore.exists("general_stats_cache_file"))
 				DataStore.deleteFile("general_stats_cache_file");
 			SharedPreferences.Editor editor = sp.edit();
-			editor.remove(Preferences.OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE).remove(Preferences.OBSOLETE_GENERAL_STATS_LAST_UPDATE);
+			editor.remove(Preferences.OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE).remove(Preferences.OBSOLETE_GENERAL_STATS_LAST_UPDATE).remove(Preferences.AVAILABLE_MAPS);
 			if (sp.getInt(Preferences.LAST_VERSION, 0) < 106) {
 				editor.remove(Preferences.STATS_UPLOADED);
 			}
