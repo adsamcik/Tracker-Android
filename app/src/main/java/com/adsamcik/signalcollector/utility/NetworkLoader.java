@@ -24,11 +24,11 @@ public class NetworkLoader {
 	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
 	 * @param context             Context
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
-	 * @param callback            Callback which is called when the result is ready
 	 * @param tClass              Class of the type
+	 * @param callback            Callback which is called when the result is ready
 	 * @param <T>                 Type
 	 */
-	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IValueCallback<T> callback, Class<T> tClass) {
+	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IValueCallback<T> callback) {
 		loadString(url, updateTimeInMinutes, context, preferenceString, value -> callback.callback(new Gson().fromJson(value, tClass)));
 	}
 
