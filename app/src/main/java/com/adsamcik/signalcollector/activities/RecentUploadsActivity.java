@@ -55,6 +55,7 @@ public class RecentUploadsActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		DataStore.setContext(this);
 		setContentView(R.layout.activity_recent_uploads);
 
 		ArrayList<UploadStats> recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), new TypeToken<List<UploadStats>>() {
