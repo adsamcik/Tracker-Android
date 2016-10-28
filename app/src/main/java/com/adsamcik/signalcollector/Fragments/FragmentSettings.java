@@ -186,7 +186,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					});
 				});
 			} else {
-				getActivity().runOnUiThread(() -> ((RelativeLayout) mapOverlaySpinner.getParent()).setVisibility(View.GONE));
+				getActivity().runOnUiThread(() -> mapOverlaySpinner.setEnabled(false));
 			}
 		});
 
