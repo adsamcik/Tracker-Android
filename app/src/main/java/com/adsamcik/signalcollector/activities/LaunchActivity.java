@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 
+import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 
 public class LaunchActivity extends Activity {
@@ -16,6 +17,8 @@ public class LaunchActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		SharedPreferences sp = Preferences.get(this);
 		if (sp.getInt(Preferences.LAST_VERSION, 0) < 113) {
+			if(DataStore.exists("general_stats_cache_file"))
+				DataStore.deleteFile("general_stats_cache_file");
 			SharedPreferences.Editor editor = sp.edit();
 			editor.remove(Preferences.OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE).remove(Preferences.OBSOLETE_GENERAL_STATS_LAST_UPDATE);
 			if (sp.getInt(Preferences.LAST_VERSION, 0) < 106) {
