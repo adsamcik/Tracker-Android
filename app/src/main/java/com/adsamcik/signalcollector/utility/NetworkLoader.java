@@ -75,12 +75,14 @@ public class NetworkLoader {
 
 				@Override
 				public void onResponse(Call call, Response response) throws IOException {
-					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 					String json = response.body().string();
 					response.close();
-					if (json.isEmpty() && lastUpdate != -1)
+
+					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
+					if (json.isEmpty() && lastUpdate != -1) {
+						DataStore.saveString(preferenceString, json);
 						callback.callback(DataStore.loadString(preferenceString));
-					else
+					} else
 						callback.callback(json);
 				}
 			});
