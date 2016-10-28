@@ -81,11 +81,15 @@ public class NetworkLoader {
 					response.close();
 
 					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
-					if (json.isEmpty() && lastUpdate != -1) {
+					if (json.isEmpty()) {
+						if (lastUpdate != -1)
+							callback.callback(DataStore.loadString(preferenceString));
+						else
+							callback.callback(null);
+					} else {
 						DataStore.saveString(preferenceString, json);
-						callback.callback(DataStore.loadString(preferenceString));
-					} else
 						callback.callback(json);
+					}
 				}
 			});
 		} else
