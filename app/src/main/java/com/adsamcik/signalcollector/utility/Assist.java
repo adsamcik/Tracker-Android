@@ -342,9 +342,11 @@ public class Assist {
 	 * Converts json to string array
 	 *
 	 * @param jsonStringArray string array in json
-	 * @return array list of strings
+	 * @return array list of strings, if input is null returns empty list
 	 */
 	public static ArrayList<String> jsonToStringArray(String jsonStringArray) {
+		if(jsonStringArray == null)
+			return new ArrayList<>(0);
 		try {
 			JSONArray array = new JSONArray(jsonStringArray);
 			ArrayList<String> list = new ArrayList<>(array.length());
