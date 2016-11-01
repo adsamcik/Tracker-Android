@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 25
-        versionCode 112
-        versionName "2.0.0 bf17"
+        versionCode 113
+        versionName "2.0.0 bf18"
         jackOptions {
             enabled true
         }
@@ -33,12 +33,12 @@ dependencies {
     compile 'com.android.support:appcompat-v7:25.0.0'
     compile 'com.android.support:support-compat:25.0.0'
     compile 'com.squareup.okhttp3:okhttp:3.4.1'
-    compile 'com.google.code.gson:gson:2.7'
+    compile 'com.google.code.gson:gson:2.8.0'
     compile 'com.github.paolorotolo:appintro:4.1.0'
     compile 'com.google.android.gms:play-services-maps:9.8.0'
     compile 'com.google.android.gms:play-services-location:9.8.0'
     compile 'com.google.android.gms:play-services-auth:9.8.0'
-    compile 'com.google.firebase:firebase-core:9.8,0'
+    compile 'com.google.firebase:firebase-core:9.8.0'
     compile 'com.google.firebase:firebase-crash:9.8.0'
     compile 'com.google.firebase:firebase-messaging:9.8.0'
 }
