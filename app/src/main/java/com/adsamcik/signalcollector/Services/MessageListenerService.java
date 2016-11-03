@@ -45,26 +45,29 @@ public class MessageListenerService extends FirebaseMessagingService {
 		if (type == null)
 			return;
 
-		switch (MessageType.values()[Integer.parseInt(type)]) {
-			case UploadReport:
-				DataStore.removeOldRecentUploads();
-				UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
-				if (!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
-					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
-				Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
+		int typeInt = Integer.parseInt(type);
+		if (MessageType.values().length > typeInt) {
+			switch (MessageType.values()[typeInt]) {
+				case UploadReport:
+					DataStore.removeOldRecentUploads();
+					UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
+					if (!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
+						sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
+					Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
-				if (Preferences.get().getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)) {
-					Resources r = getResources();
-					int locations = us.newLocations + us.newNoiseLocations;
-					if (locations == 0)
-						sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.no_new_locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
-					else
-						sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.new_locations, locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
-				}
-				break;
-			case Notification:
-				sendNotification(data.get(TITLE), data.get(MESSAGE), null);
-				break;
+					if (Preferences.get().getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+						Resources r = getResources();
+						int locations = us.newLocations + us.newNoiseLocations;
+						if (locations == 0)
+							sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.no_new_locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+						else
+							sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.new_locations, locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+					}
+					break;
+				case Notification:
+					sendNotification(data.get(TITLE), data.get(MESSAGE), null);
+					break;
+			}
 		}
 	}
 
