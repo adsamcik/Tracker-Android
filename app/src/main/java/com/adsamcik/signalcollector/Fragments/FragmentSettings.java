@@ -28,6 +28,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.MapLayer;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -159,17 +160,17 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
 
-		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.AVAILABLE_MAPS, stringArray -> {
-			if (stringArray.size() > 0) {
+		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.AVAILABLE_MAPS, MapLayer[].class, layerArray -> {
+			if (layerArray.length > 0) {
 				SharedPreferences sp = Preferences.get(context);
-				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
-				int index = stringArray.indexOf(defaultOverlay);
+				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+				int index = MapLayer.indexOf(layerArray, defaultOverlay);
 				final int selectIndex = index == -1 ? 0 : index;
 				if (index == -1)
-					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0)).apply();
+					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
 
 				getActivity().runOnUiThread(() -> {
-					final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, stringArray);
+					final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, MapLayer.toStringArray(layerArray));
 					adapter.setDropDownViewResource(R.layout.spinner_item);
 					mapOverlaySpinner.setAdapter(adapter);
 					mapOverlaySpinner.setSelection(selectIndex);

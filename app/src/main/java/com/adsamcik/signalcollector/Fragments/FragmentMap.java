@@ -23,6 +23,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.MapLayer;
 import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.FabMenu;
@@ -47,6 +48,8 @@ import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -135,10 +138,21 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		});
 
 		menu.clear(activity);
-		NetworkLoader.loadStringArray(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, value -> {
+
+
+		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, layerArray -> {
 			if (fabTwo != null) {
 				activity.runOnUiThread(() -> {
-					addItemsToMenu(value, activity);
+					menu.clear(activity);
+					if (layerArray.length > 0) {
+						for (MapLayer layer : layerArray)
+							menu.addItem(layer.name, activity);
+						String defaultOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+
+						if (!MapLayer.contains(layerArray, defaultOverlay))
+							defaultOverlay = layerArray[0].name;
+						changeMapOverlay(defaultOverlay);
+					}
 					fabTwo.show();
 				});
 			}
@@ -161,23 +175,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 
 		return new Success<>();
-	}
-
-	/**
-	 * Adds items to FAB menu
-	 *
-	 * @param stringArray Items to add to FAB menu
-	 * @param activity    activity to ensure everything runs on proper thread
-	 */
-	private void addItemsToMenu(final ArrayList<String> stringArray, final Activity activity) {
-		menu.clear(activity);
-		if (stringArray.size() > 0) {
-			menu.addItems(stringArray, activity);
-			String defaultOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, stringArray.get(0));
-			if (stringArray.indexOf(defaultOverlay) == -1)
-				defaultOverlay = stringArray.get(0);
-			changeMapOverlay(defaultOverlay);
-		}
 	}
 
 	@Nullable
