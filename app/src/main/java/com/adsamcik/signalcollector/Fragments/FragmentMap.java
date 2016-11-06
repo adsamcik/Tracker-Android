@@ -141,7 +141,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, layerArray -> {
-			if (fabTwo != null) {
+			if (fabTwo != null && layerArray != null) {
 				activity.runOnUiThread(() -> {
 					menu.clear(activity);
 					if (layerArray.length > 0) {
