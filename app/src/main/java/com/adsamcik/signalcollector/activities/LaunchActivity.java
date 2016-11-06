@@ -17,21 +17,23 @@ public class LaunchActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
-		if (sp.getInt(Preferences.LAST_VERSION, 0) < 113) {
-			if(DataStore.exists("general_stats_cache_file"))
-				DataStore.deleteFile("general_stats_cache_file");
+		if(sp.getInt(Preferences.LAST_VERSION, 0) < 115) {
 			SharedPreferences.Editor editor = sp.edit();
-			editor.remove(Preferences.OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE).remove(Preferences.OBSOLETE_GENERAL_STATS_LAST_UPDATE).remove(Preferences.AVAILABLE_MAPS);
-			if (sp.getInt(Preferences.LAST_VERSION, 0) < 106) {
-				editor.remove(Preferences.STATS_UPLOADED);
+			editor.remove(Preferences.AVAILABLE_MAPS);
+			if (sp.getInt(Preferences.LAST_VERSION, 0) < 113) {
+				if (DataStore.exists("general_stats_cache_file"))
+					DataStore.deleteFile("general_stats_cache_file");
+				editor.remove(Preferences.OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE).remove(Preferences.OBSOLETE_GENERAL_STATS_LAST_UPDATE).remove(Preferences.AVAILABLE_MAPS);
+				if (sp.getInt(Preferences.LAST_VERSION, 0) < 106) {
+					editor.remove(Preferences.STATS_UPLOADED);
+				}
+				try {
+					editor.putInt(Preferences.LAST_VERSION, getPackageManager().getPackageInfo(getPackageName(), 0).versionCode);
+				} catch (PackageManager.NameNotFoundException e) {
+					//srsly
+				}
 			}
-			try {
-				editor.putInt(Preferences.LAST_VERSION, getPackageManager().getPackageInfo(getPackageName(), 0).versionCode);
-			} catch (PackageManager.NameNotFoundException e) {
-				//srsly
-			} finally {
-				editor.apply();
-			}
+			editor.apply();
 		}
 
 		if (sp.getBoolean(Preferences.HAS_BEEN_LAUNCHED, false))
