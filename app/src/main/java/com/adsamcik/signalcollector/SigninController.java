@@ -1,7 +1,9 @@
 package com.adsamcik.signalcollector;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.support.annotation.NonNull;
+import android.support.annotation.StringRes;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
 import android.widget.Button;
@@ -22,16 +24,16 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 
 	public static final int RC_SIGN_IN = 4654;
 	private final GoogleApiClient client;
-	private SignInButton signInButton;
-	private Button signOutButton;
+	private WeakReference<SignInButton> signInButton;
+	private WeakReference<Button> signOutButton;
 	private final WeakReference<FragmentActivity> activityWeakReference;
 
-	private static WeakReference<SigninController> instance;
+	private static SigninController instance;
 
 	public static SigninController getInstance(FragmentActivity fragmentActivity) {
-		if (instance == null || instance.get() == null)
-			return (instance = new WeakReference<>(new SigninController(fragmentActivity))).get();
-		return instance.get();
+		if (instance == null)
+			instance = new SigninController(fragmentActivity);
+		return instance;
 	}
 
 	private SigninController(@NonNull FragmentActivity activity) {
@@ -47,8 +49,8 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 	}
 
 	public SigninController manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
-		this.signInButton = signInButton;
-		this.signOutButton = signOutButton;
+		this.signInButton = new WeakReference<>(signInButton);
+		this.signOutButton = new WeakReference<>(signOutButton);
 		updateButtons(client.isConnected());
 		return this;
 	}
@@ -61,30 +63,39 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 
 	private void updateButtons(boolean signed) {
 		if (signInButton != null && signOutButton != null) {
-			if(signed) {
-				signInButton.setVisibility(View.GONE);
-				signOutButton.setVisibility(View.VISIBLE);
-				signOutButton.setOnClickListener(v -> revokeAccess());
-			}
-			else {
-				signInButton.setVisibility(View.VISIBLE);
-				signOutButton.setVisibility(View.GONE);
-				signInButton.setOnClickListener((v) -> {
-					Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-					activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
-				});
+			SignInButton signInButton = this.signInButton.get();
+			Button signOutButton = this.signOutButton.get();
+			if (signInButton != null && signOutButton != null) {
+				if (signed) {
+					signInButton.setVisibility(View.GONE);
+					signOutButton.setVisibility(View.VISIBLE);
+					signOutButton.setOnClickListener(v -> revokeAccess());
+				} else {
+					signInButton.setVisibility(View.VISIBLE);
+					signOutButton.setVisibility(View.GONE);
+					signInButton.setOnClickListener((v) -> {
+						Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
+						activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+					});
+				}
 			}
 		}
 	}
 
 	public void onSignedIn() {
 		updateButtons(true);
-		new SnackMaker(activityWeakReference.get().findViewById(R.id.container)).showSnackbar("Signed in successfully");
+		showSnackbar(R.string.signed_in_message);
 	}
 
 	private void onSignedOut() {
 		updateButtons(false);
-		new SnackMaker(activityWeakReference.get().findViewById(R.id.container)).showSnackbar("Signed out");
+		showSnackbar(R.string.signed_out_message);
+	}
+
+	private void showSnackbar(@StringRes int messageResId) {
+		Activity a;
+		if (activityWeakReference != null && (a = activityWeakReference.get()) != null)
+			new SnackMaker(a.findViewById(R.id.container)).showSnackbar(a.getString(messageResId));
 	}
 
 	private void revokeAccess() {

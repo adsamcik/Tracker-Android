@@ -31,4 +31,6 @@
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="signout">Sign out</string>
     <string name="internet_connection_required">Internet connection required</string>
+    <string name="signed_in_message">Signed in successfully</string>
+    <string name="signed_out_message">Signed out</string>
 </resources>
