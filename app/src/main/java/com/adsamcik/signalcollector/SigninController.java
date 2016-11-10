@@ -30,6 +30,10 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 
 	private static SigninController instance;
 
+	private Activity getActivity() {
+		return activityWeakReference != null ? activityWeakReference.get() : null;
+	}
+
 	public static SigninController getInstance(FragmentActivity fragmentActivity) {
 		if (instance == null)
 			instance = new SigninController(fragmentActivity);
@@ -74,8 +78,11 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 					signInButton.setVisibility(View.VISIBLE);
 					signOutButton.setVisibility(View.GONE);
 					signInButton.setOnClickListener((v) -> {
-						Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-						activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+						Activity a = getActivity();
+						if (a != null) {
+							Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
+							activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+						}
 					});
 				}
 			}
@@ -93,8 +100,8 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 	}
 
 	private void showSnackbar(@StringRes int messageResId) {
-		Activity a;
-		if (activityWeakReference != null && (a = activityWeakReference.get()) != null)
+		Activity a = getActivity();
+		if (a != null)
 			new SnackMaker(a.findViewById(R.id.container)).showSnackbar(a.getString(messageResId));
 	}
 
@@ -104,8 +111,11 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 
 	@Override
 	public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-		Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-		activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+		Activity activity = getActivity();
+		if (activity != null) {
+			Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
+			activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+		}
 	}
 
 	public String getToken() {
