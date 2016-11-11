@@ -2,6 +2,8 @@ package com.adsamcik.signalcollector.utility;
 
 import android.app.Activity;
 import android.content.Context;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -19,21 +21,11 @@ import java.util.List;
 public class FabMenu {
 	private final String TAG = "SignalsFabMenu";
 
-	/*private final int FAB_TARGET_X = -150;
-	private final int FAB_TARGET_Y = -50;
-	private final int FAB_ARC_X = -75;
-	private final int FAB_ARC_Y = 50;*/
-	//private final int FAB_MOVEMENT_LENGTH = 200;
-
 	private FloatingActionButton fab;
-	//private float originalFabX;
-	//private float originalFabY;
 
 	private ViewGroup wrapper;
 	private ViewGroup menu;
 	private IValueCallback<String> callback;
-
-	//private ArrayList<TextView> items = new ArrayList<>();
 
 	private View.OnClickListener closeClickListener = (p) -> hide();
 
@@ -49,18 +41,16 @@ public class FabMenu {
 
 	public FabMenu setFab(FloatingActionButton fab) {
 		this.fab = fab;
-		//originalFabX = fab.getX();
-		//originalFabY = fab.getY();
 		return this;
 	}
 
 	private void callback(String value) {
-		if (callback != null)
-			callback.callback(value);
+		assert value != null;
+		callback.callback(value);
 		hide();
 	}
 
-	public FabMenu setCallback(IValueCallback<String> callback) {
+	public FabMenu setCallback(@Nullable IValueCallback<String> callback) {
 		this.callback = callback;
 		return this;
 	}
@@ -86,17 +76,6 @@ public class FabMenu {
 		//items.add(tv);
 		return this;
 	}
-
-	/*public CharSequence getItem(int index) {
-		if (items.size() > index)
-			return items.get(index).getText();
-		return null;
-	}
-
-	public void removeItem(int index) {
-		if (items.size() > index)
-			menu.removeViewAt(index);
-	}*/
 
 	public FabMenu clear(final Activity activity) {
 		//items.clear();
