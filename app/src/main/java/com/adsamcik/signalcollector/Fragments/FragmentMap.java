@@ -99,12 +99,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if (checkLocationPermission(getContext(), false)) {
-			if (locationManager == null)
-				FirebaseCrash.log("Location manager is null on leave");
-			else
-				locationManager.removeUpdates(locationListener);
-		}
+		if (checkLocationPermission(getContext(), false))
+			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 		menu.hide();
 	}
