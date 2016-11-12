@@ -86,7 +86,7 @@ public class Preferences {
 	/**
 	 * Get shared preferences
 	 * This function will crash if shared preferences were never initialized
-	 * Always prefer to send context if posssible.
+	 * Always prefer to send context if possible.
 	 *
 	 * @return Shared preferences
 	 */

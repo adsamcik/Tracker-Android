@@ -61,20 +61,38 @@ public class DataStore {
 	private static long approxSize = -1;
 
 
+	/**
+	 * Call to invoke onDataChanged callback
+	 */
 	private static void onDataChanged() {
 		if (onDataChanged != null)
 			onDataChanged.callback();
 	}
 
+	/**
+	 * Call to invoke onUploadProgress callback
+	 *
+	 * @param progress progress as int (0-100)
+	 */
 	public static void onUpload(int progress) {
 		if (onUploadProgress != null)
 			onUploadProgress.callback(progress);
 	}
 
+	/**
+	 * Sets callback which is called when saved data changes (new data, delete, update)
+	 *
+	 * @param callback callback
+	 */
 	public static void setOnDataChanged(ICallback callback) {
 		onDataChanged = callback;
 	}
 
+	/**
+	 * Sets callback which is called on upload progress with percentage completed as integer (0-100)
+	 *
+	 * @param callback callback
+	 */
 	public static void setOnUploadProgress(IValueCallback<Integer> callback) {
 		onUploadProgress = callback;
 	}
@@ -163,12 +181,15 @@ public class DataStore {
 		for (String fileName : fileNames)
 			size += sizeOf(fileName);
 		Preferences.get().edit().putLong(KEY_SIZE, size).apply();
-		if(onDataChanged != null && approxSize != size)
+		if (onDataChanged != null && approxSize != size)
 			onDataChanged();
 		approxSize = size;
 		return size;
 	}
 
+	/**
+	 * Initializes approximate data size variable
+	 */
 	private static void initSizeOfData() {
 		if (approxSize == -1)
 			approxSize = Preferences.get().getLong(KEY_SIZE, 0);
@@ -184,6 +205,11 @@ public class DataStore {
 		return approxSize;
 	}
 
+	/**
+	 * Increments approx size by value
+	 *
+	 * @param value value
+	 */
 	public static void incSizeOfData(long value) {
 		initSizeOfData();
 		approxSize += value;

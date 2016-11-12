@@ -36,7 +36,7 @@ public class Table {
 	 * Table constructor
 	 *
 	 * @param context    context
-	 * @param rowCount   number of rows (used to initialze array holding rows)
+	 * @param rowCount   number of rows (used to initialize array holding rows)
 	 * @param showNumber show number of row (starts at 1)
 	 */
 	public Table(Context context, int rowCount, boolean showNumber, int textColor) {

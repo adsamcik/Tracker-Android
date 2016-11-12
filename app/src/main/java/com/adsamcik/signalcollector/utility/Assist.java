@@ -62,8 +62,9 @@ public class Assist {
 
 	/**
 	 * Converts raw byte count to human readable byte count
+	 *
 	 * @param bytes bytes
-	 * @param si if true uses decimal (1000) representation otherwise binary (1024)
+	 * @param si    if true uses decimal (1000) representation otherwise binary (1024)
 	 * @return human readable byte count
 	 */
 	public static String humanReadableByteCount(long bytes, boolean si) {
@@ -126,7 +127,7 @@ public class Assist {
 	/**
 	 * Function for conversion from dp to px
 	 *
-	 * @param c context
+	 * @param c  context
 	 * @param dp Density-independent Pixels
 	 * @return pixels
 	 */
@@ -137,9 +138,9 @@ public class Assist {
 	/**
 	 * Function for conversion of pixels to density-independent pixels
 	 *
-	 * @param c context
+	 * @param c  context
 	 * @param px pixels
-	 * @return  Density-independent pixels
+	 * @return Density-independent pixels
 	 */
 	public static int pxToDp(@NonNull Context c, int px) {
 		return Math.round(px / c.getResources().getDisplayMetrics().density);
@@ -148,8 +149,8 @@ public class Assist {
 	/**
 	 * Function for conversion of point to pixels
 	 *
-	 * @param c context
- 	 * @param pt point
+	 * @param c  context
+	 * @param pt point
 	 * @return pixels
 	 */
 	public static int ptToPx(@NonNull Context c, int pt) {
@@ -345,7 +346,7 @@ public class Assist {
 	 * @return array list of strings, if input is null returns empty list
 	 */
 	public static ArrayList<String> jsonToStringArray(String jsonStringArray) {
-		if(jsonStringArray == null)
+		if (jsonStringArray == null)
 			return new ArrayList<>(0);
 		try {
 			JSONArray array = new JSONArray(jsonStringArray);
@@ -408,6 +409,7 @@ public class Assist {
 
 	/**
 	 * Checks if airplane mode is turned on
+	 *
 	 * @param context context
 	 * @return true if airplane mode is turned on
 	 */
@@ -418,7 +420,8 @@ public class Assist {
 
 	/**
 	 * Generate ripple drawable
-	 * @param normalColor if 0, background is transparent
+	 *
+	 * @param normalColor  if 0, background is transparent
 	 * @param pressedColor pressed color
 	 * @return RippleDrawable
 	 */
