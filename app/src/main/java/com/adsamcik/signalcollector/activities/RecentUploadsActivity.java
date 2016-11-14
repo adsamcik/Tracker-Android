@@ -26,6 +26,15 @@ import java.util.List;
 
 public class RecentUploadsActivity extends Activity {
 
+	/**
+	 * Function for generating table for upload stats
+	 *
+	 * @param uploadStat upload stat
+	 * @param parent     parent view
+	 * @param context    context
+	 * @param title      title, if null is replaced with upload time
+	 * @return table
+	 */
 	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context, @Nullable String title) {
 		Resources resources = context.getResources();
 		Table t = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
@@ -33,7 +42,7 @@ public class RecentUploadsActivity extends Activity {
 
 		if (title == null) {
 			DateFormat dateFormat = android.text.format.DateFormat.getDateFormat(context);
-			DateFormat timeFormat = android.text.format.DateFormat .getTimeFormat(context);
+			DateFormat timeFormat = android.text.format.DateFormat.getTimeFormat(context);
 			Date dateTime = new Date(uploadStat.time);
 			t.addTitle(dateFormat.format(dateTime) + " " + timeFormat.format(dateTime));
 		} else
@@ -66,5 +75,8 @@ public class RecentUploadsActivity extends Activity {
 		}
 
 		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));
+
+		//if (recent.size() > 10)
+		//	DataStore.saveString(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(recent.subList(recent.size() - 11, recent.size() - 1)));
 	}
 }
