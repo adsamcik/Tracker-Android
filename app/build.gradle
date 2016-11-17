@@ -3,13 +3,13 @@ apply from: 'key.gradle'
 
 android {
     compileSdkVersion 25
-    buildToolsVersion '24.0.2'
+    buildToolsVersion '25.0.0'
     defaultConfig {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 25
-        versionCode 116
-        versionName "2.0.0 bf20"
+        versionCode 117
+        versionName "2.0.0 bf21"
         jackOptions {
             enabled true
         }
