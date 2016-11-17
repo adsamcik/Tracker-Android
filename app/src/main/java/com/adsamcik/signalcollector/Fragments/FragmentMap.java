@@ -192,6 +192,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	public void onDestroyView() {
 		super.onDestroyView();
 		initialized = false;
+		map = null;
+		view = null;
+		menu = null;
 	}
 
 	/**
