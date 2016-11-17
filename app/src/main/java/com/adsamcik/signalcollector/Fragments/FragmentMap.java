@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -47,13 +46,9 @@ import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
-import com.google.firebase.crash.FirebaseCrash;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
@@ -205,12 +200,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param type exact case-sensitive name of the overlay
 	 */
 	private void changeMapOverlay(@NonNull String type) {
-		if (map != null && (!type.equals(this.type) || activeOverlay == null)) {
-			if (activeOverlay != null)
-				activeOverlay.remove();
-			activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+		if (map != null) {
+			if ((!type.equals(this.type) || activeOverlay == null)) {
+				if (activeOverlay != null)
+					activeOverlay.remove();
+				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+				this.type = type;
+			}
 		}
-		this.type = type;
 	}
 
 	@Override
