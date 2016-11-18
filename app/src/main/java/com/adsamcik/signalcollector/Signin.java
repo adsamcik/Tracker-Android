@@ -19,7 +19,7 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import java.lang.ref.WeakReference;
 
 
-public class SigninController implements GoogleApiClient.OnConnectionFailedListener {
+public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	private static final String TOKEN = "userTOKEN";
 
 	public static final int RC_SIGN_IN = 4654;
@@ -28,19 +28,19 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 	private WeakReference<Button> signOutButton;
 	private final WeakReference<FragmentActivity> activityWeakReference;
 
-	private static SigninController instance;
+	private static Signin instance;
 
 	private Activity getActivity() {
 		return activityWeakReference != null ? activityWeakReference.get() : null;
 	}
 
-	public static SigninController getInstance(FragmentActivity fragmentActivity) {
+	public static Signin getInstance(FragmentActivity fragmentActivity) {
 		if (instance == null)
-			instance = new SigninController(fragmentActivity);
+			instance = new Signin(fragmentActivity);
 		return instance;
 	}
 
-	private SigninController(@NonNull FragmentActivity activity) {
+	private Signin(@NonNull FragmentActivity activity) {
 		activityWeakReference = new WeakReference<>(activity);
 		GoogleSignInOptions gso = new GoogleSignInOptions.Builder()
 				.requestIdToken(activity.getResources().getString(R.string.server_client_id))
@@ -52,14 +52,14 @@ public class SigninController implements GoogleApiClient.OnConnectionFailedListe
 				.build();
 	}
 
-	public SigninController manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
+	public Signin manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
 		this.signInButton = new WeakReference<>(signInButton);
 		this.signOutButton = new WeakReference<>(signOutButton);
 		updateButtons(client.isConnected());
 		return this;
 	}
 
-	public SigninController forgetButtons() {
+	public Signin forgetButtons() {
 		signOutButton = null;
 		signInButton = null;
 		return this;

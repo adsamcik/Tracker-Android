@@ -35,7 +35,7 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.SigninController;
+import com.adsamcik.signalcollector.Signin;
 import com.google.android.gms.common.SignInButton;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
@@ -52,7 +52,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private SignInButton signInButton;
 	private Button signOutButton;
-	private SigninController signinController;
+	private Signin signin;
 
 	private ColorStateList mSelectedState;
 	private ColorStateList mDefaultState;
@@ -215,8 +215,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		if (Assist.hasNetwork()) {
-			signinController = SigninController.getInstance(getActivity());
-			signinController.manageButtons(signInButton, signOutButton);
+			signin = Signin.getInstance(getActivity());
+			signin.manageButtons(signInButton, signOutButton);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 		return new Failure<>();
@@ -227,8 +227,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		signInButton.setVisibility(View.GONE);
 		signInNoConnection.setVisibility(View.GONE);
 		signOutButton.setVisibility(View.GONE);
-		signinController.forgetButtons();
-		signinController = null;
+		signin.forgetButtons();
+		signin = null;
 	}
 
 	@Override

@@ -19,7 +19,7 @@ import android.widget.Toast;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.SigninController;
+import com.adsamcik.signalcollector.Signin;
 import com.github.paolorotolo.appintro.AppIntro2;
 import com.github.paolorotolo.appintro.AppIntro2Fragment;
 
@@ -87,7 +87,7 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
 		if (slidesNumber == ++slideNumber && Assist.isPlayServiceAvailable(this))
-			SigninController.getInstance(this);
+			Signin.getInstance(this);
 	}
 
 	@Override

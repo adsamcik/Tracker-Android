@@ -35,7 +35,7 @@ import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.SigninController;
+import com.adsamcik.signalcollector.Signin;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -56,7 +56,7 @@ public class MainActivity extends FragmentActivity {
 	private ViewPager viewPager;
 	private ViewPager.OnPageChangeListener pageChangeListener;
 
-	private SigninController signinController;
+	private Signin signin;
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -69,7 +69,7 @@ public class MainActivity extends FragmentActivity {
 		View containerView = findViewById(R.id.container);
 		SnackMaker snackMaker = new SnackMaker(containerView);
 
-		signinController = SigninController.getInstance(this);
+		signin = Signin.getInstance(this);
 
 		Failure<String> s = ActivityService.initializeActivityClient(this);
 		if (s.hasFailed())
@@ -192,10 +192,10 @@ public class MainActivity extends FragmentActivity {
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
-		if (requestCode == SigninController.RC_SIGN_IN) {
+		if (requestCode == Signin.RC_SIGN_IN) {
 			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
 			if (result.isSuccess()) {
-				signinController.onSignedIn();
+				signin.onSignedIn();
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				String token = acct.getIdToken();
