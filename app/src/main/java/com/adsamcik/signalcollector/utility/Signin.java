@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector;
+package com.adsamcik.signalcollector.utility;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -8,8 +8,7 @@ import android.support.v4.app.FragmentActivity;
 import android.view.View;
 import android.widget.Button;
 
-import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.adsamcik.signalcollector.R;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.ConnectionResult;

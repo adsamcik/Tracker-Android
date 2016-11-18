@@ -35,7 +35,7 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.Signin;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.google.android.gms.common.SignInButton;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
