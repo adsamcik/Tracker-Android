@@ -5,6 +5,7 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,6 +26,7 @@ public class FabMenu {
 
 	private ViewGroup wrapper;
 	private ViewGroup menu;
+
 	private IValueCallback<String> callback;
 
 	private View.OnClickListener closeClickListener = (p) -> hide();
@@ -73,16 +75,13 @@ public class FabMenu {
 		tv.setText(name);
 		tv.setOnClickListener(v -> callback(name));
 		activity.runOnUiThread(() -> menu.addView(tv));
-		//items.add(tv);
 		return this;
 	}
 
 	public FabMenu clear(final Activity activity) {
-		//items.clear();
 		activity.runOnUiThread(() -> menu.removeAllViews());
 		return this;
 	}
-
 
 	private int[] calculateRevealCenter() {
 		final int fabPos[] = new int[2];
@@ -105,7 +104,7 @@ public class FabMenu {
 		Animate.RevealHide(menu, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
 	}
 
-	public void show(Context context) {
+	public void show(@NonNull Context context) {
 		if (fab == null)
 			throw new NullPointerException("Fab is null");
 		if (isVisible)
@@ -116,8 +115,14 @@ public class FabMenu {
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 
-		menu.setX(context.getResources().getDisplayMetrics().widthPixels - Assist.dpToPx(context, 166));
-		menu.setY(fabPos[1] - menu.getHeight() / 2 + 10);
+		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+		menu.setX(displayMetrics.widthPixels - Assist.dpToPx(context, 166));
+
+		int y = fabPos[1] - menu.getHeight() / 2 + 10;
+		int minHeight = displayMetrics.heightPixels - (menu.getHeight() + Assist.dpToPx(context, 8));
+		if (y > minHeight)
+			y = minHeight;
+		menu.setY(y);
 
 		final int pos[] = calculateRevealCenter();
 		Animate.RevealShow(menu, pos[0], pos[1], 0);
