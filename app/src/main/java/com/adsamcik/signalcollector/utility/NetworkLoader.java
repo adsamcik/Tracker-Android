@@ -33,19 +33,6 @@ public class NetworkLoader {
 	}
 
 	/**
-	 * Loads json to string array using
-	 *
-	 * @param url                 URL
-	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
-	 * @param context             Context
-	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
-	 * @param callback            Callback which is called when the result is ready
-	 */
-	public static void loadStringArray(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IValueCallback<ArrayList<String>> callback) {
-		loadString(url, updateTimeInMinutes, context, preferenceString, value -> callback.callback(Assist.jsonToStringArray(value)));
-	}
-
-	/**
 	 * Method which loads string from the web or cache
 	 *
 	 * @param url                 URL
