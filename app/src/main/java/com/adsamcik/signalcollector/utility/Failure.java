@@ -1,24 +1,30 @@
 package com.adsamcik.signalcollector.utility;
 
-public class Success<T> {
+public class Failure<T> {
 	public final T value;
 
 	/**
 	 * Creates successful instance
 	 */
-	public Success() {
+	public Failure() {
 		value = null;
 	}
 
 	/**
 	 * Create unsuccessful instance
+	 *
 	 * @param message value
 	 */
-	public Success(T message) {
+	public Failure(T message) {
 		this.value = message;
 	}
 
-	public boolean getSuccess() {
-		return value == null;
+	/**
+	 * Returns failure
+	 *
+	 * @return true if failed
+	 */
+	public boolean hasFailed() {
+		return value != null;
 	}
 }

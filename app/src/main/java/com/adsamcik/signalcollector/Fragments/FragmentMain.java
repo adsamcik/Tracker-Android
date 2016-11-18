@@ -25,11 +25,11 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.utility.Success;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
@@ -228,7 +228,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
@@ -267,7 +267,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 		if (Assist.isEmulator())
 			fabUp.hide();
-		return new Success<>();
+		return new Failure<>();
 	}
 
 	@Override

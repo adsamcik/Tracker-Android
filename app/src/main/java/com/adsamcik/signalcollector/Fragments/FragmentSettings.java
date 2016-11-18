@@ -22,18 +22,17 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
-import android.widget.RelativeLayout;
 import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.MapLayer;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Success;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.SigninController;
@@ -214,13 +213,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		if (Assist.hasNetwork()) {
 			signinController = SigninController.getInstance(getActivity());
 			signinController.manageButtons(signInButton, signOutButton);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
-		return new Success<>();
+		return new Failure<>();
 	}
 
 	@Override

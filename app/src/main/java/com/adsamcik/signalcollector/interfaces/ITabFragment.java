@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.interfaces;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.FragmentActivity;
 
-import com.adsamcik.signalcollector.utility.Success;
+import com.adsamcik.signalcollector.utility.Failure;
 
 public interface ITabFragment{
 
@@ -12,7 +12,7 @@ public interface ITabFragment{
 	 * @return if tab successfully loaded
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-	Success<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo);
+	Failure<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo);
 
 	/**
 	 * Called when leaving tab

@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.fragments;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -18,13 +17,13 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.Success;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.data.Stat;
@@ -184,9 +183,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Success<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
 		//todo check if up to date
-		return new Success<>();
+		return new Failure<>();
 	}
 
 	@Override

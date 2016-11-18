@@ -14,7 +14,7 @@ import android.util.Log;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Success;
+import com.adsamcik.signalcollector.utility.Failure;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionResult;
@@ -32,13 +32,13 @@ public class ActivityService extends IntentService {
 	public static final int REQUIRED_CONFIDENCE = 75;
 
 
-	public static Success<String> initializeActivityClient(@NonNull Context context) {
+	public static Failure<String> initializeActivityClient(@NonNull Context context) {
 		if (Assist.isPlayServiceAvailable(context)) {
 			if (gapiClient == null) {
 				final Context appContext = context.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
-					return new Success<>("Failed to initialize automatic tracking");
+					return new Failure<>("Failed to initialize automatic tracking");
 				}
 				gapiClient = new GoogleApiClient.Builder(appContext)
 						.addApi(ActivityRecognition.API)
@@ -57,18 +57,18 @@ public class ActivityService extends IntentService {
 						.build();
 			}
 			gapiClient.connect();
-			return new Success<>();
+			return new Failure<>();
 		}
-		return new Success<>("Play services are not available");
+		return new Failure<>("Play services are not available");
 	}
 
-	public static Success<String> initializeActivityClient(@NonNull FragmentActivity activity) {
+	public static Failure<String> initializeActivityClient(@NonNull FragmentActivity activity) {
 		if (Assist.isPlayServiceAvailable(activity)) {
 			if (gapiClient == null) {
 				final Context appContext = activity.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
-					return new Success<>("Failed to initialize automatic tracking");
+					return new Failure<>("Failed to initialize automatic tracking");
 				}
 				gapiClient = new GoogleApiClient.Builder(appContext)
 						.addApi(ActivityRecognition.API)
@@ -87,9 +87,9 @@ public class ActivityService extends IntentService {
 						.build();
 			}
 			gapiClient.connect();
-			return new Success<>();
+			return new Failure<>();
 		}
-		return new Success<>("Play services are not available");
+		return new Failure<>("Play services are not available");
 	}
 
 	public static void requestUpdate(@NonNull GoogleApiClient client, @NonNull final Context context) {

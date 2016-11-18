@@ -29,7 +29,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.SnackMaker;
-import com.adsamcik.signalcollector.utility.Success;
+import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.fragments.FragmentMain;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
@@ -71,8 +71,8 @@ public class MainActivity extends FragmentActivity {
 
 		signinController = SigninController.getInstance(this);
 
-		Success<String> s = ActivityService.initializeActivityClient(this);
-		if (!s.getSuccess())
+		Failure<String> s = ActivityService.initializeActivityClient(this);
+		if (s.hasFailed())
 			snackMaker.showSnackbar(s.value);
 
 		Assist.initialize(this);
@@ -134,8 +134,8 @@ public class MainActivity extends FragmentActivity {
 					ITabFragment tf = adapter.getInstance(position);
 					if (tf == null)
 						return;
-					Success<String> response = tf.onEnter(a, fabOne, fabTwo);
-					if (!response.getSuccess()) {
+					Failure<String> response = tf.onEnter(a, fabOne, fabTwo);
+					if (response.hasFailed()) {
 						final View v = findViewById(R.id.container);
 						if (v == null) {
 							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));

@@ -297,7 +297,7 @@ public class DataStore {
 	 *
 	 * @param fileName Name of file
 	 * @param data     Json data to be saved
-	 * @return Success
+	 * @return Failure
 	 */
 	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) {
 		StringBuilder sb = new StringBuilder(data);
