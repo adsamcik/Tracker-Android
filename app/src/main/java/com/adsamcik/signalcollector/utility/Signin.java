@@ -54,7 +54,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	public Signin manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
 		this.signInButton = new WeakReference<>(signInButton);
 		this.signOutButton = new WeakReference<>(signOutButton);
-		updateButtons(client.isConnecting());
+		updateButtons(client.isConnecting() | client.isConnected());
 		return this;
 	}
 
