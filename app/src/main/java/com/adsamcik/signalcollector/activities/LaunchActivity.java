@@ -4,10 +4,20 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.drawable.Icon;
+import android.os.Build;
 import android.os.Bundle;
 
+import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.Shortcuts;
+
+import java.util.ArrayList;
+import java.util.Arrays;
 
 public class LaunchActivity extends Activity {
 
@@ -17,7 +27,7 @@ public class LaunchActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
-		if(sp.getInt(Preferences.LAST_VERSION, 0) < 115) {
+		if (sp.getInt(Preferences.LAST_VERSION, 0) < 115) {
 			SharedPreferences.Editor editor = sp.edit();
 			editor.remove(Preferences.AVAILABLE_MAPS);
 			if (sp.getInt(Preferences.LAST_VERSION, 0) < 113) {
@@ -40,6 +50,10 @@ public class LaunchActivity extends Activity {
 			startActivity(new Intent(this, MainActivity.class));
 		else
 			startActivity(new Intent(this, IntroActivity.class));
+
+		if (android.os.Build.VERSION.SDK_INT >= 25)
+			Shortcuts.initializeShortcuts(this);
+
 		overridePendingTransition(0, 0);
 		finish();
 	}

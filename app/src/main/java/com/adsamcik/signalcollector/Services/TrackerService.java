@@ -26,6 +26,7 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 
+import com.adsamcik.signalcollector.receivers.ShortcutReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -35,6 +36,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
+import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.lang.ref.WeakReference;
@@ -314,6 +316,9 @@ public class TrackerService extends Service {
 
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
+
+		if(Shortcuts.initializeShortcuts(this))
+			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION);
 	}
 
 	@Override

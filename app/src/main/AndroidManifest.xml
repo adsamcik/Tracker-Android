@@ -32,16 +32,15 @@
             android:theme="@style/SplashTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
-
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
 
         <activity
             android:name=".activities.MainActivity"
+            android:alwaysRetainTaskState="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
-            android:alwaysRetainTaskState="true"
             android:theme="@style/AppTheme"/>
 
         <activity
@@ -51,8 +50,8 @@
 
         <activity
             android:name=".activities.RecentUploadsActivity"
-            android:screenOrientation="portrait"
             android:parentActivityName=".activities.MainActivity"
+            android:screenOrientation="portrait"
             android:theme="@style/AppTheme"/>
 
         <receiver android:name=".receivers.BatteryStateReceiver">
@@ -73,6 +72,13 @@
         <receiver android:name=".receivers.NotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receivers.ShortcutReceiver">
+            <intent-filter>
+                <action android:name="com.adsamcik.signalcollector.SHORTCUT"/>
             </intent-filter>
         </receiver>
 
