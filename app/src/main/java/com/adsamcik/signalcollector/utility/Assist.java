@@ -166,8 +166,7 @@ public class Assist {
 	 * @return interpolated location
 	 */
 	public static Location interpolateLocation(@NonNull Location locationOne, @NonNull Location locationTwo, double time) {
-		if (time < 0 || time > 1)
-			FirebaseCrash.report(new IllegalArgumentException("Time must be between 0 and 1. is " + time));
+		if (time < 0 || time > 1.1)
 		Location l = new Location("interpolation");
 		l.setLatitude(locationOne.getLatitude() + (locationTwo.getLatitude() - locationOne.getLatitude()) * time);
 		l.setLongitude(locationOne.getLongitude() + (locationTwo.getLongitude() - locationOne.getLongitude()) * time);
