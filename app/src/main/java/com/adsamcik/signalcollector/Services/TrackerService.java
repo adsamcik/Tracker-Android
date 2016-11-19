@@ -128,11 +128,9 @@ public class TrackerService extends Service {
 			return;
 
 		wakeLock.acquire();
-		Data d;
+		Data d = new Data(System.currentTimeMillis());
 
 		if (wifiScanData != null && prevScanPos != null) {
-			d = new Data(System.currentTimeMillis());
-
 			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
 			if (timeDiff < 0 || timeDiff > 1)
 				FirebaseCrash.log("wifiScanTime " + wifiScanTime + " previous position time " + prevScanPos.getTime() + " current time " + d.time + " timeDiff " + timeDiff);
@@ -143,8 +141,7 @@ public class TrackerService extends Service {
 				wifiScanData = null;
 			else
 				d.setWifi(wifiScanData, wifiScanTime);
-		} else
-			d = new Data(System.currentTimeMillis());
+		}
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
 
