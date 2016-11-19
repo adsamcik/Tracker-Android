@@ -124,6 +124,9 @@ public class TrackerService extends Service {
 	}
 
 	private void updateData(Location location) {
+		if(location.hasSpeed() && location.getSpeed() > 60)
+			return;
+
 		wakeLock.acquire();
 		Data d;
 
