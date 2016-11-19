@@ -135,10 +135,10 @@ public class TrackerService extends Service {
 			float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			//Log.d(TAG, "dist to wifi " + distTo);
-			if (distTo > UPDATE_MAX_DISTANCE_TO_WIFI || distTo < 0)
-				wifiScanData = null;
-			else
+			if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
 				d.setWifi(wifiScanData, wifiScanTime);
+
+			wifiScanData = null;
 		}
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
@@ -180,8 +180,6 @@ public class TrackerService extends Service {
 
 		if (data.size() > 10)
 			saveData();
-
-		wifiScanData = null;
 
 		if (backgroundActivated && powerManager.isPowerSaveMode())
 			stopSelf();
