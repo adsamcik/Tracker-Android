@@ -124,9 +124,10 @@ public class TrackerService extends Service {
 	}
 
 	private void updateData(Location location) {
-		if(location.hasSpeed() && location.getSpeed() > 60)
+		if(location.getAltitude() > 5600) {
+			stopSelf();
 			return;
-
+		}
 		wakeLock.acquire();
 		Data d = new Data(System.currentTimeMillis());
 
