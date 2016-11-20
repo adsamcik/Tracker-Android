@@ -131,7 +131,6 @@ public class UploadService extends JobService {
 			FirebaseCrash.report(new Throwable("Upload failed " + code));
 			return false;
 		} catch (IOException e) {
-			FirebaseCrash.report(e);
 			return false;
 		}
 	}
