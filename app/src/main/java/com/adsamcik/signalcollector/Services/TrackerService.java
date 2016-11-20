@@ -353,6 +353,9 @@ public class TrackerService extends Service {
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
 		sp.edit().putInt(Preferences.STATS_MINUTES, sp.getInt(Preferences.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
+
+		if(Shortcuts.initializeShortcuts(this))
+			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION);
 	}
 
 	@Nullable

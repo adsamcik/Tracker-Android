@@ -49,7 +49,7 @@ public class Shortcuts {
 		ShortcutInfo.Builder shortcutBuilder = new ShortcutInfo.Builder(context, id)
 				.setShortLabel(shortLabel)
 				.setIcon(Icon.createWithResource(context, iconResource))
-				.setIntent(new Intent(context, ShortcutActivity.class).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP).setAction(ACTION).putExtra(ACTION_STRING, action.ordinal()));
+				.setIntent(new Intent(context, ShortcutActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setAction(ACTION).putExtra(ACTION_STRING, action.ordinal()));
 		if (longLabel != null)
 			shortcutBuilder.setLongLabel(longLabel);
 		return shortcutBuilder.build();

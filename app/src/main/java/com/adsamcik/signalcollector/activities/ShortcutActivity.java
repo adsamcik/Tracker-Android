@@ -32,6 +32,6 @@ public class ShortcutActivity extends Activity {
 				}
 			}
 		}
-		finish();
+		finishAffinity();
 	}
 }
