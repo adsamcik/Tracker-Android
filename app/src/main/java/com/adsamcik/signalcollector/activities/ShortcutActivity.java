@@ -22,7 +22,7 @@ public class ShortcutActivity extends Activity {
 
 				switch (type) {
 					case START_COLLECTION:
-						serviceIntent.putExtra("backTrack", true);
+						serviceIntent.putExtra("backTrack", false);
 						startService(serviceIntent);
 						break;
 					case STOP_COLLECTION:
