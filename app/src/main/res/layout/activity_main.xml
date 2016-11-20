@@ -31,59 +31,66 @@
         app:layout_anchor="@id/AppBar"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
 
-    <LinearLayout
-        android:layout_width="66dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end|bottom"
-        android:layout_marginBottom="@dimen/navbar_height"
-        android:layout_marginEnd="11dp"
-        android:layout_marginStart="11dp"
-        android:clipChildren="false"
-        android:orientation="vertical">
+    <android.support.design.widget.CoordinatorLayout
+        android:id="@+id/fabCoordinator"
+        android:layout_marginBottom="48dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
-        <android.support.design.widget.CoordinatorLayout
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:layout_width="66dp"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/fab_margin"
-            android:clipChildren="false">
+            android:layout_marginEnd="11dp"
+            android:layout_marginStart="11dp"
+            android:layout_marginBottom="16dp"
+            android:layout_gravity="end|bottom"
+            android:clipChildren="false"
+            android:orientation="vertical">
 
-            <ProgressBar
-                android:id="@+id/progressBar"
-                android:layout_width="82dp"
-                android:layout_height="82dp"
-                android:layout_gravity="center"
-                android:indeterminate="true"
-                android:indeterminateOnly="false"
-                android:indeterminateTint="@color/colorAccent"
-                android:max="100"
-                android:progress="0"
-                android:progressDrawable="@drawable/circular"
-                android:progressTint="@color/colorAccent"
-                android:rotation="-90"
-                android:visibility="gone"/>
+            <android.support.design.widget.CoordinatorLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/fab_margin"
+                android:clipChildren="false">
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="82dp"
+                    android:layout_height="82dp"
+                    android:layout_gravity="center"
+                    android:indeterminate="true"
+                    android:indeterminateOnly="false"
+                    android:indeterminateTint="@color/colorAccent"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressDrawable="@drawable/circular"
+                    android:progressTint="@color/colorAccent"
+                    android:rotation="-90"
+                    android:visibility="gone"/>
+
+
+                <android.support.design.widget.FloatingActionButton
+                    android:id="@+id/fabTwo"
+                    android:layout_width="@dimen/fab_size"
+                    android:layout_height="@dimen/fab_size"
+                    android:layout_gravity="center"
+                    android:clipChildren="false"
+                    android:src="@drawable/ic_cloud_upload_24dp"
+                    android:tint="@color/colorAccent"
+                    app:backgroundTint="@color/textPrimary"
+                    app:borderWidth="0dp"/>
+
+            </android.support.design.widget.CoordinatorLayout>
 
 
             <android.support.design.widget.FloatingActionButton
-                android:id="@+id/fabTwo"
+                android:id="@+id/fabOne"
                 android:layout_width="@dimen/fab_size"
                 android:layout_height="@dimen/fab_size"
                 android:layout_gravity="center"
                 android:clipChildren="false"
-                android:src="@drawable/ic_cloud_upload_24dp"
-                android:tint="@color/colorAccent"
-                app:backgroundTint="@color/textPrimary"
+                android:src="@drawable/ic_pause"
                 app:borderWidth="0dp"/>
-
-        </android.support.design.widget.CoordinatorLayout>
-
-
-        <android.support.design.widget.FloatingActionButton
-            android:id="@+id/fabOne"
-            android:layout_width="@dimen/fab_size"
-            android:layout_height="@dimen/fab_size"
-            android:layout_gravity="center"
-            android:clipChildren="false"
-            android:src="@drawable/ic_pause"
-            app:borderWidth="0dp"/>
-    </LinearLayout>
+        </LinearLayout>
+    </android.support.design.widget.CoordinatorLayout>
 </android.support.design.widget.CoordinatorLayout>
