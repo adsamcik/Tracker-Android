@@ -10,9 +10,6 @@ public class SnackMaker {
 	}
 
 	public void showSnackbar(String message) {
-		Snackbar snack = Snackbar.make(view, message, 4000);
-		View view = snack.getView();
-		view.setPadding(0, 0, 0, Assist.getNavBarHeight(view.getContext()));
-		snack.show();
+		Snackbar.make(view, message, Snackbar.LENGTH_LONG).show();
 	}
 }
