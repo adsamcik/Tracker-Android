@@ -8,7 +8,7 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 25
-        versionCode 118
+        versionCode 119
         versionName "2.0.0 Shortcuts"
         jackOptions {
             enabled true
