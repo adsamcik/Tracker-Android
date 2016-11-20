@@ -9,6 +9,7 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
@@ -67,7 +68,7 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(this);
 
 		View containerView = findViewById(R.id.container);
-		SnackMaker snackMaker = new SnackMaker(containerView);
+		SnackMaker snackMaker = new SnackMaker(findViewById(R.id.fabCoordinator));
 
 		signin = Signin.getInstance(this);
 
@@ -201,7 +202,7 @@ public class MainActivity extends FragmentActivity {
 				String token = acct.getIdToken();
 				Network.registerUser(token, getApplicationContext());
 			} else
-				new SnackMaker(findViewById(R.id.container)).showSnackbar("Failed to sign in, check internet connection");
+				new SnackMaker(findViewById(R.id.fabCoordinator)).showSnackbar("Failed to sign in, check internet connection");
 		}
 	}
 

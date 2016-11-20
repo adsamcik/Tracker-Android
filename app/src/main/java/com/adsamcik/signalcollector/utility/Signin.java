@@ -101,7 +101,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	private void showSnackbar(@StringRes int messageResId) {
 		Activity a = getActivity();
 		if (a != null)
-			new SnackMaker(a.findViewById(R.id.container)).showSnackbar(a.getString(messageResId));
+			new SnackMaker(a.findViewById(R.id.fabCoordinator)).showSnackbar(a.getString(messageResId));
 	}
 
 	private void revokeAccess() {
