@@ -37,6 +37,12 @@
         </activity>
 
         <activity
+            android:name=".activities.ShortcutActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/SplashTheme">
+        </activity>
+
+        <activity
             android:name=".activities.MainActivity"
             android:alwaysRetainTaskState="true"
             android:launchMode="singleTop"
@@ -72,13 +78,6 @@
         <receiver android:name=".receivers.NotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".receivers.ShortcutReceiver">
-            <intent-filter>
-                <action android:name="com.adsamcik.signalcollector.SHORTCUT"/>
             </intent-filter>
         </receiver>
 

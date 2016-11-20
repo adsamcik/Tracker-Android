@@ -26,6 +26,7 @@ public class NoiseTracker {
 
 	/**
 	 * Starts noise tracking.
+	 *
 	 * @return this
 	 */
 	public NoiseTracker start() {
@@ -38,10 +39,12 @@ public class NoiseTracker {
 
 	/**
 	 * Stops noise tracking
+	 *
 	 * @return this
 	 */
 	public NoiseTracker stop() {
-		audioRecorder.stop();
+		if (audioRecorder.getState() > 0)
+			audioRecorder.stop();
 		if (task != null) {
 			task.cancel(true);
 			task = null;
@@ -53,6 +56,7 @@ public class NoiseTracker {
 	/**
 	 * Calculates average noise value from the last x seconds. Tracker does not save more than {@link #MAX_HISTORY_SIZE} seconds.
 	 * Noise history is cleaned after getting this sample.
+	 *
 	 * @param seconds seconds from history which should be taken into account.
 	 * @return average noise (amplitude) value
 	 */
@@ -66,7 +70,7 @@ public class NoiseTracker {
 
 		avg /= s + 1;
 		currentIndex = 0;
-		return (short)avg;
+		return (short) avg;
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {

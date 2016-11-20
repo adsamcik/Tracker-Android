@@ -15,6 +15,9 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.activities.IntroActivity;
+import com.adsamcik.signalcollector.activities.MainActivity;
+import com.adsamcik.signalcollector.activities.ShortcutActivity;
 import com.adsamcik.signalcollector.receivers.ShortcutReceiver;
 import com.adsamcik.signalcollector.services.TrackerService;
 
@@ -24,7 +27,7 @@ import java.util.List;
 @TargetApi(25)
 public class Shortcuts {
 	public static final String TRACKING_ID = "Tracking";
-	private static final String ACTION = "com.adsamcik.signalcollector.SHORTCUT";
+	public static final String ACTION = "com.adsamcik.signalcollector.SHORTCUT";
 	private static ShortcutReceiver shortcutReceiver = null;
 
 	/**
@@ -53,7 +56,7 @@ public class Shortcuts {
 		ShortcutInfo.Builder shortcutBuilder = new ShortcutInfo.Builder(context, id)
 				.setShortLabel(shortLabel)
 				.setIcon(Icon.createWithResource(context, iconResource))
-				.setIntent(new Intent(context, ShortcutReceiver.class).setAction(ACTION).setPackage("com.adsamcik.signalcollector").putExtra(ShortcutReceiver.ACTION_STRING, action.ordinal()));
+				.setIntent(new Intent(context, ShortcutActivity.class).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP).setAction(ACTION).putExtra(ShortcutReceiver.ACTION_STRING, action.ordinal()));
 		if (longLabel != null)
 			shortcutBuilder.setLongLabel(longLabel);
 		return shortcutBuilder.build();
