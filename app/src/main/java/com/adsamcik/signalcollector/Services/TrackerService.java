@@ -20,13 +20,11 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 
-import com.adsamcik.signalcollector.receivers.ShortcutReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -37,7 +35,6 @@ import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.utility.Shortcuts;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.lang.ref.WeakReference;
 import java.math.RoundingMode;
