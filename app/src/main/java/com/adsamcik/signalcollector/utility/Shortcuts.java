@@ -9,6 +9,7 @@ import android.graphics.drawable.Icon;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.ShortcutActivity;

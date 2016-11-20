@@ -94,10 +94,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if (checkLocationPermission(getContext(), false))
+		if (locationManager != null && checkLocationPermission(getContext(), false))
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 		menu.hide();
+
 	}
 
 	@Override
