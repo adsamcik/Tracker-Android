@@ -61,7 +61,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 						if (locations == 0)
 							sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.no_new_locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 						else
-							sendNotification(r.getString(R.string.new_upload_summary), r.getString(R.string.new_locations, locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+							sendNotification(r.getString(R.string.new_upload_summary), r.getQuantityString(R.plurals.new_locations, locations, locations), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 					}
 					break;
 				case Notification:
