@@ -137,7 +137,7 @@ public class MainActivity extends FragmentActivity {
 						return;
 					Failure<String> response = tf.onEnter(a, fabOne, fabTwo);
 					if (response.hasFailed()) {
-						final View v = findViewById(R.id.container);
+						final View v = findViewById(R.id.fabCoordinator);
 						if (v == null) {
 							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
 							return;
@@ -165,7 +165,7 @@ public class MainActivity extends FragmentActivity {
 
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready
-		SharedPreferences sp = Preferences.get(context);
+		//SharedPreferences sp = Preferences.get(context);
 		//if (!sp.getBoolean(Preferences.SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
