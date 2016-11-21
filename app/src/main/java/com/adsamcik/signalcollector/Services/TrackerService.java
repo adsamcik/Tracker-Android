@@ -226,7 +226,7 @@ public class TrackerService extends Service {
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this)
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setSmallIcon(R.drawable.ic_signals_notification)  // the status icon
-				.setTicker("Signals tracker is active")  // the status text
+				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
@@ -235,14 +235,14 @@ public class TrackerService extends Service {
 		stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);
 		PendingIntent stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 		if (backgroundActivated)
-			builder.addAction(R.drawable.ic_battery_alert_black_24dp, "Stop till recharge", stop);
+			builder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop);
 		else
-			builder.addAction(R.drawable.ic_pause, "Stop", stop);
+			builder.addAction(R.drawable.ic_pause, getString(R.string.notification_stop), stop);
 
 		if (!gpsAvailable)
-			builder.setContentTitle("Looking for GPS");
+			builder.setContentTitle(getString(R.string.notification_looking_for_gps));
 		else {
-			builder.setContentTitle("Tracking");
+			builder.setContentTitle(getString(R.string.notification_tracking_active));
 			builder.setContentText(buildNotificationText(d));
 		}
 
