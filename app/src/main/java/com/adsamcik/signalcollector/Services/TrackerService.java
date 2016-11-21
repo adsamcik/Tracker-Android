@@ -314,7 +314,7 @@ public class TrackerService extends Service {
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
-		if(Shortcuts.initializeShortcuts(this))
+		if(android.os.Build.VERSION.SDK_INT >= 25 && Shortcuts.initializeShortcuts(this))
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION);
 	}
 
@@ -354,7 +354,7 @@ public class TrackerService extends Service {
 		SharedPreferences sp = Preferences.get(getApplicationContext());
 		sp.edit().putInt(Preferences.STATS_MINUTES, sp.getInt(Preferences.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 
-		if(Shortcuts.initializeShortcuts(this))
+		if(android.os.Build.VERSION.SDK_INT >= 25 && Shortcuts.initializeShortcuts(this))
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION);
 	}
 

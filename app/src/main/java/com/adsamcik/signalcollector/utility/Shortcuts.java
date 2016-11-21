@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.utility;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ShortcutInfo;
@@ -9,7 +8,7 @@ import android.graphics.drawable.Icon;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.design.widget.FloatingActionButton;
+import android.support.annotation.RequiresApi;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.ShortcutActivity;
@@ -18,7 +17,7 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import java.util.ArrayList;
 import java.util.List;
 
-@TargetApi(25)
+@RequiresApi(25)
 public class Shortcuts {
 	public static final String TRACKING_ID = "Tracking";
 	public static final String ACTION = "com.adsamcik.signalcollector.SHORTCUT";
