@@ -48,12 +48,8 @@ public class TrackerService extends Service {
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
-	private final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
-	private final int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
-	private final float MIN_DISTANCE_M = 5;
 
 	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
-	private final float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
 
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 
@@ -135,6 +131,7 @@ public class TrackerService extends Service {
 			float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
 			distanceToWifi = (int) distTo;
 			//Log.d(TAG, "dist to wifi " + distTo);
+			int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
 			if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
 				d.setWifi(wifiScanData, wifiScanTime);
 
@@ -155,6 +152,7 @@ public class TrackerService extends Service {
 
 		if (noiseTracker != null) {
 			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
+			float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
 			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
 				noiseTracker.start();
 				short value = noiseTracker.getSample(10);
@@ -299,6 +297,8 @@ public class TrackerService extends Service {
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
 		//Enable location update
+		int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
+		float MIN_DISTANCE_M = 5;
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 
