@@ -31,8 +31,8 @@ public class MapLayer {
 	}
 
 	public class ValueColor {
-		public int color;
-		public String name;
+		public final int color;
+		public final String name;
 
 		public ValueColor(String name, int color) {
 			this.name = name;

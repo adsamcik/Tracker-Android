@@ -24,12 +24,12 @@ public class FabMenu {
 
 	private FloatingActionButton fab;
 
-	private ViewGroup wrapper;
-	private ViewGroup menu;
+	private final ViewGroup wrapper;
+	private final ViewGroup menu;
 
 	private IValueCallback<String> callback;
 
-	private View.OnClickListener closeClickListener = (p) -> hide();
+	private final View.OnClickListener closeClickListener = (p) -> hide();
 
 	private boolean isVisible = false;
 
