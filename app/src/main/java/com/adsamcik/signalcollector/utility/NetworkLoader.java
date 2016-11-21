@@ -29,7 +29,7 @@ public class NetworkLoader {
 	 * @param <T>                 Type
 	 */
 	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IValueCallback<T> callback) {
-		loadString(url, updateTimeInMinutes, context, preferenceString, value -> callback.callback(value != null && !value.isEmpty() ? new Gson().fromJson(value, tClass) : null));
+		loadString(url, updateTimeInMinutes, context, preferenceString, value -> callback.callback(Assist.tryFromJson(value, tClass)));
 	}
 
 	/**

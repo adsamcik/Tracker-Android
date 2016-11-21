@@ -25,6 +25,8 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -234,6 +236,17 @@ public class Assist {
 		for (int i = sb.length(); i > 0; i -= 3)
 			sb.insert(i, " ");
 		return sb.toString();
+	}
+
+	public static <T> T tryFromJson(String json, Class<T> tClass) {
+		if(json != null && !json.isEmpty()) {
+			try {
+				return new Gson().fromJson(json, tClass);
+			} catch (JsonSyntaxException e) {
+				FirebaseCrash.report(e);
+			}
+		}
+		return null;
 	}
 
 	/**
