@@ -134,16 +134,19 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, layerArray -> {
 			if (fabTwo != null && layerArray != null) {
+				String savedOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+				if (!MapLayer.contains(layerArray, savedOverlay)) {
+					savedOverlay = layerArray[0].name;
+					Preferences.get(activity).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, savedOverlay).apply();
+				}
+
+				final String defaultOverlay = savedOverlay;
 				activity.runOnUiThread(() -> {
+					changeMapOverlay(defaultOverlay);
 					menu.clear(activity);
 					if (layerArray.length > 0) {
 						for (MapLayer layer : layerArray)
 							menu.addItem(layer.name, activity);
-						String defaultOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
-
-						if (!MapLayer.contains(layerArray, defaultOverlay))
-							defaultOverlay = layerArray[0].name;
-						changeMapOverlay(defaultOverlay);
 					}
 					fabTwo.show();
 				});
@@ -211,7 +214,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 				this.type = type;
 			}
-		}
+		} 
 	}
 
 	@Override
