@@ -214,7 +214,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 				this.type = type;
 			}
-		} 
+		} else this.type = type;
 	}
 
 	@Override
