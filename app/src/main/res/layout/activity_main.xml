@@ -4,7 +4,6 @@
                                                  xmlns:tools="http://schemas.android.com/tools"
                                                  android:layout_width="match_parent"
                                                  android:layout_height="match_parent"
-                                                 android:clipChildren="false"
                                                  tools:context=".activities.MainActivity">
 
     <android.support.design.widget.AppBarLayout
@@ -23,7 +22,6 @@
             app:tabMode="fixed"/>
     </android.support.design.widget.AppBarLayout>
 
-
     <android.support.v4.view.ViewPager
         android:id="@+id/container"
         android:layout_width="match_parent"
@@ -34,7 +32,8 @@
     <android.support.design.widget.CoordinatorLayout
         android:id="@+id/fabCoordinator"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:clipChildren="false">
 
         <LinearLayout
             android:layout_width="66dp"
