@@ -33,7 +33,7 @@ public class IntroActivity extends AppIntro2 {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		Resources r = getResources();
-		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome), R.drawable.signals_logo, Color.parseColor("#363636")));
+		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome), R.drawable.ic_signals_logo, Color.parseColor("#363636")));
 		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_collected_title), r.getString(R.string.intro_collected), R.drawable.intro_cloud, Color.parseColor("#2F4C37")));
 		addSlide(AppIntro2Fragment.newInstance(r.getString(R.string.intro_permissions_title), r.getString(R.string.intro_permissions), R.drawable.intro_permissions, Color.parseColor("#276339")));
 		if (Build.VERSION.SDK_INT > 22 && (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED)) {

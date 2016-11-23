@@ -7,7 +7,7 @@
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@drawable/signals_logo"
+            android:src="@drawable/ic_signals_logo"
             android:mipMap="true"/>
     </item>
 
