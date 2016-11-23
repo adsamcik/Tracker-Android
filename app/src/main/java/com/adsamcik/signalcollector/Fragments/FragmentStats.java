@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.data.Stat;
@@ -112,17 +113,19 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void updateStats() {
 		Activity activity = getActivity();
-		NetworkLoader.loadString(Network.URL_STATS, Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, value -> {
+		NetworkLoader.load(Network.URL_STATS, Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, value -> {
 			if (refreshLayout != null && refreshLayout.isRefreshing())
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-			if (value != null)
-				generateStats(value, activity);
+			generateStats(value, activity);
 		});
 	}
 
-	private void generateStats(String json, Activity activity) {
-		List<Stat> stats = new Gson().fromJson(json, new TypeToken<List<Stat>>() {
-		}.getType());
+	private void generateStats(Stat[] stats, Activity activity) {
+		if(stats == null) {
+			new SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(getString(R.string.error_failed_to_update_stats));
+			return;
+		}
+
 		if (publicStats != null) {
 			for (Table t : publicStats) {
 				t.destroy(activity);
@@ -131,43 +134,18 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		activity.runOnUiThread(() -> publicStats = generateStatsTable(stats));
 	}
 
-	private void getUserStats() {
-		OkHttpClient client = new OkHttpClient();
-		Request request = new Request.Builder()
-				.url(Network.URL_USER_STATS)
-				.build();
-		Callback c = new Callback() {
-			@Override
-			public void onFailure(Call call, IOException e) {
-
-			}
-
-			@Override
-			public void onResponse(Call call, Response response) throws IOException {
-				String body = response.body().string();
-				if (body.startsWith("[")) {
-					List<Stat> stats = new Gson().fromJson(body, new TypeToken<List<Stat>>() {
-					}.getType());
-					getActivity().runOnUiThread(() -> generateStatsTable(stats));
-				}
-				response.close();
-			}
-		};
-		client.newCall(request).enqueue(c);
-	}
-
 	/**
 	 * Generates table from List of stats
 	 *
 	 * @param stats list of stats
 	 */
-	private ArrayList<Table> generateStatsTable(List<Stat> stats) {
+	private ArrayList<Table> generateStatsTable(Stat[] stats) {
 		ArrayList<Table> items = new ArrayList<>();
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		int color = ContextCompat.getColor(c, R.color.textPrimary);
-		for (int i = 0; i < stats.size(); i++) {
-			Stat s = stats.get(i);
+		for (int i = 0; i < stats.length; i++) {
+			Stat s = stats[i];
 			if (s.data != null) {
 				Table table = new Table(c, s.data.size(), s.showPosition, color);
 				table.addTitle(s.name);

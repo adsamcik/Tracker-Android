@@ -6,4 +6,6 @@
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
     <string name="notification_nothing_found">Nothing found</string>
+
+    <string name="error_failed_to_update_stats">Failed to update stats</string>
 </resources>
