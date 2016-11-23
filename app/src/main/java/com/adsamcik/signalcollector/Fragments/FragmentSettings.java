@@ -227,8 +227,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		signInButton.setVisibility(View.GONE);
 		signInNoConnection.setVisibility(View.GONE);
 		signOutButton.setVisibility(View.GONE);
-		signin.forgetButtons();
-		signin = null;
+		if(signin != null) {
+			signin.forgetButtons();
+			signin = null;
+		}
 	}
 
 	@Override
