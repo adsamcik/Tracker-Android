@@ -113,18 +113,22 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void updateStats() {
 		Activity activity = getActivity();
-		NetworkLoader.load(Network.URL_STATS, Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, value -> {
+		NetworkLoader.load(Network.URL_STATS, Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
 			if (refreshLayout != null && refreshLayout.isRefreshing())
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-			generateStats(value, activity);
+			if (state.isSuccess())
+				generateStats(value, activity);
+			else {
+				if(publicStats == null)
+					generateStats(value, activity);
+				new SnackMaker(activity).showSnackbar(state.toString(activity));
+			}
 		});
 	}
 
 	private void generateStats(Stat[] stats, Activity activity) {
-		if(stats == null) {
-			new SnackMaker(activity).showSnackbar(getString(R.string.error_failed_to_update_stats));
+		if (stats == null)
 			return;
-		}
 
 		if (publicStats != null) {
 			for (Table t : publicStats) {

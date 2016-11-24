@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.utility;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
+import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.gson.Gson;
 
@@ -26,10 +28,11 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param tClass              Class of the type
 	 * @param callback            Callback which is called when the result is ready
-	 * @param <T>                 Type
+	 * @param <S>                 State type (enum)
+	 * @param <T>                 Value type
 	 */
-	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IValueCallback<T> callback) {
-		loadString(url, updateTimeInMinutes, context, preferenceString, value -> callback.callback(Assist.tryFromJson(value, tClass)));
+	public static <S, T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
+		loadString(url, updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Assist.tryFromJson(value, tClass)));
 	}
 
 	/**
@@ -41,12 +44,11 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
-	public static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IValueCallback<String> callback) {
+	public static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
 		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1) {
 			if (!Assist.hasNetwork() && lastUpdate != -1) {
-				String json = DataStore.loadString(preferenceString);
-				callback.callback(json);
+				callback.callback(Source.cache_no_internet, DataStore.loadString(preferenceString));
 				return;
 			}
 
@@ -57,9 +59,9 @@ public class NetworkLoader {
 				@Override
 				public void onFailure(Call call, IOException e) {
 					if (lastUpdate != -1)
-						callback.callback(DataStore.loadString(preferenceString));
+						callback.callback(Source.cache_connection_failed, DataStore.loadString(preferenceString));
 					else
-						callback.callback(null);
+						callback.callback(Source.cache_connection_failed, null);
 				}
 
 				@Override
@@ -69,17 +71,39 @@ public class NetworkLoader {
 
 					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 					if (json.isEmpty()) {
-						if (lastUpdate != -1)
-							callback.callback(DataStore.loadString(preferenceString));
-						else
-							callback.callback(null);
+						callback.callback(Source.cache_invalid_data, lastUpdate == -1 ? null : DataStore.loadString(preferenceString));
 					} else {
 						DataStore.saveString(preferenceString, json);
-						callback.callback(json);
+						callback.callback(Source.network, json);
 					}
 				}
 			});
 		} else
-			callback.callback(DataStore.loadString(preferenceString));
+			callback.callback(Source.cache, DataStore.loadString(preferenceString));
+	}
+
+	public enum Source {
+		cache,
+		network,
+		cache_no_internet,
+		cache_connection_failed,
+		cache_invalid_data;
+
+		public boolean isSuccess() {
+			return this.ordinal() <= 1;
+		}
+
+		public String toString(@NonNull Context context) {
+			switch (this) {
+				case cache_connection_failed:
+					return context.getString(R.string.error_connection_failed);
+				case cache_no_internet:
+					return context.getString(R.string.error_connection_failed);
+				case cache_invalid_data:
+					return context.getString(R.string.error_invalid_data);
+				default:
+					return "";
+			}
+		}
 	}
 }
