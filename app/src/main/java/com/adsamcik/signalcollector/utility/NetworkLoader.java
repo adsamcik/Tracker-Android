@@ -105,7 +105,7 @@ public class NetworkLoader {
 				case cache_connection_failed:
 					return context.getString(R.string.error_connection_failed);
 				case cache_no_internet:
-					return context.getString(R.string.error_connection_failed);
+					return context.getString(R.string.error_no_internet);
 				case cache_invalid_data:
 					return context.getString(R.string.error_invalid_data);
 				case no_data:
