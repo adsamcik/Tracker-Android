@@ -33,7 +33,7 @@
 
     <string name="other">Other</string>
 
-    <string name="no_play_services">Play services are not available</string>
+    <string name="map_no_play_services">Map requires up-to-date Play services</string>
 
     <string name="recent_upload_wifi">Wifi</string>
     <string name="recent_upload_wifi_new">New wifi</string>
