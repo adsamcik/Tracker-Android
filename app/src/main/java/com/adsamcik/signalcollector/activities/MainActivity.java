@@ -68,7 +68,7 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(this);
 
 		View containerView = findViewById(R.id.container);
-		SnackMaker snackMaker = new SnackMaker(findViewById(R.id.fabCoordinator));
+		SnackMaker snackMaker = new SnackMaker(this);
 
 		signin = Signin.getInstance(this);
 
@@ -202,7 +202,7 @@ public class MainActivity extends FragmentActivity {
 				String token = acct.getIdToken();
 				Network.registerUser(token, getApplicationContext());
 			} else
-				new SnackMaker(findViewById(R.id.fabCoordinator)).showSnackbar("Failed to sign in, check internet connection");
+				new SnackMaker(this).showSnackbar("Failed to sign in, check internet connection");
 		}
 	}
 

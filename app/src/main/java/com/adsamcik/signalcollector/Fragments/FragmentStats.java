@@ -122,7 +122,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void generateStats(Stat[] stats, Activity activity) {
 		if(stats == null) {
-			new SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(getString(R.string.error_failed_to_update_stats));
+			new SnackMaker(activity).showSnackbar(getString(R.string.error_failed_to_update_stats));
 			return;
 		}
 
