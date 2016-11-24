@@ -47,8 +47,11 @@ public class NetworkLoader {
 	public static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
 		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1) {
-			if (!Assist.hasNetwork() && lastUpdate != -1) {
-				callback.callback(Source.cache_no_internet, DataStore.loadString(preferenceString));
+			if (!Assist.hasNetwork()) {
+				if (lastUpdate == -1)
+					callback.callback(Source.no_data, null);
+				else
+					callback.callback(Source.cache_no_internet, DataStore.loadString(preferenceString));
 				return;
 			}
 
@@ -71,7 +74,10 @@ public class NetworkLoader {
 
 					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 					if (json.isEmpty()) {
-						callback.callback(Source.cache_invalid_data, lastUpdate == -1 ? null : DataStore.loadString(preferenceString));
+						if (lastUpdate == -1)
+							callback.callback(Source.no_data, null);
+						else
+							callback.callback(Source.cache_invalid_data, DataStore.loadString(preferenceString));
 					} else {
 						DataStore.saveString(preferenceString, json);
 						callback.callback(Source.network, json);
@@ -87,7 +93,8 @@ public class NetworkLoader {
 		network,
 		cache_no_internet,
 		cache_connection_failed,
-		cache_invalid_data;
+		cache_invalid_data,
+		no_data;
 
 		public boolean isSuccess() {
 			return this.ordinal() <= 1;
