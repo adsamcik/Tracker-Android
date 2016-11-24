@@ -108,6 +108,8 @@ public class NetworkLoader {
 					return context.getString(R.string.error_connection_failed);
 				case cache_invalid_data:
 					return context.getString(R.string.error_invalid_data);
+				case no_data:
+					return context.getString(R.string.error_no_data);
 				default:
 					return "";
 			}

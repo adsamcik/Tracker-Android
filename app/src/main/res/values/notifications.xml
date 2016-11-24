@@ -12,4 +12,5 @@
     <string name="error_no_internet">Internet is unavailable</string>
     <string name="error_connection_failed">Connection to server failed</string>
     <string name="error_invalid_data">Received invalid data</string>
+    <string name="error_no_data">Unable to get data</string>
 </resources>
