@@ -7,5 +7,7 @@
 <TextView
     android:text="@string/map_no_play_services"
     android:layout_height="wrap_content"
-    android:layout_width="wrap_content"/>
+    android:layout_width="wrap_content"
+    android:textSize="@dimen/primary_text_size"
+    android:textColor="@color/textAccent"/>
 </LinearLayout>
