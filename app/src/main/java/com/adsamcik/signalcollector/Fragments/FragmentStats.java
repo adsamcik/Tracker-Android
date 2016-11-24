@@ -113,7 +113,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void updateStats() {
 		Activity activity = getActivity();
-		NetworkLoader.load(Network.URL_STATS, Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
+		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
+		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
 			if (refreshLayout != null && refreshLayout.isRefreshing())
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
 			if (state.isSuccess())
