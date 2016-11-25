@@ -210,15 +210,15 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 					progressBar.animate().alpha(0).setDuration(400).start();
 
-					//todo fab can be hidden by this when other tab is active
-					new Handler().postDelayed(() -> {
-						if (fabUp != null)
-							fabUp.hide();
-					}, 400);
 					new Handler().postDelayed(() -> {
 						if (fabUp != null) {
-							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+							fabUp.hide();
+							new Handler().postDelayed(() -> {
+								if (fabUp != null) {
+									fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+									fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+								}
+							}, 300);
 						}
 					}, 800);
 				}, 600);
