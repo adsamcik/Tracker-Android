@@ -54,6 +54,7 @@ public class Preferences {
 	public static final String DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
 
 	public static final String UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";
+	public static final String NOTIFICATION_LOCKED_ENABLED = "notificationLockedTrackingEnabled";
 
 	private static final int MAX_DAY_DIFF_STATS = 7;
 

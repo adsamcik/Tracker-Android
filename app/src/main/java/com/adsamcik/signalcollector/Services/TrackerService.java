@@ -20,6 +20,8 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.preference.Preference;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
@@ -86,8 +88,12 @@ public class TrackerService extends Service {
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
 
+	private static final int SERVICE_NOTIFICATION_ID = 7643;
+	private static final int TRACKING_LOCKED_NOTIFICATION_ID = 8564;
+
 	/**
 	 * Checks if service is running
+	 *
 	 * @return true if service is running
 	 */
 	public static boolean isRunning() {
@@ -96,6 +102,7 @@ public class TrackerService extends Service {
 
 	/**
 	 * Checks if Tracker is auto locked
+	 *
 	 * @return true if locked
 	 */
 	public static boolean isAutoLocked() {
@@ -104,6 +111,7 @@ public class TrackerService extends Service {
 
 	/**
 	 * Checks if tracker was activated in background
+	 *
 	 * @return true if activated by the app
 	 */
 	public static boolean isBackgroundActivated() {
@@ -113,13 +121,40 @@ public class TrackerService extends Service {
 	/**
 	 * Sets auto lock with predefined time {@link TrackerService#LOCK_TIME_IN_MINUTES}
 	 */
-	public static void setAutoLock() {
+	public static void setAutoLock(@NonNull Context context) {
 		if (backgroundActivated)
 			lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
+
+		if(Preferences.get(context).getBoolean(Preferences.NOTIFICATION_LOCKED_ENABLED, true)) {
+			Intent intent = new Intent(context, MainActivity.class);
+			NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+					.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+					.setSmallIcon(R.drawable.ic_signals_notification)  // the status icon
+					//todo update ticker text
+					.setTicker(context.getString(R.string.notification_tracker_active_ticker))  // the status text
+					.setWhen(System.currentTimeMillis())  // the time stamp
+					.setContentIntent(PendingIntent.getActivity(context, 0, intent, 0)) // The intent to send when the entry is clicked
+					.setContentTitle(context.getString(R.string.notification_auto_tracking_lock_title))
+					.setContentText(String.format(context.getString(R.string.notification_auto_tracking_lock), LOCK_TIME_IN_MINUTES))
+					.setColor(ContextCompat.getColor(context, R.color.colorPrimary));
+
+			//todo add action to disable autolock notification
+			/*Intent stopIntent = new Intent(context, NotificationReceiver.class);
+			stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);
+			PendingIntent stop = PendingIntent.getBroadcast(context, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+			builder.addAction(R.drawable.ic_battery_alert_black_24dp, context.getString(R.string.notification_stop_til_recharge), stop);
+			builder.addAction(R.drawable.ic_pause, context.getString(R.string.notification_stop), stop);
+			builder.setContentTitle(context.getString(R.string.notification_tracking_active));*/
+
+			((NotificationManager) context.getSystemService(NOTIFICATION_SERVICE)).notify(TRACKING_LOCKED_NOTIFICATION_ID, builder.build());
+		}
+
+		if (isRunning())
+			service.get().stopSelf();
 	}
 
 	private void updateData(Location location) {
-		if(location.getAltitude() > 5600) {
+		if (location.getAltitude() > 5600) {
 			stopSelf();
 			return;
 		}
@@ -128,7 +163,7 @@ public class TrackerService extends Service {
 
 		if (wifiScanData != null && prevScanPos != null) {
 			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
-			if(timeDiff >= 0) {
+			if (timeDiff >= 0) {
 				float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
 				distanceToWifi = (int) distTo;
 				//Log.d(TAG, "dist to wifi " + distTo);
@@ -173,7 +208,7 @@ public class TrackerService extends Service {
 
 		DataStore.incSizeOfData(DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length);
 
-		notificationManager.notify(1, generateNotification(true, d));
+		notificationManager.notify(SERVICE_NOTIFICATION_ID, generateNotification(true, d));
 		if (onNewDataFound != null)
 			onNewDataFound.callback();
 
@@ -283,7 +318,7 @@ public class TrackerService extends Service {
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
 				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					notificationManager.notify(1, generateNotification(false, null));
+					notificationManager.notify(SERVICE_NOTIFICATION_ID, generateNotification(false, null));
 			}
 
 			public void onProviderEnabled(String provider) {
@@ -315,7 +350,7 @@ public class TrackerService extends Service {
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
-		if(android.os.Build.VERSION.SDK_INT >= 25 && Shortcuts.initializeShortcuts(this))
+		if (android.os.Build.VERSION.SDK_INT >= 25 && Shortcuts.initializeShortcuts(this))
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION);
 	}
 
@@ -355,7 +390,7 @@ public class TrackerService extends Service {
 		SharedPreferences sp = Preferences.get(getApplicationContext());
 		sp.edit().putInt(Preferences.STATS_MINUTES, sp.getInt(Preferences.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 
-		if(android.os.Build.VERSION.SDK_INT >= 25 && Shortcuts.initializeShortcuts(this))
+		if (android.os.Build.VERSION.SDK_INT >= 25 && Shortcuts.initializeShortcuts(this))
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION);
 	}
 
