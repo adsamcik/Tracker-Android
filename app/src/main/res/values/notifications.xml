@@ -8,7 +8,7 @@
     <string name="notification_nothing_found">Nothing found</string>
 
     <string name="notification_auto_tracking_lock_title">Autotracking locked</string>
-    <string name="notification_auto_tracking_lock">Autotracking has been locked for $1%d</string>
+    <string name="notification_auto_tracking_lock">Autotracking has been locked for %1$d</string>
     <string name="notification_action_disable">Disable</string>
     <string name="notification_action_do_not_show_again">Do not show again</string>
 
