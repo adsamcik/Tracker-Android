@@ -11,7 +11,7 @@ public class NoiseTracker {
 	private final int SAMPLING = 44100;
 	private final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
 	private final AudioRecord audioRecorder;
-	private final NoiseSuppressor noiseSuppressor;
+	private NoiseSuppressor noiseSuppressor;
 
 	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
@@ -52,9 +52,11 @@ public class NoiseTracker {
 			task.cancel(true);
 			task = null;
 		}
-		if(noiseSuppressor != null)
+		if(noiseSuppressor != null) {
 			noiseSuppressor.release();
-		
+			noiseSuppressor = null;
+		}
+
 		currentIndex = 0;
 		return this;
 	}
