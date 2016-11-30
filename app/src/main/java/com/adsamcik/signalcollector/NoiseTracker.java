@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.media.audiofx.NoiseSuppressor;
 import android.os.AsyncTask;
 
 public class NoiseTracker {
@@ -10,6 +11,7 @@ public class NoiseTracker {
 	private final int SAMPLING = 44100;
 	private final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
 	private final AudioRecord audioRecorder;
+	private final NoiseSuppressor noiseSuppressor;
 
 	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
@@ -30,6 +32,7 @@ public class NoiseTracker {
 	 * @return this
 	 */
 	public NoiseTracker start() {
+		noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
 		if (audioRecorder.getState() == AudioRecord.RECORDSTATE_STOPPED)
 			audioRecorder.startRecording();
 		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED)
@@ -49,6 +52,9 @@ public class NoiseTracker {
 			task.cancel(true);
 			task = null;
 		}
+		if(noiseSuppressor != null)
+			noiseSuppressor.release();
+		
 		currentIndex = 0;
 		return this;
 	}

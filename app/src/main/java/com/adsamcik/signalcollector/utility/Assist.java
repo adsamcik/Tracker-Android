@@ -265,7 +265,7 @@ public class Assist {
 	 * @param amplitude amplitude
 	 * @return dbm
 	 */
-	public static double amplitudeToDbm(final double amplitude) {
+	public static double amplitudeToDbm(final short amplitude) {
 		return 20 * Math.log10(Math.abs(amplitude));
 	}
 
