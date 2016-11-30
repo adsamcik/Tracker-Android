@@ -248,7 +248,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		changeTrackerButton(TrackerService.isRunning() ? 1 : 0);
 		fabTrack.setOnClickListener(
 				v -> {
-					if (TrackerService.isRunning())
+					if (TrackerService.isRunning() && TrackerService.isBackgroundActivated())
 						TrackerService.setAutoLock(activity);
 					else
 						toggleCollecting(activity, !TrackerService.isRunning());

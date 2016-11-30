@@ -122,10 +122,9 @@ public class TrackerService extends Service {
 	 * Sets auto lock with predefined time {@link TrackerService#LOCK_TIME_IN_MINUTES}
 	 */
 	public static void setAutoLock(@NonNull Context context) {
-		if (backgroundActivated)
-			lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
+		lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
 
-		if(Preferences.get(context).getBoolean(Preferences.NOTIFICATION_LOCKED_ENABLED, true)) {
+		if (Preferences.get(context).getBoolean(Preferences.NOTIFICATION_LOCKED_ENABLED, true)) {
 			Intent intent = new Intent(context, MainActivity.class);
 			NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
 					.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -149,7 +148,7 @@ public class TrackerService extends Service {
 			((NotificationManager) context.getSystemService(NOTIFICATION_SERVICE)).notify(TRACKING_LOCKED_NOTIFICATION_ID, builder.build());
 		}
 
-		if (isRunning())
+		if (isRunning() && isBackgroundActivated())
 			service.get().stopSelf();
 	}
 
