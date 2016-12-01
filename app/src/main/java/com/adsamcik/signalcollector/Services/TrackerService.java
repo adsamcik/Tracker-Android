@@ -357,7 +357,7 @@ public class TrackerService extends Service {
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		lockedUntil = 0;
 		backgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false);
-		startForeground(1, generateNotification(false, null));
+		startForeground(SERVICE_NOTIFICATION_ID, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
 		if (Preferences.get(this).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false))
