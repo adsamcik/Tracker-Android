@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 25
-        versionCode 125
-        versionName "2.0.0 bf24"
+        versionCode 126
+        versionName "2.0.0 bf25"
         jackOptions {
             enabled true
         }
