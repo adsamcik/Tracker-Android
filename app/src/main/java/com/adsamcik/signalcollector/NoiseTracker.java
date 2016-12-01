@@ -11,7 +11,6 @@ public class NoiseTracker {
 	private final int SAMPLING = 44100;
 	private final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
 	private final AudioRecord audioRecorder;
-	private NoiseSuppressor noiseSuppressor;
 
 	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
@@ -23,7 +22,13 @@ public class NoiseTracker {
 	 * Creates new instance of noise tracker. Does not start tracking.
 	 */
 	public NoiseTracker() {
-		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+		//required cause lint sucks and can't decipher ternary operators
+		int source;
+		if (android.os.Build.VERSION.SDK_INT >= 24)
+			source = MediaRecorder.AudioSource.UNPROCESSED;
+		else
+			source = MediaRecorder.AudioSource.CAMCORDER;
+		audioRecorder = new AudioRecord(source, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 	}
 
 	/**
@@ -31,8 +36,8 @@ public class NoiseTracker {
 	 *
 	 * @return this
 	 */
+
 	public NoiseTracker start() {
-		noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
 		if (audioRecorder.getState() == AudioRecord.RECORDSTATE_STOPPED)
 			audioRecorder.startRecording();
 		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED)
@@ -51,10 +56,6 @@ public class NoiseTracker {
 		if (task != null) {
 			task.cancel(true);
 			task = null;
-		}
-		if(noiseSuppressor != null) {
-			noiseSuppressor.release();
-			noiseSuppressor = null;
 		}
 
 		currentIndex = 0;
