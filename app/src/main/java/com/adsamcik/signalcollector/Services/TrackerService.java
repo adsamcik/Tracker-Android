@@ -134,7 +134,7 @@ public class TrackerService extends Service {
 					.setWhen(System.currentTimeMillis())  // the time stamp
 					.setContentIntent(PendingIntent.getActivity(context, 0, intent, 0)) // The intent to send when the entry is clicked
 					.setContentTitle(context.getString(R.string.notification_auto_tracking_lock_title))
-					.setContentText(String.format(context.getString(R.string.notification_auto_tracking_lock), LOCK_TIME_IN_MINUTES))
+					.setContentText(context.getResources().getQuantityString(R.plurals.notification_auto_tracking_lock, LOCK_TIME_IN_MINUTES, LOCK_TIME_IN_MINUTES))
 					.setColor(ContextCompat.getColor(context, R.color.colorPrimary));
 
 			//todo add action to disable autolock notification
