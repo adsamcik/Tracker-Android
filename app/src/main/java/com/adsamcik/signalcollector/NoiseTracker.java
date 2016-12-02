@@ -6,10 +6,13 @@ import android.media.MediaRecorder;
 import android.media.audiofx.NoiseSuppressor;
 import android.os.AsyncTask;
 
+import com.google.firebase.crash.FirebaseCrash;
+
 public class NoiseTracker {
 	private final String TAG = "SignalsNoise";
-	private final int SAMPLING = 44100;
-	private final int bufferSize = AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+	private final int SAMPLING = 22050;
+	// AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
+	private final int bufferSize = SAMPLING;
 	private final AudioRecord audioRecorder;
 
 	private short currentIndex = -1;
@@ -22,13 +25,7 @@ public class NoiseTracker {
 	 * Creates new instance of noise tracker. Does not start tracking.
 	 */
 	public NoiseTracker() {
-		//required cause lint sucks and can't decipher ternary operators
-		int source;
-		if (android.os.Build.VERSION.SDK_INT >= 24)
-			source = MediaRecorder.AudioSource.UNPROCESSED;
-		else
-			source = MediaRecorder.AudioSource.CAMCORDER;
-		audioRecorder = new AudioRecord(source, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 	}
 
 	/**
@@ -83,7 +80,13 @@ public class NoiseTracker {
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
-		private final int SKIP_BUFFERS = 20;
+		private final int PROCESS_SAMPLES_EVERY_SECOND = 100;
+		private final int SKIP_BUFFERS = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
+
+		private short mid = -1;
+		private final double influence = 0.3;
+
+		private double heading = 0;
 
 		@Override
 		protected Void doInBackground(AudioRecord... records) {
@@ -95,12 +98,15 @@ public class NoiseTracker {
 				else if (state < 0 || audio.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
 					break;
 
+				short approxVal = getApproxAmplitude();
+				if (approxVal == -1)
+					break;
+				values[++currentIndex] = approxVal;
+				if (currentIndex >= MAX_HISTORY_SIZE - 1)
+					break;
+
 				try {
-					Thread.sleep(500);
-					values[++currentIndex] = getApproxAmplitude();
-					short MAX_HISTORY_INDEX = MAX_HISTORY_SIZE - 1;
-					if (currentIndex >= MAX_HISTORY_INDEX)
-						break;
+					Thread.sleep(1000);
 				} catch (InterruptedException e) {
 					break;
 				}
@@ -112,10 +118,28 @@ public class NoiseTracker {
 
 		private short getApproxAmplitude() {
 			short[] buffer = new short[bufferSize];
-			audioRecorder.read(buffer, 0, bufferSize);
-			int val = 0;
-			for (int i = 0; i < buffer.length; i += SKIP_BUFFERS)
-				val += (short) Math.abs(buffer[i]);
+			int audioState = audioRecorder.read(buffer, 0, bufferSize);
+
+			if (audioState == AudioRecord.ERROR_INVALID_OPERATION || audioState == AudioRecord.ERROR_BAD_VALUE) {
+				FirebaseCrash.report(new Throwable("Noise tracking failed with state " + audioState));
+				return -1;
+			}
+
+			if (mid == -1)
+				mid = buffer[0];
+
+			for (int i = 0; i < buffer.length; i += SKIP_BUFFERS) {
+				short amp = (short) Math.abs(buffer[i]);
+				int diff = amp - mid;
+				double target = diff / 500;
+				if(target > 1)
+					target = 1;
+				else if(target < -1)
+					target = -1;
+				target = target - heading;
+				heading += target * influence;
+
+			}
 			return (short) (val / (buffer.length / SKIP_BUFFERS));
 		}
 	}
