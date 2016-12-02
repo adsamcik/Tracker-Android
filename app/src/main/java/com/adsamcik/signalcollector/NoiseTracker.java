@@ -80,7 +80,7 @@ public class NoiseTracker {
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
-		private final int PROCESS_SAMPLES_EVERY_SECOND = 100;
+		private final int PROCESS_SAMPLES_EVERY_SECOND = 20;
 		private final int SKIP_BUFFERS = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
 
 		private short mid = -1;
