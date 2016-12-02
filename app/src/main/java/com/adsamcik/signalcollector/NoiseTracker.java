@@ -132,15 +132,14 @@ public class NoiseTracker {
 				short amp = (short) Math.abs(buffer[i]);
 				int diff = amp - mid;
 				double target = diff / 500;
-				if(target > 1)
+				if (target > 1)
 					target = 1;
-				else if(target < -1)
+				else if (target < -1)
 					target = -1;
-				target = target - heading;
-				heading += target * influence;
-
+				heading += (target - heading) * influence;
+				mid += amp * heading;
 			}
-			return (short) (val / (buffer.length / SKIP_BUFFERS));
+			return mid;
 		}
 	}
 }
