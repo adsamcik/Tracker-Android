@@ -23,8 +23,6 @@ public class NotificationReceiver extends BroadcastReceiver {
 			case 1:
 				context.stopService(new Intent(context, TrackerService.class));
 				break;
-			case 2:
-				break;
 			default:
 				Log.w(TAG, "Unknown value " + value);
 		}
