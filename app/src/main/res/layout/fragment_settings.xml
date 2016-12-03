@@ -227,15 +227,6 @@
             android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_allow_notifications_upload"/>
 
-        <Switch
-            android:id="@+id/switchNotificationsLock"
-            style="@style/SettingsText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_allow_notifications_locked"/>
-
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/divider_height"

@@ -203,7 +203,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		setSwitchChangeListener(context, Preferences.UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true);
-		setSwitchChangeListener(context, Preferences.NOTIFICATION_LOCKED_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsLock), true);
 
 		return rootView;
 	}
