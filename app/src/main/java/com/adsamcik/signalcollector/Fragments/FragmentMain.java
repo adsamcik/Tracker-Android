@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 
 public class FragmentMain extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
@@ -248,9 +249,10 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		changeTrackerButton(TrackerService.isRunning() ? 1 : 0);
 		fabTrack.setOnClickListener(
 				v -> {
-					if (TrackerService.isRunning() && TrackerService.isBackgroundActivated())
-						TrackerService.setAutoLock(activity);
-					else
+					if (TrackerService.isRunning() && TrackerService.isBackgroundActivated()) {
+						int lockedForMinutes = TrackerService.setAutoLock();
+						new SnackMaker(activity).showSnackbar(activity.getResources().getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes));
+					} else
 						toggleCollecting(activity, !TrackerService.isRunning());
 				}
 		);

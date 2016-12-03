@@ -121,35 +121,12 @@ public class TrackerService extends Service {
 	/**
 	 * Sets auto lock with predefined time {@link TrackerService#LOCK_TIME_IN_MINUTES}
 	 */
-	public static void setAutoLock(@NonNull Context context) {
+	public static int setAutoLock() {
 		lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS;
-
-		if (Preferences.get(context).getBoolean(Preferences.NOTIFICATION_LOCKED_ENABLED, true)) {
-			Intent intent = new Intent(context, MainActivity.class);
-			NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
-					.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-					.setSmallIcon(R.drawable.ic_signals_notification)  // the status icon
-					//todo update ticker text
-					.setTicker(context.getString(R.string.notification_tracker_active_ticker))  // the status text
-					.setWhen(System.currentTimeMillis())  // the time stamp
-					.setContentIntent(PendingIntent.getActivity(context, 0, intent, 0)) // The intent to send when the entry is clicked
-					.setContentTitle(context.getString(R.string.notification_auto_tracking_lock_title))
-					.setContentText(context.getResources().getQuantityString(R.plurals.notification_auto_tracking_lock, LOCK_TIME_IN_MINUTES, LOCK_TIME_IN_MINUTES))
-					.setColor(ContextCompat.getColor(context, R.color.colorPrimary));
-
-			//todo add action to disable autolock notification
-			/*Intent stopIntent = new Intent(context, NotificationReceiver.class);
-			stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);
-			PendingIntent stop = PendingIntent.getBroadcast(context, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-			builder.addAction(R.drawable.ic_battery_alert_black_24dp, context.getString(R.string.notification_stop_til_recharge), stop);
-			builder.addAction(R.drawable.ic_pause, context.getString(R.string.notification_stop), stop);
-			builder.setContentTitle(context.getString(R.string.notification_tracking_active));*/
-
-			((NotificationManager) context.getSystemService(NOTIFICATION_SERVICE)).notify(TRACKING_LOCKED_NOTIFICATION_ID, builder.build());
-		}
 
 		if (isRunning() && isBackgroundActivated())
 			service.get().stopSelf();
+		return LOCK_TIME_IN_MINUTES;
 	}
 
 	private void updateData(Location location) {
