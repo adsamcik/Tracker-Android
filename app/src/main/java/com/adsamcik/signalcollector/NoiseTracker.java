@@ -88,12 +88,9 @@ public class NoiseTracker {
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
 		private final int PROCESS_SAMPLES_EVERY_SECOND = 20;
-		private final int SKIP_BUFFERS = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
+		private final int SKIP_SAMPLES = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
 
-		private short mid = -1;
-		private final double influence = 0.3;
-
-		private double heading = 0;
+		private short lastAvg = -1;
 
 		@Override
 		protected Void doInBackground(AudioRecord... records) {
@@ -132,21 +129,35 @@ public class NoiseTracker {
 				return -1;
 			}
 
-			if (mid == -1)
-				mid = buffer[0];
+			short min = Short.MAX_VALUE, max = 0;
+			int avg = 0;
 
-			for (int i = 0; i < buffer.length; i += SKIP_BUFFERS) {
+			for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
 				short amp = (short) Math.abs(buffer[i]);
-				int diff = amp - mid;
-				double target = diff / 500;
-				if (target > 1)
-					target = 1;
-				else if (target < -1)
-					target = -1;
-				heading += (target - heading) * influence;
-				mid += amp * heading;
+				if (amp < min)
+					min = amp;
+				if (amp > max)
+					max = amp;
+				avg += amp;
 			}
-			return mid;
+
+			avg /= PROCESS_SAMPLES_EVERY_SECOND;
+
+			if (lastAvg != -1)
+				avg = (avg + lastAvg) / 2;
+
+			int finalAvg = 0;
+			short count = 0;
+			for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
+				short amp = (short) Math.abs(buffer[i]);
+				if (amp < avg) {
+					finalAvg += avg;
+					count++;
+				}
+			}
+
+			lastAvg = (short) avg;
+			return (short) (finalAvg / count);
 		}
 	}
 }
