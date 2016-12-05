@@ -1,5 +1,11 @@
 package com.adsamcik.signalcollector;
 
+import android.app.Activity;
+import android.content.Context;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -8,7 +14,7 @@ import android.os.AsyncTask;
 
 import com.google.firebase.crash.FirebaseCrash;
 
-public class NoiseTracker {
+public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";
 	private final int SAMPLING = 22050;
 	// AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
@@ -19,13 +25,18 @@ public class NoiseTracker {
 	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
 	private final short[] values = new short[MAX_HISTORY_SIZE];
+	private final boolean[] valuesPocket = new boolean[MAX_HISTORY_SIZE];
+
+	private SensorManager mSensorManager;
+	private Sensor mProximity;
+	private boolean inPocket;
 
 	private AsyncTask task;
 
 	/**
 	 * Creates new instance of noise tracker. Does not start tracking.
 	 */
-	public NoiseTracker() {
+	public NoiseTracker(Activity activity) {
 		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 		if (NoiseSuppressor.isAvailable()) {
 			noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
@@ -33,6 +44,8 @@ public class NoiseTracker {
 				noiseSuppressor.setEnabled(true);
 		} else
 			noiseSuppressor = null;
+		mSensorManager = (SensorManager) activity.getSystemService(Context.SENSOR_SERVICE);
+		mProximity = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
 	}
 
 	/**
@@ -46,6 +59,7 @@ public class NoiseTracker {
 			audioRecorder.startRecording();
 		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED)
 			task = new NoiseCheckTask().execute(audioRecorder);
+		mSensorManager.registerListener(this, mProximity, SensorManager.SENSOR_DELAY_NORMAL);
 		return this;
 	}
 
@@ -61,6 +75,7 @@ public class NoiseTracker {
 			task.cancel(true);
 			task = null;
 		}
+		mSensorManager.unregisterListener(this);
 
 		currentIndex = 0;
 		return this;
@@ -84,6 +99,17 @@ public class NoiseTracker {
 		avg /= s + 1;
 		currentIndex = 0;
 		return (short) avg;
+	}
+
+	@Override
+	public void onSensorChanged(SensorEvent sensorEvent) {
+		if (sensorEvent.sensor.getType() == Sensor.TYPE_PROXIMITY)
+			inPocket = sensorEvent.values[0] < sensorEvent.sensor.getMaximumRange();
+	}
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int i) {
+
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
@@ -129,35 +155,40 @@ public class NoiseTracker {
 				return -1;
 			}
 
-			short min = Short.MAX_VALUE, max = 0;
-			int avg = 0;
-
-			for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
-				short amp = (short) Math.abs(buffer[i]);
-				if (amp < min)
-					min = amp;
-				if (amp > max)
-					max = amp;
-				avg += amp;
-			}
-
-			avg /= PROCESS_SAMPLES_EVERY_SECOND;
-
-			if (lastAvg != -1)
-				avg = (avg + lastAvg) / 2;
-
-			int finalAvg = 0;
-			short count = 0;
-			for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
-				short amp = (short) Math.abs(buffer[i]);
-				if (amp < avg) {
-					finalAvg += avg;
-					count++;
+			if(inPocket) {
+				short min = Short.MAX_VALUE;
+				for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
+					short amp = (short) Math.abs(buffer[i]);
+					if (amp < min)
+						min = amp;
 				}
-			}
+				return min;
+			} else {
+				int avg = 0;
 
-			lastAvg = (short) avg;
-			return (short) (finalAvg / count);
+				for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
+					short amp = (short) Math.abs(buffer[i]);
+					avg += amp;
+				}
+
+				avg /= PROCESS_SAMPLES_EVERY_SECOND;
+
+				if (lastAvg != -1)
+					avg = (avg + lastAvg) / 2;
+
+				int finalAvg = 0;
+				short count = 0;
+				for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
+					short amp = (short) Math.abs(buffer[i]);
+					if (amp < avg) {
+						finalAvg += avg;
+						count++;
+					}
+				}
+
+				lastAvg = (short) avg;
+				return (short) (finalAvg / count);
+			}
 		}
 	}
 }
