@@ -11,6 +11,7 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.media.audiofx.NoiseSuppressor;
 import android.os.AsyncTask;
+import android.support.annotation.NonNull;
 
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -36,7 +37,7 @@ public class NoiseTracker implements SensorEventListener {
 	/**
 	 * Creates new instance of noise tracker. Does not start tracking.
 	 */
-	public NoiseTracker(Activity activity) {
+	public NoiseTracker(@NonNull Context context) {
 		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 		if (NoiseSuppressor.isAvailable()) {
 			noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
@@ -44,7 +45,7 @@ public class NoiseTracker implements SensorEventListener {
 				noiseSuppressor.setEnabled(true);
 		} else
 			noiseSuppressor = null;
-		mSensorManager = (SensorManager) activity.getSystemService(Context.SENSOR_SERVICE);
+		mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
 		mProximity = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
 	}
 
