@@ -93,10 +93,18 @@ public class NoiseTracker implements SensorEventListener {
 			return -1;
 		final short s = seconds > currentIndex ? currentIndex : (short) seconds;
 		int avg = 0;
-		for (int i = currentIndex - s; i <= currentIndex; i++)
-			avg += values[i];
+		int cnt = 0;
+		for (int i = currentIndex - s; i <= currentIndex; i++) {
+			if (valuesPocket[i]) {
+				avg += values[i];
+				cnt++;
+			} else {
+				avg += 2 * values[i];
+				cnt += 2;
+			}
+		}
 
-		avg /= s + 1;
+		avg /= cnt;
 		currentIndex = 0;
 		return (short) avg;
 	}
@@ -155,7 +163,7 @@ public class NoiseTracker implements SensorEventListener {
 				return -1;
 			}
 
-			if(inPocket) {
+			if (inPocket) {
 				short min = Short.MAX_VALUE;
 				for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
 					short amp = (short) Math.abs(buffer[i]);
