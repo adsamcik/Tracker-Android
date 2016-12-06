@@ -47,6 +47,8 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	private long lastWifiTime = 0;
 
+	private boolean uploadInProgress = false;
+
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -88,7 +90,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 	private void setCollected(long collected) {
 		if (Network.cloudStatus == 0 && collected > 0)
 			setCloudStatus(1);
-		else if (collected == 0)
+		else if (collected == 0 && !uploadInProgress)
 			setCloudStatus(0);
 		if (textCollected != null && getResources() != null)
 			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
@@ -187,6 +189,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 		fabUp.setElevation(0);
 		if (percentage == 0) {
 			progressBar.setIndeterminate(true);
+			uploadInProgress = true;
 		} else if (percentage == -1) {
 			progressBar.animate().alpha(0).setDuration(400).start();
 			fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error)));
@@ -199,29 +202,33 @@ public class FragmentMain extends Fragment implements ITabFragment {
 					setCloudStatus(1);
 				}
 			}, 1000);
+			uploadInProgress = true;
 		} else {
 			progressBar.setIndeterminate(false);
 			ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
 			animation.setDuration(400);
 			if (percentage == 100) {
 				new Handler().postDelayed(() -> {
-					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
+					if(fabUp != null) {
+						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+						fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
-					progressBar.animate().alpha(0).setDuration(400).start();
+						progressBar.animate().alpha(0).setDuration(400).start();
 
-					new Handler().postDelayed(() -> {
-						if (fabUp != null) {
-							fabUp.hide();
-							new Handler().postDelayed(() -> {
-								if (fabUp != null) {
-									fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-									fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-								}
-							}, 300);
-						}
-					}, 800);
+						new Handler().postDelayed(() -> {
+							if (fabUp != null) {
+								fabUp.hide();
+								new Handler().postDelayed(() -> {
+									if (fabUp != null) {
+										fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+										fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+									}
+								}, 300);
+							}
+						}, 800);
+					}
+					uploadInProgress = false;
 				}, 600);
 			}
 			animation.start();
