@@ -140,6 +140,8 @@ public class NoiseTracker implements SensorEventListener {
 				short approxVal = getApproxAmplitude();
 				if (approxVal == -1)
 					break;
+				else if(approxVal == -2)
+					continue;
 				values[++currentIndex] = approxVal;
 				if (currentIndex >= MAX_HISTORY_SIZE - 1)
 					break;
@@ -194,6 +196,9 @@ public class NoiseTracker implements SensorEventListener {
 						count++;
 					}
 				}
+
+				if(count == 0)
+					return -2;
 
 				lastAvg = (short) avg;
 				return (short) (finalAvg / count);
