@@ -28,8 +28,8 @@ public class ActivityService extends IntentService {
 	public static int lastActivity;
 	public static int lastConfidence;
 
-	public static final int GOOGLE_API_ID = 77285;
-	public static final int REQUIRED_CONFIDENCE = 75;
+	private static final int GOOGLE_API_ID = 77285;
+	private static final int REQUIRED_CONFIDENCE = 75;
 
 
 	public static Failure<String> initializeActivityClient(@NonNull Context context) {
