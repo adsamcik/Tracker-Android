@@ -8,6 +8,8 @@ import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
@@ -26,8 +28,10 @@ import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
+import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.MapLayer;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.NetworkLoader;
@@ -58,7 +62,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ColorStateList mDefaultState;
 
 	private void updateTracking(int select) {
-		Preferences.get(getContext()).edit().putInt(Preferences.BACKGROUND_TRACKING, select).apply();
+		Context context = getContext();
+		Preferences.get(context).edit().putInt(Preferences.BACKGROUND_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -73,6 +78,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			default:
 				return;
 		}
+		FirebaseAssist.updateValue(context, FirebaseAssist.autoUploadString, trackingString[select]);
 		trackDesc.setText(trackingString[select]);
 		if (mTrackingSelected != null)
 			mTrackingSelected.setImageTintList(mDefaultState);
@@ -81,7 +87,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void updateAutoup(int select) {
-		Preferences.get(getContext()).edit().putInt(Preferences.AUTO_UPLOAD, select).apply();
+		Context context = getContext();
+		Preferences.get(context).edit().putInt(Preferences.AUTO_UPLOAD, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -96,6 +103,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			default:
 				return;
 		}
+		FirebaseAssist.updateValue(context, FirebaseAssist.autoUploadString, autoupString[select]);
+
 		autoupDesc.setText(autoupString[select]);
 		if (mAutoupSelected != null)
 			mAutoupSelected.setImageTintList(mDefaultState);
@@ -190,8 +199,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			}
 		});
 
-		setSwitchChangeListener(context, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true);
-		setSwitchChangeListener(context, Preferences.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true);
+		setSwitchChangeListener(context, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true, null);
+		setSwitchChangeListener(context, Preferences.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true, null);
 
 		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false));
@@ -202,14 +211,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				Preferences.get(context).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
 		});
 
-		setSwitchChangeListener(context, Preferences.UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true);
+		setSwitchChangeListener(context, Preferences.UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
 
 		return rootView;
 	}
 
-	private void setSwitchChangeListener(final Context context, final String name, Switch s, final boolean defaultState) {
+	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final IValueCallback<Boolean> callback) {
 		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
-		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> Preferences.get(context).edit().putBoolean(name, b).apply());
+		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			Preferences.get(context).edit().putBoolean(name, b).apply();
+			if (callback != null)
+				callback.callback(b);
+		});
 	}
 
 	@Override
@@ -227,7 +240,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		signInButton.setVisibility(View.GONE);
 		signInNoConnection.setVisibility(View.GONE);
 		signOutButton.setVisibility(View.GONE);
-		if(signin != null) {
+		if (signin != null) {
 			signin.forgetButtons();
 			signin = null;
 		}
