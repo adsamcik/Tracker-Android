@@ -37,7 +37,7 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 
-public class FragmentMain extends Fragment implements ITabFragment {
+public class FragmentTracker extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiCollection, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
@@ -301,7 +301,7 @@ public class FragmentMain extends Fragment implements ITabFragment {
 
 	@Override
 	public ITabFragment newInstance() {
-		return new FragmentMain();
+		return new FragmentTracker();
 	}
 
 	private void updateData(@NonNull Context context) {

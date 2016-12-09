@@ -29,7 +29,7 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Failure;
-import com.adsamcik.signalcollector.fragments.FragmentMain;
+import com.adsamcik.signalcollector.fragments.FragmentTracker;
 import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
@@ -104,7 +104,7 @@ public class MainActivity extends FragmentActivity {
 			viewPager.setOffscreenPageLimit(1);
 
 			final ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-			adapter.addFrag(FragmentMain.class, r.getString(R.string.menu_dashboard));
+			adapter.addFrag(FragmentTracker.class, r.getString(R.string.menu_dashboard));
 			adapter.addFrag(FragmentMap.class, r.getString(R.string.menu_map));
 			adapter.addFrag(FragmentStats.class, r.getString(R.string.menu_stats));
 			adapter.addFrag(FragmentSettings.class, r.getString(R.string.menu_settings));
