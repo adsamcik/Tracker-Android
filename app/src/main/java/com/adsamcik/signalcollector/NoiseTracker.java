@@ -122,7 +122,7 @@ public class NoiseTracker implements SensorEventListener {
 	}
 
 	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
-		private final int PROCESS_SAMPLES_EVERY_SECOND = 20;
+		private final int PROCESS_SAMPLES_EVERY_SECOND = 25;
 		private final int SKIP_SAMPLES = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
 
 		private short lastAvg = -1;
@@ -140,7 +140,7 @@ public class NoiseTracker implements SensorEventListener {
 				short approxVal = getApproxAmplitude();
 				if (approxVal == -1)
 					break;
-				else if(approxVal == -2)
+				else if (approxVal == -2)
 					continue;
 				values[++currentIndex] = approxVal;
 				if (currentIndex >= MAX_HISTORY_SIZE - 1)
@@ -168,10 +168,11 @@ public class NoiseTracker implements SensorEventListener {
 
 			if (inPocket) {
 				short min = Short.MAX_VALUE;
-				for (int i = 0; i < buffer.length; i += SKIP_SAMPLES) {
+				for (int i = 1; i < buffer.length - 1; i += SKIP_SAMPLES) {
 					short amp = (short) Math.abs(buffer[i]);
-					if (amp < min)
+					if (amp < min && Math.abs(amp - Math.abs(buffer[i - 1])) < 100 && Math.abs(amp - Math.abs(buffer[i + 1])) < 100) {
 						min = amp;
+					}
 				}
 				return min;
 			} else {
@@ -197,7 +198,7 @@ public class NoiseTracker implements SensorEventListener {
 					}
 				}
 
-				if(count == 0)
+				if (count == 0)
 					return -2;
 
 				lastAvg = (short) avg;
