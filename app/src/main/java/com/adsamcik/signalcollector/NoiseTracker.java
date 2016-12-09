@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector;
 
-import android.app.Activity;
 import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -30,7 +29,7 @@ public class NoiseTracker implements SensorEventListener {
 
 	private SensorManager mSensorManager;
 	private Sensor mProximity;
-	private boolean inPocket;
+	private boolean proximityNear;
 
 	private AsyncTask task;
 
@@ -113,7 +112,7 @@ public class NoiseTracker implements SensorEventListener {
 	@Override
 	public void onSensorChanged(SensorEvent sensorEvent) {
 		if (sensorEvent.sensor.getType() == Sensor.TYPE_PROXIMITY)
-			inPocket = sensorEvent.values[0] < sensorEvent.sensor.getMaximumRange();
+			proximityNear = sensorEvent.values[0] < sensorEvent.sensor.getMaximumRange();
 	}
 
 	@Override
@@ -137,12 +136,15 @@ public class NoiseTracker implements SensorEventListener {
 				else if (state < 0 || audio.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
 					break;
 
-				short approxVal = getApproxAmplitude();
+				boolean inPocket = proximityNear;
+				short approxVal = getApproxAmplitude(inPocket);
 				if (approxVal == -1)
 					break;
 				else if (approxVal == -2)
 					continue;
 				values[++currentIndex] = approxVal;
+				valuesPocket[currentIndex] = inPocket;
+
 				if (currentIndex >= MAX_HISTORY_SIZE - 1)
 					break;
 
@@ -157,7 +159,7 @@ public class NoiseTracker implements SensorEventListener {
 		}
 
 
-		private short getApproxAmplitude() {
+		private short getApproxAmplitude(boolean inPocket) {
 			short[] buffer = new short[bufferSize];
 			int audioState = audioRecorder.read(buffer, 0, bufferSize);
 
