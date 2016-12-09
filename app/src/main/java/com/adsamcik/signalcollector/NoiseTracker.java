@@ -20,7 +20,6 @@ public class NoiseTracker implements SensorEventListener {
 	// AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
 	private final int bufferSize = SAMPLING;
 	private final AudioRecord audioRecorder;
-	private final NoiseSuppressor noiseSuppressor;
 
 	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
@@ -39,11 +38,10 @@ public class NoiseTracker implements SensorEventListener {
 	public NoiseTracker(@NonNull Context context) {
 		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 		if (NoiseSuppressor.isAvailable()) {
-			noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
+			NoiseSuppressor noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
 			if (!noiseSuppressor.getEnabled())
 				noiseSuppressor.setEnabled(true);
-		} else
-			noiseSuppressor = null;
+		}
 		mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
 		mProximity = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
 	}
