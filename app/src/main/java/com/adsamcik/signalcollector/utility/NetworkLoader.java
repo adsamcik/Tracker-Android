@@ -5,11 +5,8 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
-import com.google.gson.Gson;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 import okhttp3.Call;
 import okhttp3.Callback;

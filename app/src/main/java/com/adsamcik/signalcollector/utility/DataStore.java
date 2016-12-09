@@ -1,20 +1,12 @@
 package com.adsamcik.signalcollector.utility;
 
-import android.app.job.JobInfo;
-import android.app.job.JobScheduler;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.os.Build;
-import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
-import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
