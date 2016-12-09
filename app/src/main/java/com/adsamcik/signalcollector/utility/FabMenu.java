@@ -79,7 +79,7 @@ public class FabMenu {
 	}
 
 	public FabMenu clear(final Activity activity) {
-		activity.runOnUiThread(() -> menu.removeAllViews());
+		activity.runOnUiThread(menu::removeAllViews);
 		return this;
 	}
 
