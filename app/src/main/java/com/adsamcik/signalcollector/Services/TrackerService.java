@@ -313,8 +313,8 @@ public class TrackerService extends Service {
 
 		wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
 
-		wasWifiEnabled = wifiManager.isWifiEnabled();
-		if (!wasWifiEnabled && !wifiManager.isScanAlwaysAvailable())
+		wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
+		if (wasWifiEnabled)
 			wifiManager.setWifiEnabled(true);
 
 		wifiManager.startScan();
