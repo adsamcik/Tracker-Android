@@ -75,7 +75,7 @@ public class TrackerService extends Service {
 	private WifiManager wifiManager;
 	private WifiReceiver wifiReceiver;
 
-	private boolean wifiEnabled = false;
+	private boolean wasWifiEnabled = false;
 
 	private int saveAttemptsFailed = 0;
 
@@ -87,7 +87,6 @@ public class TrackerService extends Service {
 	private boolean noiseActive = false;
 
 	private static final int SERVICE_NOTIFICATION_ID = 7643;
-	private static final int TRACKING_LOCKED_NOTIFICATION_ID = 8564;
 
 	/**
 	 * Checks if service is running
@@ -314,8 +313,8 @@ public class TrackerService extends Service {
 
 		wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
 
-		wifiEnabled = wifiManager.isWifiEnabled();
-		if (!wifiEnabled && !wifiManager.isScanAlwaysAvailable())
+		wasWifiEnabled = wifiManager.isWifiEnabled();
+		if (!wasWifiEnabled && !wifiManager.isScanAlwaysAvailable())
 			wifiManager.setWifiEnabled(true);
 
 		wifiManager.startScan();
@@ -358,7 +357,7 @@ public class TrackerService extends Service {
 			onServiceStateChange.callback();
 		DataStore.cleanup();
 
-		if (!wifiEnabled)
+		if (!wasWifiEnabled)
 			wifiManager.setWifiEnabled(false);
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
