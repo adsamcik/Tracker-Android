@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
@@ -31,7 +32,6 @@ import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.google.gson.Gson;
 
 import java.util.ArrayList;
 
@@ -108,6 +108,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private void updateStats() {
 		Activity activity = getActivity();
 		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
+		refreshingCount++;
 		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
 			refreshDone();
 			final int initialIndex = ((ViewGroup) view).getChildCount();
@@ -120,16 +121,19 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			}
 		});
 
-		NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
-			refreshDone();
-			final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
-			if (state.isSuccess())
-				generateStats(value, userStats, initialIndex, activity);
-			else {
-				generateStats(value, userStats, initialIndex, activity);
-				new SnackMaker(activity).showSnackbar(state.toString(activity));
-			}
-		});
+		if (Signin.getToken() != null) {
+			refreshingCount++;
+			NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
+				refreshDone();
+				final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
+				if (state.isSuccess())
+					generateStats(value, userStats, initialIndex, activity);
+				else {
+					generateStats(value, userStats, initialIndex, activity);
+					new SnackMaker(activity).showSnackbar(state.toString(activity));
+				}
+			});
+		}
 	}
 
 	private int refreshingCount = 0;
