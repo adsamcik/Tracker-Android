@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -29,6 +30,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
@@ -41,6 +43,7 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.google.android.gms.common.SignInButton;
+import com.google.firebase.analytics.FirebaseAnalytics;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -212,6 +215,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		setSwitchChangeListener(context, Preferences.UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
+		setSwitchChangeListener(context, Preferences.STOP_TILL_RECHARGE, (Switch) rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
+			if (b) {
+				Bundle bundle = new Bundle();
+				bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
+				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, bundle);
+				if (TrackerService.isRunning())
+					context.stopService(new Intent(context, TrackerService.class));
+			}
+		});
 
 		return rootView;
 	}
@@ -232,6 +244,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			signin.manageButtons(signInButton, signOutButton);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
+		View v = getView();
+		assert v != null;
+		((Switch)getView().findViewById(R.id.switchDisableTrackingTillRecharge)).setChecked(Preferences.get(activity).getBoolean(Preferences.STOP_TILL_RECHARGE, false));
 		return new Failure<>();
 	}
 
