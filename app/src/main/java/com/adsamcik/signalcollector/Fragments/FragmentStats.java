@@ -110,32 +110,39 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		Activity activity = getActivity();
 		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
 		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
-			if (refreshLayout != null && refreshLayout.isRefreshing())
-				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
+			refreshDone();
+			final int initialIndex = ((ViewGroup) view).getChildCount();
+
 			if (state.isSuccess())
-				generateStats(value, publicStats, activity);
+				generateStats(value, publicStats, initialIndex, activity);
 			else {
-				generateStats(value, publicStats, activity);
+				generateStats(value, publicStats, initialIndex, activity);
 				new SnackMaker(activity).showSnackbar(state.toString(activity));
 			}
 		});
 
 		NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
-			if (refreshLayout != null && refreshLayout.isRefreshing())
-				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-
+			refreshDone();
+			final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
 			Log.d("TAG", "state " + state.toString() + " value " + new Gson().toJson(value));
 			if (state.isSuccess())
-				generateStats(value, userStats, activity);
+				generateStats(value, userStats, initialIndex, activity);
 			else {
-				generateStats(value, userStats, activity);
+				generateStats(value, userStats, initialIndex, activity);
 				new SnackMaker(activity).showSnackbar(state.toString(activity));
 			}
 		});
-
 	}
 
-	private void generateStats(Stat[] stats, ArrayList<Table> items, Activity activity) {
+	private int refreshingCount = 0;
+
+	private void refreshDone() {
+		if (--refreshingCount == 0)
+			if (refreshLayout != null && refreshLayout.isRefreshing())
+				getActivity().runOnUiThread(() -> refreshLayout.setRefreshing(false));
+	}
+
+	private void generateStats(Stat[] stats, ArrayList<Table> items, int insertAt, Activity activity) {
 		if (stats == null)
 			return;
 
@@ -144,7 +151,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				t.destroy(activity);
 			}
 		}
-		activity.runOnUiThread(() -> generateStatsTable(stats, items));
+		activity.runOnUiThread(() -> generateStatsTable(stats, insertAt, items));
 	}
 
 	/**
@@ -154,7 +161,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 * @param items array to which items will be added
 	 * @return returns passed items array
 	 */
-	private ArrayList<Table> generateStatsTable(Stat[] stats, ArrayList<Table> items) {
+	private ArrayList<Table> generateStatsTable(Stat[] stats, int insertAt, ArrayList<Table> items) {
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		int color = ContextCompat.getColor(c, R.color.textPrimary);
@@ -167,7 +174,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 					StatData sd = s.data.get(y);
 					table.addRow().addData(sd.id, sd.value);
 				}
-				table.addToViewGroup(ll, true, (i + 1) * 150);
+				table.addToViewGroup(ll, insertAt + i, true, (i + 1) * 150);
 				items.add(table);
 			}
 		}
