@@ -35,5 +35,5 @@
     <string name="signed_in_message">Signed in successfully</string>
     <string name="signed_out_message">Signed out</string>
 
-    <string name="settings_disable_tracking_till_recharge">Tracking disable till recharge</string>
+    <string name="settings_disable_tracking_till_recharge">Tracking disabled till recharge</string>
 </resources>
