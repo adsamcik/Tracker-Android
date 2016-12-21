@@ -26,6 +26,7 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
+import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
@@ -36,6 +37,7 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.google.firebase.analytics.FirebaseAnalytics;
 
 public class FragmentTracker extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
@@ -164,7 +166,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
-							UploadService.requestUpload(getContext(), false);
+							final Context context = getContext();
+							UploadService.requestUpload(context, false);
+							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
 						}
 				);
 				fabUp.show();

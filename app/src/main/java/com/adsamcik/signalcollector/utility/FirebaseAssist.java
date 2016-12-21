@@ -9,6 +9,7 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 public class FirebaseAssist {
 	public static final String STOP_TILL_RECHARGE_EVENT = "stop_till_recharge";
 	public static final String STOP_EVENT = "notification_stop";
+	public static final String MANUAL_UPLOAD_EVENT = "manual_upload";
 
 	public static final String PARAM_SOURCE = "source";
 
