@@ -11,7 +11,6 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -124,7 +123,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
 			refreshDone();
 			final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
-			Log.d("TAG", "state " + state.toString() + " value " + new Gson().toJson(value));
 			if (state.isSuccess())
 				generateStats(value, userStats, initialIndex, activity);
 			else {

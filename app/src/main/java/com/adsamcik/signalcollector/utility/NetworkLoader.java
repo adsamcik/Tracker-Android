@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
@@ -115,7 +114,6 @@ public class NetworkLoader {
 				public void onResponse(Call call, Response response) throws IOException {
 					String json = response.body().string();
 					response.close();
-					Log.d("Request", "query " + call.request().url().toString());
 
 					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 					if (json.isEmpty()) {
