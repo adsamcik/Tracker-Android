@@ -58,7 +58,7 @@ public class Table {
 	}
 
 	public void addToViewGroup(ViewGroup viewGroup, int index, boolean animate, long delay) {
-		if (index >= 0)
+		if (index >= 0 && index < viewGroup.getChildCount())
 			viewGroup.addView(layout, index);
 		else
 			viewGroup.addView(layout);
