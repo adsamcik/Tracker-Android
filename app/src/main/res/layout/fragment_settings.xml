@@ -14,15 +14,6 @@
                   android:paddingRight="@dimen/activity_horizontal_margin"
                   android:paddingTop="@dimen/activity_vertical_margin">
 
-        <Switch
-            android:id="@+id/switchDisableTrackingTillRecharge"
-            style="@style/SettingsText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_disable_tracking_till_recharge"/>
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -73,6 +64,15 @@
                 android:src="@drawable/ic_directions_car_black_24dp"
                 android:tint="@color/textDisabled"/>
         </RelativeLayout>
+
+        <Switch
+            android:id="@+id/switchDisableTrackingTillRecharge"
+            style="@style/SettingsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:text="@string/settings_disable_tracking_till_recharge"/>
 
         <TextView
             android:layout_width="match_parent"
