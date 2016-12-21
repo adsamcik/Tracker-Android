@@ -194,11 +194,12 @@ public class MainActivity extends FragmentActivity {
 		if (requestCode == Signin.RC_SIGN_IN) {
 			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
 			if (result.isSuccess()) {
-				signin.onSignedIn();
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				String token = acct.getIdToken();
-				Network.registerUser(token, getApplicationContext());
+				assert  token != null;
+				signin.onSignedIn(token);
+				Network.registerUser(token, this);
 			} else
 				new SnackMaker(this).showSnackbar("Failed to sign in, check internet connection");
 		}

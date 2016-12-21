@@ -11,6 +11,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,13 +32,15 @@ import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 
 public class FragmentStats extends Fragment implements ITabFragment {
 	private Table weeklyStats;
 	private Table lastUpload;
-	private ArrayList<Table> publicStats = null;
+	private ArrayList<Table> publicStats = new ArrayList<>();
+	private ArrayList<Table> userStats = new ArrayList<>();
 	private View view;
 
 	private SwipeRefreshLayout refreshLayout;
@@ -56,6 +59,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		((LinearLayout) view.findViewById(R.id.statsLayout)).removeAllViews();
 		if (publicStats != null)
 			publicStats.clear();
+		if (userStats != null)
+			userStats.clear();
 		super.onDestroyView();
 	}
 
@@ -108,34 +113,48 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			if (refreshLayout != null && refreshLayout.isRefreshing())
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
 			if (state.isSuccess())
-				generateStats(value, activity);
+				generateStats(value, publicStats, activity);
 			else {
-				if(publicStats == null)
-					generateStats(value, activity);
+				generateStats(value, publicStats, activity);
 				new SnackMaker(activity).showSnackbar(state.toString(activity));
 			}
 		});
+
+		NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
+			if (refreshLayout != null && refreshLayout.isRefreshing())
+				activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
+
+			Log.d("TAG", "state " + state.toString() + " value " + new Gson().toJson(value));
+			if (state.isSuccess())
+				generateStats(value, userStats, activity);
+			else {
+				generateStats(value, userStats, activity);
+				new SnackMaker(activity).showSnackbar(state.toString(activity));
+			}
+		});
+
 	}
 
-	private void generateStats(Stat[] stats, Activity activity) {
+	private void generateStats(Stat[] stats, ArrayList<Table> items, Activity activity) {
 		if (stats == null)
 			return;
 
-		if (publicStats != null) {
-			for (Table t : publicStats) {
+		if (items != null) {
+			for (Table t : items) {
 				t.destroy(activity);
 			}
 		}
-		activity.runOnUiThread(() -> publicStats = generateStatsTable(stats));
+		activity.runOnUiThread(() -> generateStatsTable(stats, items));
 	}
 
 	/**
-	 * Generates table from List of stats
+	 * Generates tables from list of stats
 	 *
-	 * @param stats list of stats
+	 * @param stats stats
+	 * @param items array to which items will be added
+	 * @return returns passed items array
 	 */
-	private ArrayList<Table> generateStatsTable(Stat[] stats) {
-		ArrayList<Table> items = new ArrayList<>();
+	private ArrayList<Table> generateStatsTable(Stat[] stats, ArrayList<Table> items) {
 		Context c = getContext();
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		int color = ContextCompat.getColor(c, R.color.textPrimary);
