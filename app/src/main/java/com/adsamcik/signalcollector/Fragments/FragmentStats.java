@@ -121,7 +121,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			}
 		});
 
-		if (Signin.getToken() != null) {
+		if (Signin.getToken(getActivity()) != null) {
 			refreshingCount++;
 			NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
 				refreshDone();

@@ -40,7 +40,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 		return instance;
 	}
 
-	public static String getToken() {
+	public static String getToken(@Nullable FragmentActivity fragmentActivity) {
+		Signin signin = getInstance(fragmentActivity);
+		assert signin != null;
 		return Preferences.get().getString(TOKEN, null);
 	}
 
