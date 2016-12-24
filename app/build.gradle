@@ -9,7 +9,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 25
         versionCode 131
-        versionName "2.0.0 Stats 3"
+        versionName "2.0.0 Stats 3.1"
         jackOptions {
             enabled true
         }
