@@ -357,7 +357,7 @@ public class TrackerService extends Service {
 			onServiceStateChange.callback();
 		DataStore.cleanup();
 
-		if (!wasWifiEnabled)
+		if (wasWifiEnabled)
 			wifiManager.setWifiEnabled(false);
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
