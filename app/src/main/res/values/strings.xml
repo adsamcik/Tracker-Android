@@ -63,4 +63,6 @@
     <string name="nPlay" translatable="false">play</string>
     <string name="nPause" translatable="false">pause</string>
     <string name="nPlayPauseGroup" translatable="false">PlayPauseGroup</string>
+
+    <string name="signin_not_ready">Signin is not yet initialized!</string>
 </resources>

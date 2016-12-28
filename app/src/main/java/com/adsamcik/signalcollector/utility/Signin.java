@@ -15,6 +15,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.lang.ref.WeakReference;
 
@@ -112,8 +113,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	}
 
 	private void revokeAccess() {
-		Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(status -> onSignedOut());
-		Preferences.get().edit().remove(TOKEN).apply();
+		if (client.isConnected()) {
+			Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(status -> onSignedOut());
+			Preferences.get().edit().remove(TOKEN).apply();
+		} else if (client.isConnecting()) {
+			showSnackbar(R.string.signin_not_ready);
+		} else
+			FirebaseCrash.report(new Throwable("Signout called while client is not even connecting. SOMETHING IS WRONG! PANIC!"));
 	}
 
 	@Override
