@@ -21,13 +21,13 @@ import java.lang.ref.WeakReference;
 
 
 public class Signin implements GoogleApiClient.OnConnectionFailedListener {
-	private static final String TOKEN = "kNeoeSe";
-
 	public static final int RC_SIGN_IN = 4654;
 	private final GoogleApiClient client;
 	private WeakReference<SignInButton> signInButton;
 	private WeakReference<Button> signOutButton;
 	private final WeakReference<FragmentActivity> activityWeakReference;
+
+	private String token = null;
 
 	private static Signin instance = null;
 
@@ -44,7 +44,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	public static String getToken(@Nullable FragmentActivity fragmentActivity) {
 		Signin signin = getInstance(fragmentActivity);
 		assert signin != null;
-		return Preferences.get().getString(TOKEN, null);
+		return signin.token;
 	}
 
 	private Signin(@NonNull FragmentActivity activity) {
@@ -98,7 +98,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	public void onSignedIn(@NonNull String token) {
 		updateButtons(true);
 		showSnackbar(R.string.signed_in_message);
-		Preferences.get().edit().putString(TOKEN, token).apply();
+		this.token = token;
 	}
 
 	private void onSignedOut() {
@@ -115,7 +115,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	private void revokeAccess() {
 		if (client.isConnected()) {
 			Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(status -> onSignedOut());
-			Preferences.get().edit().remove(TOKEN).apply();
+			token = null;
 		} else if (client.isConnecting()) {
 			showSnackbar(R.string.signin_not_ready);
 		} else

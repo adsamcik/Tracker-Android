@@ -21,8 +21,9 @@ public class LaunchActivity extends Activity {
 		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
 
-		if (sp.getInt(Preferences.LAST_VERSION, 0) < 131) {
+		if (sp.getInt(Preferences.LAST_VERSION, 0) <= 132) {
 			SharedPreferences.Editor editor = sp.edit();
+			editor.remove("kNeoeSe");
 			FirebaseAssist.updateValue(this, FirebaseAssist.autoTrackingString, getResources().getStringArray(R.array.background_tracking_options)[Preferences.get(this).getInt(Preferences.BACKGROUND_TRACKING, 0)]);
 			FirebaseAssist.updateValue(this, FirebaseAssist.autoUploadString, getResources().getStringArray(R.array.automatic_upload_options)[Preferences.get(this).getInt(Preferences.AUTO_UPLOAD, 0)]);
 			FirebaseAssist.updateValue(this, FirebaseAssist.uploadNotificationString, Boolean.toString(Preferences.get(this).getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)));
