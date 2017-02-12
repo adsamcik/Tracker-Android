@@ -65,7 +65,7 @@
                     android:progressDrawable="@drawable/circular"
                     android:progressTint="@color/colorAccent"
                     android:rotation="-90"
-                    android:visibility="gone"/>
+                    android:visibility="invisible"/>
 
 
                 <android.support.design.widget.FloatingActionButton
