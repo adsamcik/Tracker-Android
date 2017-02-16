@@ -11,10 +11,13 @@ import android.widget.Button;
 
 import com.adsamcik.signalcollector.R;
 import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.OptionalPendingResult;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.lang.ref.WeakReference;
@@ -44,7 +47,24 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	public static String getToken(@Nullable FragmentActivity fragmentActivity) {
 		Signin signin = getInstance(fragmentActivity);
 		assert signin != null;
-		return signin.token;
+		return signin.getToken();
+	}
+
+	private String getToken() {
+		if (token != null)
+			return token;
+		else if (client != null && client.isConnected()) {
+			GoogleSignInAccount acc = Auth.GoogleSignInApi.getSignInResultFromIntent(Auth.GoogleSignInApi.getSignInIntent(client)).getSignInAccount();
+			assert acc != null;
+			return acc.getIdToken();
+		} else
+			return null;
+	}
+
+	public static String getTokenFromResult(@NonNull GoogleSignInAccount acc) {
+		String token = acc.getIdToken();
+		assert token != null;
+		return token;
 	}
 
 	private Signin(@NonNull FragmentActivity activity) {
@@ -56,6 +76,23 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 				.enableAutoManage(activity, this)
 				.addApi(Auth.GOOGLE_SIGN_IN_API, gso)
 				.build();
+
+		OptionalPendingResult<GoogleSignInResult> pendingResult = Auth.GoogleSignInApi.silentSignIn(client);
+
+		if (pendingResult.isDone()) {
+			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
+			assert acc != null;
+			onSignedIn(getTokenFromResult(acc));
+		} else {
+			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
+						if (result.isSuccess()) {
+							final GoogleSignInAccount acc = result.getSignInAccount();
+							assert acc != null;
+							onSignedIn(getTokenFromResult(acc));
+						}
+					}
+			);
+		}
 	}
 
 	public Signin manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
@@ -79,15 +116,14 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 				if (signed) {
 					signInButton.setVisibility(View.GONE);
 					signOutButton.setVisibility(View.VISIBLE);
-					signOutButton.setOnClickListener(v -> revokeAccess());
+					signOutButton.setOnClickListener(v -> signout());
 				} else {
 					signInButton.setVisibility(View.VISIBLE);
 					signOutButton.setVisibility(View.GONE);
 					signInButton.setOnClickListener((v) -> {
 						Activity a = getActivity();
 						if (a != null) {
-							Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-							activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
+							activityWeakReference.get().startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(client), RC_SIGN_IN);
 						}
 					});
 				}
@@ -112,9 +148,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 			new SnackMaker(a).showSnackbar(a.getString(messageResId));
 	}
 
-	private void revokeAccess() {
+	private void signout() {
 		if (client.isConnected()) {
-			Auth.GoogleSignInApi.revokeAccess(client).setResultCallback(status -> onSignedOut());
+			Auth.GoogleSignInApi.signOut(client).setResultCallback(status -> onSignedOut());
 			token = null;
 		} else if (client.isConnecting()) {
 			showSnackbar(R.string.signin_not_ready);

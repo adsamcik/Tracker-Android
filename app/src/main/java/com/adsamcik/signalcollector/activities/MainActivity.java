@@ -17,6 +17,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -196,8 +197,7 @@ public class MainActivity extends FragmentActivity {
 			if (result.isSuccess()) {
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
-				String token = acct.getIdToken();
-				assert  token != null;
+				String token = Signin.getTokenFromResult(acct);
 				signin.onSignedIn(token);
 				Network.registerUser(token, this);
 			} else
