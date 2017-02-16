@@ -45,9 +45,6 @@ public class Preferences {
 	public static final String USER_STATS = "userStats";
 	public static final String AVAILABLE_MAPS = "availableMaps";
 
-	public static final String OBSOLETE_GENERAL_STATS_LAST_UPDATE = "generalStatsLastUpdate";
-	public static final String OBSOLETE_AVAILABLE_MAPS_LAST_UPDATE = "availableMapsLastUpdate";
-
 	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
 	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
