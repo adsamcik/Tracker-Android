@@ -82,13 +82,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 		if (pendingResult.isDone()) {
 			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
 			assert acc != null;
-			onSignedIn(getTokenFromResult(acc));
+			onSignedIn(getTokenFromResult(acc), false);
 		} else {
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
-							onSignedIn(getTokenFromResult(acc));
+							onSignedIn(getTokenFromResult(acc), false);
 						}
 					}
 			);
@@ -131,9 +131,10 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 		}
 	}
 
-	public void onSignedIn(@NonNull String token) {
+	public void onSignedIn(@NonNull String token, boolean showSnackbar) {
 		updateButtons(true);
-		showSnackbar(R.string.signed_in_message);
+		if (showSnackbar)
+			showSnackbar(R.string.signed_in_message);
 		this.token = token;
 	}
 
