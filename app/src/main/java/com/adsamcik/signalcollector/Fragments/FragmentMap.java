@@ -155,9 +155,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		final FragmentActivity activity = getActivity();
 		menu.clear(activity);
 		menu.setFab(fabTwo);
-		menu.setCallback(this::changeMapOverlay);
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
+				menu.setCallback(this::changeMapOverlay);
 				String savedOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
 				if (!MapLayer.contains(layerArray, savedOverlay)) {
 					savedOverlay = layerArray[0].name;
