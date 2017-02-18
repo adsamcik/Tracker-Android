@@ -245,8 +245,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 		View v = getView();
-		assert v != null;
-		((Switch)getView().findViewById(R.id.switchDisableTrackingTillRecharge)).setChecked(Preferences.get(activity).getBoolean(Preferences.STOP_TILL_RECHARGE, false));
+		if (v != null)
+			((Switch) v.findViewById(R.id.switchDisableTrackingTillRecharge)).setChecked(Preferences.get(activity).getBoolean(Preferences.STOP_TILL_RECHARGE, false));
 		return new Failure<>();
 	}
 

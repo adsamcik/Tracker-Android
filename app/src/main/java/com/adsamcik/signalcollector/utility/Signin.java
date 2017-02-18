@@ -47,18 +47,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	public static String getToken(@Nullable FragmentActivity fragmentActivity) {
 		Signin signin = getInstance(fragmentActivity);
 		assert signin != null;
-		return signin.getToken();
-	}
-
-	private String getToken() {
-		if (token != null)
-			return token;
-		else if (client != null && client.isConnected()) {
-			GoogleSignInAccount acc = Auth.GoogleSignInApi.getSignInResultFromIntent(Auth.GoogleSignInApi.getSignInIntent(client)).getSignInAccount();
-			assert acc != null;
-			return acc.getIdToken();
-		} else
-			return null;
+		return signin.token;
 	}
 
 	public static String getTokenFromResult(@NonNull GoogleSignInAccount acc) {

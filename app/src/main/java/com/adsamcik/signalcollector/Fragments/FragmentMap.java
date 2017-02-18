@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -69,6 +70,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private Circle userRadius;
 	private Marker userCenter;
 
+	private FloatingActionButton fabTwo;
 	private FabMenu menu;
 
 	@Override
@@ -98,7 +100,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 		menu.hide();
-
 	}
 
 	@Override
@@ -122,6 +123,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else
 			return new Failure<>("App does not have required permissions.");
 
+		this.fabTwo = fabTwo;
+
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
@@ -129,44 +132,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				locationListener.moveToMyPosition();
 		});
 
-		menu.clear(activity);
 
-
-		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
-			if (fabTwo != null && layerArray != null) {
-				String savedOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
-				if (!MapLayer.contains(layerArray, savedOverlay)) {
-					savedOverlay = layerArray[0].name;
-					Preferences.get(activity).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, savedOverlay).apply();
-				}
-
-				final String defaultOverlay = savedOverlay;
-				activity.runOnUiThread(() -> {
-					changeMapOverlay(defaultOverlay);
-					menu.clear(activity);
-					if (layerArray.length > 0) {
-						for (MapLayer layer : layerArray)
-							menu.addItem(layer.name, activity);
-					}
-					fabTwo.show();
-				});
-			}
-		});
-		menu.setFab(fabTwo);
 		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 		fabTwo.setOnClickListener(v -> menu.show(activity));
-		menu.setCallback(this::changeMapOverlay);
-
-		if (!initialized) {
-			//SupportMapFragment mapFragment = (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-			SupportMapFragment mapFragment = SupportMapFragment.newInstance();
-			FragmentTransaction fragmentTransaction = activity.getSupportFragmentManager().beginTransaction();
-			fragmentTransaction.add(R.id.MapLayout, mapFragment);
-			fragmentTransaction.commit();
-			mapFragment.getMapAsync(this);
-			initialized = true;
-		}
 
 
 		return new Failure<>();
@@ -189,6 +158,37 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		Context c = getContext();
 		assert container != null;
 		menu = new FabMenu((ViewGroup) container.getParent(), c);
+
+		final FragmentActivity activity = getActivity();
+		menu.clear(activity);
+		menu.setFab(fabTwo);
+		menu.setCallback(this::changeMapOverlay);
+		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+			if (fabTwo != null && layerArray != null) {
+				String savedOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+				if (!MapLayer.contains(layerArray, savedOverlay)) {
+					savedOverlay = layerArray[0].name;
+					Preferences.get(activity).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, savedOverlay).apply();
+				}
+
+				final String defaultOverlay = savedOverlay;
+				activity.runOnUiThread(() -> {
+					changeMapOverlay(defaultOverlay);
+					menu.clear(activity);
+					if (layerArray.length > 0) {
+						for (MapLayer layer : layerArray)
+							menu.addItem(layer.name, activity);
+					}
+					fabTwo.show();
+				});
+			}
+		});
+
+		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
+		FragmentTransaction fragmentTransaction = activity.getSupportFragmentManager().beginTransaction();
+		fragmentTransaction.add(R.id.MapLayout, mapFragment);
+		fragmentTransaction.commit();
+		mapFragment.getMapAsync(this);
 		return view;
 	}
 

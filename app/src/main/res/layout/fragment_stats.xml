@@ -2,7 +2,8 @@
 <android.support.v4.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
                                               android:id="@+id/statsSwipeRefresh"
                                               android:layout_width="match_parent"
-                                              android:layout_height="match_parent">
+                                              android:layout_height="match_parent"
+                                              android:paddingTop="@dimen/status_bar_height">
 
     <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
                 android:layout_width="fill_parent"

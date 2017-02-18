@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.activities;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -8,6 +9,8 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.internal.BottomNavigationMenu;
+import android.support.design.widget.BottomNavigationView;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
@@ -15,9 +18,11 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
 import android.util.Log;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -43,18 +48,13 @@ import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 public class MainActivity extends FragmentActivity {
 	public static final String TAG = "SignalsMainActivity";
 
 	private FloatingActionButton fabOne;
 	private FloatingActionButton fabTwo;
 
-	private ViewPager viewPager;
-	private ViewPager.OnPageChangeListener pageChangeListener;
+	private ITabFragment currentFragment = null;
 
 	private Signin signin;
 
@@ -66,7 +66,6 @@ public class MainActivity extends FragmentActivity {
 
 		DataStore.setContext(this);
 
-		View containerView = findViewById(R.id.container);
 		SnackMaker snackMaker = new SnackMaker(this);
 
 		signin = Signin.getInstance(this);
@@ -91,76 +90,63 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		Resources r = getResources();
-
-
 		if (!Assist.hasNavBar(getWindowManager())) {
 			LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 			lp.setMargins(0, 0, 0, 0);
 			fabOne.setLayoutParams(lp);
 		}
 
-		if (viewPager == null && containerView != null) {
-			viewPager = (ViewPager) containerView;
-			viewPager.setOffscreenPageLimit(1);
+		BottomNavigationView bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_navigation);
+		final FragmentManager fragmentManager = getSupportFragmentManager();
 
-			final ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
-			adapter.addFrag(FragmentTracker.class, r.getString(R.string.menu_dashboard));
-			adapter.addFrag(FragmentMap.class, r.getString(R.string.menu_map));
-			adapter.addFrag(FragmentStats.class, r.getString(R.string.menu_stats));
-			adapter.addFrag(FragmentSettings.class, r.getString(R.string.menu_settings));
-			viewPager.setAdapter(adapter);
+		final FragmentActivity activity = this;
 
-			TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
-			tabLayout.setupWithViewPager(viewPager);
-
-			final FragmentActivity a = this;
-
-			pageChangeListener = new ViewPager.OnPageChangeListener() {
-				ITabFragment prevFragment = adapter.getInstance(viewPager.getCurrentItem());
-				int prevFragmentIndex = viewPager.getCurrentItem();
-
-				@Override
-				public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-				}
-
-				@Override
-				public void onPageSelected(int position) {
+		bottomNavigationView.setOnNavigationItemSelectedListener(
+				item -> {
+					FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+					fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
+					ITabFragment fragment = null;
+					if (currentFragment != null)
+						currentFragment.onLeave();
 					fabOne.hide();
 					fabTwo.hide();
-					if (prevFragment != null)
-						prevFragment.onLeave();
-
-					ITabFragment tf = adapter.getInstance(position);
-					if (tf == null)
-						return;
-					Failure<String> response = tf.onEnter(a, fabOne, fabTwo);
-					if (response.hasFailed()) {
-						final View v = findViewById(R.id.fabCoordinator);
-						if (v == null) {
-							FirebaseCrash.report(new Exception("Container was not found. Is Activity created?"));
-							return;
-						}
-						//it cannot be null because this is handled in getSuccess
-						@SuppressWarnings("ConstantConditions") Snackbar snack = Snackbar.make(v, response.value, 4000);
-						View view = snack.getView();
-						view.setPadding(0, 0, 0, Assist.getNavBarHeight(a));
-						snack.show();
-						fabOne.hide();
-						fabTwo.hide();
+					switch (item.getItemId()) {
+						case R.id.action_tracker:
+							fragment = new FragmentTracker();
+							fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_dashboard));
+							fragmentTransaction.addToBackStack(getString(R.string.menu_dashboard));
+							break;
+						case R.id.action_map:
+							fragment = new FragmentMap();
+							fragmentTransaction.replace(R.id.container, (FragmentMap) fragment, getString(R.string.menu_map));
+							fragmentTransaction.addToBackStack(getString(R.string.menu_map));
+							break;
+						case R.id.action_stats:
+							fragment = new FragmentStats();
+							fragmentTransaction.replace(R.id.container, (FragmentStats) fragment, getString(R.string.menu_stats));
+							fragmentTransaction.addToBackStack(getString(R.string.menu_stats));
+							break;
+						case R.id.action_settings:
+							fragment = new FragmentSettings();
+							fragmentTransaction.replace(R.id.container, (FragmentSettings) fragment, getString(R.string.menu_settings));
+							fragmentTransaction.addToBackStack(getString(R.string.menu_settings));
+							break;
 					}
+					if (fragment == null) {
+						FirebaseCrash.report(new Throwable("Unknown fragment item id " + item.getItemId()));
+						return false;
+					}
+					fragment.onEnter(activity, fabOne, fabTwo);
+					fragmentTransaction.commit();
+					currentFragment = fragment;
+					return true;
+				});
 
-					prevFragmentIndex = position;
-					prevFragment = tf;
-				}
-
-				@Override
-				public void onPageScrollStateChanged(int state) {
-				}
-			};
-
-			viewPager.addOnPageChangeListener(pageChangeListener);
-		}
+		FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+		ITabFragment fragment = new FragmentTracker();
+		fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_dashboard));
+		fragment.onEnter(activity, fabOne, fabTwo);
+		fragmentTransaction.commit();
 
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready
@@ -170,6 +156,7 @@ public class MainActivity extends FragmentActivity {
 		if (token != null)
 			Network.registerToken(token, context);
 		//}
+
 	}
 
 	@Override
@@ -183,8 +170,8 @@ public class MainActivity extends FragmentActivity {
 				break;
 			}
 		}
-		ViewPagerAdapter adapter = (ViewPagerAdapter) viewPager.getAdapter();
-		adapter.getInstance(viewPager.getCurrentItem()).onPermissionResponse(requestCode, success);
+		if (currentFragment != null)
+			currentFragment.onPermissionResponse(requestCode, success);
 	}
 
 
@@ -202,67 +189,6 @@ public class MainActivity extends FragmentActivity {
 				Network.registerUser(token, this);
 			} else
 				new SnackMaker(this).showSnackbar("Failed to sign in, check internet connection");
-		}
-	}
-
-	private class ViewPagerAdapter extends FragmentPagerAdapter {
-		private final List<Class<? extends ITabFragment>> mFragmentList = new ArrayList<>(4);
-		private final List<String> mFragmentTitleList = new ArrayList<>(4);
-		private ITabFragment[] mInstanceList;
-
-		private ViewPagerAdapter(FragmentManager manager) {
-			super(manager);
-		}
-
-		@Override
-		public Fragment getItem(int position) {
-			try {
-				return (Fragment) mFragmentList.get(position).newInstance();
-			} catch (Exception e) {
-				return null;
-			}
-		}
-
-		@Override
-		public Object instantiateItem(ViewGroup container, int position) {
-			ITabFragment instance = (ITabFragment) super.instantiateItem(container, position);
-			boolean createInstance = mInstanceList == null;
-			if (mInstanceList == null) {
-				mInstanceList = new ITabFragment[mFragmentList.size()];
-			} else if (mFragmentList.size() <= position) {
-				mInstanceList = Arrays.copyOf(mInstanceList, mFragmentList.size());
-			}
-
-			mInstanceList[position] = instance;
-
-			if (createInstance)
-				pageChangeListener.onPageSelected(viewPager.getCurrentItem());
-
-			//Log.d(TAG, "new instance " + instance + " index " + position);
-			return instance;
-		}
-
-		public ITabFragment getInstance(int position) {
-			/*if (mInstanceList == null)
-				Log.d(TAG, "get failed cause null " + position);
-			else
-				Log.d(TAG, "get instance " + mInstanceList[position] + " index " + position);*/
-			return mInstanceList == null || position >= mInstanceList.length ? null : mInstanceList[position];
-		}
-
-		@Override
-		public int getCount() {
-			return mFragmentList.size();
-		}
-
-		private void addFrag(Class<? extends ITabFragment> fragment, String title) {
-			mFragmentList.add(fragment);
-			mFragmentTitleList.add(title);
-		}
-
-		@Override
-		public CharSequence getPageTitle(int position) {
-			return mFragmentTitleList.get(position);
 		}
 	}
 }

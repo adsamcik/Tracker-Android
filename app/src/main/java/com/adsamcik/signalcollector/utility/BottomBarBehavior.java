@@ -24,7 +24,7 @@ public class BottomBarBehavior extends CoordinatorLayout.Behavior<LinearLayout> 
 	@Override
 	public boolean onDependentViewChanged(CoordinatorLayout parent, LinearLayout child, View dependency) {
 		if (dependency instanceof Snackbar.SnackbarLayout) {
-			float translationY = Math.min(0, dependency.getTranslationY() - dependency.getHeight()) + navbarHeight;
+			float translationY = dependency.getTranslationY() - dependency.getHeight();
 			if (translationY <= 0)
 				child.setTranslationY(translationY);
 		}
