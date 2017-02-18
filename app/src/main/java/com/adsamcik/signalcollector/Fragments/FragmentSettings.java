@@ -225,6 +225,12 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			}
 		});
 
+		if (Assist.hasNetwork()) {
+			signin = Signin.getInstance(getActivity());
+			signin.manageButtons(signInButton, signOutButton);
+		} else
+			signInNoConnection.setVisibility(View.VISIBLE);
+
 		return rootView;
 	}
 
@@ -239,14 +245,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
-		if (Assist.hasNetwork()) {
-			signin = Signin.getInstance(getActivity());
-			signin.manageButtons(signInButton, signOutButton);
-		} else
-			signInNoConnection.setVisibility(View.VISIBLE);
-		View v = getView();
-		if (v != null)
-			((Switch) v.findViewById(R.id.switchDisableTrackingTillRecharge)).setChecked(Preferences.get(activity).getBoolean(Preferences.STOP_TILL_RECHARGE, false));
 		return new Failure<>();
 	}
 
