@@ -303,11 +303,6 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	}
 
-	@Override
-	public ITabFragment newInstance() {
-		return new FragmentTracker();
-	}
-
 	private void updateData(@NonNull Context context) {
 		Resources res = context.getResources();
 		Data d = TrackerService.dataEcho;

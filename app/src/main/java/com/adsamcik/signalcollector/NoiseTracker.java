@@ -26,8 +26,8 @@ public class NoiseTracker implements SensorEventListener {
 	private final short[] values = new short[MAX_HISTORY_SIZE];
 	private final boolean[] valuesPocket = new boolean[MAX_HISTORY_SIZE];
 
-	private SensorManager mSensorManager;
-	private Sensor mProximity;
+	private final SensorManager mSensorManager;
+	private final Sensor mProximity;
 	private boolean proximityNear;
 
 	private AsyncTask task;

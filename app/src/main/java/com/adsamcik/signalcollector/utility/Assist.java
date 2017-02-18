@@ -28,9 +28,6 @@ import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -350,27 +347,6 @@ public class Assist {
 		c.set(Calendar.SECOND, 0);
 		c.set(Calendar.MILLISECOND, 0);
 		return c.getTimeInMillis();
-	}
-
-	/**
-	 * Converts json to string array
-	 *
-	 * @param jsonStringArray string array in json
-	 * @return array list of strings, if input is null returns empty list
-	 */
-	public static ArrayList<String> jsonToStringArray(String jsonStringArray) {
-		if (jsonStringArray == null)
-			return new ArrayList<>(0);
-		try {
-			JSONArray array = new JSONArray(jsonStringArray);
-			ArrayList<String> list = new ArrayList<>(array.length());
-			for (int i = 0; i < array.length(); i++)
-				list.add(array.getString(i));
-			return list;
-		} catch (JSONException e) {
-			FirebaseCrash.report(e);
-			return new ArrayList<>(0);
-		}
 	}
 
 	/**

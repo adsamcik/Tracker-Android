@@ -25,5 +25,4 @@ public interface ITabFragment{
 	 */
 	void onPermissionResponse(int requestCode, boolean success);
 
-	ITabFragment newInstance();
 }

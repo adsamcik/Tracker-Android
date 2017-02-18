@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -56,7 +55,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final int MAX_ZOOM = 17;
 	private static final String TAG = "SignalsMap";
 	private String type = null;
-	private boolean initialized = false;
 	private GoogleMap map;
 	private TileProvider tileProvider;
 
@@ -100,11 +98,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 		menu.hide();
-	}
-
-	@Override
-	public ITabFragment newInstance() {
-		return new FragmentMap();
 	}
 
 	/**
@@ -195,7 +188,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public void onDestroyView() {
 		super.onDestroyView();
-		initialized = false;
 		map = null;
 		view = null;
 		menu = null;

@@ -38,8 +38,8 @@ import java.util.ArrayList;
 public class FragmentStats extends Fragment implements ITabFragment {
 	private Table weeklyStats;
 	private Table lastUpload;
-	private ArrayList<Table> publicStats = new ArrayList<>();
-	private ArrayList<Table> userStats = new ArrayList<>();
+	private final ArrayList<Table> publicStats = new ArrayList<>();
+	private final ArrayList<Table> userStats = new ArrayList<>();
 	private View view;
 
 	private SwipeRefreshLayout refreshLayout;
@@ -56,10 +56,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onDestroyView() {
 		((LinearLayout) view.findViewById(R.id.statsLayout)).removeAllViews();
-		if (publicStats != null)
-			publicStats.clear();
-		if (userStats != null)
-			userStats.clear();
+		publicStats.clear();
+		userStats.clear();
 		super.onDestroyView();
 	}
 
@@ -200,9 +198,5 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	}
 
-	@Override
-	public ITabFragment newInstance() {
-		return new FragmentStats();
-	}
 }
 

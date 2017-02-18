@@ -28,7 +28,6 @@
     <string name="settings_track_cell">Cell</string>
     <string name="settings_track_noise">Noise β</string>
     <string name="settings_allow_notifications_upload">Allow upload notifications</string>
-    <string name="settings_allow_notifications_locked">Allow auto-tracking locked notification</string>
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="signout">Sign out</string>
     <string name="internet_connection_required">Internet connection required</string>

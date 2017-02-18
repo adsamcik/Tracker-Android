@@ -275,8 +275,4 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		}
 	}
 
-	@Override
-	public ITabFragment newInstance() {
-		return new FragmentSettings();
-	}
 }

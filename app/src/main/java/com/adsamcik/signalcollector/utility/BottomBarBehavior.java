@@ -9,11 +9,8 @@ import android.view.View;
 import android.widget.LinearLayout;
 
 public class BottomBarBehavior extends CoordinatorLayout.Behavior<LinearLayout> {
-	private final int navbarHeight;
 
-	public BottomBarBehavior(Context context, AttributeSet attrs) {
-		navbarHeight = Assist.getNavBarHeight(context);
-	}
+	public BottomBarBehavior(Context context, AttributeSet attrs) {}
 
 	@Override
 	public boolean layoutDependsOn(CoordinatorLayout parent, LinearLayout child, View dependency) {
