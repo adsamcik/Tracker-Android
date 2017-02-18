@@ -76,6 +76,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	}
 
+	@Override
+	public void onHomeAction() {
+
+	}
+
 	/**
 	 * Check if permission to access fine location is granted
 	 * If not and is android 6 or newer, than it prompts you to enable it

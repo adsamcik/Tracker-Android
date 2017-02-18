@@ -25,4 +25,8 @@ public interface ITabFragment{
 	 */
 	void onPermissionResponse(int requestCode, boolean success);
 
+	/**
+	 * Home action that is performed
+	 */
+	void onHomeAction();
 }

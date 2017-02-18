@@ -15,6 +15,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -196,6 +197,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
 
+	}
+
+	@Override
+	public void onHomeAction() {
+		Assist.verticalSmoothScrollTo((ScrollView) view.findViewById(R.id.statsLayout).getParent(), 0, 500);
 	}
 
 }

@@ -25,6 +25,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -270,6 +271,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				break;
 			default:
 				throw new UnsupportedOperationException("Permissions with request code " + requestCode + " has no defined behavior");
+		}
+	}
+
+	@Override
+	public void onHomeAction() {
+		View v = getView();
+		if(v != null) {
+			Assist.verticalSmoothScrollTo((ScrollView) v.findViewById(R.id.settings_scrollbar), 0, 500);
 		}
 	}
 

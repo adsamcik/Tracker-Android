@@ -7,8 +7,10 @@ import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.StringRes;
 import android.support.design.widget.BottomNavigationView;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
@@ -91,42 +93,23 @@ public class MainActivity extends FragmentActivity {
 
 		bottomNavigationView.setOnNavigationItemSelectedListener(
 				item -> {
-					FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-					fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
-					ITabFragment fragment = null;
-					if (currentFragment != null)
-						currentFragment.onLeave();
-					fabOne.hide();
-					fabTwo.hide();
 					switch (item.getItemId()) {
 						case R.id.action_tracker:
-							fragment = new FragmentTracker();
-							fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_dashboard));
-							fragmentTransaction.addToBackStack(getString(R.string.menu_dashboard));
+							handleBottomNav(FragmentTracker.class, R.string.menu_dashboard);
 							break;
 						case R.id.action_map:
-							fragment = new FragmentMap();
-							fragmentTransaction.replace(R.id.container, (FragmentMap) fragment, getString(R.string.menu_map));
-							fragmentTransaction.addToBackStack(getString(R.string.menu_map));
+							handleBottomNav(FragmentMap.class, R.string.menu_map);
 							break;
 						case R.id.action_stats:
-							fragment = new FragmentStats();
-							fragmentTransaction.replace(R.id.container, (FragmentStats) fragment, getString(R.string.menu_stats));
-							fragmentTransaction.addToBackStack(getString(R.string.menu_stats));
+							handleBottomNav(FragmentStats.class, R.string.menu_stats);
 							break;
 						case R.id.action_settings:
-							fragment = new FragmentSettings();
-							fragmentTransaction.replace(R.id.container, (FragmentSettings) fragment, getString(R.string.menu_settings));
-							fragmentTransaction.addToBackStack(getString(R.string.menu_settings));
+							handleBottomNav(FragmentSettings.class, R.string.menu_settings);
 							break;
+						default:
+							FirebaseCrash.report(new Throwable("Unknown fragment item id " + item.getItemId()));
+							return false;
 					}
-					if (fragment == null) {
-						FirebaseCrash.report(new Throwable("Unknown fragment item id " + item.getItemId()));
-						return false;
-					}
-					fragment.onEnter(activity, fabOne, fabTwo);
-					fragmentTransaction.commit();
-					currentFragment = fragment;
 					return true;
 				});
 
@@ -144,7 +127,34 @@ public class MainActivity extends FragmentActivity {
 		if (token != null)
 			Network.registerToken(token, context);
 		//}
+	}
 
+	void handleBottomNav(Class tClass, @StringRes int resId) {
+		if (currentFragment != null && currentFragment.getClass() == tClass)
+			currentFragment.onHomeAction();
+		else {
+			fabOne.hide();
+			fabTwo.hide();
+
+			if (currentFragment != null)
+				currentFragment.onLeave();
+
+			FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
+			fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
+
+			try {
+				currentFragment = (ITabFragment) tClass.newInstance();
+			} catch (InstantiationException | IllegalAccessException e) {
+				FirebaseCrash.report(e);
+			}
+
+			String str = getString(resId);
+			fragmentTransaction.replace(R.id.container, (Fragment) currentFragment, str);
+			fragmentTransaction.addToBackStack(str);
+			fragmentTransaction.commit();
+
+			currentFragment.onEnter(this, fabOne, fabTwo);
+		}
 	}
 
 	@Override

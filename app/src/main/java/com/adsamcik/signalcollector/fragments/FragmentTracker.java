@@ -22,6 +22,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
@@ -303,6 +304,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
 
+	}
+
+	@Override
+	public void onHomeAction() {
 	}
 
 	private void updateData(@NonNull Context context) {

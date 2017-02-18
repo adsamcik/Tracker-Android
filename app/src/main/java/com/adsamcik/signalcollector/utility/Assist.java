@@ -1,5 +1,7 @@
 package com.adsamcik.signalcollector.utility;
 
+import android.animation.ObjectAnimator;
+import android.animation.TimeInterpolator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -12,14 +14,18 @@ import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
+import android.os.CountDownTimer;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
+import android.widget.ScrollView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -236,7 +242,7 @@ public class Assist {
 	}
 
 	public static <T> T tryFromJson(String json, Class<T> tClass) {
-		if(json != null && !json.isEmpty()) {
+		if (json != null && !json.isEmpty()) {
 			try {
 				return new Gson().fromJson(json, tClass);
 			} catch (JsonSyntaxException e) {
@@ -425,5 +431,9 @@ public class Assist {
 
 	private static ColorDrawable getColorDrawableFromColor(int color) {
 		return new ColorDrawable(color);
+	}
+
+	public static void verticalSmoothScrollTo(final ScrollView scrollView, final int y, final int millis) {
+		ObjectAnimator.ofInt(scrollView, "scrollY", scrollView.getScrollY(), y).setDuration(millis).start();
 	}
 }
