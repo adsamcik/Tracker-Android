@@ -103,15 +103,17 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	 * 1 - stop tracking icon
 	 * 2 - saving icon
 	 */
-	private void changeTrackerButton(int status) {
+	private void changeTrackerButton(int status, boolean animate) {
 		switch (status) {
 			case 0:
 				fabTrack.setImageDrawable(playToPause);
-				playToPause.start();
+				if (animate)
+					playToPause.start();
 				break;
 			case 1:
 				fabTrack.setImageDrawable(pauseToPlay);
-				pauseToPlay.start();
+				if (animate)
+					pauseToPlay.start();
 				break;
 		}
 	}
@@ -213,7 +215,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			animation.setDuration(400);
 			if (percentage == 100) {
 				new Handler().postDelayed(() -> {
-					if(fabUp != null) {
+					if (fabUp != null) {
 						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
 						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 						fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
@@ -257,7 +259,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			pauseToPlay = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play);
 		}
 
-		changeTrackerButton(TrackerService.isRunning() ? 1 : 0);
+		changeTrackerButton(TrackerService.isRunning() ? 1 : 0, false);
 		fabTrack.setOnClickListener(
 				v -> {
 					if (TrackerService.isRunning() && TrackerService.isBackgroundActivated()) {
@@ -270,7 +272,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
 		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateUploadProgress(progress)));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
-		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0));
+		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
 
 		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
 
