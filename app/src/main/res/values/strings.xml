@@ -1,13 +1,14 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
 
-    <string name="menu_dashboard">tracker</string>
+    <string name="menu_tracker">tracker</string>
     <string name="menu_map">map</string>
     <string name="menu_stats">stats</string>
     <string name="menu_settings">settings</string>
 
     <string name="button_back">back</string>
 
+    <string name="main_collected">Collected %1$s</string>
     <string name="main_last_update">%1$s</string>
     <string name="main_position">N %1$s\nW %2$s\nAlt: %3$d m</string>
     <string name="main_wifi_title">Wifi</string>
@@ -30,8 +31,6 @@
     <string name="stats_weekly_collected_location">Collections performed</string>
     <string name="stats_weekly_minutes">Minutes spent tracking</string>
     <string name="stats_weekly_uploaded">Uploaded data</string>
-
-    <string name="main_collected">Collected %1$s</string>
 
     <string name="other">Other</string>
 
@@ -64,5 +63,5 @@
     <string name="nPause" translatable="false">pause</string>
     <string name="nPlayPauseGroup" translatable="false">PlayPauseGroup</string>
 
-    <string name="signin_not_ready">Signin is not yet initialized!</string>
+    <string name="signin_connecting">Connecting!</string>
 </resources>

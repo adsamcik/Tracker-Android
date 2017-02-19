@@ -68,7 +68,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
 		Resources r = getResources();
 
-		boolean lastUploadAvailable = false;
+		boolean hasRecentUpload = false;
 
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
@@ -77,7 +77,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
 				startActivity(intent);
 			});
-			lastUploadAvailable = true;
+			hasRecentUpload = true;
 		} else {
 			if (lastUpload != null)
 				lastUpload.destroy(getActivity());
@@ -95,7 +95,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
-		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), lastUploadAvailable ? 1 : 0, false, 0);
+		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
 		updateStats();
 		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);

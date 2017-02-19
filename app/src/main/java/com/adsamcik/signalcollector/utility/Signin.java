@@ -139,11 +139,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	}
 
 	private void signout() {
-		if (client.isConnected()) {
+		if (client.isConnected() || client.isConnecting()) {
 			Auth.GoogleSignInApi.signOut(client).setResultCallback(status -> onSignedOut());
 			token = null;
-		} else if (client.isConnecting()) {
-			showSnackbar(R.string.signin_not_ready);
 		} else
 			FirebaseCrash.report(new Throwable("Signout called while client is not even connecting. SOMETHING IS WRONG! PANIC!"));
 	}

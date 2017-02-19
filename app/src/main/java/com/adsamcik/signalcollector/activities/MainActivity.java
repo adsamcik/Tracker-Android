@@ -95,7 +95,7 @@ public class MainActivity extends FragmentActivity {
 				item -> {
 					switch (item.getItemId()) {
 						case R.id.action_tracker:
-							handleBottomNav(FragmentTracker.class, R.string.menu_dashboard);
+							handleBottomNav(FragmentTracker.class, R.string.menu_tracker);
 							break;
 						case R.id.action_map:
 							handleBottomNav(FragmentMap.class, R.string.menu_map);
@@ -115,7 +115,7 @@ public class MainActivity extends FragmentActivity {
 
 		FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
 		ITabFragment fragment = new FragmentTracker();
-		fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_dashboard));
+		fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_tracker));
 		fragment.onEnter(activity, fabOne, fabTwo);
 		fragmentTransaction.commit();
 
