@@ -142,16 +142,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		if (view != null) {
-			ViewGroup parent = (ViewGroup) view.getParent();
-			if (parent != null)
-				parent.removeView(view);
-		}
-
 		if (Assist.isPlayServiceAvailable(getContext()))
 			view = inflater.inflate(R.layout.fragment_map, container, false);
-		else
-			view = inflater.inflate(R.layout.no_play_services, container, false);
+		else {
+			return view = inflater.inflate(R.layout.no_play_services, container, false);
+		}
 
 		Context c = getContext();
 		assert container != null;
@@ -184,7 +179,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
 		FragmentTransaction fragmentTransaction = activity.getSupportFragmentManager().beginTransaction();
-		fragmentTransaction.add(R.id.MapLayout, mapFragment);
+		fragmentTransaction.replace(R.id.MapContainer, mapFragment);
 		fragmentTransaction.commit();
 		mapFragment.getMapAsync(this);
 		return view;
