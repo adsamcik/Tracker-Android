@@ -10,7 +10,9 @@ import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.MalformedJsonException;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -343,8 +345,14 @@ public class DataStore {
 		if (sb == null)
 			return null;
 		for (int i = sb.length() - 1; i >= 0; i--) {
-			if (sb.charAt(i) == '{')
-				return new Gson().fromJson(sb.substring(i), tClass);
+			if (sb.charAt(i) == '{') {
+				try {
+					return new Gson().fromJson(sb.substring(i), tClass);
+				} catch (JsonSyntaxException e) {
+					FirebaseCrash.report(e);
+					return null;
+				}
+			}
 		}
 		return null;
 	}
