@@ -102,7 +102,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (locationManager != null && checkLocationPermission(getContext(), false))
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
-		menu.hide();
+		if (menu != null)
+			menu.hide();
 	}
 
 	/**
