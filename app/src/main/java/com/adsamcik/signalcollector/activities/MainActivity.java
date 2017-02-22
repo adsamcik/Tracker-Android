@@ -116,8 +116,8 @@ public class MainActivity extends FragmentActivity {
 		FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
 		ITabFragment fragment = new FragmentTracker();
 		fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_tracker));
-		fragment.onEnter(activity, fabOne, fabTwo);
 		fragmentTransaction.commit();
+		fragment.onEnter(activity, fabOne, fabTwo);
 
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready

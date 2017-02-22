@@ -2,6 +2,8 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
+import android.app.Activity;
+import android.app.FragmentManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -32,8 +34,8 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
@@ -53,6 +55,7 @@ import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
+
 	private static final String TAG = "SignalsMap";
 	private String type = null;
 	private GoogleMap map;
@@ -88,6 +91,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @return is permission available atm
 	 */
 	private boolean checkLocationPermission(Context context, boolean request) {
+		if (context == null)
+			return false;
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else if (request)
@@ -104,6 +109,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		locationListener.cleanup();
 		if (menu != null)
 			menu.hide();
+
+		Activity activity = getActivity();
+		if (activity != null) {
+			FragmentManager fragmentManager = getActivity().getFragmentManager();
+			fragmentManager.beginTransaction().remove(fragmentManager.findFragmentById(R.id.map)).commit();
+		}
 	}
 
 	/**
@@ -143,14 +154,15 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		if (Assist.isPlayServiceAvailable(getContext()))
+		assert container != null;
+		Context c = getContext();
+		if (Assist.isPlayServiceAvailable(c)) {
+			//((ViewGroup) view.getParent()).removeView(view);
 			view = inflater.inflate(R.layout.fragment_map, container, false);
-		else {
+		} else {
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
 		}
 
-		Context c = getContext();
-		assert container != null;
 		menu = new FabMenu((ViewGroup) container.getParent(), c);
 
 		final FragmentActivity activity = getActivity();
@@ -178,11 +190,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		});
 
-		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
-		FragmentTransaction fragmentTransaction = activity.getSupportFragmentManager().beginTransaction();
-		fragmentTransaction.replace(R.id.MapContainer, mapFragment);
-		fragmentTransaction.commit();
+		MapFragment mapFragment = (MapFragment) activity.getFragmentManager().findFragmentById(R.id.map);
 		mapFragment.getMapAsync(this);
+
 		return view;
 	}
 
