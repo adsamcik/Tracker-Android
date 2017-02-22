@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                                                 xmlns:app="http://schemas.android.com/apk/res-auto"
-                                                 xmlns:tools="http://schemas.android.com/tools"
-                                                 android:layout_width="match_parent"
-                                                 android:layout_height="match_parent"
-                                                 tools:context=".activities.MainActivity">
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                xmlns:tools="http://schemas.android.com/tools"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                tools:context=".activities.MainActivity">
 
     <LinearLayout
         android:id="@+id/container"
@@ -46,11 +46,20 @@
                 android:layout_marginBottom="@dimen/fab_margin"
                 android:clipChildren="false">
 
+                <android.support.design.widget.FloatingActionButton
+                    android:id="@+id/fabTwo"
+                    android:layout_width="@dimen/fab_size"
+                    android:layout_height="@dimen/fab_size"
+                    android:layout_gravity="bottom|center"
+                    android:clipChildren="false"
+                    android:tint="@color/colorAccent"
+                    app:backgroundTint="@color/textPrimary"
+                    app:borderWidth="0dp"/>
+
                 <ProgressBar
                     android:id="@+id/progressBar"
                     android:layout_width="82dp"
                     android:layout_height="82dp"
-                    android:layout_gravity="center"
                     android:indeterminate="true"
                     android:indeterminateOnly="false"
                     android:indeterminateTint="@color/colorAccent"
@@ -59,19 +68,12 @@
                     android:progressDrawable="@drawable/circular"
                     android:progressTint="@color/colorAccent"
                     android:rotation="-90"
-                    android:visibility="invisible"/>
-
-
-                <android.support.design.widget.FloatingActionButton
-                    android:id="@+id/fabTwo"
-                    android:layout_width="@dimen/fab_size"
-                    android:layout_height="@dimen/fab_size"
-                    android:layout_gravity="center"
-                    android:clipChildren="false"
-                    android:src="@drawable/ic_cloud_upload_24dp"
-                    android:tint="@color/colorAccent"
-                    app:backgroundTint="@color/textPrimary"
-                    app:borderWidth="0dp"/>
+                    android:visibility="gone"
+                    android:layout_marginStart="-8.5dp"
+                    android:layout_marginBottom="-13.5dp"
+                    app:layout_anchor="@id/fabTwo"
+                    app:layout_anchorGravity="center"
+                    android:translationZ="2dp"/>
 
             </android.support.design.widget.CoordinatorLayout>
 
@@ -82,7 +84,6 @@
                 android:layout_height="@dimen/fab_size"
                 android:layout_gravity="center"
                 android:clipChildren="false"
-                android:src="@drawable/ic_pause"
                 app:borderWidth="0dp"
                 app:layout_behavior="com.adsamcik.signalcollector.utility.BottomBarBehavior"/>
         </LinearLayout>
