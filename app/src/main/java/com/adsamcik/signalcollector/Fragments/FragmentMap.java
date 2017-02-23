@@ -104,13 +104,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave() {
-		if (locationManager != null && checkLocationPermission(getContext(), false))
+		Activity activity = getActivity();
+		if (locationManager != null && checkLocationPermission(activity, false))
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 		if (menu != null)
 			menu.hide();
 
-		Activity activity = getActivity();
 		if (activity != null) {
 			FragmentManager fragmentManager = getActivity().getFragmentManager();
 			fragmentManager.beginTransaction().remove(fragmentManager.findFragmentById(R.id.map)).commit();
