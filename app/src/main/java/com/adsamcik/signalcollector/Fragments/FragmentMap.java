@@ -10,6 +10,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -110,11 +111,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		locationListener.cleanup();
 		if (menu != null)
 			menu.hide();
-
-		if (activity != null) {
-			FragmentManager fragmentManager = getActivity().getFragmentManager();
-			fragmentManager.beginTransaction().remove(fragmentManager.findFragmentById(R.id.map)).commit();
-		}
 	}
 
 	/**
@@ -155,17 +151,26 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		assert container != null;
-		Context c = getContext();
-		if (Assist.isPlayServiceAvailable(c)) {
+		final FragmentActivity activity = getActivity();
+		if (Assist.isPlayServiceAvailable(activity)) {
+			FragmentManager fragmentManager = activity.getFragmentManager();
+			android.app.Fragment fragment = fragmentManager.findFragmentById(R.id.map);
+			if (fragment != null) {
+				if(Build.VERSION.SDK_INT >= 24)
+					fragmentManager.beginTransaction().remove(fragment).commitNow();
+				else {
+					fragmentManager.beginTransaction().remove(fragment).commit();
+					fragmentManager.executePendingTransactions();
+				}
+			}
 			//((ViewGroup) view.getParent()).removeView(view);
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		} else {
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
 		}
 
-		menu = new FabMenu((ViewGroup) container.getParent(), c);
+		menu = new FabMenu((ViewGroup) container.getParent(), activity);
 
-		final FragmentActivity activity = getActivity();
 		menu.clear(activity);
 		menu.setFab(fabTwo);
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
