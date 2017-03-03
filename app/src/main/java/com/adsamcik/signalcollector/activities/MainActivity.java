@@ -151,10 +151,7 @@ public class MainActivity extends FragmentActivity {
 			}
 
 			String str = getString(resId);
-			fragmentManager.popBackStack(str, FragmentManager.POP_BACK_STACK_INCLUSIVE);
-			fragmentTransaction.replace(R.id.container, (Fragment) currentFragment, str);
-			fragmentTransaction.addToBackStack(str);
-			fragmentTransaction.commit();
+			fragmentTransaction.replace(R.id.container, (Fragment) currentFragment, str).commit();
 
 			currentFragment.onEnter(this, fabOne, fabTwo);
 		}

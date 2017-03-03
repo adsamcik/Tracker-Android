@@ -18,6 +18,7 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,6 +37,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
@@ -61,7 +63,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final String TAG = "SignalsMap";
 	private String type = null;
 	private GoogleMap map;
-	private MapFragment mapFragment;
+	private SupportMapFragment mapFragment;
 	private TileProvider tileProvider;
 
 	private LocationManager locationManager;
@@ -113,10 +115,16 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 
-		if (mapFragment != null) {
-			activity.getFragmentManager().beginTransaction().remove(mapFragment).commit();
+		/*if (mapFragment != null) {
+			android.app.FragmentTransaction transaction = getFragmentManager().beginTransaction().remove(mapFragment);
+			if (Build.VERSION.SDK_INT >= 24)
+				transaction.commitNow();
+			else {
+				transaction.commit();
+				activity.getFragmentManager().executePendingTransactions();
+			}
 			mapFragment = null;
-		}
+		}*/
 	}
 
 	/**
@@ -149,27 +157,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 		fabTwo.setOnClickListener(v -> menu.show(activity));
 
-
 		return new Failure<>();
 	}
 
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		assert container != null;
 		final FragmentActivity activity = getActivity();
-		if (Assist.isPlayServiceAvailable(activity)) {
-			mapFragment = MapFragment.newInstance();
-			android.app.FragmentTransaction fragmentTransaction = activity.getFragmentManager().beginTransaction();
-			fragmentTransaction.replace(R.id.container_map, mapFragment);
-			fragmentTransaction.commit();
-			mapFragment.getMapAsync(this);
-			//((ViewGroup) view.getParent()).removeView(view);
+		if (Assist.isPlayServiceAvailable(activity) && container != null) {
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		} else {
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
 		}
-
 		menu = new FabMenu((ViewGroup) container.getParent(), activity);
 
 		menu.clear(activity);
@@ -195,6 +194,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
+
+		mapFragment = SupportMapFragment.newInstance();
+		FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
+		fragmentTransaction.replace(R.id.container_map, mapFragment);
+		fragmentTransaction.commit();
+		mapFragment.getMapAsync(this);
 
 		return view;
 	}
@@ -228,7 +233,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		this.map = map;
 		userRadius = null;
 		userCenter = null;
-		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(getContext(), R.raw.map_style));
+		Context c = getContext();
+		if (c == null)
+			return;
+		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(c, R.raw.map_style));
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
