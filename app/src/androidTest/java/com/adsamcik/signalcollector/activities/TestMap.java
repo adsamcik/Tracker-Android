@@ -4,6 +4,7 @@ import android.app.Fragment;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.InstrumentationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Environment;
@@ -25,9 +26,7 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import java.io.File;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Random;
 
 import static junit.framework.Assert.fail;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -67,22 +66,24 @@ public class TestMap {
 	}
 
 	@org.junit.Test
-	public void MapStabilityTest() throws InterruptedException {
+	public void StabilityTest() throws InterruptedException {
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
 		Thread.sleep(5000);
 
-		for (int i = 0; i < 20; i++) {
-			mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
-			Thread.sleep(200);
-			mDevice.findObject(By.res(PACKAGE, "action_map")).click();
-			Thread.sleep(500);
+		String[] items = new String[] {"action_tracker", "action_map", "action_stats", "action_settings"};
+		Random random = new Random(System.currentTimeMillis());
+
+		for (int i = 0; i < 100; i++) {
+			mDevice.findObject(By.res(PACKAGE, items[(int)(random.nextDouble() * items.length)])).click();
+			Thread.sleep(1000);
 		}
 
-		Thread.sleep(5000);
+		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
+		Thread.sleep(2000);
 
-		for(int i=0; i < 15; i++) {
+		for(int i=0; i < 5; i++) {
 			mDevice.pressHome();
-			Thread.sleep(2000);
+			Thread.sleep(1000);
 			Context context = InstrumentationRegistry.getContext();
 			Intent intent = context.getPackageManager()
 					.getLaunchIntentForPackage(PACKAGE);
@@ -95,6 +96,7 @@ public class TestMap {
 			mDevice.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), LAUNCH_TIMEOUT);
 
 			Assert.assertEquals(mDevice.getCurrentPackageName(), PACKAGE);
+
 		}
 
 		//new ActivityTestRule(MainActivity.class).ge
