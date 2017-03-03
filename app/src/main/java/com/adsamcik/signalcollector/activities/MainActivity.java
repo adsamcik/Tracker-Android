@@ -134,11 +134,14 @@ public class MainActivity extends FragmentActivity {
 			fabOne.hide();
 			fabTwo.hide();
 
-			if (currentFragment != null)
-				currentFragment.onLeave();
-
-			FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
+			FragmentManager fragmentManager = getSupportFragmentManager();
+			FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
 			fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
+
+			if (currentFragment != null) {
+				currentFragment.onLeave();
+				fragmentTransaction.remove((Fragment) currentFragment);
+			}
 
 			try {
 				currentFragment = (ITabFragment) tClass.newInstance();
@@ -148,6 +151,7 @@ public class MainActivity extends FragmentActivity {
 			}
 
 			String str = getString(resId);
+			fragmentManager.popBackStack(str, FragmentManager.POP_BACK_STACK_INCLUSIVE);
 			fragmentTransaction.replace(R.id.container, (Fragment) currentFragment, str);
 			fragmentTransaction.addToBackStack(str);
 			fragmentTransaction.commit();

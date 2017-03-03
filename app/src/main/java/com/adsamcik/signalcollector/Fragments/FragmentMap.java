@@ -49,6 +49,8 @@ import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 
+import junit.framework.Assert;
+
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
@@ -106,11 +108,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 */
 	public void onLeave() {
 		Activity activity = getActivity();
+		Assert.assertNotNull(activity);
 		if (locationManager != null && checkLocationPermission(activity, false))
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
-		if (menu != null)
-			menu.hide();
 
 		if (mapFragment != null) {
 			activity.getFragmentManager().beginTransaction().remove(mapFragment).commit();
