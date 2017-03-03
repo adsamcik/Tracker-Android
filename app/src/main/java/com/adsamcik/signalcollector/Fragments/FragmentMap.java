@@ -18,7 +18,6 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
-import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -60,6 +59,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final String TAG = "SignalsMap";
 	private String type = null;
 	private GoogleMap map;
+	private MapFragment mapFragment;
 	private TileProvider tileProvider;
 
 	private LocationManager locationManager;
@@ -111,6 +111,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		locationListener.cleanup();
 		if (menu != null)
 			menu.hide();
+
+		if (mapFragment != null) {
+			activity.getFragmentManager().beginTransaction().remove(mapFragment).commit();
+			mapFragment = null;
+		}
 	}
 
 	/**
@@ -153,16 +158,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		assert container != null;
 		final FragmentActivity activity = getActivity();
 		if (Assist.isPlayServiceAvailable(activity)) {
-			FragmentManager fragmentManager = activity.getFragmentManager();
-			android.app.Fragment fragment = fragmentManager.findFragmentById(R.id.map);
-			if (fragment != null) {
-				if(Build.VERSION.SDK_INT >= 24)
-					fragmentManager.beginTransaction().remove(fragment).commitNow();
-				else {
-					fragmentManager.beginTransaction().remove(fragment).commit();
-					fragmentManager.executePendingTransactions();
-				}
-			}
+			mapFragment = MapFragment.newInstance();
+			android.app.FragmentTransaction fragmentTransaction = activity.getFragmentManager().beginTransaction();
+			fragmentTransaction.replace(R.id.container_map, mapFragment);
+			fragmentTransaction.commit();
+			mapFragment.getMapAsync(this);
 			//((ViewGroup) view.getParent()).removeView(view);
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		} else {
@@ -194,9 +194,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
-
-		MapFragment mapFragment = (MapFragment) activity.getFragmentManager().findFragmentById(R.id.map);
-		mapFragment.getMapAsync(this);
 
 		return view;
 	}
