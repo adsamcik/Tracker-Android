@@ -13,6 +13,7 @@ android {
         jackOptions {
             enabled true
         }
+        testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
     }
     buildTypes {
         release_nominify {
@@ -41,6 +42,11 @@ dependencies {
     compile 'com.google.firebase:firebase-core:10.2.0'
     compile 'com.google.firebase:firebase-crash:10.2.0'
     compile 'com.google.firebase:firebase-messaging:10.2.0'
+    androidTestCompile 'com.android.support:support-annotations:25.2.0'
+    androidTestCompile 'com.android.support.test:runner:0.5';
+    androidTestCompile 'com.android.support.test:rules:0.5';
+    androidTestCompile 'com.android.support.test.uiautomator:uiautomator-v18:2.1.2';
+    androidTestCompile 'org.hamcrest:hamcrest-integration:1.3'
 }
 
 apply plugin: 'com.google.gms.google-services'
