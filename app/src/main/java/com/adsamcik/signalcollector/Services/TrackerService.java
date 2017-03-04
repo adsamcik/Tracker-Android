@@ -69,6 +69,7 @@ public class TrackerService extends Service {
 
 	private final ArrayList<Data> data = new ArrayList<>();
 	private LocationListener locationListener;
+
 	private ScanResult[] wifiScanData;
 	private LocationManager locationManager;
 	private TelephonyManager telephonyManager;
@@ -298,6 +299,8 @@ public class TrackerService extends Service {
 			}
 
 			public void onProviderDisabled(String provider) {
+				if (provider.equals(LocationManager.GPS_PROVIDER))
+					stopSelf();
 			}
 		};
 
