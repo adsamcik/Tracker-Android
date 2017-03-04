@@ -229,6 +229,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 									if (fabUp != null) {
 										fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 										fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+										fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
 									}
 								}, 300);
 							}
