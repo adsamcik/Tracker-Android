@@ -109,16 +109,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 
-		/*if (mapFragment != null) {
-			android.app.FragmentTransaction transaction = getFragmentManager().beginTransaction().remove(mapFragment);
-			if (Build.VERSION.SDK_INT >= 24)
-				transaction.commitNow();
-			else {
-				transaction.commit();
-				activity.getFragmentManager().executePendingTransactions();
-			}
-			mapFragment = null;
-		}*/
+		fabTwo = null;
+		menu.setCallback(null);
+		menu = null;
 	}
 
 	/**
