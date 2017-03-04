@@ -134,15 +134,13 @@ public class TrackerService extends Service {
 			wifiScanData = null;
 		}
 
-		SharedPreferences sp = Preferences.get(getApplicationContext());
-
-		if (sp.getBoolean(Preferences.TRACKING_WIFI_ENABLED, true)) {
+		if (wifiManager != null) {
 			wifiManager.startScan();
 			prevScanPos = location;
 			prevScanPos.setTime(d.time);
 		}
 
-		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true) && !Assist.isAirplaneMode(this)) {
+		if (telephonyManager != null && !Assist.isAirplaneMode(this)) {
 			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
 		}
 
@@ -268,8 +266,17 @@ public class TrackerService extends Service {
 		service = new WeakReference<>(this);
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
+		SharedPreferences sp = Preferences.get(appContext);
 
 		ActivityService.initializeActivityClient(appContext);
+
+		//Get managers
+		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+		//Enable location update
+		final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
+		final float MIN_DISTANCE_M = 5;
 
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
@@ -290,24 +297,25 @@ public class TrackerService extends Service {
 			}
 		};
 
-		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
-		//Enable location update
-		int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
-		float MIN_DISTANCE_M = 5;
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 
-		wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+		//Wifi tracking setup
+		if (sp.getBoolean(Preferences.TRACKING_WIFI_ENABLED, true)) {
+			wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
-		wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
-		if (wasWifiEnabled)
-			wifiManager.setWifiEnabled(true);
+			wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
+			if (wasWifiEnabled)
+				wifiManager.setWifiEnabled(true);
 
-		wifiManager.startScan();
-		registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+			wifiManager.startScan();
+			registerReceiver(wifiReceiver = new WifiReceiver(), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+		}
+
+		//Cell tracking setup
+		if(sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true)) {
+			telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+		}
 
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
