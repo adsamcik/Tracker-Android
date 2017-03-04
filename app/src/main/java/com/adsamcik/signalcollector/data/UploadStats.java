@@ -1,5 +1,9 @@
 package com.adsamcik.signalcollector.data;
 
+import android.content.res.Resources;
+
+import com.adsamcik.signalcollector.R;
+
 public class UploadStats {
 	public final long time;
 	public final int newWifi, newCell, cell, wifi, collections, noiseCollections, newLocations, newNoiseLocations;
@@ -16,5 +20,23 @@ public class UploadStats {
 		this.uploadSize = uploadSize;
 		this.newLocations = newLocations;
 		this.newNoiseLocations = newNoiseLocations;
+	}
+
+	public String GenerateNotificationText(Resources resources) {
+		StringBuilder stringBuilder = new StringBuilder();
+		int newLocations = this.newLocations + this.newNoiseLocations;
+		if (newLocations > 0)
+			stringBuilder.append(resources.getQuantityString(R.plurals.new_locations, newLocations)).append(", ");
+		else
+			stringBuilder.append(resources.getString(R.string.no_new_locations)).append(", ");
+
+		if (newWifi > 0)
+			stringBuilder.append(resources.getString(R.string.new_wifi, newWifi)).append(", ");
+		if (newCell > 0)
+			stringBuilder.append(resources.getString(R.string.new_cell, newCell)).append(", ");
+
+		stringBuilder.setLength(stringBuilder.length() - 2);
+		return stringBuilder.toString();
+
 	}
 }
