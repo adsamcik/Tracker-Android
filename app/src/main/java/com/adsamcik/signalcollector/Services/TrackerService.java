@@ -211,7 +211,7 @@ public class TrackerService extends Service {
 		} else {
 			data.clear();
 			if (result == 2)
-				UploadService.requestUpload(getApplicationContext(), true);
+				UploadService.requestUpload(getApplicationContext(), UploadService.UploadScheduleSource.BACKGROUND);
 		}
 	}
 

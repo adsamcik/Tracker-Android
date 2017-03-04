@@ -63,10 +63,6 @@ public class MainActivity extends FragmentActivity {
 
 		Assist.initialize(this);
 
-		UploadService.UploadScheduleSource uss = UploadService.getUploadScheduled(this);
-		if (!uss.equals(UploadService.UploadScheduleSource.NONE))
-			UploadService.requestUpload(this, uss);
-
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
 
