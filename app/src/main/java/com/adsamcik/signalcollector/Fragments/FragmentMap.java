@@ -58,13 +58,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final int MAX_ZOOM = 17;
 
 	private static final String TAG = "SignalsMap";
+	private final UpdateLocationListener locationListener = new UpdateLocationListener();
 	private String type = null;
 	private GoogleMap map;
 	private TileProvider tileProvider;
-
 	private LocationManager locationManager;
-	private final UpdateLocationListener locationListener = new UpdateLocationListener();
-
 	private TileOverlay activeOverlay;
 
 	private View view;

@@ -23,14 +23,17 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class ActivityService extends IntentService {
 	private static final String TAG = "Signals" + ActivityService.class.getSimpleName();
-	private static GoogleApiClient gapiClient;
-	private PowerManager powerManager;
-	public static int lastActivity;
-	public static int lastConfidence;
-
 	private static final int GOOGLE_API_ID = 77285;
 	private static final int REQUIRED_CONFIDENCE = 75;
+	public static int lastActivity;
+	public static int lastConfidence;
+	private static GoogleApiClient gapiClient;
+	private PowerManager powerManager;
 
+
+	public ActivityService() {
+		super("ActivityService");
+	}
 
 	public static Failure<String> initializeActivityClient(@NonNull Context context) {
 		if (Assist.isPlayServiceAvailable(context)) {
@@ -96,10 +99,6 @@ public class ActivityService extends IntentService {
 		Intent i = new Intent(context, ActivityService.class);
 		PendingIntent activityPendingIntent = PendingIntent.getService(context, 0, i, PendingIntent.FLAG_UPDATE_CURRENT);
 		ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(client, 0, activityPendingIntent);
-	}
-
-	public ActivityService() {
-		super("ActivityService");
 	}
 
 	@Override
