@@ -357,8 +357,10 @@ public class TrackerService extends Service {
 			onServiceStateChange.callback();
 		DataStore.cleanup();
 
-		if (wasWifiEnabled)
-			wifiManager.setWifiEnabled(false);
+		if (wasWifiEnabled) {
+			if (!powerManager.isInteractive())
+				wifiManager.setWifiEnabled(false);
+		}
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
 		sp.edit().putInt(Preferences.STATS_MINUTES, sp.getInt(Preferences.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
