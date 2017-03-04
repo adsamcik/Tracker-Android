@@ -51,6 +51,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	private boolean uploadInProgress = false;
 
+	private Handler handler;
+
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -193,6 +195,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		final Context context = getContext();
 		progressBar.setVisibility(View.VISIBLE);
 		fabUp.setElevation(0);
+		if (handler == null)
+			handler = new Handler();
+
 		if (percentage == 0) {
 			progressBar.setIndeterminate(true);
 			uploadInProgress = true;
@@ -201,7 +206,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error)));
 			fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 			fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp));
-			new Handler().postDelayed(() -> {
+			handler.postDelayed(() -> {
 				if (fabUp != null) {
 					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
@@ -214,27 +219,25 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
 			animation.setDuration(400);
 			if (percentage == 100) {
-				new Handler().postDelayed(() -> {
-					if (fabUp != null) {
-						fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-						fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-						fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
+				handler.postDelayed(() -> {
+					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
-						progressBar.animate().alpha(0).setDuration(400).start();
+					progressBar.animate().alpha(0).setDuration(400).start();
 
-						new Handler().postDelayed(() -> {
-							if (fabUp != null) {
-								fabUp.hide();
-								new Handler().postDelayed(() -> {
-									if (fabUp != null) {
-										fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-										fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-										fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
-									}
-								}, 300);
-							}
-						}, 800);
-					}
+					handler.postDelayed(() -> {
+						if (fabUp != null) {
+							fabUp.hide();
+							handler.postDelayed(() -> {
+								if (fabUp != null) {
+									fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+									fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+									fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
+								}
+							}, 300);
+						}
+					}, 800);
 					uploadInProgress = false;
 				}, 600);
 			}
@@ -289,6 +292,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	@Override
 	public void onLeave() {
+		if (handler != null)
+			handler.removeCallbacksAndMessages(null);
+		
 		DataStore.setOnDataChanged(null);
 		DataStore.setOnUploadProgress(null);
 		TrackerService.onNewDataFound = null;
