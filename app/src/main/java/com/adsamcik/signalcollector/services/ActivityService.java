@@ -125,7 +125,6 @@ public class ActivityService extends IntentService {
 						stopService(new Intent(this, TrackerService.class));
 				} else if (canBackgroundTrack(evalActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
-					trackerService.putExtra("approxSize", DataStore.sizeOfData());
 					trackerService.putExtra("backTrack", true);
 					startService(trackerService);
 				}

@@ -133,7 +133,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			if (!TrackerService.isRunning()) {
 				Preferences.get(activity).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
 				Intent trackerService = new Intent(activity, TrackerService.class);
-				trackerService.putExtra("approxSize", DataStore.sizeOfData());
+				trackerService.putExtra("backTrack", false);
 				activity.startService(trackerService);
 			} else {
 				activity.stopService(new Intent(activity, TrackerService.class));
