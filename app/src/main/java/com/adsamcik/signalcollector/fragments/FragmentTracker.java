@@ -169,7 +169,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 							setCloudStatus(2);
 							updateUploadProgress(0);
 							final Context context = getContext();
-							UploadService.requestUpload(context, false);
+							UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
 							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
 						}
 				);
@@ -242,11 +242,16 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
-		progressBar.setAlpha(1);
-		progressBar.setProgress(0);
 
 		if (UploadService.isUploading())
 			updateUploadProgress(UploadService.getUploadPercentage());
+		else if (UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
+			setCloudStatus(2);
+			updateUploadProgress(0);
+		} else {
+			progressBar.setProgress(0);
+			setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
+		}
 
 		fabTrack.show();
 
@@ -270,15 +275,13 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
 
-		setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
-
 		//TrackerService.dataEcho = new Data(200).setActivity(1).setCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
 			updateData(activity);
 
-		if (Assist.isEmulator())
-			fabUp.hide();
+		//if (Assist.isEmulator())
+		//	fabUp.hide();
 		return new Failure<>();
 	}
 
@@ -292,6 +295,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onNewDataFound = null;
 		TrackerService.onServiceStateChange = null;
 		progressBar.setVisibility(View.GONE);
+		progressBar.setAlpha(1);
 		fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
 		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
 		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.colorAccent)));

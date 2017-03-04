@@ -19,7 +19,6 @@ import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
@@ -64,8 +63,9 @@ public class MainActivity extends FragmentActivity {
 
 		Assist.initialize(this);
 
-		if (Preferences.get(this).getBoolean(Preferences.SCHEDULED_UPLOAD, false))
-			UploadService.requestUpload(this, true);
+		UploadService.UploadScheduleSource uss = UploadService.getUploadScheduled(this);
+		if (!uss.equals(UploadService.UploadScheduleSource.NONE))
+			UploadService.requestUpload(this, uss);
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));

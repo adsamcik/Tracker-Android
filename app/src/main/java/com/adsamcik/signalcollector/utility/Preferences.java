@@ -175,5 +175,4 @@ public class Preferences {
 		}
 		return statDays;
 	}
-
 }

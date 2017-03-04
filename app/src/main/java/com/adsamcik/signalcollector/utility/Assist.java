@@ -23,6 +23,7 @@ import android.view.Display;
 import android.view.WindowManager;
 import android.widget.ScrollView;
 
+import com.adsamcik.signalcollector.services.UploadService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
@@ -207,15 +208,15 @@ public class Assist {
 	/**
 	 * Checks if upload can be initiated
 	 *
-	 * @param c            context
-	 * @param isBackground true if NOT activated by user
+	 * @param c      context
+	 * @param source source that can upload
 	 * @return true if upload can be initiated
 	 */
-	public static boolean canUpload(final @NonNull Context c, final boolean isBackground) {
+	public static boolean canUpload(final @NonNull Context c, final UploadService.UploadScheduleSource source) {
 		if (!isInitialized() || connectivityManager == null)
 			initialize(c);
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
-		if (isBackground) {
+		if (source.equals(UploadService.UploadScheduleSource.BACKGROUND)) {
 			int aVal = Preferences.get(c).getInt(Preferences.AUTO_UPLOAD, 1);
 			return activeNetwork != null && activeNetwork.isConnectedOrConnecting() &&
 					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||

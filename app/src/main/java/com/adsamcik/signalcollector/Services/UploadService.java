@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.utility.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
+import java.security.InvalidParameterException;
 
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -49,20 +50,28 @@ public class UploadService extends JobService {
 		return queued > 0;
 	}
 
+	public static UploadScheduleSource getUploadScheduled(@NonNull Context c) {
+		return UploadScheduleSource.values()[Preferences.get(c).getInt(Preferences.SCHEDULED_UPLOAD, 0)];
+	}
+
 	/**
 	 * Requests upload
 	 * Call this when you want to auto-upload
 	 *
-	 * @param c            Non-null context
-	 * @param isBackground Is activated by background tracking
+	 * @param c      Non-null context
+	 * @param source Source that started the upload
 	 */
-	public static void requestUpload(@NonNull Context c, boolean isBackground) {
+	public static void requestUpload(@NonNull Context c, UploadScheduleSource source) {
+		if (source.equals(UploadScheduleSource.NONE))
+			throw new InvalidParameterException("Upload source can't be NONE.");
+
 		SharedPreferences sp = Preferences.get(c);
 		int autoUpload = sp.getInt(Preferences.AUTO_UPLOAD, 1);
-		if (autoUpload != 0 || !isBackground) {
+		if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
 			JobScheduler scheduler = ((JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(c, UploadService.class));
-			if (!isBackground) {
+			jb.setPersisted(true);
+			if (source.equals(UploadScheduleSource.USER)) {
 				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
 				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
 				//todo implement roaming upload
@@ -84,10 +93,10 @@ public class UploadService extends JobService {
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
 			}
 			PersistableBundle pb = new PersistableBundle(1);
-			pb.putInt(KEY_IS_AUTOUPLOAD, isBackground ? 1 : 0);
+			pb.putInt(KEY_IS_AUTOUPLOAD, source.ordinal());
 			jb.setExtras(pb);
 			scheduler.schedule(jb.build());
-			sp.edit().putBoolean(Preferences.SCHEDULED_UPLOAD, true).apply();
+			updateUploadScheduleSource(c, source);
 		}
 	}
 
@@ -99,7 +108,6 @@ public class UploadService extends JobService {
 	 */
 	private boolean upload(final String data, final String name) {
 		if (data.isEmpty()) {
-			FirebaseCrash.report(new Exception("data are empty"));
 			return false;
 		}
 
@@ -135,10 +143,13 @@ public class UploadService extends JobService {
 	}
 
 	/**
-	 * @param background background upload
+	 * @param source source that started the upload
 	 * @return true if started
 	 */
-	private boolean uploadAll(final boolean background) {
+	private boolean uploadAll(final UploadScheduleSource source) {
+		if (source == UploadScheduleSource.NONE)
+			throw new InvalidParameterException("Upload source can't be NONE.");
+
 		DataStore.onUpload(0);
 		final Context c = getApplicationContext();
 		DataStore.setContext(c);
@@ -146,11 +157,11 @@ public class UploadService extends JobService {
 			Assist.initialize(c);
 		if (thread == null || !thread.isAlive()) {
 			thread = new Thread(() -> {
-				Preferences.get(c).edit().putBoolean(Preferences.SCHEDULED_UPLOAD, false).apply();
-				String[] files = DataStore.getDataFileNames(!background);
+				Preferences.get(c).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
+				String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
 				if (files == null || files.length == 0) {
-					Log.e(DataStore.TAG, "No file names were entered");
-					FirebaseCrash.report(new Throwable("No file names were entered"));
+					Log.e(DataStore.TAG, "No file names were entered.");
+					FirebaseCrash.report(new Throwable("No file names were entered."));
 					DataStore.onUpload(-1);
 					return;
 				}
@@ -170,9 +181,9 @@ public class UploadService extends JobService {
 						if (data == null)
 							continue;
 
-						if (Assist.canUpload(c, background)) {
+						if (Assist.canUpload(c, source)) {
 							if (!upload(data, fileName)) {
-								requestUpload(c, true);
+								requestUpload(c, source);
 								DataStore.onUpload(-1);
 								break;
 							}
@@ -194,12 +205,17 @@ public class UploadService extends JobService {
 			thread.start();
 			return true;
 		}
+		FirebaseCrash.report(new Throwable("Upload is initialized multiple times."));
 		return false;
+	}
+
+	private static void updateUploadScheduleSource(@NonNull Context context, UploadScheduleSource uss) {
+		Preferences.get(context).edit().putInt(Preferences.SCHEDULED_UPLOAD, uss.ordinal()).apply();
 	}
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		return uploadAll(jobParameters.getExtras().getInt(KEY_IS_AUTOUPLOAD) == 1);
+		return uploadAll(UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_IS_AUTOUPLOAD)]);
 	}
 
 	@Override
@@ -209,6 +225,12 @@ public class UploadService extends JobService {
 		DataStore.cleanup();
 		DataStore.recountDataSize();
 		queued = 0;
-		return false;
+		return true;
+	}
+
+	public enum UploadScheduleSource {
+		NONE,
+		BACKGROUND,
+		USER
 	}
 }
