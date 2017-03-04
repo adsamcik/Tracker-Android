@@ -112,10 +112,10 @@ public class MainActivity extends FragmentActivity {
 				});
 
 		FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-		ITabFragment fragment = new FragmentTracker();
-		fragmentTransaction.replace(R.id.container, (FragmentTracker) fragment, getString(R.string.menu_tracker));
+		currentFragment = new FragmentTracker();
+		fragmentTransaction.replace(R.id.container, (FragmentTracker) currentFragment, getString(R.string.menu_tracker));
 		fragmentTransaction.commit();
-		fragment.onEnter(activity, fabOne, fabTwo);
+		currentFragment.onEnter(activity, fabOne, fabTwo);
 
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready
@@ -128,7 +128,7 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	void handleBottomNav(Class tClass, @StringRes int resId) {
-		if (currentFragment != null && currentFragment.getClass() == tClass)
+		if (currentFragment.getClass() == tClass)
 			currentFragment.onHomeAction();
 		else {
 			fabOne.hide();
