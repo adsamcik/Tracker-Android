@@ -44,7 +44,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiCollection, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
 
-	private AnimatedVectorDrawable playToPause, pauseToPlay;
+	private AnimatedVectorDrawable pauseToPlay, playToPause;
 	private FloatingActionButton fabTrack, fabUp;
 
 	private long lastWifiTime = 0;
@@ -105,14 +105,18 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private void changeTrackerButton(int status, boolean animate) {
 		switch (status) {
 			case 0:
-				fabTrack.setImageDrawable(playToPause);
-				if (animate)
+				if (animate) {
+					fabTrack.setImageDrawable(playToPause);
 					playToPause.start();
+				} else
+					fabTrack.setImageDrawable(pauseToPlay);
 				break;
 			case 1:
-				fabTrack.setImageDrawable(pauseToPlay);
-				if (animate)
+				if (animate) {
+					fabTrack.setImageDrawable(pauseToPlay);
 					pauseToPlay.start();
+				} else
+					fabTrack.setImageDrawable(playToPause);
 				break;
 		}
 	}
@@ -255,9 +259,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 		fabTrack.show();
 
-		if (playToPause == null) {
-			playToPause = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_play_to_pause);
-			pauseToPlay = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play);
+		if (pauseToPlay == null) {
+			pauseToPlay = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_play_to_pause);
+			playToPause = (AnimatedVectorDrawable) ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play);
 		}
 
 		changeTrackerButton(TrackerService.isRunning() ? 1 : 0, false);
