@@ -83,10 +83,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		long dataSize = DataStore.sizeOfData();
 		setCollected(dataSize);
 
-		Context context = getContext();
-		if (context == null)
-			context = getActivity();
-		updateData(context);
+		updateData(getContext());
 
 		return view;
 	}
@@ -170,6 +167,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				fabUp.setOnClickListener(
 						v -> {
 							setCloudStatus(2);
+							updateUploadProgress(0);
 							final Context context = getContext();
 							UploadService.requestUpload(context, false);
 							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
@@ -207,11 +205,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 			fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp));
 			handler.postDelayed(() -> {
-				if (fabUp != null) {
-					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-					setCloudStatus(1);
-				}
+				fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+				fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+				setCloudStatus(1);
 			}, 1000);
 			uploadInProgress = true;
 		} else {
@@ -227,16 +223,12 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 					progressBar.animate().alpha(0).setDuration(400).start();
 
 					handler.postDelayed(() -> {
-						if (fabUp != null) {
-							fabUp.hide();
-							handler.postDelayed(() -> {
-								if (fabUp != null) {
-									fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-									fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-									fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
-								}
-							}, 300);
-						}
+						fabUp.hide();
+						handler.postDelayed(() -> {
+							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+							fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
+						}, 300);
 					}, 800);
 					uploadInProgress = false;
 				}, 600);
@@ -285,8 +277,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		if (layoutWifi != null)
 			updateData(activity);
 
-		if (Assist.isEmulator())
-			fabUp.hide();
+		//if (Assist.isEmulator())
+		//	fabUp.hide();
 		return new Failure<>();
 	}
 
@@ -294,7 +286,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	public void onLeave() {
 		if (handler != null)
 			handler.removeCallbacksAndMessages(null);
-		
+
 		DataStore.setOnDataChanged(null);
 		DataStore.setOnUploadProgress(null);
 		TrackerService.onNewDataFound = null;

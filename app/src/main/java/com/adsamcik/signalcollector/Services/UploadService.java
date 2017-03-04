@@ -57,7 +57,6 @@ public class UploadService extends JobService {
 	 * @param isBackground Is activated by background tracking
 	 */
 	public static void requestUpload(@NonNull Context c, boolean isBackground) {
-
 		SharedPreferences sp = Preferences.get(c);
 		int autoUpload = sp.getInt(Preferences.AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || !isBackground) {
