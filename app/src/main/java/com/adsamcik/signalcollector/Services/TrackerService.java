@@ -25,15 +25,15 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 
-import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.NoiseTracker;
-import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 
 import java.lang.ref.WeakReference;
@@ -48,46 +48,32 @@ public class TrackerService extends Service {
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
-
-	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
-
-	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
-
-
-	private static WeakReference<TrackerService> service;
-
-	private static long lockedUntil;
-	private static boolean backgroundActivated = false;
-
+	private static final int SERVICE_NOTIFICATION_ID = 7643;
 	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
 	public static Data dataEcho;
 	public static int distanceToWifi;
-
+	private static WeakReference<TrackerService> service;
+	private static long lockedUntil;
+	private static boolean backgroundActivated = false;
+	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
+	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
+	private final ArrayList<Data> data = new ArrayList<>();
 	private Location prevScanPos;
 	private long wifiScanTime;
-
-	private final ArrayList<Data> data = new ArrayList<>();
 	private LocationListener locationListener;
-
 	private ScanResult[] wifiScanData;
 	private LocationManager locationManager;
 	private TelephonyManager telephonyManager;
 	private WifiManager wifiManager;
 	private WifiReceiver wifiReceiver;
-
 	private boolean wasWifiEnabled = false;
-
 	private int saveAttemptsFailed = 0;
-
 	private NotificationManager notificationManager;
 	private PowerManager powerManager;
 	private PowerManager.WakeLock wakeLock;
-
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
-
-	private static final int SERVICE_NOTIFICATION_ID = 7643;
 
 	/**
 	 * Checks if service is running

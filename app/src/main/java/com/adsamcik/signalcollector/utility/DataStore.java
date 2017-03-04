@@ -38,6 +38,9 @@ public class DataStore {
 	private static final int MAX_FILE_SIZE = 1048576;
 
 	private static WeakReference<Context> contextWeak;
+	private static ICallback onDataChanged;
+	private static IValueCallback<Integer> onUploadProgress;
+	private static long approxSize = -1;
 
 	private static Context getContext() {
 		return contextWeak.get();
@@ -47,12 +50,6 @@ public class DataStore {
 		if (c != null)
 			contextWeak = new WeakReference<>(c.getApplicationContext());
 	}
-
-	private static ICallback onDataChanged;
-	private static IValueCallback<Integer> onUploadProgress;
-
-	private static long approxSize = -1;
-
 
 	/**
 	 * Call to invoke onDataChanged callback
