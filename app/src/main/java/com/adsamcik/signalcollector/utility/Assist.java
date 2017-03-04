@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.animation.ObjectAnimator;
-import android.animation.TimeInterpolator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -14,17 +13,14 @@ import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
-import android.os.CountDownTimer;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.ScrollView;
 
 import com.google.android.gms.common.ConnectionResult;

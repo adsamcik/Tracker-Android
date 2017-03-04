@@ -3,14 +3,12 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.FragmentManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -35,7 +33,6 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
@@ -63,7 +60,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final String TAG = "SignalsMap";
 	private String type = null;
 	private GoogleMap map;
-	private SupportMapFragment mapFragment;
 	private TileProvider tileProvider;
 
 	private LocationManager locationManager;
@@ -195,7 +191,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		});
 
-		mapFragment = SupportMapFragment.newInstance();
+		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
 		FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
 		fragmentTransaction.replace(R.id.container_map, mapFragment);
 		fragmentTransaction.commit();
@@ -258,10 +254,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 			private boolean checkTileExists(int x, int y, int zoom) {
-				int minZoom = 10;
-				int maxZoom = MAX_ZOOM;
-
-				return !(zoom < minZoom || zoom > maxZoom);
+				return !(zoom < 10 || zoom > MAX_ZOOM);
 			}
 		};
 

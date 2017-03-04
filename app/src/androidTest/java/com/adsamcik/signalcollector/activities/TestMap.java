@@ -1,24 +1,17 @@
 package com.adsamcik.signalcollector.activities;
 
-import android.app.Fragment;
-import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.InstrumentationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Environment;
-import android.os.RemoteException;
 import android.support.test.InstrumentationRegistry;
-import android.support.test.rule.ActivityTestRule;
 import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
-import android.support.test.uiautomator.v18.BuildConfig;
-import android.util.Log;
 
 import junit.framework.Assert;
 
@@ -98,22 +91,7 @@ public class TestMap {
 			Assert.assertEquals(mDevice.getCurrentPackageName(), PACKAGE);
 
 		}
-
-		//new ActivityTestRule(MainActivity.class).ge
 	}
-
-	/*public List<Fragment> getActiveFragments() {
-		ArrayList<Fragment> ret = new ArrayList<Fragment>();
-		for(WeakReference<Fragment> ref : fragList) {
-			Fragment f = ref.get();
-			if(f != null) {
-				if(f.isVisible()) {
-					ret.add(f);
-				}
-			}
-		}
-		return ret;
-	}*/
 
 	private UiObject2 waitForObject(BySelector selector) throws InterruptedException {
 		UiObject2 object = null;
@@ -131,7 +109,6 @@ public class TestMap {
 	}
 
 	private void takeScreenshot(String name) {
-		Log.d("TEST", "takeScreenshot");
 		String dir = String.format("%s/%s", Environment.getExternalStorageDirectory().getPath(), "test-screenshots");
 		File theDir = new File(dir);
 		if (!theDir.exists()) {
