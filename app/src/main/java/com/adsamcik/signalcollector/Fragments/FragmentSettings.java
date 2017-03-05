@@ -245,12 +245,12 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		return new Failure<>();
 	}
 
 	@Override
-	public void onLeave() {
+	public void onLeave(@NonNull FragmentActivity activity) {
 		if (signin != null) {
 			signin.forgetButtons();
 			signin = null;

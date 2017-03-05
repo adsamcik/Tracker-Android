@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
@@ -183,13 +184,13 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		//todo check if up to date
 		return new Failure<>();
 	}
 
 	@Override
-	public void onLeave() {
+	public void onLeave(@NonNull FragmentActivity activity) {
 		if (refreshLayout != null && refreshLayout.isRefreshing())
 			refreshLayout.setRefreshing(false);
 	}

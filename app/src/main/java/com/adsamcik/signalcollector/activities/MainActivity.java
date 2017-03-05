@@ -135,7 +135,7 @@ public class MainActivity extends FragmentActivity {
 			fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
 
 			if (currentFragment != null) {
-				currentFragment.onLeave();
+				currentFragment.onLeave(this);
 				fragmentTransaction.remove((Fragment) currentFragment);
 			}
 

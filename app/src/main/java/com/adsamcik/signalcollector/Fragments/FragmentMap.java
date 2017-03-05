@@ -102,9 +102,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	/**
 	 * This function should be called when fragment is left
 	 */
-	public void onLeave() {
-		Activity activity = getActivity();
-		Assert.assertNotNull(activity);
+	public void onLeave(@NonNull FragmentActivity activity) {
 		if (locationManager != null && checkLocationPermission(activity, false))
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
@@ -120,7 +118,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
-	public Failure<String> onEnter(FragmentActivity activity, FloatingActionButton fabOne, FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		if (!Assist.isPlayServiceAvailable(activity))
 			return new Failure<>("Play services are not available");
 		if (checkLocationPermission(activity, true)) {

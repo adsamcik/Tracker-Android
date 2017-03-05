@@ -242,7 +242,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public Failure<String> onEnter(final FragmentActivity activity, final FloatingActionButton fabOne, final FloatingActionButton fabTwo) {
+	public Failure<String> onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
@@ -290,7 +290,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 	@Override
-	public void onLeave() {
+	public void onLeave(@NonNull FragmentActivity activity) {
 		if (handler != null)
 			handler.removeCallbacksAndMessages(null);
 

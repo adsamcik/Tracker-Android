@@ -377,6 +377,7 @@ public class Assist {
 	 *
 	 * @return true if emulator is detected
 	 */
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public static boolean isEmulator() {
 		return Build.FINGERPRINT.startsWith("generic")
 				|| Build.FINGERPRINT.startsWith("unknown")
