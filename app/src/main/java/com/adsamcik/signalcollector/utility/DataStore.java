@@ -2,12 +2,14 @@ package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
+import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
@@ -95,10 +97,8 @@ public class DataStore {
 	 */
 	public static String[] getDataFileNames(boolean includeLast) {
 		int maxID = Preferences.get(getContext()).getInt(KEY_FILE_ID, -1);
-		if (maxID < 0)
+		if ((!includeLast && --maxID < 0) || maxID < 0)
 			return null;
-		if (!includeLast)
-			maxID--;
 		String[] fileNames = new String[maxID + 1];
 		for (int i = 0; i <= maxID; i++)
 			fileNames[i] = DATA_FILE + i;
@@ -229,6 +229,10 @@ public class DataStore {
 				deleteFile(name);
 		}
 		onDataChanged();
+
+		Bundle bundle = new Bundle();
+		bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
+		FirebaseAnalytics.getInstance(getContext()).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle);
 	}
 
 	/**
@@ -360,8 +364,10 @@ public class DataStore {
 	 * @return content of file as StringBuilder
 	 */
 	public static StringBuilder loadStringAsBuilder(@NonNull String fileName) {
-		if (!exists(fileName))
+		if (!exists(fileName)) {
+			FirebaseCrash.log("Tried loading file that does not exists");
 			return null;
+		}
 
 		try {
 			FileInputStream fis = getContext().openFileInput(fileName);
@@ -376,7 +382,6 @@ public class DataStore {
 			isr.close();
 			return stringBuilder;
 		} catch (Exception e) {
-			e.printStackTrace();
 			FirebaseCrash.report(e);
 			return null;
 		}

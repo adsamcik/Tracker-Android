@@ -159,9 +159,8 @@ public class UploadService extends JobService {
 			thread = new Thread(() -> {
 				Preferences.get(c).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 				String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
-				if (files == null || files.length == 0) {
-					Log.e(DataStore.TAG, "No file names were entered.");
-					FirebaseCrash.report(new Throwable("No file names were entered."));
+				if (files == null) {
+					FirebaseCrash.report(new Throwable("No files found. This should not happen."));
 					DataStore.onUpload(-1);
 					return;
 				}
@@ -171,15 +170,11 @@ public class UploadService extends JobService {
 				for (String fileName : files) {
 					queued--;
 					if (!Thread.currentThread().isInterrupted()) {
-						if (fileName == null || fileName.trim().length() == 0) {
-							Log.e(DataStore.TAG, "Null or empty file name was in load and upload task. This should not happen.");
-							FirebaseCrash.report(new Exception("Null or empty file name was in load and upload task. This should not happen."));
+						String data = DataStore.loadJsonArrayAppend(fileName);
+						if (data == null) {
+							FirebaseCrash.report(new Throwable("File has no data or does not exist. This is really weird."));
 							continue;
 						}
-
-						String data = DataStore.loadJsonArrayAppend(fileName);
-						if (data == null)
-							continue;
 
 						if (Assist.canUpload(c, source)) {
 							if (!upload(data, fileName)) {
