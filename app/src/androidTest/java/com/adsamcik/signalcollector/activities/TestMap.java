@@ -63,18 +63,18 @@ public class TestMap {
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
 		Thread.sleep(5000);
 
-		String[] items = new String[] {"action_tracker", "action_map", "action_stats", "action_settings"};
+		String[] items = new String[]{"action_tracker", "action_map", "action_stats", "action_settings"};
 		Random random = new Random(System.currentTimeMillis());
 
 		for (int i = 0; i < 100; i++) {
-			mDevice.findObject(By.res(PACKAGE, items[(int)(random.nextDouble() * items.length)])).click();
+			mDevice.findObject(By.res(PACKAGE, items[(int) (random.nextDouble() * items.length)])).click();
 			Thread.sleep(1000);
 		}
 
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
 		Thread.sleep(2000);
 
-		for(int i=0; i < 5; i++) {
+		for (int i = 0; i < 5; i++) {
 			mDevice.pressHome();
 			Thread.sleep(1000);
 			Context context = InstrumentationRegistry.getContext();
@@ -108,11 +108,12 @@ public class TestMap {
 		return object;
 	}
 
-	private void takeScreenshot(String name) {
+	private void takeScreenshot(String name) throws Exception {
 		String dir = String.format("%s/%s", Environment.getExternalStorageDirectory().getPath(), "test-screenshots");
 		File theDir = new File(dir);
 		if (!theDir.exists()) {
-			theDir.mkdir();
+			if (!theDir.mkdir())
+				throw new Exception();
 		}
 		mDevice.takeScreenshot(new File(String.format("%s/%s", dir, name)));
 	}
