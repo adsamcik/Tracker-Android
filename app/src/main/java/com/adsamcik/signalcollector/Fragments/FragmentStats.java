@@ -46,8 +46,6 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private SwipeRefreshLayout refreshLayout;
 
-	//todo add user stats
-
 	@Override
 	public void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -202,7 +200,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	@Override
 	public void onHomeAction() {
-		Assist.verticalSmoothScrollTo((ScrollView) view.findViewById(R.id.statsLayout).getParent(), 0, 500);
+		if (view != null)
+			Assist.verticalSmoothScrollTo((ScrollView) view.findViewById(R.id.statsLayout).getParent(), 0, 500);
 	}
 
 }
