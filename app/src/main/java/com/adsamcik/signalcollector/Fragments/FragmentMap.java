@@ -108,7 +108,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		locationListener.cleanup();
 
 		fabTwo = null;
-		menu.setCallback(null);
 		menu = null;
 	}
 
