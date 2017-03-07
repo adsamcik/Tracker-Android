@@ -300,9 +300,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onServiceStateChange = null;
 		progressBar.setVisibility(View.GONE);
 		progressBar.setAlpha(1);
-		fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
-		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
-		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.colorAccent)));
+		fabUp.setElevation(6 * activity.getResources().getDisplayMetrics().density);
+		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
+		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.colorAccent)));
 		fabUp = null;
 		fabTrack = null;
 	}
