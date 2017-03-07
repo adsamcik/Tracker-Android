@@ -12,7 +12,6 @@ import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.BuildConfig;

@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -47,8 +46,6 @@ import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
-
-import junit.framework.Assert;
 
 import java.net.HttpURLConnection;
 import java.net.URL;

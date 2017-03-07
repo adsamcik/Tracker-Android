@@ -17,7 +17,6 @@ import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.widget.LinearLayout;
 
-import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.DataStore;
@@ -46,6 +45,8 @@ public class MainActivity extends FragmentActivity {
 	private ITabFragment currentFragment = null;
 
 	private Signin signin;
+
+	private final String BUNDLE_FRAGMENT = "fragment";
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -86,26 +87,11 @@ public class MainActivity extends FragmentActivity {
 		final FragmentActivity activity = this;
 
 		bottomNavigationView.setOnNavigationItemSelectedListener(
-				item -> {
-					switch (item.getItemId()) {
-						case R.id.action_tracker:
-							handleBottomNav(FragmentTracker.class, R.string.menu_tracker);
-							break;
-						case R.id.action_map:
-							handleBottomNav(FragmentMap.class, R.string.menu_map);
-							break;
-						case R.id.action_stats:
-							handleBottomNav(FragmentStats.class, R.string.menu_stats);
-							break;
-						case R.id.action_settings:
-							handleBottomNav(FragmentSettings.class, R.string.menu_settings);
-							break;
-						default:
-							FirebaseCrash.report(new Throwable("Unknown fragment item id " + item.getItemId()));
-							return false;
-					}
-					return true;
-				});
+				item -> changeFragment(item.getItemId()));
+
+		if (savedInstanceState != null) {
+			changeFragment(savedInstanceState.getInt(BUNDLE_FRAGMENT));
+		}
 
 		FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
 		currentFragment = new FragmentTracker();
@@ -121,6 +107,48 @@ public class MainActivity extends FragmentActivity {
 		if (token != null)
 			Network.registerToken(token, context);
 		//}
+	}
+
+	private boolean changeFragment(int index) {
+		switch (index) {
+			case R.id.action_tracker:
+				handleBottomNav(FragmentTracker.class, R.string.menu_tracker);
+				break;
+			case R.id.action_map:
+				handleBottomNav(FragmentMap.class, R.string.menu_map);
+				break;
+			case R.id.action_stats:
+				handleBottomNav(FragmentStats.class, R.string.menu_stats);
+				break;
+			case R.id.action_settings:
+				handleBottomNav(FragmentSettings.class, R.string.menu_settings);
+				break;
+			default:
+				FirebaseCrash.report(new Throwable("Unknown fragment item id " + index));
+				return false;
+		}
+		return true;
+	}
+
+	@Override
+	protected void onSaveInstanceState(Bundle outState) {
+		super.onSaveInstanceState(outState);
+
+		switch (currentFragment.getClass().getSimpleName()) {
+			case "FragmentTracker":
+				outState.putInt(BUNDLE_FRAGMENT, 0);
+				break;
+			case "FragmentMap":
+				outState.putInt(BUNDLE_FRAGMENT, 1);
+				break;
+			case "FragmentStats":
+				outState.putInt(BUNDLE_FRAGMENT, 2);
+				break;
+			case "FragmentSettings":
+				outState.putInt(BUNDLE_FRAGMENT, 3);
+				break;
+
+		}
 	}
 
 	void handleBottomNav(Class tClass, @StringRes int resId) {

@@ -1,4 +1,4 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <string name="error_missing_permission">App does not have required permission</string>
     <string name="error_play_services_not_available">Play services are not available</string>
     <string name="error_failed_to_update_stats">Failed to update stats</string>
