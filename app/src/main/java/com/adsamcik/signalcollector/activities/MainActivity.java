@@ -182,7 +182,7 @@ public class MainActivity extends FragmentActivity {
 				signin.onSignedIn(token, true);
 				Network.registerUser(token, this);
 			} else
-				new SnackMaker(this).showSnackbar("Failed to sign in, check internet connection");
+				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
 		}
 	}
 }
