@@ -5,6 +5,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.zip.ZipEntry;
@@ -15,7 +16,7 @@ public final class Compress {
 
 	private Compress() {}
 
-	public static void zip(final String[] files, final String zipFile) {
+	public static File zip(final String[] files, final String zipFile) {
 		try  {
 			BufferedInputStream origin;
 			FileOutputStream dest = new FileOutputStream(zipFile);
@@ -37,8 +38,10 @@ public final class Compress {
 			}
 
 			out.close();
+			return new File(zipFile);
 		} catch(Exception e) {
 			FirebaseCrash.report(e);
 		}
+		return null;
 	}
 }
