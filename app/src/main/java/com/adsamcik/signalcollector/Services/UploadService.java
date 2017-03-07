@@ -15,14 +15,20 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.security.InvalidParameterException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
+import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -121,7 +127,7 @@ public class UploadService extends JobService {
 		RequestBody formBody = new MultipartBody.Builder()
 				.setType(MultipartBody.FORM)
 				.addFormDataPart("imei", imei)
-				.addFormDataPart("hash", Network.generateVerificationString(imei, serialized))
+				.addFormDataPart("hash", Network.generateVerificationString(imei, (long) serialized.length()))
 				.addFormDataPart("data", serialized)
 				.build();
 		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
@@ -132,6 +138,39 @@ public class UploadService extends JobService {
 			response.close();
 			if (isSuccessful) {
 				deleteFile(name);
+				return true;
+			}
+			FirebaseCrash.report(new Throwable("Upload failed " + code));
+			return false;
+		} catch (IOException e) {
+			return false;
+		}
+	}
+
+	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
+
+	/**
+	 * Uploads data to server.
+	 *
+	 * @param file file to be uploaded
+	 */
+	private boolean upload(final File file) {
+		String imei = Assist.getImei();
+		RequestBody formBody = new MultipartBody.Builder()
+				.setType(MultipartBody.FORM)
+				.addFormDataPart("imei", imei)
+				.addFormDataPart("hash", )
+				.addFormDataPart("data", Network.generateVerificationString(imei, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
+				.build();
+		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
+		try {
+			Response response = this.client.newCall(request).execute();
+			int code = response.code();
+			boolean isSuccessful = response.isSuccessful();
+			response.close();
+			if (isSuccessful) {
+				if (!file.delete())
+					throw new IOException("Failed to delete file " + file.getName() + ". This should never happen.");
 				return true;
 			}
 			FirebaseCrash.report(new Throwable("Upload failed " + code));
@@ -162,33 +201,20 @@ public class UploadService extends JobService {
 					FirebaseCrash.report(new Throwable("No files found. This should not happen."));
 					DataStore.onUpload(-1);
 					return;
-				}
-
-				queued = files.length;
-				originalQueueLength = files.length;
-				for (String fileName : files) {
-					queued--;
-					if (!Thread.currentThread().isInterrupted()) {
-						String data = DataStore.loadJsonArrayAppend(fileName);
-						if (data == null) {
-							FirebaseCrash.report(new Throwable("File has no data or does not exist. This is really weird."));
-							continue;
-						}
-
-						if (Assist.canUpload(c, source)) {
-							if (!upload(data, fileName)) {
-								requestUpload(c, source);
-								DataStore.onUpload(-1);
-								break;
-							}
-							DataStore.onUpload(calculateUploadPercentage());
-						} else {
-							DataStore.onUpload(-1);
-							break;
-						}
+				} else if (!Assist.canUpload(c, source)) {
+					DataStore.onUpload(-1);
+					requestUpload(c, source);
+					return;
+				} else {
+					String zipName = "up" + System.currentTimeMillis();
+					File f = Compress.zip(files, getFilesDir().getAbsolutePath() + File.separatorChar + zipName);
+					if (upload(f)) {
+						for (String file : files)
+							DataStore.deleteFile(file);
+						DataStore.onUpload(100);
 					} else {
 						DataStore.onUpload(-1);
-						break;
+						requestUpload(c, source);
 					}
 				}
 
