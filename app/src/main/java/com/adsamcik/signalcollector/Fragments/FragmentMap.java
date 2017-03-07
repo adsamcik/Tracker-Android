@@ -119,13 +119,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 */
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		if (!Assist.isPlayServiceAvailable(activity))
-			return new Failure<>("Play services are not available");
+			return new Failure<>(activity.getString(R.string.error_play_services_not_available));
 		if (checkLocationPermission(activity, true)) {
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
 			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 		} else
-			return new Failure<>("App does not have required permissions.");
+			return new Failure<>(activity.getString(R.string.error_missing_permission));
 
 		this.fabTwo = fabTwo;
 
