@@ -431,6 +431,13 @@ public class Assist {
 		return new ColorDrawable(color);
 	}
 
+	/**
+	 * Animate smooth scroll to y coordinate
+	 *
+	 * @param scrollView Scroll view
+	 * @param y          target y coordinate
+	 * @param millis     duration of animation
+	 */
 	public static void verticalSmoothScrollTo(final ScrollView scrollView, final int y, final int millis) {
 		ObjectAnimator.ofInt(scrollView, "scrollY", scrollView.getScrollY(), y).setDuration(millis).start();
 	}
