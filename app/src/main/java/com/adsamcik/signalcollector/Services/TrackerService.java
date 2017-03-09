@@ -48,36 +48,55 @@ public class TrackerService extends Service {
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
-	private static final int NOTIFCATION_ID_SERVICE = 7643;
-	private static final int NOTIFICATION_ID_MOCK_LOCATION = 4578;
-	final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
-	final float MIN_DISTANCE_M = 5;
+	private static final int NOTIFICATION_ID_SERVICE = 7643;
+	private final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
+	private final float MIN_DISTANCE_M = 5;
 	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
+
+	/**
+	 * Data from previous collection
+	 */
 	public static Data dataEcho;
+	/**
+	 * Extra information about distance for tracker
+	 */
 	public static int distanceToWifi;
+
+	/**
+	 * Weak reference to service for AutoLock and check if service is running
+	 */
 	private static WeakReference<TrackerService> service;
 	private static long lockedUntil;
 	private static boolean backgroundActivated = false;
 	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 	private final ArrayList<Data> data = new ArrayList<>();
-	private Location prevScanPos;
 	private long wifiScanTime;
+	private boolean wasWifiEnabled = false;
+	private int saveAttemptsFailed = 0;
 	private LocationListener locationListener;
 	private ScanResult[] wifiScanData;
+	private WifiReceiver wifiReceiver;
+	private NotificationManager notificationManager;
+
+	private PowerManager powerManager;
+	private PowerManager.WakeLock wakeLock;
 	private LocationManager locationManager;
 	private TelephonyManager telephonyManager;
 	private WifiManager wifiManager;
-	private WifiReceiver wifiReceiver;
-	private boolean wasWifiEnabled = false;
-	private int saveAttemptsFailed = 0;
-	private NotificationManager notificationManager;
-	private PowerManager powerManager;
-	private PowerManager.WakeLock wakeLock;
+
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
+
+	/**
+	 * True if previous collection was mocked
+	 */
 	private boolean prevMocked = false;
+
+	/**
+	 * Previous location of collection
+	 */
 	private Location prevLocation = null;
 
 	/**
@@ -121,7 +140,6 @@ public class TrackerService extends Service {
 	private void updateData(Location location) {
 		if (location.isFromMockProvider()) {
 			prevMocked = true;
-			prevLocation = location;
 			return;
 		} else if (prevMocked) {
 			prevMocked = false;
@@ -133,14 +151,15 @@ public class TrackerService extends Service {
 			stopSelf();
 			return;
 		}
+
 		wakeLock.acquire();
 		Data d = new Data(System.currentTimeMillis());
 
 		if (wifiManager != null) {
-			if (wifiScanData != null && prevScanPos != null) {
-				double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
+			if (wifiScanData != null && prevLocation != null) {
+				double timeDiff = (double) (wifiScanTime - prevLocation.getTime()) / (double) (d.time - prevLocation.getTime());
 				if (timeDiff >= 0) {
-					float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
+					float distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff));
 					distanceToWifi = (int) distTo;
 					//Log.d(TAG, "dist to wifi " + distTo);
 					int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
@@ -151,8 +170,6 @@ public class TrackerService extends Service {
 			}
 
 			wifiManager.startScan();
-			prevScanPos = location;
-			prevScanPos.setTime(d.time);
 		}
 
 		if (telephonyManager != null && !Assist.isAirplaneMode(this)) {
@@ -181,7 +198,10 @@ public class TrackerService extends Service {
 
 		DataStore.incSizeOfData(DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length);
 
-		notificationManager.notify(NOTIFCATION_ID_SERVICE, generateNotification(true, d));
+		prevLocation = location;
+		prevLocation.setTime(d.time);
+
+		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d));
 		if (onNewDataFound != null)
 			onNewDataFound.callback();
 
@@ -299,7 +319,7 @@ public class TrackerService extends Service {
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
 				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					notificationManager.notify(NOTIFCATION_ID_SERVICE, generateNotification(false, null));
+					notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null));
 			}
 
 			public void onProviderEnabled(String provider) {
@@ -342,7 +362,7 @@ public class TrackerService extends Service {
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		lockedUntil = 0;
 		backgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false);
-		startForeground(NOTIFCATION_ID_SERVICE, generateNotification(false, null));
+		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
 		if (Preferences.get(this).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false))
