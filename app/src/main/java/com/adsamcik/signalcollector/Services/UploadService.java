@@ -159,7 +159,6 @@ public class UploadService extends JobService {
 		RequestBody formBody = new MultipartBody.Builder()
 				.setType(MultipartBody.FORM)
 				.addFormDataPart("imei", imei)
-				.addFormDataPart("hash", )
 				.addFormDataPart("data", Network.generateVerificationString(imei, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 				.build();
 		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
