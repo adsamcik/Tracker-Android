@@ -13,20 +13,19 @@ import android.os.Build;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 
+import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.utility.Compress;
+import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.security.InvalidParameterException;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -37,22 +36,13 @@ import okhttp3.Response;
 
 public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
-	private static final String KEY_IS_AUTOUPLOAD = "isAutoupload";
+	private static final String KEY_SOURCE = "source";
+	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
 	private static Thread thread;
-	private final OkHttpClient client = new OkHttpClient();
-	private static int queued = 0;
-	private static int originalQueueLength;
-
-	public static int getUploadPercentage() {
-		return thread == null || !thread.isAlive() ? 0 : calculateUploadPercentage();
-	}
-
-	private static int calculateUploadPercentage() {
-		return (int) ((1 - (queued / (double) originalQueueLength)) * 100);
-	}
+	private static boolean isUploading = false;
 
 	public static boolean isUploading() {
-		return queued > 0;
+		return isUploading;
 	}
 
 	public static UploadScheduleSource getUploadScheduled(@NonNull Context c) {
@@ -66,9 +56,11 @@ public class UploadService extends JobService {
 	 * @param c      Non-null context
 	 * @param source Source that started the upload
 	 */
-	public static void requestUpload(@NonNull Context c, UploadScheduleSource source) {
+	public static Failure<String> requestUpload(@NonNull Context c, UploadScheduleSource source) {
 		if (source.equals(UploadScheduleSource.NONE))
 			throw new InvalidParameterException("Upload source can't be NONE.");
+		else if(isUploading)
+			return new Failure<>(c.getString(R.string.error_upload_in_progress));
 
 		SharedPreferences sp = Preferences.get(c);
 		int autoUpload = sp.getInt(Preferences.AUTO_UPLOAD, 1);
@@ -77,17 +69,7 @@ public class UploadService extends JobService {
 			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(c, UploadService.class));
 			jb.setPersisted(true);
 			if (source.equals(UploadScheduleSource.USER)) {
-				ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
-				NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-				//todo implement roaming upload
-				if (activeNetwork == null || activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
-					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
-				} else {
-					if (Build.VERSION.SDK_INT >= 24)
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
-					else
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-				}
+				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
 			} else {
 				if (autoUpload == 2) {
 					if (Build.VERSION.SDK_INT >= 24)
@@ -98,56 +80,13 @@ public class UploadService extends JobService {
 					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
 			}
 			PersistableBundle pb = new PersistableBundle(1);
-			pb.putInt(KEY_IS_AUTOUPLOAD, source.ordinal());
+			pb.putInt(KEY_SOURCE, source.ordinal());
 			jb.setExtras(pb);
 			scheduler.schedule(jb.build());
 			updateUploadScheduleSource(c, source);
 		}
+		return new Failure<>();
 	}
-
-	/**
-	 * Uploads data to server.
-	 *
-	 * @param data json array of data
-	 * @param name name of the file with the data (Function will clear the file afterwards)
-	 */
-	private boolean upload(final String data, final String name) {
-		if (data.isEmpty()) {
-			return false;
-		}
-
-		final String serialized = "{\"imei\":" + Assist.getImei() +
-				",\"device\":\"" + Build.MODEL +
-				"\",\"manufacturer\":\"" + Build.MANUFACTURER +
-				"\",\"api\":" + Build.VERSION.SDK_INT +
-				",\"version\":" + BuildConfig.VERSION_CODE + "," +
-				"\"data\":" + data + "}";
-
-		String imei = Assist.getImei();
-		RequestBody formBody = new MultipartBody.Builder()
-				.setType(MultipartBody.FORM)
-				.addFormDataPart("imei", imei)
-				.addFormDataPart("hash", Network.generateVerificationString(imei, (long) serialized.length()))
-				.addFormDataPart("data", serialized)
-				.build();
-		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
-		try {
-			Response response = this.client.newCall(request).execute();
-			int code = response.code();
-			boolean isSuccessful = response.isSuccessful();
-			response.close();
-			if (isSuccessful) {
-				deleteFile(name);
-				return true;
-			}
-			FirebaseCrash.report(new Throwable("Upload failed " + code));
-			return false;
-		} catch (IOException e) {
-			return false;
-		}
-	}
-
-	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
 
 	/**
 	 * Uploads data to server.
@@ -163,7 +102,7 @@ public class UploadService extends JobService {
 				.build();
 		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
 		try {
-			Response response = this.client.newCall(request).execute();
+			Response response = new OkHttpClient().newCall(request).execute();
 			int code = response.code();
 			boolean isSuccessful = response.isSuccessful();
 			response.close();
@@ -175,6 +114,7 @@ public class UploadService extends JobService {
 			FirebaseCrash.report(new Throwable("Upload failed " + code));
 			return false;
 		} catch (IOException e) {
+			FirebaseCrash.report(e);
 			return false;
 		}
 	}
@@ -192,17 +132,15 @@ public class UploadService extends JobService {
 		DataStore.setContext(c);
 		if (!Assist.isInitialized())
 			Assist.initialize(c);
+
 		if (thread == null || !thread.isAlive()) {
+			isUploading = true;
 			thread = new Thread(() -> {
 				Preferences.get(c).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 				String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
 				if (files == null) {
 					FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 					DataStore.onUpload(-1);
-					return;
-				} else if (!Assist.canUpload(c, source)) {
-					DataStore.onUpload(-1);
-					requestUpload(c, source);
 					return;
 				} else {
 					String zipName = "up" + System.currentTimeMillis();
@@ -219,6 +157,7 @@ public class UploadService extends JobService {
 
 				DataStore.cleanup();
 				DataStore.recountDataSize();
+				isUploading = false;
 			});
 
 			thread.start();
@@ -234,7 +173,7 @@ public class UploadService extends JobService {
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		return uploadAll(UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_IS_AUTOUPLOAD)]);
+		return uploadAll(UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)]);
 	}
 
 	@Override
@@ -243,7 +182,6 @@ public class UploadService extends JobService {
 			thread.interrupt();
 		DataStore.cleanup();
 		DataStore.recountDataSize();
-		queued = 0;
 		return true;
 	}
 

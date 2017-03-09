@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.lang.ref.WeakReference;
 import java.math.RoundingMode;
@@ -245,8 +246,10 @@ public class TrackerService extends Service {
 				stopSelf();
 		} else {
 			data.clear();
-			if (result == 2)
+			if (result == 2) {
 				UploadService.requestUpload(getApplicationContext(), UploadService.UploadScheduleSource.BACKGROUND);
+				FirebaseCrash.log("Requested upload from tracking");
+			}
 		}
 	}
 

@@ -173,8 +173,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 							setCloudStatus(2);
 							updateUploadProgress(0);
 							final Context context = getContext();
-							UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
+							Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
 							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
+							if(failure.hasFailed())
+								new SnackMaker(getActivity()).showSnackbar(failure.value);
 						}
 				);
 				fabUp.show();
@@ -247,9 +249,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		fabUp = fabTwo;
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
 
-		if (UploadService.isUploading())
-			updateUploadProgress(UploadService.getUploadPercentage());
-		else if (UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
+		if (UploadService.isUploading() || UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
 			setCloudStatus(2);
 			updateUploadProgress(0);
 		} else {

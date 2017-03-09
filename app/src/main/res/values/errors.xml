@@ -7,4 +7,5 @@
     <string name="error_invalid_data">Received invalid data</string>
     <string name="error_no_data">Unable to get data</string>
     <string name="error_failed_signin">Failed to Sign in, check internet connection</string>
+    <string name="error_upload_in_progress">Another upload is already in progress</string>
 </resources>
