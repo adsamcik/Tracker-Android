@@ -21,6 +21,7 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 		SharedPreferences sp = Preferences.get(context);
 		SharedPreferences.Editor editor = sp.edit();
 		DataStore.setContext(context);
+		Assist.initialize(context);
 		DataStore.cleanup();
 
 		File[] files = context.getFilesDir().listFiles();
