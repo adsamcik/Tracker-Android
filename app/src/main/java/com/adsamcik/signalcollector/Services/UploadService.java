@@ -197,7 +197,7 @@ public class UploadService extends JobService {
 				Preferences.get(c).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 				String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
 				if (files == null) {
-					FirebaseCrash.report(new Throwable("No files found. This should not happen."));
+					FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 					DataStore.onUpload(-1);
 					return;
 				} else if (!Assist.canUpload(c, source)) {
