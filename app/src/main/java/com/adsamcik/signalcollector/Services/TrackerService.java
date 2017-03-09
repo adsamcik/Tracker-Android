@@ -48,7 +48,10 @@ public class TrackerService extends Service {
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
-	private static final int SERVICE_NOTIFICATION_ID = 7643;
+	private static final int NOTIFCATION_ID_SERVICE = 7643;
+	private static final int NOTIFICATION_ID_MOCK_LOCATION = 4578;
+	final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
+	final float MIN_DISTANCE_M = 5;
 	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
 	public static Data dataEcho;
@@ -74,6 +77,8 @@ public class TrackerService extends Service {
 	private PowerManager.WakeLock wakeLock;
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
+	private boolean prevMocked = false;
+	private Location prevLocation = null;
 
 	/**
 	 * Checks if service is running
@@ -114,6 +119,16 @@ public class TrackerService extends Service {
 	}
 
 	private void updateData(Location location) {
+		if (location.isFromMockProvider()) {
+			prevMocked = true;
+			prevLocation = location;
+			return;
+		} else if (prevMocked) {
+			prevMocked = false;
+			if (location.distanceTo(prevLocation) < MIN_DISTANCE_M)
+				return;
+		}
+
 		if (location.getAltitude() > 5600) {
 			stopSelf();
 			return;
@@ -121,20 +136,20 @@ public class TrackerService extends Service {
 		wakeLock.acquire();
 		Data d = new Data(System.currentTimeMillis());
 
-		if (wifiScanData != null && prevScanPos != null) {
-			double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
-			if (timeDiff >= 0) {
-				float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
-				distanceToWifi = (int) distTo;
-				//Log.d(TAG, "dist to wifi " + distTo);
-				int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
-				if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
-					d.setWifi(wifiScanData, wifiScanTime);
-			}
-			wifiScanData = null;
-		}
-
 		if (wifiManager != null) {
+			if (wifiScanData != null && prevScanPos != null) {
+				double timeDiff = (double) (wifiScanTime - prevScanPos.getTime()) / (double) (d.time - prevScanPos.getTime());
+				if (timeDiff >= 0) {
+					float distTo = location.distanceTo(Assist.interpolateLocation(prevScanPos, location, timeDiff));
+					distanceToWifi = (int) distTo;
+					//Log.d(TAG, "dist to wifi " + distTo);
+					int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
+					if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
+						d.setWifi(wifiScanData, wifiScanTime);
+				}
+				wifiScanData = null;
+			}
+
 			wifiManager.startScan();
 			prevScanPos = location;
 			prevScanPos.setTime(d.time);
@@ -166,7 +181,7 @@ public class TrackerService extends Service {
 
 		DataStore.incSizeOfData(DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length);
 
-		notificationManager.notify(SERVICE_NOTIFICATION_ID, generateNotification(true, d));
+		notificationManager.notify(NOTIFCATION_ID_SERVICE, generateNotification(true, d));
 		if (onNewDataFound != null)
 			onNewDataFound.callback();
 
@@ -275,17 +290,16 @@ public class TrackerService extends Service {
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
 		//Enable location update
-		final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
-		final float MIN_DISTANCE_M = 5;
 
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
 				updateData(location);
+
 			}
 
 			public void onStatusChanged(String provider, int status, Bundle extras) {
 				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					notificationManager.notify(SERVICE_NOTIFICATION_ID, generateNotification(false, null));
+					notificationManager.notify(NOTIFCATION_ID_SERVICE, generateNotification(false, null));
 			}
 
 			public void onProviderEnabled(String provider) {
@@ -313,7 +327,7 @@ public class TrackerService extends Service {
 		}
 
 		//Cell tracking setup
-		if(sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true)) {
+		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true)) {
 			telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
 		}
 
@@ -328,7 +342,7 @@ public class TrackerService extends Service {
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		lockedUntil = 0;
 		backgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false);
-		startForeground(SERVICE_NOTIFICATION_ID, generateNotification(false, null));
+		startForeground(NOTIFCATION_ID_SERVICE, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
 		if (Preferences.get(this).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false))
