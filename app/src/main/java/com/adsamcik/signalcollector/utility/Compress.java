@@ -40,6 +40,7 @@ public final class Compress {
 			out.close();
 			return new File(zipFile);
 		} catch(Exception e) {
+			e.printStackTrace();
 			FirebaseCrash.report(e);
 		}
 		return null;

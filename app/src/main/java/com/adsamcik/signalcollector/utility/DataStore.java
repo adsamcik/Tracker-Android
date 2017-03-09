@@ -2,10 +2,12 @@ package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
@@ -30,7 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class DataStore {
-	public static final String TAG = "DATA-STORE";
+	public static final String TAG = "SignalsDatastore";
 
 	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 	private static final String DATA_FILE = "dataStore";
@@ -247,19 +249,36 @@ public class DataStore {
 
 		int id = sp.getInt(KEY_FILE_ID, 0);
 		boolean newFile = false;
-
-		if (sizeOf(DATA_FILE + id) > MAX_FILE_SIZE) {
+		long fileSize = sizeOf(DATA_FILE + id);
+		if (fileSize > 0) {
+			saveStringAppend(DATA_FILE + id, "]}");
+			String s = loadString(DATA_FILE + id);
+			Log.d(TAG, s.substring(0, 50));
+			Log.d(TAG, s.substring(s.length() - 20, s.length() - 1));
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
 			onDataChanged();
+		}
+
+		if (fileSize == 0 || newFile) {
+			data = "{\"imei\":" + Assist.getImei() +
+					",\"device\":\"" + Build.MODEL +
+					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
+					"\",\"api\":" + Build.VERSION.SDK_INT +
+					",\"version\":" + BuildConfig.VERSION_CODE + "," +
+					"\"data\":" + data;
 		}
 
 
 		if (!saveJsonArrayAppend(DATA_FILE + id, data))
 			return 1;
 
-		int size = data.getBytes(Charset.defaultCharset()).length;
-		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + size).apply();
+		String s = loadString(DATA_FILE + id);
+		Log.d(TAG, s.substring(0, 50));
+		Log.d(TAG, s.substring(s.length() - 20, s.length() - 1));
+
+		int dataSize = data.getBytes(Charset.defaultCharset()).length;
+		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + dataSize).apply();
 
 		return newFile && id > 0 ? 2 : 0;
 	}
@@ -286,6 +305,20 @@ public class DataStore {
 		return true;
 	}
 
+	public static boolean saveStringAppend(String fileName, String data) {
+		try {
+			FileOutputStream outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND);
+			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
+			osw.write(data);
+			osw.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+			FirebaseCrash.report(e);
+			return false;
+		}
+		return true;
+	}
+
 	/**
 	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
 	 *
@@ -295,10 +328,13 @@ public class DataStore {
 	 */
 	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) {
 		StringBuilder sb = new StringBuilder(data);
-		if (sb.charAt(0) == '[')
-			sb.setCharAt(0, ',');
-		else
-			sb.insert(0, ',');
+		char firstChar = sizeOf(fileName) == 0 ? '[' : ',';
+		if (firstChar == ',') {
+			if (sb.charAt(0) == '[')
+				sb.setCharAt(0, ',');
+			else
+				sb.insert(0, ',');
+		}
 
 		if (sb.charAt(sb.length() - 1) == ']')
 			sb.deleteCharAt(sb.length() - 1);
@@ -326,7 +362,6 @@ public class DataStore {
 	public static String loadJsonArrayAppend(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
 		if (sb != null && sb.length() != 0) {
-			sb.setCharAt(0, '[');
 			sb.append(']');
 			return sb.toString();
 		}

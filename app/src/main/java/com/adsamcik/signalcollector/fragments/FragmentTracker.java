@@ -196,7 +196,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 	void updateUploadProgress(final int percentage) {
-		final Context context = getContext();
+		final Context context = getActivity();
 		progressBar.setVisibility(View.VISIBLE);
 		fabUp.setElevation(0);
 		if (handler == null)

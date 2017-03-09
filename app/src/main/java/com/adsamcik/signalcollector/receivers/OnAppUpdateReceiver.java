@@ -13,8 +13,6 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.crash.FirebaseCrash;
 
-import java.io.File;
-
 public class OnAppUpdateReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
@@ -24,15 +22,8 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 		Assist.initialize(context);
 		DataStore.cleanup();
 
-		File[] files = context.getFilesDir().listFiles();
-		for (File f : files) {
-			DataStore.saveString(f.getName(), "{\"imei\":" + Assist.getImei() +
-					",\"device\":\"" + Build.MODEL +
-					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
-					"\",\"api\":" + Build.VERSION.SDK_INT +
-					",\"version\":" + BuildConfig.VERSION_CODE + "," +
-					"\"data\":" + DataStore.loadJsonArrayAppend(f.getName()) + '}');
-		}
+		if(sp.getInt(Preferences.LAST_VERSION, 0) < 142)
+			DataStore.clearAllData();
 
 
 		try {
