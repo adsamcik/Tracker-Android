@@ -7,12 +7,14 @@ import android.app.job.JobService;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.BottomBarBehavior;
 import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -24,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.security.InvalidParameterException;
 
+import okhttp3.Call;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -35,8 +38,8 @@ public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
 	private static final String KEY_SOURCE = "source";
 	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
-	private static Thread thread;
 	private static boolean isUploading = false;
+	private JobWorker worker;
 
 	public static boolean isUploading() {
 		return isUploading;
@@ -85,46 +88,14 @@ public class UploadService extends JobService {
 		return new Failure<>();
 	}
 
-	/**
-	 * Uploads data to server.
-	 *
-	 * @param file file to be uploaded
-	 */
-	private boolean upload(final File file) {
-		if (file == null)
-			throw new InvalidParameterException("file is null");
-		String imei = Assist.getImei();
-		RequestBody formBody = new MultipartBody.Builder()
-				.setType(MultipartBody.FORM)
-				.addFormDataPart("imei", imei)
-				.addFormDataPart("file", Network.generateVerificationString(imei, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
-				.build();
-		Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
-		try {
-			Response response = new OkHttpClient().newCall(request).execute();
-			int code = response.code();
-			boolean isSuccessful = response.isSuccessful();
-			response.close();
-			if (isSuccessful) {
-				if (!file.delete()) {
-					FirebaseCrash.report(new IOException("Failed to delete file " + file.getName() + ". This should never happen."));
-				}
-				return true;
-			}
-			FirebaseCrash.report(new Throwable("Upload failed " + code));
-			return false;
-		} catch (IOException e) {
-			FirebaseCrash.report(e);
-			return false;
-		}
+	private static void updateUploadScheduleSource(@NonNull Context context, UploadScheduleSource uss) {
+		Preferences.get(context).edit().putInt(Preferences.SCHEDULED_UPLOAD, uss.ordinal()).apply();
 	}
 
-	/**
-	 * @param source source that started the upload
-	 * @return true if started
-	 */
-	private boolean uploadAll(final UploadScheduleSource source) {
-		if (source == UploadScheduleSource.NONE)
+	@Override
+	public boolean onStartJob(JobParameters jobParameters) {
+		Preferences.get(this).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
+		if (UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)] == UploadScheduleSource.NONE)
 			throw new InvalidParameterException("Upload source can't be NONE.");
 
 		DataStore.onUpload(0);
@@ -133,58 +104,24 @@ public class UploadService extends JobService {
 		if (!Assist.isInitialized())
 			Assist.initialize(c);
 
-		if (thread == null || !thread.isAlive()) {
-			isUploading = true;
-			thread = new Thread(() -> {
-				String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
-				if (files == null) {
-					FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
-					DataStore.onUpload(-1);
-					isUploading = false;
-					return;
-				} else {
-					if (source.equals(UploadScheduleSource.USER))
-						DataStore.closeUploadFile(files[files.length - 1]);
-					String zipName = "up" + System.currentTimeMillis();
-					File f = Compress.zip(getFilesDir().getAbsolutePath(), files, zipName);
-					if (upload(f)) {
-						for (String file : files)
-							DataStore.deleteFile(file);
-						DataStore.onUpload(100);
-					} else {
-						DataStore.onUpload(-1);
-						requestUpload(c, source);
-					}
-				}
-
-				DataStore.cleanup();
-				DataStore.recountDataSize();
+		isUploading = true;
+		worker = new JobWorker(getFilesDir().getAbsolutePath()) {
+			@Override
+			protected void onPostExecute(Boolean success) {
+				if(success)
+					DataStore.onUpload(100);
 				isUploading = false;
-			});
-
-			thread.start();
-			return true;
-		}
-		FirebaseCrash.report(new Throwable("Upload is initialized multiple times."));
-		return false;
-	}
-
-	private static void updateUploadScheduleSource(@NonNull Context context, UploadScheduleSource uss) {
-		Preferences.get(context).edit().putInt(Preferences.SCHEDULED_UPLOAD, uss.ordinal()).apply();
-	}
-
-	@Override
-	public boolean onStartJob(JobParameters jobParameters) {
-		Preferences.get(this).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
-		return uploadAll(UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)]);
+				jobFinished(jobParameters, !success);
+			}
+		};
+		worker.execute(jobParameters);
+		return true;
 	}
 
 	@Override
 	public boolean onStopJob(JobParameters jobParameters) {
-		if (thread != null && thread.isAlive())
-			thread.interrupt();
-		DataStore.cleanup();
-		DataStore.recountDataSize();
+		if (worker != null)
+			worker.cancel(true);
 		isUploading = false;
 		return true;
 	}
@@ -193,5 +130,96 @@ public class UploadService extends JobService {
 		NONE,
 		BACKGROUND,
 		USER
+	}
+
+	private static class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
+		private final String directory;
+		private File tempZipFile = null;
+		private Response response = null;
+		private Call call = null;
+
+		JobWorker(final String dir) {
+			this.directory = dir;
+		}
+
+		/**
+		 * Uploads data to server.
+		 *
+		 * @param file file to be uploaded
+		 */
+		private boolean upload(final File file) {
+			if (file == null)
+				throw new InvalidParameterException("file is null");
+			String imei = Assist.getImei();
+			RequestBody formBody = new MultipartBody.Builder()
+					.setType(MultipartBody.FORM)
+					.addFormDataPart("imei", imei)
+					.addFormDataPart("file", Network.generateVerificationString(imei, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
+					.build();
+			Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
+			try {
+				call = new OkHttpClient().newCall(request);
+				response = call.execute();
+				int code = response.code();
+				boolean isSuccessful = response.isSuccessful();
+				response.close();
+				if (isSuccessful) {
+					if (!file.delete()) {
+						FirebaseCrash.report(new IOException("Failed to delete file " + file.getName() + ". This should never happen."));
+					}
+					return true;
+				}
+				FirebaseCrash.report(new Throwable("Upload failed " + code));
+				return false;
+			} catch (IOException e) {
+				FirebaseCrash.report(e);
+				return false;
+			}
+		}
+
+		@Override
+		protected Boolean doInBackground(JobParameters... params) {
+			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
+			String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
+			if (files == null) {
+				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
+				DataStore.onUpload(-1);
+				isUploading = false;
+				return false;
+			} else {
+
+				if (source.equals(UploadScheduleSource.USER))
+					DataStore.closeUploadFile(files[files.length - 1]);
+				String zipName = "up" + System.currentTimeMillis();
+				tempZipFile = Compress.zip(directory, files, zipName);
+				if (upload(tempZipFile)) {
+					for (String file : files)
+						DataStore.deleteFile(file);
+					if (!tempZipFile.delete())
+						FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
+					tempZipFile = null;
+				} else {
+					DataStore.onUpload(-1);
+					return false;
+				}
+			}
+
+			DataStore.cleanup();
+			DataStore.recountDataSize();
+			return true;
+		}
+
+		@Override
+		protected void onCancelled() {
+			DataStore.cleanup();
+			DataStore.recountDataSize();
+			if (tempZipFile != null && tempZipFile.exists())
+				tempZipFile.delete();
+
+			if(call != null)
+				call.cancel();
+
+			super.onCancelled();
+		}
 	}
 }
