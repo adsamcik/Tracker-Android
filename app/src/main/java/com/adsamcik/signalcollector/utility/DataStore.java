@@ -264,7 +264,7 @@ public class DataStore {
 		int id = sp.getInt(KEY_FILE_ID, 0);
 		boolean newFile = false;
 		long fileSize = sizeOf(DATA_FILE + id);
-		if (fileSize > 0) {
+		if (fileSize > MAX_FILE_SIZE) {
 			saveStringAppend(DATA_FILE + id, "]}");
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
