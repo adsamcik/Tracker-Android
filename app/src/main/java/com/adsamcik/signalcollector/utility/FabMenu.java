@@ -7,9 +7,12 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.FragmentActivity;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
@@ -27,24 +30,23 @@ public class FabMenu {
 
 	private final ViewGroup wrapper;
 	private final ViewGroup menu;
+	private final ViewGroup container;
 
 	private IValueCallback<String> callback;
 
 	private final View.OnClickListener closeClickListener = (p) -> hide();
 
 	private boolean isVisible = false;
+	private boolean boundsCalculated = false;
 
-	public FabMenu(ViewGroup viewGroup, Context context) {
-		wrapper = (ViewGroup) LayoutInflater.from(context).inflate(R.layout.fab_menu, viewGroup, false);
+	public FabMenu(ViewGroup parent, FloatingActionButton fab, Context context) {
+		wrapper = (ViewGroup) LayoutInflater.from(context).inflate(R.layout.fab_menu, parent, false);
 		menu = (ViewGroup) wrapper.getChildAt(0);
+		container = (ViewGroup) menu.getChildAt(0);
 		wrapper.setVisibility(View.INVISIBLE);
 		menu.setVisibility(View.INVISIBLE);
-		viewGroup.addView(wrapper);
-	}
-
-	public FabMenu setFab(FloatingActionButton fab) {
+		parent.addView(wrapper);
 		this.fab = fab;
-		return this;
 	}
 
 	private void callback(String value) {
@@ -75,8 +77,41 @@ public class FabMenu {
 		TextView tv = (TextView) LayoutInflater.from(activity).inflate(R.layout.fab_menu_button, menu, false);
 		tv.setText(name);
 		tv.setOnClickListener(v -> callback(name));
-		activity.runOnUiThread(() -> menu.addView(tv));
+		activity.runOnUiThread(() -> container.addView(tv));
+		boundsCalculated = false;
 		return this;
+	}
+
+	public void recalculateBounds(@NonNull Context context) {
+		int maxHeight = wrapper.getHeight() / 2;
+		int height = container.getHeight();
+		if (height > maxHeight) {
+			height = maxHeight;
+		}
+
+		final int fabPos[] = new int[2];
+		final int fabParentPos[] = new int[2];
+		fab.getLocationOnScreen(fabPos);
+		View parent = ((View) fab.getParent().getParent().getParent());
+		parent.getLocationOnScreen(fabParentPos);
+
+		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+		menu.setX(displayMetrics.widthPixels - menu.getWidth() - Assist.dpToPx(context, 16));
+
+		int halfHeight = height / 2;
+		int offset = fabPos[1] + halfHeight;
+		int maxY = parent.getBottom() - Assist.dpToPx(context, 16);
+		if (offset > maxY)
+			offset = halfHeight + (offset - maxY);
+		int y = fabPos[1] - offset;
+		if (y > maxY)
+			y = maxY;
+		menu.setY(y);
+
+		FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(menu.getWidth(), height);
+		menu.setLayoutParams(layoutParams);
+		Log.d(TAG, "offset " + offset + " y " + y + " height " + menu.getHeight() + " target height " + height + " max height " + maxHeight);
+		boundsCalculated = true;
 	}
 
 	public FabMenu clear(final Activity activity) {
@@ -127,25 +162,17 @@ public class FabMenu {
 		}
 	}
 
-	public void show(@NonNull Context context) {
+	public void show(@NonNull Activity activity) throws NullPointerException {
 		if (fab == null)
 			throw new NullPointerException("Fab is null");
 		if (isVisible)
 			return;
 		isVisible = true;
+		recalculateBounds(activity);
 		wrapper.setVisibility(View.VISIBLE);
 		menu.setVisibility(View.INVISIBLE);
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
-
-		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
-		menu.setX(displayMetrics.widthPixels - Assist.dpToPx(context, 166));
-
-		int y = fabPos[1] - menu.getHeight() / 2 + 10;
-		int minHeight = displayMetrics.heightPixels - (menu.getHeight() + Assist.dpToPx(context, 8));
-		if (y > minHeight)
-			y = minHeight;
-		menu.setY(y);
 
 		final int pos[] = calculateRevealCenter();
 		Animate.RevealShow(menu, pos[0], pos[1], 0);

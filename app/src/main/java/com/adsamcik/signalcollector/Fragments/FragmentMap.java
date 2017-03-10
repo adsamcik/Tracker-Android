@@ -129,7 +129,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
-			if (checkLocationPermission(activity, true))
+			if (checkLocationPermission(activity, true) && map != null)
 				locationListener.moveToMyPosition();
 		});
 
@@ -150,8 +150,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else {
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
 		}
-		menu = new FabMenu((ViewGroup) container.getParent(), activity);
-		menu.setFab(fabTwo);
+		menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
 				menu.setCallback(this::changeMapOverlay);
