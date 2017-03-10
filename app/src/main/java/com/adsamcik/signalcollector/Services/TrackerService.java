@@ -24,6 +24,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
@@ -142,14 +143,17 @@ public class TrackerService extends Service {
 		if (location.isFromMockProvider()) {
 			prevMocked = true;
 			return;
-		} else if (prevMocked) {
+		} else if (prevMocked && prevLocation != null) {
 			prevMocked = false;
 			if (location.distanceTo(prevLocation) < MIN_DISTANCE_M)
 				return;
 		}
 
 		if (location.getAltitude() > 5600) {
-			stopSelf();
+			setAutoLock();
+			//todo add notification
+			if(!isBackgroundActivated())
+				stopSelf();
 			return;
 		}
 
