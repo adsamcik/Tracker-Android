@@ -54,7 +54,7 @@
     <plurals name="new_locations">
         <item quantity="zero">No new locations</item>
         <item quantity="one">1 new location</item>
-        <item quantity="other">%1$d new locations</item>
+        <item quantity="other">%d new locations</item>
     </plurals>
     <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new wifi</string>
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>

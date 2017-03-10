@@ -26,7 +26,7 @@ public class UploadStats {
 		StringBuilder stringBuilder = new StringBuilder();
 		int newLocations = this.newLocations + this.newNoiseLocations;
 		stringBuilder.append(resources.getString(R.string.notification_found)).append(' ');
-		stringBuilder.append(resources.getQuantityString(R.plurals.new_locations, newLocations)).append(", ");
+		stringBuilder.append(resources.getQuantityString(R.plurals.new_locations, newLocations, newLocations)).append(", ");
 
 		if (newWifi > 0)
 			stringBuilder.append(resources.getString(R.string.new_wifi, newWifi)).append(", ");
