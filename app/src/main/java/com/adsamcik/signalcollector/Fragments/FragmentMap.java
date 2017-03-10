@@ -175,14 +175,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
+		return view;
+	}
+
+	@Override
+	public void onCreate(@Nullable Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
 
 		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
 		FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
-		fragmentTransaction.replace(R.id.container_map, mapFragment);
+		fragmentTransaction.add(R.id.container_map, mapFragment);
 		fragmentTransaction.commit();
 		mapFragment.getMapAsync(this);
-
-		return view;
 	}
 
 	@Override

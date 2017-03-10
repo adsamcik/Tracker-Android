@@ -15,6 +15,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
@@ -76,22 +77,15 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setImageTintList(secondary);
 
 		BottomNavigationView bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_navigation);
-		final FragmentManager fragmentManager = getSupportFragmentManager();
-
-		final FragmentActivity activity = this;
 
 		bottomNavigationView.setOnNavigationItemSelectedListener(
 				item -> changeFragment(item.getItemId()));
 
 		if (savedInstanceState != null) {
 			changeFragment(savedInstanceState.getInt(BUNDLE_FRAGMENT));
+		} else {
+			changeFragment(R.id.action_tracker);
 		}
-
-		FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-		currentFragment = new FragmentTracker();
-		fragmentTransaction.replace(R.id.container, (FragmentTracker) currentFragment, getString(R.string.menu_tracker));
-		fragmentTransaction.commit();
-		currentFragment.onEnter(activity, fabOne, fabTwo);
 
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready
@@ -130,23 +124,23 @@ public class MainActivity extends FragmentActivity {
 
 		switch (currentFragment.getClass().getSimpleName()) {
 			case "FragmentTracker":
-				outState.putInt(BUNDLE_FRAGMENT, 0);
+				outState.putInt(BUNDLE_FRAGMENT, R.id.action_tracker);
 				break;
 			case "FragmentMap":
-				outState.putInt(BUNDLE_FRAGMENT, 1);
+				outState.putInt(BUNDLE_FRAGMENT, R.id.action_map);
 				break;
 			case "FragmentStats":
-				outState.putInt(BUNDLE_FRAGMENT, 2);
+				outState.putInt(BUNDLE_FRAGMENT, R.id.action_stats);
 				break;
 			case "FragmentSettings":
-				outState.putInt(BUNDLE_FRAGMENT, 3);
+				outState.putInt(BUNDLE_FRAGMENT, R.id.action_settings);
 				break;
 
 		}
 	}
 
 	void handleBottomNav(Class tClass, @StringRes int resId) {
-		if (currentFragment.getClass() == tClass)
+		if (currentFragment != null && currentFragment.getClass() == tClass)
 			currentFragment.onHomeAction();
 		else {
 			fabOne.hide();
