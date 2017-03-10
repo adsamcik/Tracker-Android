@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -22,7 +23,7 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 		Assist.initialize(context);
 		DataStore.cleanup();
 
-		if(sp.getInt(Preferences.LAST_VERSION, 0) < 142)
+		if (sp.getInt(Preferences.LAST_VERSION, 0) < 142)
 			DataStore.clearAllData();
 
 
@@ -32,5 +33,10 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			FirebaseCrash.report(e);
 		}
 		editor.apply();
+
+		UploadService.UploadScheduleSource uss = UploadService.getUploadScheduled(context);
+		if (uss != UploadService.UploadScheduleSource.NONE) {
+			UploadService.requestUpload(context, uss);
+		}
 	}
 }
