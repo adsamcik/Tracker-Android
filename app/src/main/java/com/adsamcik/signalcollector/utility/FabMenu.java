@@ -5,6 +5,7 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.app.FragmentActivity;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -79,7 +80,18 @@ public class FabMenu {
 	}
 
 	public FabMenu clear(final Activity activity) {
-		activity.runOnUiThread(menu::removeAllViews);
+		if (activity != null)
+			activity.runOnUiThread(menu::removeAllViews);
+		return this;
+	}
+
+	public FabMenu destroy(final Activity activity) {
+		if (activity != null)
+			activity.runOnUiThread(() -> {
+				wrapper.removeAllViews();
+				((ViewGroup) wrapper.getParent()).removeView(wrapper);
+			});
+
 		return this;
 	}
 
@@ -102,6 +114,17 @@ public class FabMenu {
 		wrapper.setOnClickListener(null);
 		final int pos[] = calculateRevealCenter();
 		Animate.RevealHide(menu, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
+	}
+
+	public void hideAndDestroy(@NonNull FragmentActivity activity) {
+		if (!isVisible)
+			destroy(activity);
+		else {
+			isVisible = false;
+			wrapper.setOnClickListener(null);
+			final int pos[] = calculateRevealCenter();
+			Animate.RevealHide(menu, pos[0], pos[1], 0, () -> destroy(activity));
+		}
 	}
 
 	public void show(@NonNull Context context) {

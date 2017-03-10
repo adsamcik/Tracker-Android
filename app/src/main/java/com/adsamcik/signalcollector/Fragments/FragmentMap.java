@@ -104,8 +104,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationManager.removeUpdates(locationListener);
 		locationListener.cleanup();
 
-		fabTwo = null;
-		menu = null;
+		if (menu != null)
+			menu.hideAndDestroy(activity);
 	}
 
 	/**
@@ -151,8 +151,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
 		}
 		menu = new FabMenu((ViewGroup) container.getParent(), activity);
-
-		menu.clear(activity);
 		menu.setFab(fabTwo);
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
@@ -166,7 +164,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				final String defaultOverlay = savedOverlay;
 				activity.runOnUiThread(() -> {
 					changeMapOverlay(defaultOverlay);
-					menu.clear(activity);
 					if (layerArray.length > 0) {
 						for (MapLayer layer : layerArray)
 							menu.addItem(layer.name, activity);
