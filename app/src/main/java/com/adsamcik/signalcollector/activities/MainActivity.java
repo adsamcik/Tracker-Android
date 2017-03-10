@@ -75,12 +75,6 @@ public class MainActivity extends FragmentActivity {
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		if (!Assist.hasNavBar(getWindowManager())) {
-			LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-			lp.setMargins(0, 0, 0, 0);
-			fabOne.setLayoutParams(lp);
-		}
-
 		BottomNavigationView bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_navigation);
 		final FragmentManager fragmentManager = getSupportFragmentManager();
 
