@@ -88,6 +88,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		return view;
 	}
 
+
 	private void setCollected(long collected) {
 		if (textCollected != null && getResources() != null)
 			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
@@ -221,7 +222,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 				fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
 				updateUploadButton();
-				resetFabElevation(fabUp);
+				resetFabElevation(fabUp, getResources());
 			}, 3000);
 		} else {
 			progressBar.setIndeterminate(false);
@@ -240,7 +241,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						handler.postDelayed(() -> {
 							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-							resetFabElevation(fabUp);
+							resetFabElevation(fabUp, getResources());
 						}, 300);
 					}, 800);
 				}, 600);
@@ -249,8 +250,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		}
 	}
 
-	void resetFabElevation(FloatingActionButton fab) {
-		fab.setElevation(6 * getResources().getDisplayMetrics().density);
+	void resetFabElevation(FloatingActionButton fab, Resources resources) {
+		fab.setElevation(6 * resources.getDisplayMetrics().density);
 	}
 
 	@Override
@@ -310,7 +311,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onServiceStateChange = null;
 		progressBar.setVisibility(View.GONE);
 		progressBar.setAlpha(1);
-		resetFabElevation(fabUp);
+		resetFabElevation(fabUp, activity.getResources());
 		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
 		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.colorAccent)));
 		fabUp = null;
