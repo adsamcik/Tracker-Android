@@ -57,7 +57,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 					if (Preferences.get().getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)) {
 						Resources r = getResources();
-						sendNotification(r.getString(R.string.new_upload_summary), us.GenerateNotificationText(getResources()), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+						sendNotification(r.getString(R.string.new_upload_summary), us.generateNotificationText(getResources()), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 					}
 					break;
 				case Notification:

@@ -50,10 +50,11 @@
     <string name="most_recent_upload">Most recent upload</string>
     <string name="more_uploads">More uploads</string>
     <string name="new_upload_summary">New upload summary</string>
-    <string name="no_new_locations">No new locations</string>
+    <string name="notification_found">Found</string>
     <plurals name="new_locations">
-        <item quantity="one">Found %1$d new location.</item>
-        <item quantity="other">Found %1$d new locations. Good job!</item>
+        <item quantity="zero">No new locations</item>
+        <item quantity="one">1 new location</item>
+        <item quantity="other">%1$d new locations</item>
     </plurals>
     <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new wifi</string>
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>

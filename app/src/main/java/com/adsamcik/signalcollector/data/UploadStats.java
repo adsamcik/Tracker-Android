@@ -22,13 +22,11 @@ public class UploadStats {
 		this.newNoiseLocations = newNoiseLocations;
 	}
 
-	public String GenerateNotificationText(Resources resources) {
+	public String generateNotificationText(Resources resources) {
 		StringBuilder stringBuilder = new StringBuilder();
 		int newLocations = this.newLocations + this.newNoiseLocations;
-		if (newLocations > 0)
-			stringBuilder.append(resources.getQuantityString(R.plurals.new_locations, newLocations)).append(", ");
-		else
-			stringBuilder.append(resources.getString(R.string.no_new_locations)).append(", ");
+		stringBuilder.append(resources.getString(R.string.notification_found)).append(' ');
+		stringBuilder.append(resources.getQuantityString(R.plurals.new_locations, newLocations)).append(", ");
 
 		if (newWifi > 0)
 			stringBuilder.append(resources.getString(R.string.new_wifi, newWifi)).append(", ");
