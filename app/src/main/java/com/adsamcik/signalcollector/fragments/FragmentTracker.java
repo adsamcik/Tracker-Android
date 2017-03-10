@@ -170,13 +170,15 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
 						v -> {
-							setCloudStatus(2);
-							updateUploadProgress(0);
 							final Context context = getContext();
 							Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
 							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
 							if(failure.hasFailed())
 								new SnackMaker(getActivity()).showSnackbar(failure.value);
+							else {
+								setCloudStatus(2);
+								updateUploadProgress(0);
+							}
 						}
 				);
 				fabUp.show();
@@ -214,7 +216,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 				fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
 				setCloudStatus(1);
-			}, 1000);
+				resetFabElevation(fabUp);
+			}, 3000);
 			uploadInProgress = true;
 		} else {
 			progressBar.setIndeterminate(false);
@@ -233,7 +236,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						handler.postDelayed(() -> {
 							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-							fabUp.setElevation(6 * getResources().getDisplayMetrics().density);
+							resetFabElevation(fabUp);
 						}, 300);
 					}, 800);
 				}, 600);
@@ -241,6 +244,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			}
 			animation.start();
 		}
+	}
+
+	void resetFabElevation(FloatingActionButton fab) {
+		fab.setElevation(6 * getResources().getDisplayMetrics().density);
 	}
 
 	@Override
@@ -300,7 +307,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onServiceStateChange = null;
 		progressBar.setVisibility(View.GONE);
 		progressBar.setAlpha(1);
-		fabUp.setElevation(6 * activity.getResources().getDisplayMetrics().density);
+		resetFabElevation(fabUp);
 		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
 		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.colorAccent)));
 		fabUp = null;

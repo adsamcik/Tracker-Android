@@ -136,7 +136,6 @@ public class UploadService extends JobService {
 		if (thread == null || !thread.isAlive()) {
 			isUploading = true;
 			thread = new Thread(() -> {
-				Preferences.get(c).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 				String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
 				if (files == null) {
 					FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
@@ -176,6 +175,7 @@ public class UploadService extends JobService {
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
+		Preferences.get(this).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 		return uploadAll(UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)]);
 	}
 
