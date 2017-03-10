@@ -13,6 +13,7 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.BottomBarBehavior;
 import com.adsamcik.signalcollector.utility.Compress;
@@ -82,8 +83,10 @@ public class UploadService extends JobService {
 			PersistableBundle pb = new PersistableBundle(1);
 			pb.putInt(KEY_SOURCE, source.ordinal());
 			jb.setExtras(pb);
-			scheduler.schedule(jb.build());
+			if (scheduler.schedule(jb.build()) <= 0)
+				return new Failure<>(c.getString(R.string.error_during_upload_scheduling));
 			updateUploadScheduleSource(c, source);
+			Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
 		}
 		return new Failure<>();
 	}
@@ -108,7 +111,7 @@ public class UploadService extends JobService {
 		worker = new JobWorker(getFilesDir().getAbsolutePath()) {
 			@Override
 			protected void onPostExecute(Boolean success) {
-				if(success)
+				if (success)
 					DataStore.onUpload(100);
 				isUploading = false;
 				jobFinished(jobParameters, !success);
@@ -148,6 +151,8 @@ public class UploadService extends JobService {
 		 * @param file file to be uploaded
 		 */
 		private boolean upload(final File file) {
+			if(file != null)
+				return true;
 			if (file == null)
 				throw new InvalidParameterException("file is null");
 			String imei = Assist.getImei();
@@ -216,7 +221,7 @@ public class UploadService extends JobService {
 			if (tempZipFile != null && tempZipFile.exists())
 				tempZipFile.delete();
 
-			if(call != null)
+			if (call != null)
 				call.cancel();
 
 			super.onCancelled();

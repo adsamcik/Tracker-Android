@@ -17,6 +17,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
@@ -48,8 +50,6 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private FloatingActionButton fabTrack, fabUp;
 
 	private long lastWifiTime = 0;
-
-	private boolean uploadInProgress = false;
 
 	private Handler handler;
 
@@ -89,10 +89,6 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 	private void setCollected(long collected) {
-		if (Network.cloudStatus == 0 && collected > 0)
-			setCloudStatus(1);
-		else if (collected == 0 && !uploadInProgress)
-			setCloudStatus(0);
 		if (textCollected != null && getResources() != null)
 			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
 	}
@@ -148,24 +144,18 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 
-	/**
-	 * 0 - No cloud sync required
-	 * 1 - Data available for sync
-	 * 2 - Syncing data
-	 * 3 - Cloud error
-	 */
-	private void setCloudStatus(int status) {
-		if (fabUp == null)
+	private void updateUploadButton() {
+		if (fabUp == null || Network.cloudStatus == null) {
+			Log.e("SignalsTrackerFragmet", "fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine"));
 			return;
-		else if (status < 0 || status > 3)
-			throw new RuntimeException("Status is out of range");
+		}
 
-		switch (status) {
-			case 0:
+		switch (Network.cloudStatus) {
+			case NO_SYNC_REQUIRED:
 				fabUp.hide();
 				fabUp.setOnClickListener(null);
 				break;
-			case 1:
+			case SYNC_REQUIRED:
 				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
 				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
@@ -173,28 +163,43 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 							final Context context = getContext();
 							Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
 							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
-							if(failure.hasFailed())
+							if (failure.hasFailed())
 								new SnackMaker(getActivity()).showSnackbar(failure.value);
 							else {
-								setCloudStatus(2);
+								updateUploadButton();
 								updateUploadProgress(0);
 							}
 						}
 				);
 				fabUp.show();
 				break;
-			case 2:
+			case SYNC_SCHEDULED:
+				fabUp.setImageResource(R.drawable.ic_cloud_queue_black_24dp);
+				fabUp.setOnClickListener(
+						v -> {
+							final Context context = getContext();
+							Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
+							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
+							if (failure.hasFailed())
+								new SnackMaker(getActivity()).showSnackbar(failure.value);
+							else {
+								updateUploadButton();
+							}
+						}
+				);
+				fabUp.show();
+				break;
+			case SYNC_IN_PROGRESS:
 				fabUp.setImageResource(R.drawable.ic_sync_black_24dp);
 				fabUp.setOnClickListener(null);
 				fabUp.show();
 				break;
-			case 3:
+			case ERROR:
 				fabUp.setImageResource(R.drawable.ic_cloud_off_24dp);
 				fabUp.setOnClickListener(null);
+				fabUp.show();
 				break;
 		}
-
-		Network.cloudStatus = status;
 	}
 
 	void updateUploadProgress(final int percentage) {
@@ -206,7 +211,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 		if (percentage == 0) {
 			progressBar.setIndeterminate(true);
-			uploadInProgress = true;
+			updateUploadButton();
 		} else if (percentage == -1) {
 			progressBar.animate().alpha(0).setDuration(400).start();
 			fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error)));
@@ -215,10 +220,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			handler.postDelayed(() -> {
 				fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 				fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-				setCloudStatus(1);
+				updateUploadButton();
 				resetFabElevation(fabUp);
 			}, 3000);
-			uploadInProgress = true;
 		} else {
 			progressBar.setIndeterminate(false);
 			ObjectAnimator animation = ObjectAnimator.ofInt(progressBar, "progress", percentage);
@@ -240,7 +244,6 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						}, 300);
 					}, 800);
 				}, 600);
-				uploadInProgress = false;
 			}
 			animation.start();
 		}
@@ -257,12 +260,12 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
 
 		if (UploadService.isUploading() || UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
-			setCloudStatus(2);
 			updateUploadProgress(0);
 		} else {
 			progressBar.setProgress(0);
-			setCloudStatus(DataStore.sizeOfData() == 0 ? 0 : 1);
 		}
+
+		updateUploadButton();
 
 		fabTrack.show();
 
@@ -327,6 +330,11 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		Resources res = context.getResources();
 		Data d = TrackerService.dataEcho;
 		setCollected(DataStore.sizeOfData());
+
+		if (DataStore.sizeOfData() > 0 && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
+			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+			updateUploadButton();
+		}
 
 		if (d != null) {
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));

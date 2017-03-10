@@ -8,6 +8,7 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
@@ -62,6 +63,11 @@ public class DataStore {
 	 * Call to invoke onDataChanged callback
 	 */
 	private static void onDataChanged() {
+		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData() > 0)
+			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+		else if (Network.cloudStatus == CloudStatus.SYNC_REQUIRED && sizeOfData() == 0)
+			Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED;
+
 		if (onDataChanged != null)
 			onDataChanged.callback();
 	}
@@ -72,6 +78,13 @@ public class DataStore {
 	 * @param progress progress as int (0-100)
 	 */
 	public static void onUpload(int progress) {
+		if (progress == 100)
+			Network.cloudStatus = sizeOfData() == 0 ? CloudStatus.NO_SYNC_REQUIRED : CloudStatus.SYNC_REQUIRED;
+		else if (progress == -1 && sizeOfData() > 0)
+			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+		else
+			Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS;
+
 		if (onUploadProgress != null)
 			onUploadProgress.callback(progress);
 	}

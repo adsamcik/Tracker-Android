@@ -8,4 +8,5 @@
     <string name="error_no_data">Unable to get data</string>
     <string name="error_failed_signin">Failed to Sign in, check internet connection</string>
     <string name="error_upload_in_progress">Another upload is already in progress</string>
+    <string name="error_during_upload_scheduling">Error occurred during upload scheduling</string>
 </resources>

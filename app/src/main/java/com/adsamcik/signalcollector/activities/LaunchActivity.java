@@ -11,9 +11,11 @@ import android.os.Build;
 import android.os.Bundle;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
+import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
@@ -48,7 +50,7 @@ public class LaunchActivity extends Activity {
 			scheduler.cancelAll();
 		} else {
 			UploadService.UploadScheduleSource uss = UploadService.getUploadScheduled(this);
-			if(!uss.equals(UploadService.UploadScheduleSource.NONE)) {
+			if (!uss.equals(UploadService.UploadScheduleSource.NONE)) {
 				List<JobInfo> jobs = scheduler.getAllPendingJobs();
 
 				int found = 0;
@@ -57,14 +59,16 @@ public class LaunchActivity extends Activity {
 						found++;
 					}
 				}
-				if(found != 1) {
+				if (found != 1) {
 					scheduler.cancelAll();
 					UploadService.requestUpload(this, uss);
-				}
+				} else if (Network.cloudStatus == null)
+					Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
 			}
 		}
 
-
+		if (Network.cloudStatus == null)
+			Network.cloudStatus = DataStore.sizeOfData() > 0 ? CloudStatus.SYNC_REQUIRED : CloudStatus.NO_SYNC_REQUIRED;
 
 		if (sp.getBoolean(Preferences.HAS_BEEN_LAUNCHED, false))
 			startActivity(new Intent(this, MainActivity.class));

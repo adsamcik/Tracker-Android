@@ -30,10 +30,12 @@ import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.Data;
+import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
@@ -152,7 +154,7 @@ public class TrackerService extends Service {
 		if (location.getAltitude() > 5600) {
 			setAutoLock();
 			//todo add notification
-			if(!isBackgroundActivated())
+			if (!isBackgroundActivated())
 				stopSelf();
 			return;
 		}
@@ -207,8 +209,10 @@ public class TrackerService extends Service {
 		prevLocation.setTime(d.time);
 
 		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d));
-		if (onNewDataFound != null)
+
+		if (onNewDataFound != null) {
 			onNewDataFound.callback();
+		}
 
 		if (data.size() > 10)
 			saveData();
