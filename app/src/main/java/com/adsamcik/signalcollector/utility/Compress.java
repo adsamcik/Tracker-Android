@@ -14,21 +14,24 @@ import java.util.zip.ZipOutputStream;
 public final class Compress {
 	private static final int BUFFER = 2048;
 
-	private Compress() {}
+	private Compress() {
+	}
 
-	public static File zip(final String[] files, final String zipFile) {
-		try  {
+	public static File zip(String path, final String[] fileNames, final String zipName) {
+		if (!path.endsWith(File.separator))
+			path += File.separatorChar;
+		try {
 			BufferedInputStream origin;
-			FileOutputStream dest = new FileOutputStream(zipFile);
+			FileOutputStream dest = new FileOutputStream(path + zipName);
 
 			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(dest));
 
 			byte data[] = new byte[BUFFER];
 
-			for (String _file : files) {
-				FileInputStream fi = new FileInputStream(_file);
+			for (String _file : fileNames) {
+				FileInputStream fi = new FileInputStream(path + _file);
 				origin = new BufferedInputStream(fi, BUFFER);
-				ZipEntry entry = new ZipEntry(_file.substring(_file.lastIndexOf("/") + 1));
+				ZipEntry entry = new ZipEntry(_file);
 				out.putNextEntry(entry);
 				int count;
 				while ((count = origin.read(data, 0, BUFFER)) != -1) {
@@ -38,8 +41,8 @@ public final class Compress {
 			}
 
 			out.close();
-			return new File(zipFile);
-		} catch(Exception e) {
+			return new File(path + zipName);
+		} catch (Exception e) {
 			e.printStackTrace();
 			FirebaseCrash.report(e);
 		}

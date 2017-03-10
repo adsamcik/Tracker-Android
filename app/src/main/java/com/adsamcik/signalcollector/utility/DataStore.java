@@ -20,9 +20,12 @@ import com.google.gson.reflect.TypeToken;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -105,6 +108,17 @@ public class DataStore {
 		for (int i = 0; i <= maxID; i++)
 			fileNames[i] = DATA_FILE + i;
 		return fileNames;
+	}
+
+	/**
+	 * Closes file if not closed already
+	 *
+	 * @param fileName filename
+	 */
+	public static void closeUploadFile(String fileName) {
+		StringBuilder sb = loadStringAsBuilder(fileName);
+		if (sb != null && sb.charAt(sb.length() - 2) != ']')
+			saveString(fileName, sb.append("]}").toString());
 	}
 
 	/**
@@ -252,9 +266,6 @@ public class DataStore {
 		long fileSize = sizeOf(DATA_FILE + id);
 		if (fileSize > 0) {
 			saveStringAppend(DATA_FILE + id, "]}");
-			String s = loadString(DATA_FILE + id);
-			Log.d(TAG, s.substring(0, 50));
-			Log.d(TAG, s.substring(s.length() - 20, s.length() - 1));
 			edit.putInt(KEY_FILE_ID, ++id);
 			newFile = true;
 			onDataChanged();
@@ -266,16 +277,12 @@ public class DataStore {
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +
-					"\"data\":" + data;
+					"\"data\":[" + data;
 		}
 
 
 		if (!saveJsonArrayAppend(DATA_FILE + id, data))
 			return 1;
-
-		String s = loadString(DATA_FILE + id);
-		Log.d(TAG, s.substring(0, 50));
-		Log.d(TAG, s.substring(s.length() - 20, s.length() - 1));
 
 		int dataSize = data.getBytes(Charset.defaultCharset()).length;
 		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + dataSize).apply();
