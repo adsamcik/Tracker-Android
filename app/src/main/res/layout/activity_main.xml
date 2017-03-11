@@ -37,9 +37,9 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0"/>
 
-    <FrameLayout
+    <android.support.design.widget.CoordinatorLayout
         android:id="@+id/fabCoordinator"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:clipChildren="false"
         app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
@@ -102,5 +102,5 @@
                 app:borderWidth="0dp"
                 app:layout_behavior="com.adsamcik.signalcollector.utility.BottomBarBehavior"/>
         </LinearLayout>
-    </FrameLayout>
+    </android.support.design.widget.CoordinatorLayout>
 </android.support.constraint.ConstraintLayout>
