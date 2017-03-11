@@ -50,6 +50,7 @@ import com.google.android.gms.maps.model.UrlTileProvider;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
+import java.util.Random;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
@@ -145,14 +146,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		final FragmentActivity activity = getActivity();
-		if (Assist.isPlayServiceAvailable(activity) && container != null) {
+		if (Assist.isPlayServiceAvailable(activity) && container != null)
 			view = inflater.inflate(R.layout.fragment_map, container, false);
-		} else {
+		else
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
-		}
-		menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
+
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
+				menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
 				menu.setCallback(this::changeMapOverlay);
 				String savedOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
 				if (!MapLayer.contains(layerArray, savedOverlay)) {
@@ -177,10 +178,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-
 		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
 		FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
-		fragmentTransaction.add(R.id.container_map, mapFragment);
+		fragmentTransaction.replace(R.id.container_map, mapFragment);
 		fragmentTransaction.commit();
 		mapFragment.getMapAsync(this);
 	}
