@@ -82,36 +82,54 @@ public class FabMenu {
 		return this;
 	}
 
+	private View findTopParent(View view, final int temp[]) {
+		if (view == null || view.getTop() == 0)
+			return view;
+		else
+			return findTopParent((View) view.getParent(), temp);
+	}
+
 	public void recalculateBounds(@NonNull Context context) {
+		if (boundsCalculated)
+			return;
+
+		final int dp16px = Assist.dpToPx(context, 16);
+
 		int maxHeight = wrapper.getHeight() / 2;
 		int height = container.getHeight();
-		if (height > maxHeight) {
+		int minHeight = fab.getHeight() + dp16px;
+		if (height > maxHeight)
 			height = maxHeight;
-		}
+		else if (height < minHeight)
+			height = minHeight;
 
 		final int fabPos[] = new int[2];
 		final int fabParentPos[] = new int[2];
+		final int wrapperPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
+		wrapper.getLocationOnScreen(wrapperPos);
 		View parent = ((View) fab.getParent().getParent().getParent());
 		parent.getLocationOnScreen(fabParentPos);
 
-		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
-		menu.setX(displayMetrics.widthPixels - menu.getWidth() - Assist.dpToPx(context, 16));
 
+		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+		menu.setX(displayMetrics.widthPixels - menu.getWidth() - dp16px);
+
+		fabPos[1] += fab.getHeight() / 2;
 		int halfHeight = height / 2;
-		int offset = fabPos[1] + halfHeight;
-		int maxY = parent.getBottom() - Assist.dpToPx(context, 16);
-		if (offset > maxY)
-			offset = halfHeight + (offset - maxY);
+		int offset = halfHeight;
+		int botY = fabPos[1] + halfHeight;
+		int maxY = wrapperPos[1] + wrapper.getHeight() - dp16px - Assist.dpToPx(context, 56);
+		if (botY > maxY)
+			offset += (botY - maxY);
+
 		int y = fabPos[1] - offset;
-		if (y > maxY)
-			y = maxY;
 		menu.setY(y);
 
 		FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(menu.getWidth(), height);
 		menu.setLayoutParams(layoutParams);
-		Log.d(TAG, "offset " + offset + " y " + y + " height " + menu.getHeight() + " target height " + height + " max height " + maxHeight);
 		boundsCalculated = true;
+		//Log.d(TAG, "offset " + offset + " y " + y + " max y " + maxY + " bot y " + botY + " height " + menu.getHeight() + " target height " + height + " max height " + maxHeight);
 	}
 
 	public FabMenu clear(final Activity activity) {
@@ -168,6 +186,7 @@ public class FabMenu {
 		if (isVisible)
 			return;
 		isVisible = true;
+
 		recalculateBounds(activity);
 		wrapper.setVisibility(View.VISIBLE);
 		menu.setVisibility(View.INVISIBLE);
