@@ -1,33 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                xmlns:app="http://schemas.android.com/apk/res-auto"
-                xmlns:tools="http://schemas.android.com/tools"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                tools:context=".activities.MainActivity">
-
-    <FrameLayout
-        android:id="@+id/container"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"/>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                             xmlns:app="http://schemas.android.com/apk/res-auto"
+                                             xmlns:tools="http://schemas.android.com/tools"
+                                             android:layout_width="match_parent"
+                                             android:layout_height="match_parent"
+                                             android:clipChildren="false"
+                                             tools:context=".activities.MainActivity"
+                                             tools:layout_editor_absoluteX="0dp"
+                                             tools:layout_editor_absoluteY="0dp">
 
     <android.support.design.widget.BottomNavigationView
         android:id="@+id/bottom_navigation"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/bottom_bar_height"
         app:itemBackground="@color/colorPrimary"
         app:itemIconTint="@color/textPrimary"
         app:itemTextColor="@color/textPrimary"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:menu="@menu/main_navigation_items"/>
 
-    <android.support.design.widget.CoordinatorLayout
+    <FrameLayout
+        android:id="@+id/container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="0dp"
+        android:layout_marginEnd="0dp"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="0dp"
+        android:clipChildren="false"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.0"/>
+
+    <FrameLayout
         android:id="@+id/fabCoordinator"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_above="@id/bottom_navigation"
-        android:clipChildren="false">
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
+        app:layout_constraintRight_toRightOf="parent">
 
         <LinearLayout
             android:layout_width="66dp"
@@ -60,6 +76,8 @@
                     android:id="@+id/progressBar"
                     android:layout_width="82dp"
                     android:layout_height="82dp"
+                    android:layout_marginBottom="-13.5dp"
+                    android:layout_marginStart="-8.5dp"
                     android:indeterminate="true"
                     android:indeterminateOnly="false"
                     android:indeterminateTint="@color/colorAccent"
@@ -68,12 +86,10 @@
                     android:progressDrawable="@drawable/circular"
                     android:progressTint="@color/colorAccent"
                     android:rotation="-90"
+                    android:translationZ="2dp"
                     android:visibility="gone"
-                    android:layout_marginStart="-8.5dp"
-                    android:layout_marginBottom="-13.5dp"
                     app:layout_anchor="@id/fabTwo"
-                    app:layout_anchorGravity="center"
-                    android:translationZ="2dp"/>
+                    app:layout_anchorGravity="center"/>
 
             </android.support.design.widget.CoordinatorLayout>
 
@@ -83,10 +99,8 @@
                 android:layout_width="@dimen/fab_size"
                 android:layout_height="@dimen/fab_size"
                 android:layout_gravity="center"
-                android:clipChildren="false"
                 app:borderWidth="0dp"
                 app:layout_behavior="com.adsamcik.signalcollector.utility.BottomBarBehavior"/>
         </LinearLayout>
-    </android.support.design.widget.CoordinatorLayout>
-
-</RelativeLayout>
+    </FrameLayout>
+</android.support.constraint.ConstraintLayout>
