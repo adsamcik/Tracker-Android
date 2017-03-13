@@ -20,14 +20,14 @@ public class NotificationReceiver extends BroadcastReceiver {
 	public void onReceive(Context context, Intent intent) {
 		int value = intent.getIntExtra(ACTION_STRING, -1);
 		Bundle params = new Bundle();
-		params.putString(FirebaseAssist.PARAM_SOURCE,"notification");
+		params.putString(FirebaseAssist.PARAM_SOURCE, "notification");
 		switch (value) {
 			case 0:
 				Preferences.stopTillRecharge(context);
-				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT,params);
+				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, params);
 				break;
 			case 1:
-				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_EVENT,params);
+				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_EVENT, params);
 				context.stopService(new Intent(context, TrackerService.class));
 				break;
 			default:
