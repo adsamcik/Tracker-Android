@@ -40,6 +40,7 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentTracker extends Fragment implements ITabFragment {
 	private LinearLayout layoutCell, layoutWifi, layoutOther;
@@ -147,7 +148,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	private void updateUploadButton() {
 		if (fabUp == null || Network.cloudStatus == null) {
-			Log.e("SignalsTrackerFragmet", "fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine"));
+			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine"));
+			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine")));
 			return;
 		}
 
@@ -167,8 +169,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 							if (failure.hasFailed())
 								new SnackMaker(getActivity()).showSnackbar(failure.value);
 							else {
-								updateUploadButton();
 								updateUploadProgress(0);
+								updateUploadButton();
 							}
 						}
 				);
