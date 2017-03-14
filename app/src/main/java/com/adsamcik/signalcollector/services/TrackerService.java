@@ -312,6 +312,7 @@ public class TrackerService extends Service {
 		service = new WeakReference<>(this);
 		Context appContext = getApplicationContext();
 		DataStore.setContext(appContext);
+		Assist.initialize(appContext);
 		SharedPreferences sp = Preferences.get(appContext);
 
 		ActivityService.initializeActivityClient(appContext);
