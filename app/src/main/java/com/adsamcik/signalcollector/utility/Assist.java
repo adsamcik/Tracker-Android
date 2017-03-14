@@ -31,6 +31,7 @@ import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -440,5 +441,16 @@ public class Assist {
 	 */
 	public static void verticalSmoothScrollTo(final ScrollView scrollView, final int y, final int millis) {
 		ObjectAnimator.ofInt(scrollView, "scrollY", scrollView.getScrollY(), y).setDuration(millis).start();
+	}
+
+	/**
+	 * Formats 1000 as 1 000
+	 *
+	 * @param number input number
+	 * @return formatted number
+	 */
+	public static String formatNumber(int number) {
+		DecimalFormat df = new DecimalFormat("#,###,###");
+		return df.format(number).replaceAll(",", " ");
 	}
 }
