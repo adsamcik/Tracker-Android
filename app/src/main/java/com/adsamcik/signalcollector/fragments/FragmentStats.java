@@ -164,7 +164,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private ArrayList<Table> generateStatsTable(Stat[] stats, int insertAt, ArrayList<Table> items, Context context) {
 		if(context == null)
 			return null;
-		
+
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
 		int color = ContextCompat.getColor(context, R.color.textPrimary);
 		for (int i = 0; i < stats.length; i++) {

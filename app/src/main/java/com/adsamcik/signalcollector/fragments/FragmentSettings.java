@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
@@ -171,35 +172,38 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
+		mapOverlaySpinner.setEnabled(false);
 
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
-			if (layerArray != null && layerArray.length > 0) {
-				SharedPreferences sp = Preferences.get(context);
-				final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
-				int index = MapLayer.indexOf(layerArray, defaultOverlay);
-				final int selectIndex = index == -1 ? 0 : index;
-				if (index == -1)
-					sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
+			Activity activity = getActivity();
+			if (activity != null) {
+				if (layerArray != null && layerArray.length > 0) {
+					SharedPreferences sp = Preferences.get(context);
+					final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+					int index = MapLayer.indexOf(layerArray, defaultOverlay);
+					final int selectIndex = index == -1 ? 0 : index;
+					if (index == -1)
+						sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
+					activity.runOnUiThread(() -> {
+						final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, MapLayer.toStringArray(layerArray));
+						adapter.setDropDownViewResource(R.layout.spinner_item);
+						mapOverlaySpinner.setAdapter(adapter);
+						mapOverlaySpinner.setSelection(selectIndex);
+						mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+							@Override
+							public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+								Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
+							}
 
-				getActivity().runOnUiThread(() -> {
-					final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, MapLayer.toStringArray(layerArray));
-					adapter.setDropDownViewResource(R.layout.spinner_item);
-					mapOverlaySpinner.setAdapter(adapter);
-					mapOverlaySpinner.setSelection(selectIndex);
-					mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-						@Override
-						public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-							Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
-						}
+							@Override
+							public void onNothingSelected(AdapterView<?> adapterView) {
 
-						@Override
-						public void onNothingSelected(AdapterView<?> adapterView) {
-
-						}
+							}
+						});
 					});
-				});
-			} else {
-				getActivity().runOnUiThread(() -> mapOverlaySpinner.setEnabled(false));
+				} else {
+					activity.runOnUiThread(() -> mapOverlaySpinner.setEnabled(false));
+				}
 			}
 		});
 
@@ -274,7 +278,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public void onHomeAction() {
 		View v = getView();
-		if(v != null) {
+		if (v != null) {
 			Assist.verticalSmoothScrollTo((ScrollView) v.findViewById(R.id.settings_scrollbar), 0, 500);
 		}
 	}
