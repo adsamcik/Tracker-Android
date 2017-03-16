@@ -98,11 +98,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
-		updateStats();
 		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
 		refreshLayout.setOnRefreshListener(this::updateStats);
 		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
 		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
+		updateStats();
 		return view;
 	}
 
@@ -110,6 +110,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		Activity activity = getActivity();
 		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
 		refreshingCount++;
+		refreshLayout.setRefreshing(true);
 		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
 			refreshDone();
 			final int initialIndex = ((ViewGroup) view).getChildCount();
