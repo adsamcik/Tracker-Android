@@ -347,7 +347,7 @@ public class DataStore {
 	 * @param data     Json data to be saved
 	 * @return Failure
 	 */
-	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) {
+	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) throws MalformedJsonException {
 		return saveJsonArrayAppend(fileName, data, false);
 	}
 
