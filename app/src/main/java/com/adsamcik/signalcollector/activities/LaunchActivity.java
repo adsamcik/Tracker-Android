@@ -62,13 +62,9 @@ public class LaunchActivity extends Activity {
 				if (found != 1) {
 					scheduler.cancelAll();
 					UploadService.requestUpload(this, uss);
-				} else if (Network.cloudStatus == null)
-					Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+				}
 			}
 		}
-
-		if (Network.cloudStatus == null)
-			Network.cloudStatus = DataStore.sizeOfData() > 0 ? CloudStatus.SYNC_REQUIRED : CloudStatus.NO_SYNC_REQUIRED;
 
 		if (sp.getBoolean(Preferences.HAS_BEEN_LAUNCHED, false))
 			startActivity(new Intent(this, MainActivity.class));
