@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
+import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.enums.CloudStatus;
@@ -347,13 +348,31 @@ public class DataStore {
 	 * @return Failure
 	 */
 	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) {
+		return saveJsonArrayAppend(fileName, data, false);
+	}
+
+	/**
+	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
+	 *
+	 * @param fileName Name of file
+	 * @param data     Json data to be saved
+	 * @return Failure
+	 */
+	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data, boolean override) throws MalformedJsonException {
 		StringBuilder sb = new StringBuilder(data);
-		char firstChar = sizeOf(fileName) == 0 ? '[' : ',';
-		if (firstChar == ',') {
-			if (sb.charAt(0) == '[')
-				sb.setCharAt(0, ',');
-			else
-				sb.insert(0, ',');
+		if (sb.charAt(0) == ',')
+			throw new MalformedJsonException("Json starts with ','. That is not right.");
+		char firstChar = override | sizeOf(fileName) == 0 ? '[' : ',';
+		switch (firstChar) {
+			case ',':
+				if (sb.charAt(0) == '[')
+					sb.setCharAt(0, ',');
+				else
+					sb.insert(0, ',');
+				break;
+			case '[':
+				if (sb.charAt(0) == '{')
+					sb.insert(0, '[');
 		}
 
 		if (sb.charAt(sb.length() - 1) == ']')
@@ -362,12 +381,11 @@ public class DataStore {
 		data = sb.toString();
 		FileOutputStream outputStream;
 		try {
-			outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND);
+			outputStream = getContext().openFileOutput(fileName, override ? Context.MODE_PRIVATE : Context.MODE_APPEND);
 			outputStream.write(data.getBytes());
 			outputStream.close();
 			return true;
 		} catch (Exception e) {
-			e.printStackTrace();
 			FirebaseCrash.report(e);
 			return false;
 		}
@@ -571,6 +589,7 @@ public class DataStore {
 				else
 					sp.edit().remove(Preferences.OLDEST_RECENT_UPLOAD).apply();
 
+				DataStore.deleteFile(DataStore.RECENT_UPLOADS_FILE);
 				DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats));
 			}
 		}
