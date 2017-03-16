@@ -115,13 +115,13 @@ public class NetworkLoader {
 					String json = response.body().string();
 					response.close();
 
-					Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 					if (json.isEmpty()) {
 						if (lastUpdate == -1)
 							callback.callback(Source.no_data, null);
 						else
 							callback.callback(Source.cache_invalid_data, DataStore.loadString(preferenceString));
 					} else {
+						Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 						DataStore.saveString(preferenceString, json);
 						callback.callback(Source.network, json);
 					}
