@@ -59,8 +59,10 @@ public class LaunchActivity extends Activity {
 						found++;
 					}
 				}
-				if (found != 1) {
+				if(found > 1) {
 					scheduler.cancelAll();
+					UploadService.requestUpload(this, uss);
+				} else if(found == 0) {
 					UploadService.requestUpload(this, uss);
 				}
 			}

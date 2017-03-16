@@ -19,6 +19,7 @@ import android.util.Log;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.DataStore;
@@ -98,10 +99,10 @@ public class MainActivity extends FragmentActivity {
 		//}
 
 		if (Network.cloudStatus == null) {
-			if (UploadService.getUploadScheduled(this) != UploadScheduled.NONE)
-				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
-			else
+			if (UploadService.getUploadScheduled(this).equals(UploadService.UploadScheduleSource.NONE))
 				Network.cloudStatus = DataStore.sizeOfData() > 0 ? CloudStatus.SYNC_REQUIRED : CloudStatus.NO_SYNC_REQUIRED;
+			else
+				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		}
 	}
 
