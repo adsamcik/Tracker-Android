@@ -151,7 +151,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				t.destroy(activity);
 			}
 		}
-		activity.runOnUiThread(() -> generateStatsTable(stats, insertAt, items));
+		activity.runOnUiThread(() -> generateStatsTable(stats, insertAt, items, activity));
 	}
 
 	/**
@@ -161,14 +161,16 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 * @param items array to which items will be added
 	 * @return returns passed items array
 	 */
-	private ArrayList<Table> generateStatsTable(Stat[] stats, int insertAt, ArrayList<Table> items) {
-		Context c = getContext();
+	private ArrayList<Table> generateStatsTable(Stat[] stats, int insertAt, ArrayList<Table> items, Context context) {
+		if(context == null)
+			return null;
+		
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
-		int color = ContextCompat.getColor(c, R.color.textPrimary);
+		int color = ContextCompat.getColor(context, R.color.textPrimary);
 		for (int i = 0; i < stats.length; i++) {
 			Stat s = stats[i];
 			if (s.data != null) {
-				Table table = new Table(c, s.data.size(), s.showPosition, color);
+				Table table = new Table(context, s.data.size(), s.showPosition, color);
 				table.addTitle(s.name);
 				for (int y = 0; y < s.data.size(); y++) {
 					StatData sd = s.data.get(y);
