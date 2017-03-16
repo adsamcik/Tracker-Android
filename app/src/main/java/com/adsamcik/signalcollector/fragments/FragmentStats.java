@@ -69,6 +69,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		boolean hasRecentUpload = false;
 
+		Activity activity = getActivity();
+
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
 			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, (LinearLayout) view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
@@ -79,16 +81,16 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			hasRecentUpload = true;
 		} else {
 			if (lastUpload != null)
-				lastUpload.destroy(getActivity());
+				lastUpload.destroy(activity);
 		}
 
 		new Thread(DataStore::removeOldRecentUploads).start();
 
-		Preferences.checkStatsDay(getActivity());
+		Preferences.checkStatsDay(activity);
 
 		weeklyStats.clear();
 		weeklyStats.addTitle(r.getString(R.string.stats_weekly_title));
-		StatDay weekStats = Preferences.countStats(getActivity());
+		StatDay weekStats = Preferences.countStats(activity);
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.getUploaded(), true));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
@@ -100,6 +102,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
 		refreshLayout.setOnRefreshListener(this::updateStats);
 		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
+		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
 		return view;
 	}
 
@@ -162,7 +165,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 * @return returns passed items array
 	 */
 	private ArrayList<Table> generateStatsTable(Stat[] stats, int insertAt, ArrayList<Table> items, Context context) {
-		if(context == null)
+		if (context == null)
 			return null;
 
 		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
