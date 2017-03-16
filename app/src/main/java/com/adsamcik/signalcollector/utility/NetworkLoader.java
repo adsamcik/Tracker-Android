@@ -154,7 +154,7 @@ public class NetworkLoader {
 				case no_data:
 					return context.getString(R.string.error_no_data);
 				default:
-					return "";
+					return "---";
 			}
 		}
 	}
