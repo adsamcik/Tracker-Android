@@ -294,9 +294,13 @@ public class DataStore {
 					"\"data\":[" + data;
 		}
 
-
-		if (!saveJsonArrayAppend(DATA_FILE + id, data))
+		try {
+			if (!saveJsonArrayAppend(DATA_FILE + id, data))
+				return 1;
+		} catch (MalformedJsonException e) {
+			FirebaseCrash.report(e);
 			return 1;
+		}
 
 		int dataSize = data.getBytes(Charset.defaultCharset()).length;
 		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + dataSize).apply();
@@ -589,8 +593,11 @@ public class DataStore {
 				else
 					sp.edit().remove(Preferences.OLDEST_RECENT_UPLOAD).apply();
 
-				DataStore.deleteFile(DataStore.RECENT_UPLOADS_FILE);
-				DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats));
+				try {
+					DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats), false);
+				} catch (Exception e) {
+					FirebaseCrash.report(e);
+				}
 			}
 		}
 	}

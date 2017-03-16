@@ -11,6 +11,7 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -18,6 +19,7 @@ import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import com.google.gson.Gson;
@@ -101,7 +103,11 @@ public class MessageListenerService extends FirebaseMessagingService {
 			uploadSize = Long.parseLong(data.get(SIZE));
 
 		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations);
-		DataStore.saveJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(us));
+		try {
+			DataStore.saveJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(us));
+		} catch (MalformedJsonException e) {
+			FirebaseCrash.report(e);
+		}
 
 		Preferences.checkStatsDay(context);
 		SharedPreferences sp = Preferences.get(context);
