@@ -189,6 +189,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						adapter.setDropDownViewResource(R.layout.spinner_item);
 						mapOverlaySpinner.setAdapter(adapter);
 						mapOverlaySpinner.setSelection(selectIndex);
+						mapOverlaySpinner.setEnabled(true);
 						mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 							@Override
 							public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
