@@ -1,26 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-            android:layout_width="fill_parent"
-            android:layout_height="fill_parent"
+            android:id="@+id/settings_scrollbar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:overScrollMode="never"
-            android:scrollbars="none"
-            android:id="@+id/settings_scrollbar">
+            android:scrollbars="none">
 
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
                   android:orientation="vertical"
-                  android:paddingBottom="@dimen/activity_vertical_margin"
-                  android:paddingLeft="@dimen/activity_horizontal_margin"
-                  android:paddingRight="@dimen/activity_horizontal_margin"
-                  android:paddingTop="@dimen/status_bar_height_and_padding">
+                  android:paddingTop="@dimen/status_bar_height">
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_automaticTracking"
-            android:textColor="@color/textSecondary"
-            android:textSize="@dimen/secondary_text_size"/>
+            style="@style/SettingsTitle"
+            android:text="@string/settings_automaticTracking"/>
 
         <TextView
             android:id="@+id/tracking_description"
@@ -73,15 +67,18 @@
             android:layout_height="wrap_content"
             android:paddingBottom="@dimen/setting_item_padding"
             android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_disable_tracking_till_recharge"/>
+            android:text="@string/settings_disable_tracking_till_recharge"
+            android:thumbTint="@color/negative_switch_color"
+            android:thumbTintMode="src_in"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_automaticUpload"
-            android:textColor="@color/textSecondary"
-            android:textSize="@dimen/secondary_text_size"/>
+            style="@style/SettingsTitle"
+            android:text="@string/settings_automaticUpload"/>
 
         <TextView
             android:id="@+id/autoupload_description"
@@ -127,13 +124,14 @@
                 android:tint="@color/textDisabled"/>
         </RelativeLayout>
 
-        <TextView
+        <View
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_playGames"
-            android:textColor="@color/textSecondary"
-            android:textSize="@dimen/secondary_text_size"/>
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
+
+        <TextView
+            style="@style/SettingsTitle"
+            android:text="@string/settings_playGames"/>
 
         <com.google.android.gms.common.SignInButton
             android:id="@+id/sign_in_button"
@@ -149,6 +147,11 @@
             android:text="@string/signout"
             android:visibility="gone"/>
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/divider_height"
+            android:background="@color/dividerColor"/>
+
         <TextView
             android:id="@+id/sign_in_no_connection"
             android:layout_width="wrap_content"
@@ -159,88 +162,57 @@
             android:visibility="gone"/>
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:text="@string/settings_track"
-            android:textColor="@color/textSecondary"
-            android:textSize="@dimen/secondary_text_size"/>
+            style="@style/SettingsTitle"
+            android:text="@string/settings_track"/>
 
         <Switch
             android:id="@+id/switchTrackWifi"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_wifi"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
 
         <Switch
             android:id="@+id/switchTrackCell"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_cell"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_track_noise"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="15dp"
-            android:text="@string/other"
-            android:textColor="@color/textSecondary"
-            android:textSize="@dimen/setting_text_size"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="@dimen/secondary_text_size"
-            android:textColor="@color/textSecondary"
-            android:text="@string/settings_default_map_overlay"
-            android:paddingTop="@dimen/setting_item_padding"/>
-        <Spinner
-            android:id="@+id/setting_map_overlay_spinner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/divider_height"
             android:background="@color/dividerColor"/>
+
+        <TextView
+            style="@style/SettingsTitle"
+            android:text="@string/other"/>
+
+        <TextView
+            style="@style/SettingsItem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_default_map_overlay"/>
+
+        <Spinner
+            android:id="@+id/setting_map_overlay_spinner"
+            style="@style/SettingsItem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
         <Switch
             android:id="@+id/switchNotificationsUpload"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="@dimen/setting_item_padding"
-            android:paddingTop="@dimen/setting_item_padding"
             android:text="@string/settings_allow_notifications_upload"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
 
         <Button
             android:id="@+id/other_clear"
@@ -250,9 +222,9 @@
 
         <TextView
             android:id="@+id/versionNum"
+            style="@style/SettingsItem"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="15dp"
             android:textSize="@dimen/secondary_text_size"/>
     </LinearLayout>
 </ScrollView>
