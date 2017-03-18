@@ -59,6 +59,13 @@ public class MainActivity extends FragmentActivity {
 		DataStore.setContext(this);
 		SnackMaker snackMaker = new SnackMaker(this);
 
+		if (Network.cloudStatus == null) {
+			if (UploadService.getUploadScheduled(this).equals(UploadService.UploadScheduleSource.NONE))
+				Network.cloudStatus = DataStore.sizeOfData() > 0 ? CloudStatus.SYNC_REQUIRED : CloudStatus.NO_SYNC_REQUIRED;
+			else
+				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+		}
+
 		signin = Signin.getInstance(this);
 
 		Failure<String> s = ActivityService.initializeActivityClient(this);
@@ -95,13 +102,6 @@ public class MainActivity extends FragmentActivity {
 		if (token != null)
 			Network.registerToken(token, context);
 		//}
-
-		if (Network.cloudStatus == null) {
-			if (UploadService.getUploadScheduled(this).equals(UploadService.UploadScheduleSource.NONE))
-				Network.cloudStatus = DataStore.sizeOfData() > 0 ? CloudStatus.SYNC_REQUIRED : CloudStatus.NO_SYNC_REQUIRED;
-			else
-				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
-		}
 	}
 
 	private boolean changeFragment(int index) {
