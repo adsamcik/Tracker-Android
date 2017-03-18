@@ -286,12 +286,12 @@ public class DataStore {
 		}
 
 		if (fileSize == 0 || newFile) {
-			data = "{\"imei\":" + Assist.getImei() +
+			saveString(DATA_FILE + id, "{\"imei\":" + Assist.getImei() +
 					",\"device\":\"" + Build.MODEL +
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +
-					"\"data\":[" + data;
+					"\"data\":[");
 		}
 
 		try {
