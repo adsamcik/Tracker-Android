@@ -138,7 +138,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="@dimen/setting_item_padding"
-            android:visibility="gone"/>
+            android:visibility="gone"
+            style="@style/SettingsItem"/>
 
         <Button
             android:id="@+id/sign_out_button"
@@ -205,7 +206,9 @@
             android:id="@+id/setting_map_overlay_spinner"
             style="@style/SettingsItem"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:paddingBottom="0dp"
+            android:paddingTop="0dp"/>
 
         <Switch
             android:id="@+id/switchNotificationsUpload"
