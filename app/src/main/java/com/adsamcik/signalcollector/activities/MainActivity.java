@@ -83,11 +83,9 @@ public class MainActivity extends FragmentActivity {
 		bottomNavigationView.setOnNavigationItemSelectedListener(
 				item -> changeFragment(item.getItemId()));
 
-		if (savedInstanceState != null) {
-			changeFragment(savedInstanceState.getInt(BUNDLE_FRAGMENT));
-		} else {
-			changeFragment(R.id.action_tracker);
-		}
+		int currentFragment = savedInstanceState != null && savedInstanceState.containsKey(BUNDLE_FRAGMENT) ? savedInstanceState.getInt(BUNDLE_FRAGMENT) : R.id.action_tracker;
+		changeFragment(currentFragment);
+		bottomNavigationView.setSelectedItemId(currentFragment);
 
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready
