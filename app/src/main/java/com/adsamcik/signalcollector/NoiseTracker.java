@@ -30,7 +30,7 @@ public class NoiseTracker implements SensorEventListener {
 	private final Sensor mProximity;
 	private boolean proximityNear;
 
-	private AsyncTask task;
+	private AsyncTask<AudioRecord, Void, Void> task;
 
 	/**
 	 * Creates new instance of noise tracker. Does not start tracking.
