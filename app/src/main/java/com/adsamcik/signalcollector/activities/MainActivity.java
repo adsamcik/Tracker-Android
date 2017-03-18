@@ -146,7 +146,7 @@ public class MainActivity extends FragmentActivity {
 		}
 	}
 
-	void handleBottomNav(Class tClass, @StringRes int resId) {
+	<T extends ITabFragment> void handleBottomNav(Class<T> tClass, @StringRes int resId) {
 		if (currentFragment != null && currentFragment.getClass() == tClass)
 			currentFragment.onHomeAction();
 		else {
