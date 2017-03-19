@@ -163,17 +163,25 @@ public class TrackerService extends Service {
 		Data d = new Data(System.currentTimeMillis());
 
 		if (wifiManager != null) {
-			if (wifiScanData != null && prevLocation != null) {
-				double timeDiff = (double) (wifiScanTime - prevLocation.getTime()) / (double) (d.time - prevLocation.getTime());
-				if (timeDiff >= 0) {
-					float distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff));
-					distanceToWifi = (int) distTo;
-					//Log.d(TAG, "dist to wifi " + distTo);
-					int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
-					if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
-						d.setWifi(wifiScanData, wifiScanTime);
+			if(prevLocation != null) {
+				if (wifiScanData != null) {
+					double timeDiff = (double) (wifiScanTime - prevLocation.getTime()) / (double) (d.time - prevLocation.getTime());
+					if (timeDiff >= 0) {
+						float distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff));
+						distanceToWifi = (int) distTo;
+						//Log.d(TAG, "dist to wifi " + distTo);
+						int UPDATE_MAX_DISTANCE_TO_WIFI = 40;
+						if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
+							d.setWifi(wifiScanData, wifiScanTime);
+					}
+					wifiScanData = null;
+				} else {
+					double timeDiff = (double) (wifiScanTime - prevLocation.getTime()) / (double) (d.time - prevLocation.getTime());
+					if (timeDiff >= 0) {
+						float distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff));
+						distanceToWifi += (int) distTo;
+					}
 				}
-				wifiScanData = null;
 			}
 
 			wifiManager.startScan();

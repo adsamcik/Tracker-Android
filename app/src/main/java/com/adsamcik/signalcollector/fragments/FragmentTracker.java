@@ -354,9 +354,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				textWifiCollection.setText(String.format(res.getString(R.string.main_wifi_updated), TrackerService.distanceToWifi));
 				lastWifiTime = d.time;
 				layoutWifi.setVisibility(View.VISIBLE);
-			} else if (lastWifiTime - d.time > 10000) {
-				textWifiCollection.setText(res.getString(R.string.main_wifi_not_updated));
-				layoutWifi.setVisibility(View.VISIBLE);
+			} else if (lastWifiTime - d.time < 10000) {
+				textWifiCollection.setText(String.format(res.getString(R.string.main_wifi_updated), TrackerService.distanceToWifi));
 			} else {
 				layoutWifi.setVisibility(View.GONE);
 			}
