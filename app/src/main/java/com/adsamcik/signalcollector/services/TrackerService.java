@@ -214,7 +214,7 @@ public class TrackerService extends Service {
 			onNewDataFound.callback();
 		}
 
-		if (data.size() > 10)
+		if (data.size() > 5)
 			saveData();
 
 		if (backgroundActivated && powerManager.isPowerSaveMode())
