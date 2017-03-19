@@ -35,6 +35,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Data constructor
+	 *
 	 * @param time collection time
 	 */
 	public Data(long time) {
@@ -43,6 +44,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets collection location
+	 *
 	 * @param location location
 	 * @return this
 	 */
@@ -56,6 +58,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets wifi and time of wifi collection
+	 *
 	 * @param data data
 	 * @param time time of collection
 	 * @return this
@@ -72,6 +75,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets activity
+	 *
 	 * @param activity activity
 	 * @return this
 	 */
@@ -82,6 +86,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets noise value.
+	 *
 	 * @param noise Noise value. Must be absolute amplitude.
 	 * @return this
 	 */
@@ -93,8 +98,9 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets current active cell from nearby cells
+	 *
 	 * @param operator current network operator
-	 * @param data nearby cell
+	 * @param data     nearby cell
 	 * @return this
 	 */
 	public Data setCell(String operator, List<CellInfo> data) {
@@ -103,7 +109,7 @@ public class Data implements Serializable {
 			boolean found = false;
 			for (int i = 0; i < data.size(); i++) {
 				CellInfo c = data.get(i);
-				if(c.isRegistered()) {
+				if (c.isRegistered()) {
 					if (c instanceof CellInfoGsm)
 						setCell(operator, new CellData((CellInfoGsm) c));
 					else if (c instanceof CellInfoLte)
@@ -117,7 +123,7 @@ public class Data implements Serializable {
 				}
 			}
 
-			if(!found)
+			if (!found)
 				setCell("", (CellData) null);
 		}
 		return this;
@@ -125,11 +131,12 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets active cell and network operator
-	 * @param operator cell network operator
+	 *
+	 * @param operator   cell network operator
 	 * @param activeCell active cell
 	 * @return this
 	 */
-	private Data setCell(@Nullable String operator, @Nullable CellData activeCell) {
+	private Data setCell(@NonNull String operator, @Nullable CellData activeCell) {
 		this.activeCell = activeCell;
 		this.networkOperator = operator;
 		return this;
@@ -137,6 +144,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Returns active cell
+	 *
 	 * @return active cell
 	 */
 	public CellData getActiveCell() {
