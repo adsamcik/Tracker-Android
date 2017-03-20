@@ -22,12 +22,9 @@ import com.google.gson.reflect.TypeToken;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.RandomAccessFile;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -265,13 +262,19 @@ public class DataStore {
 		FirebaseAnalytics.getInstance(getContext()).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle);
 	}
 
+	public enum SaveStatus {
+		SAVING_FAILED,
+		SAVING_SUCCESSFULL,
+		SAVED_TO_NEW_FILE
+	}
+
 	/**
 	 * Saves data to file. File is determined automatically.
 	 *
 	 * @param data json array to be saved, without [ at the beginning
-	 * @return returns state value 2 - new file, 1 - error during saving, 0 - no new file, saved successfully
+	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
-	public static int saveData(String data) {
+	public static SaveStatus saveData(String data) {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
@@ -288,26 +291,34 @@ public class DataStore {
 
 
 		if (fileHasNoData) {
-			saveString(DATA_FILE + id, "{\"imei\":" + Assist.getImei() +
+			if (!saveString(DATA_FILE + id, "{\"imei\":" + Assist.getImei() +
 					",\"device\":\"" + Build.MODEL +
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +
-					"\"data\":[");
+					"\"data\":[")) {
+				return SaveStatus.SAVING_FAILED;
+			}
 		}
 
 		try {
-			if (!saveJsonArrayAppend(DATA_FILE + id, data, fileHasNoData))
-				return 1;
+			if (!saveJsonArrayAppend(DATA_FILE + id, data, fileHasNoData)) {
+				if (fileSize > MAX_FILE_SIZE)
+					edit.apply();
+				return SaveStatus.SAVING_FAILED;
+			}
 		} catch (MalformedJsonException e) {
+			if (fileSize > MAX_FILE_SIZE)
+				edit.apply();
 			FirebaseCrash.report(e);
-			return 1;
+			return SaveStatus.SAVING_FAILED;
 		}
 
 		int dataSize = data.getBytes(Charset.defaultCharset()).length;
-		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + dataSize).apply();
+		approxSize = sp.getLong(KEY_SIZE, 0) + dataSize;
+		edit.putLong(KEY_SIZE, approxSize).apply();
 
-		return fileHasNoData && id > 0 ? 2 : 0;
+		return fileHasNoData && id > 0 ? SaveStatus.SAVED_TO_NEW_FILE : SaveStatus.SAVING_SUCCESSFULL;
 	}
 
 

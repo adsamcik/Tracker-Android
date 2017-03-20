@@ -160,7 +160,7 @@ public class TrackerService extends Service {
 		Data d = new Data(System.currentTimeMillis());
 
 		if (wifiManager != null) {
-			if(prevLocation != null) {
+			if (prevLocation != null) {
 				if (wifiScanData != null) {
 					double timeDiff = (double) (wifiScanTime - prevLocation.getTime()) / (double) (d.time - prevLocation.getTime());
 					if (timeDiff >= 0) {
@@ -252,15 +252,16 @@ public class TrackerService extends Service {
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
 
-		int result = DataStore.saveData(input);
-		if (result == 1) {
+		DataStore.SaveStatus result = DataStore.saveData(input);
+		if (result == DataStore.SaveStatus.SAVING_FAILED) {
 			saveAttemptsFailed++;
 			if (saveAttemptsFailed >= 5)
 				stopSelf();
 		} else {
 			data.clear();
-			if (result == 2 && DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
-				UploadService.requestUpload(getApplicationContext(), UploadService.UploadScheduleSource.BACKGROUND);
+			if (result == DataStore.SaveStatus.SAVED_TO_NEW_FILE &&
+					DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
+				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}
 		}

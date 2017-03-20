@@ -44,8 +44,8 @@ public class Assist {
 	public static final int DAY_IN_MILLISECONDS = 24 * HOUR_IN_MILLISECONDS;
 	public static final int DAY_IN_MINUTES = DAY_IN_MILLISECONDS / MINUTE_IN_MILLISECONDS;
 
-	public static final long KB_IN_BYTES = 1024;
-	public static final long MB_IN_BYTES = KB_IN_BYTES * 1024;
+	public static final long KB_IN_BYTES = 1000;
+	public static final long MB_IN_BYTES = KB_IN_BYTES * 1000;
 
 
 	private static TelephonyManager telephonyManager;
