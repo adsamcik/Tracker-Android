@@ -276,7 +276,7 @@ public class DataStore {
 		SharedPreferences.Editor edit = sp.edit();
 
 		int id = sp.getInt(KEY_FILE_ID, 0);
-		boolean fileHasNoData = false;
+		boolean fileHasNoData;
 		long fileSize = sizeOf(DATA_FILE + id);
 		if (fileSize > MAX_FILE_SIZE) {
 			saveStringAppend(DATA_FILE + id, "]}");
