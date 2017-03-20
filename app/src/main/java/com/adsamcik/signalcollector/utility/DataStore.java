@@ -349,9 +349,24 @@ public class DataStore {
 	/**
 	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
 	 *
-	 * @param fileName Name of file
-	 * @param data     Json data to be saved
+	 * @param fileName File name
+	 * @param data     Json array to append
 	 * @return Failure
+	 * @throws MalformedJsonException Thrown when json array is in incorrect format
+	 */
+	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) throws MalformedJsonException {
+		return saveJsonArrayAppend(fileName, data, false, sizeOf(fileName) == 0);
+	}
+
+	/**
+	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
+	 * Allows custom empty array detection.
+	 *
+	 * @param fileName     Name of file
+	 * @param data         Json array to append
+	 * @param isArrayEmpty Does file already contain some data?
+	 * @return Failure
+	 * @throws MalformedJsonException Thrown when json array is in incorrect format
 	 */
 	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data, boolean isArrayEmpty) throws MalformedJsonException {
 		return saveJsonArrayAppend(fileName, data, false, isArrayEmpty);
@@ -359,10 +374,14 @@ public class DataStore {
 
 	/**
 	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
+	 * Allows file overriding and custom empty array detection.
 	 *
-	 * @param fileName Name of file
-	 * @param data     Json data to be saved
+	 * @param fileName     Name of file
+	 * @param data         Json array to append
+	 * @param override     Should existing file be overriden with current data
+	 * @param isArrayEmpty Does file already contain some data?
 	 * @return Failure
+	 * @throws MalformedJsonException Thrown when json array is in incorrect format
 	 */
 	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data, boolean override, boolean isArrayEmpty) throws MalformedJsonException {
 		StringBuilder sb = new StringBuilder(data);
