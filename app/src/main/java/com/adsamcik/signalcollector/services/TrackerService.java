@@ -24,18 +24,15 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.Data;
-import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
