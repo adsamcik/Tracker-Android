@@ -259,7 +259,7 @@ public class TrackerService extends Service {
 				stopSelf();
 		} else {
 			data.clear();
-			if (result == 2) {
+			if (result == 2 && DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(getApplicationContext(), UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}

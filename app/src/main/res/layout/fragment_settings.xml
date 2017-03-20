@@ -124,6 +124,39 @@
                 android:tint="@color/textDisabled"/>
         </RelativeLayout>
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/SettingsTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_autoupload_at"/>
+
+                <TextView
+                    android:id="@+id/settings_autoupload_at_value"
+                    style="@style/SettingsText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="0dp"
+                    android:paddingStart="0dp"
+                    android:text="@string/settings_autoupload_at_value"/>
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/settings_autoupload_at_seekbar"
+                style="@style/SettingsItem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/divider_height"
@@ -135,11 +168,11 @@
 
         <com.google.android.gms.common.SignInButton
             android:id="@+id/sign_in_button"
+            style="@style/SettingsItem"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="@dimen/setting_item_padding"
-            android:visibility="gone"
-            style="@style/SettingsItem"/>
+            android:visibility="gone"/>
 
         <Button
             android:id="@+id/sign_out_button"

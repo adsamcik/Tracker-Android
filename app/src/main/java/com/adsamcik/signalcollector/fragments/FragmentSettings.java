@@ -27,6 +27,7 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -46,6 +47,8 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
+
+import org.w3c.dom.Text;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -230,6 +233,31 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					context.stopService(new Intent(context, TrackerService.class));
 			}
 		});
+
+		TextView valueAutoUploadAt = (TextView) rootView.findViewById(R.id.settings_autoupload_at_value);
+		SeekBar seekAutoUploadAt = (SeekBar) rootView.findViewById(R.id.settings_autoupload_at_seekbar);
+
+		final int MIN_UPLOAD_VALUE = 1;
+
+		seekAutoUploadAt.incrementProgressBy(1);
+		seekAutoUploadAt.setMax(10 - MIN_UPLOAD_VALUE);
+		seekAutoUploadAt.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+			@Override
+			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+				valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
+			}
+
+			@Override
+			public void onStartTrackingTouch(SeekBar seekBar) {
+
+			}
+
+			@Override
+			public void onStopTrackingTouch(SeekBar seekBar) {
+				Preferences.get(context).edit().putInt(Preferences.AUTO_UPLOAD_AT_MB, seekBar.getProgress() + MIN_UPLOAD_VALUE).apply();
+			}
+		});
+		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
 
 		if (Assist.hasNetwork()) {
 			signin = Signin.getInstance(getActivity());
