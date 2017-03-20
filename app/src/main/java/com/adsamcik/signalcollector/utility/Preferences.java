@@ -30,7 +30,7 @@ public class Preferences {
 	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
 	public static final String AUTO_UPLOAD_AT_MB = "autoUpAtMB";
-	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 1;
+	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 3;
 
 	//Local tracking stats
 	public static final String STATS_WIFI_FOUND = "statsWifiFound";
