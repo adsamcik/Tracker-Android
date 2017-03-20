@@ -276,16 +276,18 @@ public class DataStore {
 		SharedPreferences.Editor edit = sp.edit();
 
 		int id = sp.getInt(KEY_FILE_ID, 0);
-		boolean newFile = false;
+		boolean fileHasNoData = false;
 		long fileSize = sizeOf(DATA_FILE + id);
 		if (fileSize > MAX_FILE_SIZE) {
 			saveStringAppend(DATA_FILE + id, "]}");
 			edit.putInt(KEY_FILE_ID, ++id);
-			newFile = true;
+			fileHasNoData = true;
 			onDataChanged();
-		}
+		} else
+			fileHasNoData = fileSize == 0;
 
-		if (fileSize == 0 || newFile) {
+
+		if (fileHasNoData) {
 			saveString(DATA_FILE + id, "{\"imei\":" + Assist.getImei() +
 					",\"device\":\"" + Build.MODEL +
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
@@ -295,7 +297,7 @@ public class DataStore {
 		}
 
 		try {
-			if (!saveJsonArrayAppend(DATA_FILE + id, data))
+			if (!saveJsonArrayAppend(DATA_FILE + id, data, fileHasNoData))
 				return 1;
 		} catch (MalformedJsonException e) {
 			FirebaseCrash.report(e);
@@ -305,7 +307,7 @@ public class DataStore {
 		int dataSize = data.getBytes(Charset.defaultCharset()).length;
 		edit.putLong(KEY_SIZE, sp.getLong(KEY_SIZE, 0) + dataSize).apply();
 
-		return newFile && id > 0 ? 2 : 0;
+		return fileHasNoData && id > 0 ? 2 : 0;
 	}
 
 
@@ -351,8 +353,8 @@ public class DataStore {
 	 * @param data     Json data to be saved
 	 * @return Failure
 	 */
-	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data) throws MalformedJsonException {
-		return saveJsonArrayAppend(fileName, data, false);
+	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data, boolean isArrayEmpty) throws MalformedJsonException {
+		return saveJsonArrayAppend(fileName, data, false, isArrayEmpty);
 	}
 
 	/**
@@ -362,11 +364,11 @@ public class DataStore {
 	 * @param data     Json data to be saved
 	 * @return Failure
 	 */
-	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data, boolean override) throws MalformedJsonException {
+	public static boolean saveJsonArrayAppend(@NonNull String fileName, @NonNull String data, boolean override, boolean isArrayEmpty) throws MalformedJsonException {
 		StringBuilder sb = new StringBuilder(data);
 		if (sb.charAt(0) == ',')
 			throw new MalformedJsonException("Json starts with ','. That is not right.");
-		char firstChar = override | sizeOf(fileName) == 0 ? '[' : ',';
+		char firstChar = override || isArrayEmpty ? '[' : ',';
 		switch (firstChar) {
 			case ',':
 				if (sb.charAt(0) == '[')
