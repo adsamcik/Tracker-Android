@@ -59,5 +59,11 @@
         <item name="android:paddingBottom">@dimen/setting_item_padding</item>
         <item name="android:paddingTop">@dimen/setting_item_padding</item>
     </style>
+    
+    <style name="Divider">
+        <item name="android:layout_height">1dp</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:background">@color/dividerColor</item>
+    </style>
 
 </resources>

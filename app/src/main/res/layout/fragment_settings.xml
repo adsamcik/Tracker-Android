@@ -72,9 +72,7 @@
             android:thumbTintMode="src_in"/>
 
         <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
+            style="@style/Divider"/>
 
         <TextView
             style="@style/SettingsTitle"
@@ -158,9 +156,7 @@
         </LinearLayout>
 
         <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
+            style="@style/Divider"/>
 
         <TextView
             style="@style/SettingsTitle"
@@ -182,9 +178,7 @@
             android:visibility="gone"/>
 
         <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
+            style="@style/Divider"/>
 
         <TextView
             android:id="@+id/sign_in_no_connection"
@@ -221,6 +215,21 @@
             android:text="@string/settings_track_noise"/>
 
         <View
+            style="@style/Divider"/>
+
+        <TextView
+            style="@style/SettingsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_default_map_overlay"/>
+
+        <Button
+            android:id="@+id/setting_map_overlay_button"
+            style="@style/SettingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/divider_height"
             android:background="@color/dividerColor"/>
@@ -228,20 +237,6 @@
         <TextView
             style="@style/SettingsTitle"
             android:text="@string/other"/>
-
-        <TextView
-            style="@style/SettingsItem"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_default_map_overlay"/>
-
-        <Spinner
-            android:id="@+id/setting_map_overlay_spinner"
-            style="@style/SettingsItem"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="0dp"
-            android:paddingTop="0dp"/>
 
         <Switch
             android:id="@+id/switchNotificationsUpload"

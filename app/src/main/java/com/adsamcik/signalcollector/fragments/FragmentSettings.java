@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.fragments;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -47,8 +48,6 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
-
-import org.w3c.dom.Text;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -174,39 +173,49 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			alertDialogBuilder.create().show();
 		});
 
-		Spinner mapOverlaySpinner = (Spinner) rootView.findViewById(R.id.setting_map_overlay_spinner);
-		mapOverlaySpinner.setEnabled(false);
+		Button mapOverlayButton = (Button) rootView.findViewById(R.id.setting_map_overlay_button);
+		mapOverlayButton.setEnabled(false);
 
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			Activity activity = getActivity();
 			if (activity != null) {
 				if (layerArray != null && layerArray.length > 0) {
 					SharedPreferences sp = Preferences.get(context);
-					final String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+					String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
 					int index = MapLayer.indexOf(layerArray, defaultOverlay);
 					final int selectIndex = index == -1 ? 0 : index;
 					if (index == -1)
 						sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
+
+					CharSequence[] items = new CharSequence[layerArray.length];
+					for (int i = 0; i < layerArray.length; i++)
+						items[i] = layerArray[i].name;
 					activity.runOnUiThread(() -> {
 						final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, MapLayer.toStringArray(layerArray));
 						adapter.setDropDownViewResource(R.layout.spinner_item);
-						mapOverlaySpinner.setAdapter(adapter);
-						mapOverlaySpinner.setSelection(selectIndex);
-						mapOverlaySpinner.setEnabled(true);
-						mapOverlaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-							@Override
-							public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-								Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(i)).apply();
-							}
+						mapOverlayButton.setEnabled(true);
+						mapOverlayButton.setText(items[selectIndex]);
+						mapOverlayButton.setOnClickListener(v -> {
+							String ov = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+							int in = MapLayer.indexOf(layerArray, ov);
+							int selectIn = in == -1 ? 0 : in;
 
-							@Override
-							public void onNothingSelected(AdapterView<?> adapterView) {
+							AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+							alertDialogBuilder
+									.setTitle(getString(R.string.settings_default_map_overlay))
+									.setSingleChoiceItems(items, selectIn, (dialog, which) -> {
+										Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply();
+										mapOverlayButton.setText(items[which]);
+										dialog.dismiss();
+									})
+									.setNegativeButton(R.string.cancel, (dialog, which) -> {
+									});
 
-							}
+							alertDialogBuilder.create().show();
 						});
 					});
 				} else {
-					activity.runOnUiThread(() -> mapOverlaySpinner.setEnabled(false));
+					activity.runOnUiThread(() -> mapOverlayButton.setEnabled(false));
 				}
 			}
 		});
