@@ -296,7 +296,7 @@ public class DataStore {
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +
-					"\"data\":[")) {
+					"\"data\":")) {
 				return SaveStatus.SAVING_FAILED;
 			}
 		}
