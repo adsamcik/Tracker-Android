@@ -163,7 +163,7 @@ public class MainActivity extends FragmentActivity {
 			}
 
 			try {
-				currentFragment = (ITabFragment) tClass.newInstance();
+				currentFragment = tClass.newInstance();
 			} catch (InstantiationException | IllegalAccessException e) {
 				FirebaseCrash.report(e);
 				return;
