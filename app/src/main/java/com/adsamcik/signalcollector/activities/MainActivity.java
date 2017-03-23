@@ -15,8 +15,6 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
-import android.util.Log;
-import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.services.UploadService;

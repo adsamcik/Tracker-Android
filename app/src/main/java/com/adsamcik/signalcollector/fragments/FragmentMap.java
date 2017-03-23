@@ -50,7 +50,6 @@ import com.google.android.gms.maps.model.UrlTileProvider;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
-import java.util.Random;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;

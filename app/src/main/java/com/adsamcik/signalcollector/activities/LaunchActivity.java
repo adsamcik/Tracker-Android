@@ -11,16 +11,13 @@ import android.os.Build;
 import android.os.Bundle;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
-import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
 
-import java.util.Iterator;
 import java.util.List;
 
 public class LaunchActivity extends Activity {
