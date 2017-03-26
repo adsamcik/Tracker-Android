@@ -54,7 +54,7 @@ public class DataStore {
 
 	public static void setContext(Context c) {
 		if (c != null)
-			contextWeak = new WeakReference<>(c.getApplicationContext());
+			contextWeak = new WeakReference<>(c);
 	}
 
 	/**
@@ -161,7 +161,7 @@ public class DataStore {
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public static boolean exists(String fileName) {
-		return new File(getContext().getFilesDir().getAbsolutePath() + "/" + fileName).exists();
+		return new File(getContext().getFilesDir().getAbsolutePath() + File.separatorChar + fileName).exists();
 	}
 
 	/**
@@ -436,7 +436,8 @@ public class DataStore {
 	public static String loadJsonArrayAppend(String fileName) {
 		StringBuilder sb = loadStringAsBuilder(fileName);
 		if (sb != null && sb.length() != 0) {
-			sb.append(']');
+			if (sb.charAt(sb.length() - 1) != ']')
+				sb.append(']');
 			return sb.toString();
 		}
 		return null;
@@ -626,7 +627,7 @@ public class DataStore {
 					sp.edit().remove(Preferences.OLDEST_RECENT_UPLOAD).apply();
 
 				try {
-					DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats), false);
+					DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats), true, false);
 				} catch (Exception e) {
 					FirebaseCrash.report(e);
 				}
