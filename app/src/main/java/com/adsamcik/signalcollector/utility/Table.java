@@ -162,10 +162,10 @@ public class Table {
 	 */
 	public Table addData(String name, String value) {
 		if (rows.size() == 0) {
-			Log.e("Signals", "You must add row first");
 			FirebaseCrash.log("name: " + name + " value: " + value);
 			FirebaseCrash.report(new Throwable("You must add row first"));
 		}
+
 		return addData(name, value, rows.get(rows.size() - 1));
 	}
 
@@ -186,7 +186,11 @@ public class Table {
 		row.addView(textId);
 
 		TextView textValue = new TextView(context);
-		textValue.setText(value);
+		try {
+			textValue.setText(Assist.formatNumber(Integer.parseInt(value)));
+		} catch (NumberFormatException e) {
+			textValue.setText(value);
+		}
 		textValue.setTextSize(15);
 		textValue.setTextColor(textColor);
 		textValue.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f));
