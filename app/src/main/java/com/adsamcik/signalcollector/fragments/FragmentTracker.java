@@ -239,13 +239,21 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 					progressBar.animate().alpha(0).setDuration(400).start();
 
 					handler.postDelayed(() -> {
-						fabUp.hide();
-						handler.postDelayed(() -> {
+						progressBar.setVisibility(View.GONE);
+						if (DataStore.sizeOfData() > 0) {
 							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
 							resetFabElevation(fabUp, getResources());
-						}, 300);
-					}, 800);
+							updateUploadButton();
+						} else {
+							fabUp.hide();
+							handler.postDelayed(() -> {
+								fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+								fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+								resetFabElevation(fabUp, getResources());
+							}, 300);
+						}
+					}, 1000);
 				}, 600);
 			}
 			animation.start();
