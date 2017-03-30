@@ -153,6 +153,8 @@ public class UploadService extends JobService {
 			if (file == null)
 				throw new InvalidParameterException("file is null");
 			String imei = Assist.getImei();
+			if(imei == null)
+				return false;
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
 					.addFormDataPart("imei", imei)
