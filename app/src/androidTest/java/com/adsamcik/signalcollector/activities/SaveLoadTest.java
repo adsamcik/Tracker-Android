@@ -10,7 +10,6 @@ import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.Until;
-import android.util.Log;
 import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.data.UploadStats;
@@ -23,7 +22,6 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 
 @RunWith(AndroidJUnit4.class)

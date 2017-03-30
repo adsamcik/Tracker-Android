@@ -199,6 +199,7 @@ public class UploadService extends JobService {
 				if (upload(tempZipFile)) {
 					for (String file : files)
 						DataStore.deleteFile(file);
+					//todo handle failed file delete
 					if (!tempZipFile.delete())
 						FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 					tempZipFile = null;
@@ -217,6 +218,7 @@ public class UploadService extends JobService {
 		protected void onCancelled() {
 			DataStore.cleanup();
 			DataStore.recountDataSize();
+			//todo handle failed delete
 			if (tempZipFile != null && tempZipFile.exists())
 				tempZipFile.delete();
 
