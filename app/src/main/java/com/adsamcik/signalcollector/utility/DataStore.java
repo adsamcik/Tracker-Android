@@ -28,6 +28,7 @@ import java.io.OutputStreamWriter;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.channels.FileLock;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +47,8 @@ public class DataStore {
 	private static WeakReference<Context> contextWeak;
 	private static ICallback onDataChanged;
 	private static IValueCallback<Integer> onUploadProgress;
-	private static long approxSize = -1;
+
+	private static volatile long approxSize = -1;
 
 	private static Context getContext() {
 		return contextWeak.get();
@@ -167,7 +169,7 @@ public class DataStore {
 	/**
 	 * Handles any leftover files that could have been corrupted by some issue and reorders existing files
 	 */
-	public static void cleanup() {
+	public synchronized static void cleanup() {
 		File[] files = getContext().getFilesDir().listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<String> renamedFiles = new ArrayList<>();
@@ -274,7 +276,7 @@ public class DataStore {
 	 * @param data json array to be saved, without [ at the beginning
 	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
-	public static SaveStatus saveData(String data) {
+	public synchronized static SaveStatus saveData(String data) {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
@@ -336,7 +338,6 @@ public class DataStore {
 			osw.write(data);
 			osw.close();
 		} catch (Exception e) {
-			e.printStackTrace();
 			FirebaseCrash.report(e);
 			return false;
 		}
@@ -344,13 +345,12 @@ public class DataStore {
 	}
 
 	public static boolean saveStringAppend(String fileName, String data) {
-		try {
-			FileOutputStream outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND);
+		try (FileOutputStream outputStream = getContext().openFileOutput(fileName, Context.MODE_APPEND)) {
+			outputStream.getChannel().lock();
 			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
 			osw.write(data);
 			osw.close();
 		} catch (Exception e) {
-			e.printStackTrace();
 			FirebaseCrash.report(e);
 			return false;
 		}
@@ -415,9 +415,8 @@ public class DataStore {
 			sb.deleteCharAt(sb.length() - 1);
 
 		data = sb.toString();
-		FileOutputStream outputStream;
-		try {
-			outputStream = getContext().openFileOutput(fileName, override ? Context.MODE_PRIVATE : Context.MODE_APPEND);
+		try (FileOutputStream outputStream = getContext().openFileOutput(fileName, override ? Context.MODE_PRIVATE : Context.MODE_APPEND)) {
+			outputStream.getChannel().lock();
 			outputStream.write(data.getBytes());
 			outputStream.close();
 			return true;
@@ -481,6 +480,7 @@ public class DataStore {
 
 		try {
 			FileInputStream fis = getContext().openFileInput(fileName);
+			fis.getChannel().lock();
 			InputStreamReader isr = new InputStreamReader(fis);
 			BufferedReader br = new BufferedReader(isr);
 			String receiveString;
@@ -607,7 +607,7 @@ public class DataStore {
 	/**
 	 * Removes all old recent uploads that are saved.
 	 */
-	public static void removeOldRecentUploads() {
+	public static synchronized void removeOldRecentUploads() {
 		SharedPreferences sp = Preferences.get(contextWeak.get());
 		long oldestUpload = sp.getLong(Preferences.OLDEST_RECENT_UPLOAD, -1);
 		if (oldestUpload != -1) {
