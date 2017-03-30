@@ -17,12 +17,9 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import java.text.DateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 public class RecentUploadsActivity extends Activity {
 
