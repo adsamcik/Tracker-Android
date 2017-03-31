@@ -69,4 +69,5 @@
     <string name="signin_connecting">Connecting!</string>
     <string name="cancel">Cancel</string>
     <string name="enable">Enable</string>
+    <string name="your_stats">Your stats</string>
 </resources>

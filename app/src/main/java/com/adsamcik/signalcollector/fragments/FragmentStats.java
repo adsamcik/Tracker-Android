@@ -128,9 +128,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
 				refreshDone();
 				final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
-				if (state.isSuccess())
+				if (state.isSuccess()) {
+					if (value.length == 1 && value[0].name.isEmpty())
+						value[0] = new Stat(getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
 					generateStats(value, userStats, initialIndex, activity);
-				else {
+				} else {
 					generateStats(value, userStats, initialIndex, activity);
 					new SnackMaker(activity).showSnackbar(state.toString(activity));
 				}
