@@ -184,7 +184,7 @@ public class TrackerService extends Service {
 			wifiManager.startScan();
 		}
 
-		if (telephonyManager != null && !Assist.isAirplaneMode(this)) {
+		if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
 			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
 		}
 

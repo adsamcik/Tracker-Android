@@ -10,6 +10,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.RippleDrawable;
 import android.location.Location;
+import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
@@ -207,39 +208,6 @@ public class Assist {
 		return null;
 	}
 
-	/**
-	 * Checks if upload can be initiated
-	 *
-	 * @param c      context
-	 * @param source source that can upload
-	 * @return true if upload can be initiated
-	 */
-	public static boolean canUpload(final @NonNull Context c, final UploadService.UploadScheduleSource source) {
-		if (!isInitialized() || connectivityManager == null)
-			initialize(c);
-		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
-		if (source.equals(UploadService.UploadScheduleSource.BACKGROUND)) {
-			int aVal = Preferences.get(c).getInt(Preferences.AUTO_UPLOAD, 1);
-			return activeNetwork != null && activeNetwork.isConnectedOrConnecting() &&
-					(activeNetwork.getType() == ConnectivityManager.TYPE_WIFI ||
-							(aVal == 2 && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE && !activeNetwork.isRoaming()));
-		} else
-			return !activeNetwork.isRoaming();
-	}
-
-	/**
-	 * Converts numbers to easier to read format (spaces after every 3 digits)
-	 *
-	 * @param number number
-	 * @return stringified number
-	 */
-	public static String easierToReadNumber(final int number) {
-		StringBuilder sb = new StringBuilder(number);
-		for (int i = sb.length(); i > 0; i -= 3)
-			sb.insert(i, " ");
-		return sb.toString();
-	}
-
 	public static <T> T tryFromJson(String json, Class<T> tClass) {
 		if (json != null && !json.isEmpty()) {
 			try {
@@ -257,7 +225,7 @@ public class Assist {
 	@SuppressLint("HardwareIds")
 	public static String getImei() {
 		if (telephonyManager == null)
-			throw new NullPointerException("Assist were not initialized, this is a bug.");
+			throw new NullPointerException("Assist was not initialized, this is a bug.");
 		return telephonyManager.getDeviceId();
 	}
 
@@ -355,6 +323,17 @@ public class Assist {
 	}
 
 	/**
+	 * Checks if airplane mode is turned on
+	 *
+	 * @param context context
+	 * @return true if airplane mode is turned on
+	 */
+	public static boolean isAirplaneModeEnabled(@NonNull Context context) {
+		return Settings.Global.getInt(context.getContentResolver(),
+				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
+	}
+
+	/**
 	 * Checks if device is connecting or is connected to network
 	 *
 	 * @return true if connected or connecting
@@ -362,6 +341,17 @@ public class Assist {
 	public static boolean hasNetwork() {
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
 		return activeNetwork != null && activeNetwork.isConnectedOrConnecting();
+	}
+
+	/**
+	 * Returns whether satellite position is allowed
+	 * GNSS is universal term for global navigation satellite system
+	 *
+	 * @param context context
+	 * @return true if enabled
+	 */
+	public static boolean isGNSSEnabled(@NonNull Context context) {
+		return ((LocationManager) context.getSystemService(Context.LOCATION_SERVICE)).isProviderEnabled(LocationManager.GPS_PROVIDER);
 	}
 
 	/**
@@ -400,17 +390,6 @@ public class Assist {
 	public static boolean isPlayServiceAvailable(@NonNull Context context) {
 		GoogleApiAvailability gaa = GoogleApiAvailability.getInstance();
 		return gaa != null && gaa.isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS;
-	}
-
-	/**
-	 * Checks if airplane mode is turned on
-	 *
-	 * @param context context
-	 * @return true if airplane mode is turned on
-	 */
-	public static boolean isAirplaneMode(@NonNull Context context) {
-		return Settings.Global.getInt(context.getContentResolver(),
-				Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
 	}
 
 	/**

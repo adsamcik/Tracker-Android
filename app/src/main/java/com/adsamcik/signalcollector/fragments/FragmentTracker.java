@@ -132,10 +132,17 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 		if (requiredPermissions == null) {
 			if (!TrackerService.isRunning()) {
-				Preferences.get(activity).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
-				Intent trackerService = new Intent(activity, TrackerService.class);
-				trackerService.putExtra("backTrack", false);
-				activity.startService(trackerService);
+				if(!Assist.isGNSSEnabled(activity)) {
+					new SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, (v) -> {
+						Intent gpsOptionsIntent = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+						startActivity(gpsOptionsIntent);
+					});
+				} else {
+					Preferences.get(activity).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
+					Intent trackerService = new Intent(activity, TrackerService.class);
+					trackerService.putExtra("backTrack", false);
+					activity.startService(trackerService);
+				}
 			} else {
 				activity.stopService(new Intent(activity, TrackerService.class));
 			}
