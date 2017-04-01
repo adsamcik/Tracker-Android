@@ -37,13 +37,14 @@ public class FabMenu {
 	private boolean isVisible = false;
 	private boolean boundsCalculated = false;
 
-	public FabMenu(ViewGroup parent, FloatingActionButton fab, Context context) {
-		wrapper = (ViewGroup) LayoutInflater.from(context).inflate(R.layout.fab_menu, parent, false);
+	public FabMenu(ViewGroup parent, FloatingActionButton fab, Activity activity) {
+		wrapper = (ViewGroup) LayoutInflater.from(activity).inflate(R.layout.fab_menu, parent, false);
 		menu = (ViewGroup) wrapper.getChildAt(0);
 		container = (ViewGroup) menu.getChildAt(0);
 		wrapper.setVisibility(View.INVISIBLE);
 		menu.setVisibility(View.INVISIBLE);
-		parent.addView(wrapper);
+
+		activity.runOnUiThread(() -> parent.addView(wrapper));
 		this.fab = fab;
 	}
 
