@@ -37,7 +37,7 @@ public class DataStore {
 	public static final String TAG = "SignalsDatastore";
 
 	public static final String RECENT_UPLOADS_FILE = "recentUploads";
-	private static final String DATA_FILE = "dataStore";
+	public static final String DATA_FILE = "dataStore";
 	private static final String KEY_FILE_ID = "saveFileID";
 	private static final String KEY_SIZE = "totalSize";
 	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
@@ -479,7 +479,6 @@ public class DataStore {
 
 		try {
 			FileInputStream fis = getContext().openFileInput(fileName);
-			fis.getChannel().lock();
 			InputStreamReader isr = new InputStreamReader(fis);
 			BufferedReader br = new BufferedReader(isr);
 			String receiveString;
