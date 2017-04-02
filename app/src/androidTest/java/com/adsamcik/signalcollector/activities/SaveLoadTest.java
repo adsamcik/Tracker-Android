@@ -82,6 +82,7 @@ public class SaveLoadTest {
 		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(testFileName));
 		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadJsonArrayAppend(testFileName));
 		DataStore.removeOldRecentUploads();
+		Preferences.checkStatsDay(context);
 
 		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
 		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));

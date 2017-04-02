@@ -52,7 +52,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			switch (MessageType.values()[typeInt]) {
 				case UploadReport:
 					DataStore.removeOldRecentUploads();
-					UploadStats us = parseAndSaveUploadReport(message.getSentTime(), data);
+					UploadStats us = parseAndSaveUploadReport(getApplicationContext(), message.getSentTime(), data);
 					if (!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
 						sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
 					Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
@@ -69,7 +69,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		}
 	}
 
-	private UploadStats parseAndSaveUploadReport(final long time, final Map<String, String> data) {
+	public static UploadStats parseAndSaveUploadReport(@NonNull Context context, final long time, final Map<String, String> data) {
 		final String WIFI = "wifi";
 		final String NEW_WIFI = "newWifi";
 		final String CELL = "cell";
@@ -79,7 +79,6 @@ public class MessageListenerService extends FirebaseMessagingService {
 		final String COLLECTIONS = "collections";
 		final String NEW_LOCATIONS = "newLocations";
 		final String SIZE = "uploadSize";
-		final Context context = getApplicationContext();
 
 		int wifi = 0, cell = 0, noise = 0, collections = 0, newLocations = 0, newWifi = 0, newCell = 0, newNoiseLocations = 0;
 		long uploadSize = 0;
