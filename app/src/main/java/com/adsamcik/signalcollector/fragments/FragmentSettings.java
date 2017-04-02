@@ -31,7 +31,6 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
-import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -52,7 +51,6 @@ import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -310,14 +308,24 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> {
 			File[] files = getContext().getFilesDir().listFiles();
-			String[] fileNames = new String[files.length];
-			for (int i = 0; i < files.length; i++) {
-				fileNames[i] = files[i].getName();
+			ArrayList<String> temp = new ArrayList<>();
+			for (File file : files) {
+				String name = file.getName();
+				if (name.startsWith(DataStore.DATA_FILE) ||
+						name.startsWith(Preferences.GENERAL_STATS) ||
+						name.startsWith(Preferences.USER_STATS) ||
+						name.startsWith(Preferences.AVAILABLE_MAPS) ||
+						name.startsWith(DataStore.RECENT_UPLOADS_FILE))
+					temp.add(name);
 			}
+
+			temp.sort(String::compareTo);
+
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+			String[] fileNames = new String[temp.size()];
 			alertDialogBuilder
 					.setTitle(getString(R.string.settings_default_map_overlay))
-					.setItems(fileNames, (dialog, which) -> {
+					.setItems(temp.toArray(fileNames), (dialog, which) -> {
 						Intent intent = new Intent(getActivity(), DebugFileActivity.class);
 						intent.putExtra("fileName", fileNames[which]);
 						startActivity(intent);
