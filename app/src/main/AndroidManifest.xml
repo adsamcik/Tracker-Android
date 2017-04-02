@@ -60,6 +60,12 @@
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme"/>
 
+        <activity
+            android:name=".activities.DebugFileActivity"
+            android:parentActivityName=".activities.MainActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme"/>
+
         <receiver android:name=".receivers.BatteryStateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_BATTERY_LOW"/>
@@ -117,11 +123,6 @@
         <meta-data
             android:name="com.google.android.gms.games.APP_ID"
             android:value="@string/google_app_id2"/>
-
-        <activity
-            android:name=".activities.DebugFileActivity"
-            android:theme="@style/AppTheme">
-        </activity>
     </application>
 
 </manifest>

@@ -10,6 +10,7 @@ import android.support.v4.app.NavUtils;
 import android.support.v4.content.ContextCompat;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.TableLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
@@ -21,7 +22,7 @@ import com.google.gson.Gson;
 import java.text.DateFormat;
 import java.util.Date;
 
-public class RecentUploadsActivity extends Activity {
+public class RecentUploadsActivity extends DetailActivity {
 
 	/**
 	 * Function for generating table for upload stats
@@ -34,7 +35,7 @@ public class RecentUploadsActivity extends Activity {
 	 */
 	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context, @Nullable String title) {
 		Resources resources = context.getResources();
-		Table t = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
+		Table t = new Table(context, 9, false, ContextCompat.getColor(context, R.color.textPrimary));
 
 
 		if (title == null) {
@@ -62,15 +63,17 @@ public class RecentUploadsActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		DataStore.setContext(this);
-		setContentView(R.layout.activity_recent_uploads);
+		setTitle(R.string.recent_uploads);
 
 		UploadStats[] recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
-		Context context = getApplicationContext();
-		for (UploadStats s : recent) {
-			GenerateTableForUploadStat(s, (LinearLayout) findViewById(R.id.recent_uploads_layout), context, null);
+		if (recent != null && recent.length > 0) {
+			Context context = getApplicationContext();
+			LinearLayout parent = (LinearLayout) findViewById(R.id.content_detail_layout);
+			for (UploadStats s : recent)
+				GenerateTableForUploadStat(s, parent, context, null);
+			parent.getChildAt(0).setLayoutParams(new TableLayout.LayoutParams());
 		}
 
-		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));
 
 		//if (recent.size() > 10)
 		//	DataStore.saveString(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(recent.subList(recent.size() - 11, recent.size() - 1)));
