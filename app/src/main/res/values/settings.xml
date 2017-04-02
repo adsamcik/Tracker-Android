@@ -20,9 +20,12 @@
     <string name="autoupload_always_description">Automatic upload enabled on cellular and wifi networks</string>
     <string name="settings_playGames">Account</string>
     <string name="settings_clear">Clear tracked data</string>
-    <string name="alert_clear_text">Are you sure you want to clear your collected data, which are not yet uploaded?</string>
+    <string name="alert_clear_text">Are you sure you want to clear your local collected data?</string>
     <string name="alert_clear_confirm">I\'m sure</string>
     <string name="alert_clear_cancel">Not really</string>
+    <string name="alert_confirm_generic">Are you sure?</string>
+    <string name="alert_confirm_generic_confirm">Yes</string>
+    <string name="alert_confirm_generic_cancel">No</string>
     <string name="settings_track">Tracking options</string>
     <string name="settings_track_wifi">Wifi</string>
     <string name="settings_track_cell">Cell</string>

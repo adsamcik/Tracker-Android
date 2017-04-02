@@ -282,45 +282,36 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		//Dev stuff
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
-			SnackMaker snackMaker = new SnackMaker(getActivity());
-			File[] files = getContext().getFilesDir().listFiles();
-			for (File file : files) {
-				String fileName = file.getName();
-				if (!fileName.startsWith(DataStore.DATA_FILE)) {
-					while (!file.delete()) {
-						try {
-							Thread.sleep(25);
-						} catch (InterruptedException e) {
-							FirebaseCrash.report(e);
+			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+			alertDialogBuilder
+					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic), (dialog, which) -> {
+						SnackMaker snackMaker = new SnackMaker(getActivity());
+						File[] files = getContext().getFilesDir().listFiles();
+						for (File file : files) {
+							String fileName = file.getName();
+							if (!fileName.startsWith(DataStore.DATA_FILE)) {
+								while (!file.delete()) {
+									try {
+										Thread.sleep(25);
+									} catch (InterruptedException e) {
+										FirebaseCrash.report(e);
+									}
+								}
+								snackMaker.showSnackbar("Deleted " + fileName);
+							}
 						}
-					}
-					snackMaker.showSnackbar("Deleted " + fileName);
-				}
-			}
-		});
+					})
+					.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
+					})
+					.setMessage(getResources().getText(R.string.alert_confirm_generic_confirm));
 
-		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
-			SnackMaker snackMaker = new SnackMaker(getActivity());
-			File[] files = getContext().getFilesDir().listFiles();
-			for (File file : files) {
-				String fileName = file.getName();
-				if (!fileName.startsWith(DataStore.DATA_FILE)) {
-					while (!file.delete()) {
-						try {
-							Thread.sleep(25);
-						} catch (InterruptedException e) {
-							FirebaseCrash.report(e);
-						}
-					}
-					snackMaker.showSnackbar("Deleted " + fileName);
-				}
-			}
+			alertDialogBuilder.create().show();
 		});
 
 		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> {
 			File[] files = getContext().getFilesDir().listFiles();
 			String[] fileNames = new String[files.length];
-			for(int i = 0; i < files.length; i++) {
+			for (int i = 0; i < files.length; i++) {
 				fileNames[i] = files[i].getName();
 			}
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
