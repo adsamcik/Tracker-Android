@@ -90,7 +90,7 @@ public class NetworkLoader {
 	 */
 	public static void requestString(@NonNull final Request request, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
-		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1) {
+		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !DataStore.exists(preferenceString)) {
 			if (!Assist.hasNetwork()) {
 				if (lastUpdate == -1)
 					callback.callback(Source.no_data, null);
