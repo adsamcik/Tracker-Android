@@ -46,6 +46,11 @@
     <string name="recent_upload_noise_new">New noise locations</string>
     <string name="recent_upload_size">Size</string>
 
+    <string name="dev_title">Debug corner</string>
+    <string name="dev_clear_temp_files">Clear temp files</string>
+    <string name="dev_clear_cache">Clear cache</string>
+    <string name="dev_browse_files">Browse files</string>
+
     <string name="recent_uploads">Recent uploads</string>
     <string name="most_recent_upload">Most recent upload</string>
     <string name="more_uploads">More uploads</string>
@@ -59,15 +64,15 @@
     <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new wifi</string>
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
 
+    <string name="signin_connecting">Connecting!</string>
+    <string name="cancel">Cancel</string>
+    <string name="enable">Enable</string>
+    <string name="your_stats">Your stats</string>
+
     <string name="path_play" translatable="false">M12,10L20,10L20,38L12,38ZM28,10L36,10L36,38L28,38Z</string>
     <string name="path_pause" translatable="false">M16,24L38,24L27.3,30.8L16,38ZM16,10L27.3,17.2L38,24L16,24Z</string>
 
     <string name="nPlay" translatable="false">play</string>
     <string name="nPause" translatable="false">pause</string>
     <string name="nPlayPauseGroup" translatable="false">PlayPauseGroup</string>
-
-    <string name="signin_connecting">Connecting!</string>
-    <string name="cancel">Cancel</string>
-    <string name="enable">Enable</string>
-    <string name="your_stats">Your stats</string>
 </resources>

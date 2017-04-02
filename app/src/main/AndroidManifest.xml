@@ -35,28 +35,25 @@
             android:theme="@style/SplashTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
+
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-
         <activity
             android:name=".activities.ShortcutActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
         </activity>
-
         <activity
             android:name=".activities.MainActivity"
             android:alwaysRetainTaskState="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme"/>
-
         <activity
             android:name=".activities.IntroActivity"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar"/>
-
         <activity
             android:name=".activities.RecentUploadsActivity"
             android:parentActivityName=".activities.MainActivity"
@@ -120,6 +117,11 @@
         <meta-data
             android:name="com.google.android.gms.games.APP_ID"
             android:value="@string/google_app_id2"/>
+
+        <activity
+            android:name=".activities.DebugFileActivity"
+            android:theme="@style/AppTheme">
+        </activity>
     </application>
 
 </manifest>

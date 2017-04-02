@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView android:id="@+id/settings_scrollbar"
-            xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+            android:id="@+id/settings_scrollbar"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:overScrollMode="never"
@@ -249,6 +249,28 @@
             style="@style/SettingsButton"
             android:backgroundTint="@color/colorAccent"
             android:text="@string/settings_clear"/>
+
+        <View
+            style="@style/Divider"/>
+
+        <TextView
+            style="@style/SettingsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/dev_title"/>
+
+        <Button
+            android:id="@+id/dev_button_cache_clear"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/dev_clear_cache"/>
+
+        <Button
+            android:id="@+id/dev_button_browse_files"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/dev_browse_files"/>
+
 
         <TextView
             android:id="@+id/versionNum"

@@ -30,6 +30,8 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.activities.DebugFileActivity;
+import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -43,8 +45,14 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.crash.FirebaseCrash;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -270,6 +278,64 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			signin.manageButtons(signInButton, signOutButton);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
+
+
+		//Dev stuff
+		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
+			SnackMaker snackMaker = new SnackMaker(getActivity());
+			File[] files = getContext().getFilesDir().listFiles();
+			for (File file : files) {
+				String fileName = file.getName();
+				if (!fileName.startsWith(DataStore.DATA_FILE)) {
+					while (!file.delete()) {
+						try {
+							Thread.sleep(25);
+						} catch (InterruptedException e) {
+							FirebaseCrash.report(e);
+						}
+					}
+					snackMaker.showSnackbar("Deleted " + fileName);
+				}
+			}
+		});
+
+		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
+			SnackMaker snackMaker = new SnackMaker(getActivity());
+			File[] files = getContext().getFilesDir().listFiles();
+			for (File file : files) {
+				String fileName = file.getName();
+				if (!fileName.startsWith(DataStore.DATA_FILE)) {
+					while (!file.delete()) {
+						try {
+							Thread.sleep(25);
+						} catch (InterruptedException e) {
+							FirebaseCrash.report(e);
+						}
+					}
+					snackMaker.showSnackbar("Deleted " + fileName);
+				}
+			}
+		});
+
+		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> {
+			File[] files = getContext().getFilesDir().listFiles();
+			String[] fileNames = new String[files.length];
+			for(int i = 0; i < files.length; i++) {
+				fileNames[i] = files[i].getName();
+			}
+			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+			alertDialogBuilder
+					.setTitle(getString(R.string.settings_default_map_overlay))
+					.setItems(fileNames, (dialog, which) -> {
+						Intent intent = new Intent(getActivity(), DebugFileActivity.class);
+						intent.putExtra("fileName", fileNames[which]);
+						startActivity(intent);
+					})
+					.setNegativeButton(R.string.cancel, (dialog, which) -> {
+					});
+
+			alertDialogBuilder.create().show();
+		});
 
 		return rootView;
 	}
