@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
@@ -282,7 +283,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
-					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic), (dialog, which) -> {
+					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
 						SnackMaker snackMaker = new SnackMaker(getActivity());
 						File[] files = getContext().getFilesDir().listFiles();
 						for (File file : files) {
@@ -295,13 +296,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 										FirebaseCrash.report(e);
 									}
 								}
-								snackMaker.showSnackbar("Deleted " + fileName);
+								snackMaker.showSnackbar("Deleted " + fileName, Snackbar.LENGTH_SHORT);
 							}
 						}
 					})
 					.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
 					})
-					.setMessage(getResources().getText(R.string.alert_confirm_generic_confirm));
+					.setMessage(getResources().getText(R.string.alert_confirm_generic));
 
 			alertDialogBuilder.create().show();
 		});
