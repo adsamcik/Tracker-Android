@@ -1,15 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="intro_welcome_title">Signals</string>
-    <string name="intro_welcome">is app used for gathering information about your surrounding</string>
-    <string name="intro_collected_title">What is collected?</string>
-    <string name="intro_collected">wifi, active cell, GPS position, noise and device identification used for validating uploads. Most can be turned on or off.</string>
-    <string name="intro_permissions_title">Permission</string>
+    <string name="intro_auto_track_up_title">Automatic tracking and uploading</string>
+    <string name="intro_auto_track_up">No need to worry.\nSignals can automatically tracks and upload data.\nCan be disabled in settings.</string>
+    <string name="intro_permissions_title">Permissions</string>
     <string name="intro_permissions">Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.</string>
     <string name="intro_permissions_noise_title">Noise permission</string>
     <string name="intro_permissions_noise">Noise is very cool, but recording audio might be more sensitive permission, it\'s not mandatory but remember only 1 number (noise value) is collected per second.</string>
-    <string name="intro_smart_title">Smart collecting/uploading</string>
-    <string name="intro_smart">Signals can automatically track and upload all data. Can be disabled or tweaked.</string>
-    <string name="intro_gplay_title">Google Play</string>
-    <string name="intro_gplay">Allows you to earn achievements and is used as login too.</string>
 </resources>
