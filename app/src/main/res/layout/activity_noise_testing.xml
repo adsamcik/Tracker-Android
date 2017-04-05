@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingEnd="@dimen/activity_horizontal_margin"
+    android:paddingStart="@dimen/activity_horizontal_margin"
+    android:paddingBottom="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/status_bar_height_and_padding"
+    tools:context="com.adsamcik.signalcollector.activities.NoiseTestingActivity">
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        style="@style/SettingsText"
+        android:text="AVERAGE NOISE: "
+        android:id="@+id/noiseTestAverage"
+        tools:layout_editor_absoluteY="0dp"
+        tools:layout_editor_absoluteX="0dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        style="@style/SettingsText"
+        android:text="NOISE2"
+        app:layout_constraintLeft_toRightOf="@+id/noiseTestAverage"
+        tools:layout_editor_absoluteY="0dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        style="@style/SettingsText"
+        android:text="POCKET NOISE: "
+        android:id="@+id/noiseTestPocket"
+        app:layout_constraintTop_toBottomOf="@+id/noiseTestAverage"
+        tools:layout_editor_absoluteX="0dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        style="@style/SettingsText"
+        android:text="NOISE2"
+        app:layout_constraintLeft_toRightOf="@+id/noiseTestPocket"
+        app:layout_constraintTop_toBottomOf="@+id/noiseTestAverage"/>
+
+
+    <Button
+        app:layout_constraintHorizontal_chainStyle="packed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="START"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:textAlignment="center"
+        style="@style/SettingsButton"/>
+
+</android.support.constraint.ConstraintLayout>
