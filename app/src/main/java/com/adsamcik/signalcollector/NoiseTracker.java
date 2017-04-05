@@ -61,6 +61,10 @@ public class NoiseTracker implements SensorEventListener {
 		return this;
 	}
 
+	public boolean isRunning() {
+		return audioRecorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING;
+	}
+
 	/**
 	 * Stops noise tracking
 	 *
