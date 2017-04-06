@@ -118,10 +118,14 @@ public class NoiseTestingActivity extends DetailActivity {
 				if (isCancelled())
 					break;
 
-				activity.runOnUiThread(() -> {
-					adapter.add(Integer.toString(noiseTracker.getSample(delayBetweenSamples.value)));
-					listView.smoothScrollToPosition(adapter.getCount() - 1);
-				});
+				short sample = noiseTracker.getSample(delayBetweenSamples.value);
+				if (sample != -1) {
+					activity.runOnUiThread(() -> {
+						adapter.add(Integer.toString(sample));
+						listView.smoothScrollToPosition(adapter.getCount() - 1);
+					});
+				}
+				//todo add snackbar if noise tracker failed to initialize
 			}
 			noiseTracker.stop();
 			return null;
@@ -130,7 +134,7 @@ public class NoiseTestingActivity extends DetailActivity {
 		@Override
 		protected void onCancelled(Void aVoid) {
 			super.onCancelled(aVoid);
-			if(noiseTracker.isRunning())
+			if (noiseTracker.isRunning())
 				noiseTracker.stop();
 		}
 	}
