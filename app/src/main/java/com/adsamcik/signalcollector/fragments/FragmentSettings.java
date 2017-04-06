@@ -32,6 +32,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
+import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.TrackerService;
@@ -53,6 +54,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -281,6 +283,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 
+		rootView.findViewById(R.id.export_share_button).setOnClickListener(v -> startActivity(new Intent(getActivity(), FileSharingActivity.class)));
 
 		//Dev stuff
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
@@ -292,14 +295,20 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						for (File file : files) {
 							String fileName = file.getName();
 							if (!fileName.startsWith(DataStore.DATA_FILE)) {
-								while (!file.delete()) {
+								int deleteRetry = 0;
+								while (DataStore.recursiveDelete(file) && deleteRetry < 10) {
 									try {
-										Thread.sleep(25);
+										Thread.sleep(50);
 									} catch (InterruptedException e) {
 										FirebaseCrash.report(e);
 									}
+									deleteRetry++;
 								}
-								snackMaker.showSnackbar("Deleted " + fileName, Snackbar.LENGTH_SHORT);
+
+								if (deleteRetry >= 10)
+									snackMaker.showSnackbar("Failed to delete " + fileName, Snackbar.LENGTH_SHORT);
+								else
+									snackMaker.showSnackbar("Deleted " + fileName, Snackbar.LENGTH_SHORT);
 							}
 						}
 					})
@@ -323,7 +332,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					temp.add(name);
 			}
 
-			temp.sort(String::compareTo);
+			Collections.sort(temp, String::compareTo);
 
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			String[] fileNames = new String[temp.size()];

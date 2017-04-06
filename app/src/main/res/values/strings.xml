@@ -44,6 +44,9 @@
     <string name="recent_upload_noise_new">New noise locations</string>
     <string name="recent_upload_size">Size</string>
 
+    <string name="export_title">Data export</string>
+    <string name="export_share_button">Share</string>
+
     <string name="dev_title">Debug corner</string>
     <string name="dev_clear_temp_files">Clear temp files</string>
     <string name="dev_clear_cache">Clear cache</string>

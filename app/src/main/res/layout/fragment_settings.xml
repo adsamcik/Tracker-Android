@@ -257,6 +257,21 @@
             style="@style/SettingsTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="@string/export_title"/>
+
+        <Button
+            android:id="@+id/export_share_button"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/export_share_button"/>
+
+        <View
+            style="@style/Divider"/>
+
+        <TextView
+            style="@style/SettingsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="@string/dev_title"/>
 
         <Button
