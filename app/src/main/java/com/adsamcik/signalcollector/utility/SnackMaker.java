@@ -1,22 +1,16 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.annotation.IntDef;
 import android.support.annotation.IntRange;
-import android.support.annotation.IntegerRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
-import android.support.design.widget.BaseTransientBottomBar;
 import android.support.design.widget.Snackbar;
 import android.util.Pair;
 import android.view.View;
 
 import com.adsamcik.signalcollector.R;
-import com.google.android.gms.tasks.Task;
 
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;

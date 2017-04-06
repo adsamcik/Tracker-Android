@@ -9,7 +9,7 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
 
-public class DetailActivity extends Activity {
+public abstract class DetailActivity extends Activity {
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {

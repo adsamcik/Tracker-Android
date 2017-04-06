@@ -24,7 +24,6 @@ import android.view.Display;
 import android.view.WindowManager;
 import android.widget.ScrollView;
 
-import com.adsamcik.signalcollector.services.UploadService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;

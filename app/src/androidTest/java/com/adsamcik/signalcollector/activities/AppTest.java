@@ -19,14 +19,12 @@ import android.util.MalformedJsonException;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.widget.ProgressBar;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
 
@@ -39,16 +37,11 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import static android.support.test.espresso.Espresso.onView;
-import static android.support.test.espresso.action.ViewActions.click;
-import static android.support.test.espresso.assertion.ViewAssertions.matches;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static android.support.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static android.support.test.espresso.matcher.ViewMatchers.withId;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 
 @RunWith(AndroidJUnit4.class)
