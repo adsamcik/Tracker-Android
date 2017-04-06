@@ -18,6 +18,6 @@ public class DebugFileActivity extends DetailActivity {
 		LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 		tv.setLayoutParams(layoutParams);
 		tv.setText(DataStore.loadString(fileName));
-		getLayout().addView(tv);
+		createScrollableContentParent().addView(tv);
 	}
 }

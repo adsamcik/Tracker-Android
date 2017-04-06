@@ -2,9 +2,15 @@ package com.adsamcik.signalcollector.activities;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.support.annotation.IdRes;
+import android.support.annotation.LayoutRes;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NavUtils;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
@@ -35,7 +41,35 @@ public abstract class DetailActivity extends Activity {
 		setTitle(getString(titleId));
 	}
 
-	public LinearLayout getLayout() {
-		return (LinearLayout) findViewById(R.id.content_detail_layout);
+	private LinearLayout createContentLayout(boolean scrollbable) {
+		LinearLayout linearLayout = new LinearLayout(this);
+		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, scrollbable ? LinearLayout.LayoutParams.WRAP_CONTENT : LinearLayout.LayoutParams.MATCH_PARENT);
+		int margin = (int) getResources().getDimension(R.dimen.activity_vertical_margin);
+		lp.setMargins(margin, margin, margin, margin);
+		linearLayout.setLayoutParams(lp);
+
+		linearLayout.setOrientation(LinearLayout.VERTICAL);
+		return linearLayout;
+	}
+
+	protected LinearLayout createContentParent() {
+		LinearLayout root = (LinearLayout) findViewById(R.id.content_detail_root);
+		LinearLayout contentParent = createContentLayout(false);
+		root.addView(contentParent);
+		return contentParent;
+	}
+
+	protected LinearLayout createScrollableContentParent() {
+		LinearLayout root = (LinearLayout) findViewById(R.id.content_detail_root);
+		ScrollView scrollView = new ScrollView(this);
+		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
+		scrollView.setLayoutParams(lp);
+
+		LinearLayout contentParent = createContentLayout(false);
+
+		scrollView.addView(contentParent);
+
+		root.addView(scrollView);
+		return contentParent;
 	}
 }
