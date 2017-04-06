@@ -32,8 +32,6 @@
     <string name="stats_weekly_minutes">Minutes spent tracking</string>
     <string name="stats_weekly_uploaded">Uploaded data</string>
 
-    <string name="other">Other</string>
-
     <string name="map_no_play_services">Map requires up-to-date Play services</string>
 
     <string name="recent_upload_wifi">Wifi</string>
@@ -50,6 +48,9 @@
     <string name="dev_clear_temp_files">Clear temp files</string>
     <string name="dev_clear_cache">Clear cache</string>
     <string name="dev_browse_files">Browse files</string>
+    <string name="dev_noise_average">Average noise</string>
+    <string name="dev_noise_pocket">Pocket noise</string>
+    <string name="dev_noise_tracking_test">Noise tester</string>
 
     <string name="recent_uploads">Recent uploads</string>
     <string name="most_recent_upload">Most recent upload</string>
@@ -64,8 +65,14 @@
     <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new wifi</string>
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
 
+    <!--- Generic strings -->
+    <string name="other">Other</string>
     <string name="signin_connecting">Connecting!</string>
     <string name="cancel">Cancel</string>
     <string name="enable">Enable</string>
     <string name="your_stats">Your stats</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="clear">Clear</string>
+    <string name="x_second_short">%d s</string>
 </resources>

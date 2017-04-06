@@ -271,6 +271,11 @@
             android:backgroundTint="@color/colorAccent"
             android:text="@string/dev_browse_files"/>
 
+        <Button
+            android:id="@+id/dev_button_noise_tracking"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/dev_noise_tracking_test"/>
 
         <TextView
             android:id="@+id/versionNum"

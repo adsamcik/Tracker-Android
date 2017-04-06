@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="@dimen/activity_horizontal_margin">
+
+    <Button
+        android:id="@+id/noiseTestStartStopButton"
+        style="@style/SettingsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/start"
+        android:textAlignment="center"
+        android:textAllCaps="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:layout_editor_absoluteX="291dp"/>
+
+    <Button
+        android:id="@+id/dev_noise_clear_list"
+        style="@style/SettingsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/clear"
+        android:textAlignment="center"
+        android:textAllCaps="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/noiseTestStartStopButton"/>
+
+    <TextView
+        android:id="@+id/dev_text_noise_sample_size"
+        style="@style/SettingsText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="10s"
+        app:layout_constraintBottom_toTopOf="@+id/noiseTestStartStopButton"
+        app:layout_constraintRight_toRightOf="@+id/noiseTestStartStopButton"/>
+
+    <SeekBar
+        android:id="@+id/dev_noise_sample_rate_seek_bar"
+        style="@style/SettingsItem"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        app:layout_constraintBottom_toTopOf="@+id/dev_noise_clear_list"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/dev_text_noise_sample_size"/>
+
+    <ListView
+        android:id="@+id/dev_noise_list_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/dev_noise_sample_rate_seek_bar"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        tools:layout_editor_absoluteX="8dp"/>
+
+</android.support.constraint.ConstraintLayout>

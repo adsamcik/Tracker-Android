@@ -32,6 +32,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
+import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -258,6 +259,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			@Override
 			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
 				valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
+				if (fromUser)
+					Preferences.get(context).edit().putInt(Preferences.AUTO_UPLOAD_AT_MB, progress + MIN_UPLOAD_VALUE).apply();
 			}
 
 			@Override
@@ -267,7 +270,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 			@Override
 			public void onStopTrackingTouch(SeekBar seekBar) {
-				Preferences.get(context).edit().putInt(Preferences.AUTO_UPLOAD_AT_MB, seekBar.getProgress() + MIN_UPLOAD_VALUE).apply();
+
 			}
 		});
 		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
@@ -336,6 +339,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 			alertDialogBuilder.create().show();
 		});
+
+		rootView.findViewById(R.id.dev_button_noise_tracking).setOnClickListener(v -> startActivity(new Intent(getActivity(), NoiseTestingActivity.class)));
 
 		return rootView;
 	}
