@@ -16,8 +16,6 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
 
-import java.lang.ref.Reference;
-import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 
 public class NoiseTestingActivity extends DetailActivity {
@@ -33,7 +31,7 @@ public class NoiseTestingActivity extends DetailActivity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
-		View v = getLayoutInflater().inflate(R.layout.fragment_noise_testing, createContentParent(false));
+		View v = getLayoutInflater().inflate(R.layout.layout_noise_testing, createContentParent(false));
 		startStopButton = (Button) findViewById(R.id.noiseTestStartStopButton);
 
 		setTitle(R.string.settings_track_noise);
