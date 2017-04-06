@@ -45,8 +45,8 @@ public abstract class DetailActivity extends Activity {
 		LinearLayout linearLayout = new LinearLayout(this);
 		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, scrollbable ? LinearLayout.LayoutParams.WRAP_CONTENT : LinearLayout.LayoutParams.MATCH_PARENT);
 		if (addContentPadding) {
-			int margin = (int) getResources().getDimension(R.dimen.activity_vertical_margin);
-			lp.setMargins(margin, margin, margin, margin);
+			int padding = (int) getResources().getDimension(R.dimen.activity_horizontal_margin);
+			linearLayout.setPadding(padding, padding, padding, padding);
 		}
 		linearLayout.setLayoutParams(lp);
 
