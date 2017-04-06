@@ -56,13 +56,13 @@ public class NoiseTracker implements SensorEventListener {
 		if (audioRecorder.getState() == AudioRecord.RECORDSTATE_STOPPED)
 			audioRecorder.startRecording();
 		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED)
-			task = new NoiseCheckTask().execute(audioRecorder);
+			task = new NoiseCheckTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, audioRecorder);
 		mSensorManager.registerListener(this, mProximity, SensorManager.SENSOR_DELAY_NORMAL);
 		return this;
 	}
 
 	public boolean isRunning() {
-		return audioRecorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING;
+		return audioRecorder.getState() == AudioRecord.STATE_INITIALIZED && audioRecorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING;
 	}
 
 	/**
@@ -131,11 +131,16 @@ public class NoiseTracker implements SensorEventListener {
 		@Override
 		protected Void doInBackground(AudioRecord... records) {
 			AudioRecord audio = records[0];
-			while (true) {
+			while (!isCancelled()) {
 				int state = audio.getState();
-				if (state == AudioRecord.STATE_UNINITIALIZED)
+				if (state == AudioRecord.STATE_UNINITIALIZED) {
+					try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						//I see no reason to
+					}
 					continue;
-				else if (state < 0 || audio.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
+				} else if (state < 0 || audio.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
 					break;
 
 				boolean inPocket = proximityNear;
