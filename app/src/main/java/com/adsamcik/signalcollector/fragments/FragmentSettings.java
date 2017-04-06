@@ -337,7 +337,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			String[] fileNames = new String[temp.size()];
 			alertDialogBuilder
-					.setTitle(getString(R.string.settings_default_map_overlay))
+					.setTitle(getString(R.string.dev_browse_files))
 					.setItems(temp.toArray(fileNames), (dialog, which) -> {
 						Intent intent = new Intent(getActivity(), DebugFileActivity.class);
 						intent.putExtra("fileName", fileNames[which]);
