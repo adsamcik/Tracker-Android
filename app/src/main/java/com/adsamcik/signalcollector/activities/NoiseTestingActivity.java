@@ -27,6 +27,7 @@ public class NoiseTestingActivity extends DetailActivity {
 
 	private MutableInt delayBetweenCollections = new MutableInt(3);
 
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -82,6 +83,13 @@ public class NoiseTestingActivity extends DetailActivity {
 	}
 
 
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		noiseGetter.cancel(true);
+	}
+
+
 	private class NoiseGetter extends AsyncTask<Void, Void, Void> {
 		private final NoiseTracker noiseTracker;
 		private final MutableInt delayBetweenSamples;
@@ -103,7 +111,6 @@ public class NoiseTestingActivity extends DetailActivity {
 			while (delayBetweenSamples != null) {
 				try {
 					Thread.sleep(delayBetweenSamples.value * 1000);
-					Log.d("TAG", delayBetweenSamples.value + " str");
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -118,6 +125,13 @@ public class NoiseTestingActivity extends DetailActivity {
 			}
 			noiseTracker.stop();
 			return null;
+		}
+
+		@Override
+		protected void onCancelled(Void aVoid) {
+			super.onCancelled(aVoid);
+			if(noiseTracker.isRunning())
+				noiseTracker.stop();
 		}
 	}
 }
