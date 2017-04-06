@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.graphics.Color;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
@@ -10,7 +9,6 @@ import android.view.Window;
 
 import com.adsamcik.signalcollector.R;
 import com.github.paolorotolo.appintro.AppIntroBaseFragment;
-import com.github.paolorotolo.appintro.AppIntroFragment;
 
 public final class FragmentIntro extends AppIntroBaseFragment {
 	private Window window;
