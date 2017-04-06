@@ -66,7 +66,7 @@ public class RecentUploadsActivity extends DetailActivity {
 		UploadStats[] recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
 		if (recent != null && recent.length > 0) {
 			Context context = getApplicationContext();
-			LinearLayout parent = createScrollableContentParent();
+			LinearLayout parent = createScrollableContentParent(true);
 			for (UploadStats s : recent)
 				GenerateTableForUploadStat(s, parent, context, null);
 			parent.getChildAt(0).setLayoutParams(new TableLayout.LayoutParams());

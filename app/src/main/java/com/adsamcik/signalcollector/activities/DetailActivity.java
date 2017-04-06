@@ -41,31 +41,33 @@ public abstract class DetailActivity extends Activity {
 		setTitle(getString(titleId));
 	}
 
-	private LinearLayout createContentLayout(boolean scrollbable) {
+	private LinearLayout createContentLayout(boolean scrollbable, boolean addContentPadding) {
 		LinearLayout linearLayout = new LinearLayout(this);
 		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, scrollbable ? LinearLayout.LayoutParams.WRAP_CONTENT : LinearLayout.LayoutParams.MATCH_PARENT);
-		int margin = (int) getResources().getDimension(R.dimen.activity_vertical_margin);
-		lp.setMargins(margin, margin, margin, margin);
+		if (addContentPadding) {
+			int margin = (int) getResources().getDimension(R.dimen.activity_vertical_margin);
+			lp.setMargins(margin, margin, margin, margin);
+		}
 		linearLayout.setLayoutParams(lp);
 
 		linearLayout.setOrientation(LinearLayout.VERTICAL);
 		return linearLayout;
 	}
 
-	protected LinearLayout createContentParent() {
+	protected LinearLayout createContentParent(boolean addContentPadding) {
 		LinearLayout root = (LinearLayout) findViewById(R.id.content_detail_root);
-		LinearLayout contentParent = createContentLayout(false);
+		LinearLayout contentParent = createContentLayout(false, addContentPadding);
 		root.addView(contentParent);
 		return contentParent;
 	}
 
-	protected LinearLayout createScrollableContentParent() {
+	protected LinearLayout createScrollableContentParent(boolean addContentPadding) {
 		LinearLayout root = (LinearLayout) findViewById(R.id.content_detail_root);
 		ScrollView scrollView = new ScrollView(this);
 		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
 		scrollView.setLayoutParams(lp);
 
-		LinearLayout contentParent = createContentLayout(false);
+		LinearLayout contentParent = createContentLayout(false, addContentPadding);
 
 		scrollView.addView(contentParent);
 
