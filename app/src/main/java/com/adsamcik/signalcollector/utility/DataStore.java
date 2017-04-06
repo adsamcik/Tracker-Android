@@ -263,6 +263,21 @@ public class DataStore {
 		FirebaseAnalytics.getInstance(getContext()).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle);
 	}
 
+	/**
+	 * Recursively deletes all files in a directory
+	 *
+	 * @param file File or directory
+	 * @return True if successfull
+	 */
+	public static boolean recursiveDelete(File file) {
+		if (file.isDirectory()) {
+			for (File f : file.listFiles())
+				if (!recursiveDelete(f))
+					return false;
+		}
+		return file.delete();
+	}
+
 	public enum SaveStatus {
 		SAVING_FAILED,
 		SAVING_SUCCESSFULL,
