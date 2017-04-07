@@ -34,6 +34,10 @@ public class SnackMaker {
 		showSnackbar(message, Snackbar.LENGTH_LONG);
 	}
 
+	public void showSnackbar(@StringRes int message) {
+		showSnackbar(view.getContext().getString(message), Snackbar.LENGTH_LONG);
+	}
+
 	public void showSnackbar(@NonNull String message, @IntRange(from = Snackbar.LENGTH_SHORT, to = Snackbar.LENGTH_LONG) int duration) {
 		if (queue.isEmpty()) {
 			queue.add(new Pair<>(message, duration));
