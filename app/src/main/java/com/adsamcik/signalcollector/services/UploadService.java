@@ -153,7 +153,7 @@ public class UploadService extends JobService {
 			if (file == null)
 				throw new InvalidParameterException("file is null");
 			String imei = Assist.getImei();
-			if(imei == null)
+			if (imei == null)
 				return false;
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
@@ -168,9 +168,8 @@ public class UploadService extends JobService {
 				boolean isSuccessful = response.isSuccessful();
 				response.close();
 				if (isSuccessful) {
-					if (!file.delete()) {
+					if (!DataStore.retryDelete(file))
 						FirebaseCrash.report(new IOException("Failed to delete file " + file.getName() + ". This should never happen."));
-					}
 					return true;
 				}
 				FirebaseCrash.report(new Throwable("Upload failed " + code));
@@ -199,8 +198,7 @@ public class UploadService extends JobService {
 				if (upload(tempZipFile)) {
 					for (String file : files)
 						DataStore.deleteFile(file);
-					//todo handle failed file delete
-					if (!tempZipFile.delete())
+					if (!DataStore.retryDelete(tempZipFile))
 						FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 					tempZipFile = null;
 				} else {
@@ -218,9 +216,8 @@ public class UploadService extends JobService {
 		protected void onCancelled() {
 			DataStore.cleanup();
 			DataStore.recountDataSize();
-			//todo handle failed delete
-			if (tempZipFile != null && tempZipFile.exists())
-				tempZipFile.delete();
+			if (tempZipFile != null)
+				DataStore.retryDelete(tempZipFile);
 
 			if (call != null)
 				call.cancel();

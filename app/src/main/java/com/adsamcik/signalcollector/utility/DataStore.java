@@ -278,6 +278,43 @@ public class DataStore {
 		return file.delete();
 	}
 
+	/**
+	 * Tries to delete file 5 times.
+	 * After every unsuccessfull try there is 50ms sleep so you should ensure that this function does not run on UI thread.
+	 *
+	 * @param file          file to delete
+	 * @return true if file was deleted, false otherwise
+	 */
+	public static boolean retryDelete(File file) {
+		return retryDelete(file, 5);
+	}
+
+	/**
+	 * Tries to delete file multiple times based on {@code maxRetryCount}.
+	 * After every unsuccessfull try there is 50ms sleep so you should ensure that this function does not run on UI thread.
+	 *
+	 * @param file          file to delete
+	 * @param maxRetryCount maximum retry count
+	 * @return true if file was deleted, false otherwise
+	 */
+	public static boolean retryDelete(File file, int maxRetryCount) {
+		int retryCount = 0;
+		for (; ; ) {
+			if (!file.exists() || file.delete())
+				return true;
+
+			if (++retryCount < maxRetryCount)
+				return false;
+
+			try {
+				Thread.sleep(50);
+			} catch (InterruptedException e) {
+				// Restore the interrupted status
+				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
 	public enum SaveStatus {
 		SAVING_FAILED,
 		SAVING_SUCCESSFULL,
