@@ -86,7 +86,8 @@ public class NoiseTestingActivity extends DetailActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		noiseGetter.cancel(true);
+		if (noiseGetter != null)
+			noiseGetter.cancel(true);
 	}
 
 
