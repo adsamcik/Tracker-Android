@@ -39,7 +39,9 @@ public class NoiseTracker implements SensorEventListener {
 		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 		if (NoiseSuppressor.isAvailable()) {
 			NoiseSuppressor noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
-			if (!noiseSuppressor.getEnabled())
+			if (noiseSuppressor == null)
+				FirebaseCrash.report(new Throwable("noise suppressor is null when it should be available."));
+			else if (!noiseSuppressor.getEnabled())
 				noiseSuppressor.setEnabled(true);
 		}
 		mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
@@ -63,6 +65,7 @@ public class NoiseTracker implements SensorEventListener {
 
 	/**
 	 * Checks whether audio recorder is recording
+	 *
 	 * @return true if audioRecorder is running
 	 */
 	public boolean isRunning() {
