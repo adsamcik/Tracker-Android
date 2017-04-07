@@ -48,9 +48,9 @@ public class FileSharingActivity extends DetailActivity {
 			tv.setGravity(Gravity.CENTER_HORIZONTAL);
 			createContentParent(true).addView(tv);
 		} else {
-			fileNames = new String[20];
+			fileNames = new String[files.length];
 			for (int i = 0; i < fileNames.length; i++)
-				fileNames[i] = files[0].getName();
+				fileNames[i] = files[i].getName();
 
 			LinearLayout parent = createContentParent(false);
 			CoordinatorLayout layout = (CoordinatorLayout) ((ViewGroup) getLayoutInflater().inflate(R.layout.layout_file_share, parent)).getChildAt(parent.getChildCount() - 1);
