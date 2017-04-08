@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
 import android.support.design.widget.BottomSheetBehavior;
@@ -69,5 +71,12 @@ public class BottomSheetMenu {
 		ViewParent viewParent = menuRoot.getParent();
 		if (viewParent != null)
 			((ViewGroup) viewParent).removeView(menuRoot);
+	}
+
+	public void showHide(int delayInMS) {
+		bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+		if(Looper.myLooper() == null)
+			Looper.prepare();
+		new Handler().postDelayed(() -> bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED), delayInMS);
 	}
 }
