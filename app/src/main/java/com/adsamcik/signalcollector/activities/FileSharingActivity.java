@@ -20,6 +20,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -62,12 +63,12 @@ public class FileSharingActivity extends DetailActivity {
 			View.OnClickListener shareOnClickListener = v -> {
 				SparseBooleanArray sba = listView.getCheckedItemPositions();
 				ArrayList<String> temp = new ArrayList<>();
-				for (int i = 1; i < fileNames.length; i++)
+				for (int i = 0; i < fileNames.length; i++)
 					if (sba.get(i))
 						temp.add(fileNames[i]);
 
 				if (temp.size() == 0)
-					new SnackMaker(layout).showSnackbar(R.string.share_nothing_to_share, Snackbar.LENGTH_SHORT);
+					Toast.makeText(this, R.string.share_nothing_to_share, Toast.LENGTH_SHORT).show();
 				else {
 					String[] arr = new String[temp.size()];
 					temp.toArray(arr);
@@ -86,10 +87,8 @@ public class FileSharingActivity extends DetailActivity {
 							shareIntent.setType("application/zip");
 							startActivityForResult(Intent.createChooser(shareIntent, getResources().getText(R.string.export_share_button)), SHARE_RESULT);
 
-						} else
-							new SnackMaker(parent).showSnackbar("Failed to rename to " + target.getPath().substring(30));
-					} else
-						new SnackMaker(parent).showSnackbar("Failed to create dirs");
+						}
+					}
 
 					target.deleteOnExit();
 					shareableDir.deleteOnExit();
@@ -108,6 +107,8 @@ public class FileSharingActivity extends DetailActivity {
 				for (int i = 0; i < fileNames.length; i++)
 					listView.setItemChecked(i, false);
 			});
+
+			bottomSheetMenu.showHide(750);
 		}
 
 		setTitle(R.string.export_share_button);
