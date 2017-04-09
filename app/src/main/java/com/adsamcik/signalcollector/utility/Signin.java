@@ -1,7 +1,9 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.app.Activity;
-import android.content.Intent;
+import android.content.Context;
+import android.content.IntentSender;
+import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
@@ -23,14 +25,17 @@ import com.google.firebase.crash.FirebaseCrash;
 import java.lang.ref.WeakReference;
 
 
-public class Signin implements GoogleApiClient.OnConnectionFailedListener {
+public class Signin implements GoogleApiClient.OnConnectionFailedListener, GoogleApiClient.ConnectionCallbacks {
 	public static final int RC_SIGN_IN = 4654;
+	private static final int REQUEST_RESOLVE_ERROR = 1001;
+
 	private final GoogleApiClient client;
 	private WeakReference<SignInButton> signInButton;
 	private WeakReference<Button> signOutButton;
 	private final WeakReference<FragmentActivity> activityWeakReference;
 
 	private String token = null;
+	private boolean resolvingError = false;
 
 	private static Signin instance = null;
 
@@ -38,16 +43,20 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 		return activityWeakReference != null ? activityWeakReference.get() : null;
 	}
 
-	public static Signin getInstance(@Nullable FragmentActivity fragmentActivity) {
-		if (instance == null && fragmentActivity != null)
+	public static Signin getInstance(@NonNull FragmentActivity fragmentActivity) {
+		if (instance == null)
 			instance = new Signin(fragmentActivity);
 		return instance;
 	}
 
-	public static String getToken(@Nullable FragmentActivity fragmentActivity) {
-		Signin signin = getInstance(fragmentActivity);
-		assert signin != null;
-		return signin.token;
+	public static Signin getInstance(@NonNull Context context) {
+		if (instance == null)
+			instance = new Signin(context);
+		return instance;
+	}
+
+	public static String getToken(@NonNull Context context) {
+		return getInstance(context).token;
 	}
 
 	public static String getTokenFromResult(@NonNull GoogleSignInAccount acc) {
@@ -58,15 +67,29 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 
 	private Signin(@NonNull FragmentActivity activity) {
 		activityWeakReference = new WeakReference<>(activity);
+		client = initializeClient(activity);
+		silentSignIn(client);
+	}
+
+	private Signin(@NonNull Context context) {
+		activityWeakReference = null;
+		client = initializeClient(context);
+		silentSignIn(client);
+	}
+
+	private GoogleApiClient initializeClient(@NonNull Context context) {
 		GoogleSignInOptions gso = new GoogleSignInOptions.Builder()
-				.requestIdToken(activity.getResources().getString(R.string.server_client_id))
+				.requestIdToken(context.getString(R.string.server_client_id))
 				.build();
-		client = new GoogleApiClient.Builder(activity)
-				.enableAutoManage(activity, this)
+		return new GoogleApiClient.Builder(context)
+				.addConnectionCallbacks(this)
+				.addOnConnectionFailedListener(this)
 				.addApi(Auth.GOOGLE_SIGN_IN_API, gso)
 				.build();
+	}
 
-		OptionalPendingResult<GoogleSignInResult> pendingResult = Auth.GoogleSignInApi.silentSignIn(client);
+	private void silentSignIn(GoogleApiClient googleApiClient) {
+		OptionalPendingResult<GoogleSignInResult> pendingResult = Auth.GoogleSignInApi.silentSignIn(googleApiClient);
 
 		if (pendingResult.isDone()) {
 			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
@@ -84,10 +107,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 		}
 	}
 
-	public Signin setButtons(SignInButton signInButton, Button signOutButton) {
+	public Signin setButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
 		this.signInButton = new WeakReference<>(signInButton);
 		this.signOutButton = new WeakReference<>(signOutButton);
-
 		updateButtons(token != null);
 		return this;
 	}
@@ -142,11 +164,36 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	}
 
 	@Override
-	public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-		Activity activity = getActivity();
+	public void onConnectionFailed(@NonNull ConnectionResult result) {
+		if (resolvingError) {
+			// Already attempting to resolve an error.
+			return;
+		} else if (result.hasResolution() && getActivity() != null) {
+			try {
+				resolvingError = true;
+				result.startResolutionForResult(getActivity(), REQUEST_RESOLVE_ERROR);
+			} catch (IntentSender.SendIntentException e) {
+				client.connect();
+			}
+		} else {
+			// Show dialog using GoogleApiAvailability.getErrorDialog()
+			//showErrorDialog(result.getErrorCode());
+			resolvingError = true;
+		}
+		/*Activity activity = getActivity();
 		if (activity != null) {
 			Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(client);
-			activityWeakReference.get().startActivityForResult(signInIntent, RC_SIGN_IN);
-		}
+			activity.startActivityForResult(signInIntent, RC_SIGN_IN);
+		}*/
+	}
+
+	@Override
+	public void onConnected(@Nullable Bundle bundle) {
+		resolvingError = false;
+	}
+
+	@Override
+	public void onConnectionSuspended(int i) {
+
 	}
 }

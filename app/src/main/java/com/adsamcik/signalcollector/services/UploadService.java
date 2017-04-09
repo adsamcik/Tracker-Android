@@ -20,6 +20,7 @@ import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
@@ -107,7 +108,7 @@ public class UploadService extends JobService {
 			Assist.initialize(c);
 
 		isUploading = true;
-		worker = new JobWorker(getFilesDir().getAbsolutePath()) {
+		worker = new JobWorker(getFilesDir().getAbsolutePath(), c) {
 			@Override
 			protected void onPostExecute(Boolean success) {
 				if (success)
@@ -136,12 +137,15 @@ public class UploadService extends JobService {
 
 	private static class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
 		private final String directory;
+		private final Context context;
+
 		private File tempZipFile = null;
 		private Response response = null;
 		private Call call = null;
 
-		JobWorker(final String dir) {
+		JobWorker(final String dir, final Context context) {
 			this.directory = dir;
+			this.context = context;
 		}
 
 		/**
@@ -152,13 +156,15 @@ public class UploadService extends JobService {
 		private boolean upload(final File file) {
 			if (file == null)
 				throw new InvalidParameterException("file is null");
-			String imei = Assist.getImei();
-			if (imei == null)
+			String token = Signin.getToken(context);
+			if (token == null) {
+				FirebaseCrash.report(new Throwable("Token is null"));
 				return false;
+			}
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
-					.addFormDataPart("imei", imei)
-					.addFormDataPart("file", Network.generateVerificationString(imei, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
+					.addFormDataPart("token", token)
+					.addFormDataPart("file", Network.generateVerificationString(Assist.getDeviceID(), file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
 			try {

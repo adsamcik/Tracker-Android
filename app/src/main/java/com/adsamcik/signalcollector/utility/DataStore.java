@@ -282,7 +282,7 @@ public class DataStore {
 	 * Tries to delete file 5 times.
 	 * After every unsuccessfull try there is 50ms sleep so you should ensure that this function does not run on UI thread.
 	 *
-	 * @param file          file to delete
+	 * @param file file to delete
 	 * @return true if file was deleted, false otherwise
 	 */
 	public static boolean retryDelete(File file) {
@@ -344,8 +344,7 @@ public class DataStore {
 
 
 		if (fileHasNoData) {
-			if (!saveString(DATA_FILE + id, "{\"imei\":" + Assist.getImei() +
-					",\"device\":\"" + Build.MODEL +
+			if (!saveString(DATA_FILE + id, "{,\"device\":\"" + Build.MODEL +
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +

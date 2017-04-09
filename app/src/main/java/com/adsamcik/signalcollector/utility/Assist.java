@@ -219,16 +219,6 @@ public class Assist {
 	}
 
 	/**
-	 * @return Device imei
-	 */
-	@SuppressLint("HardwareIds")
-	public static String getImei() {
-		if (telephonyManager == null)
-			throw new NullPointerException("Assist was not initialized, this is a bug.");
-		return telephonyManager.getDeviceId();
-	}
-
-	/**
 	 * Converts amplitude to dbm
 	 *
 	 * @param amplitude amplitude
@@ -361,6 +351,10 @@ public class Assist {
 	 */
 	public static int getAgeInDays(long time) {
 		return (int) ((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS);
+	}
+
+	public static String getDeviceID() {
+		return Build.MANUFACTURER + Build.DEVICE;
 	}
 
 	/**
