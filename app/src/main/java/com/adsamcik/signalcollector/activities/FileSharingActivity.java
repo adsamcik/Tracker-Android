@@ -65,6 +65,7 @@ public class FileSharingActivity extends DetailActivity {
 					String[] arr = new String[temp.size()];
 					temp.toArray(arr);
 					File c = Compress.zip(files[0].getParent(), arr, "export_" + System.currentTimeMillis());
+					assert c != null;
 					File target = new File(c.getParent() + File.separatorChar + SHAREABLE_DIR_NAME + File.separatorChar + c.getName() + ".zip");
 					shareableDir = new File(c.getParent() + File.separatorChar + SHAREABLE_DIR_NAME);
 					if (shareableDir.exists() || shareableDir.mkdir()) {
