@@ -279,7 +279,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		if (Assist.hasNetwork()) {
 			signin = Signin.getInstance(getActivity());
-			signin.manageButtons(signInButton, signOutButton);
+			signin.setButtons(signInButton, signOutButton);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 
