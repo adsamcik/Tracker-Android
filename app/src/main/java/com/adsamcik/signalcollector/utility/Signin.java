@@ -87,7 +87,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	public Signin manageButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
 		this.signInButton = new WeakReference<>(signInButton);
 		this.signOutButton = new WeakReference<>(signOutButton);
-		updateButtons(client.isConnecting() | client.isConnected());
+		updateButtons(token != null);
 		return this;
 	}
 
@@ -139,11 +139,11 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 	}
 
 	private void signout() {
-		if (client.isConnected() || client.isConnecting()) {
+		if (token != null) {
 			Auth.GoogleSignInApi.signOut(client).setResultCallback(status -> onSignedOut());
 			token = null;
 		} else
-			FirebaseCrash.report(new Throwable("Signout called while client is not even connecting. SOMETHING IS WRONG! PANIC!"));
+			FirebaseCrash.report(new Throwable("Signout called while client has null token. SOMETHING IS WRONG! PANIC!"));
 	}
 
 	@Override
