@@ -35,13 +35,13 @@ public class ActivityService extends IntentService {
 		super("ActivityService");
 	}
 
-	public static Failure<String> initializeActivityClient(@NonNull Context context) {
+	public static void initializeActivityClient(@NonNull Context context) {
 		if (Assist.isPlayServiceAvailable(context)) {
 			if (gapiClient == null) {
 				final Context appContext = context.getApplicationContext();
 				if (appContext == null) {
 					FirebaseCrash.report(new Throwable("Application context is null"));
-					return new Failure<>("Failed to initialize automatic tracking");
+					return;
 				}
 				gapiClient = new GoogleApiClient.Builder(appContext)
 						.addApi(ActivityRecognition.API)
@@ -60,9 +60,7 @@ public class ActivityService extends IntentService {
 						.build();
 			}
 			gapiClient.connect();
-			return new Failure<>();
 		}
-		return new Failure<>("Play services are not available");
 	}
 
 	public static Failure<String> initializeActivityClient(@NonNull FragmentActivity activity) {

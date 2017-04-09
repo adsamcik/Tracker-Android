@@ -37,7 +37,8 @@
         android:layout_height="wrap_content"
         android:text="10s"
         app:layout_constraintBottom_toTopOf="@+id/noiseTestStartStopButton"
-        app:layout_constraintRight_toRightOf="@+id/noiseTestStartStopButton"/>
+        app:layout_constraintRight_toRightOf="@+id/noiseTestStartStopButton"
+        tools:ignore="HardcodedText"/>
 
     <SeekBar
         android:id="@+id/dev_noise_sample_rate_seek_bar"
@@ -45,7 +46,6 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="8dp"
-        android:layout_marginLeft="8dp"
         android:layout_marginStart="8dp"
         app:layout_constraintBottom_toTopOf="@+id/dev_noise_clear_list"
         app:layout_constraintHorizontal_bias="1.0"

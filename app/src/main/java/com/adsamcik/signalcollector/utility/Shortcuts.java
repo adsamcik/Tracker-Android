@@ -27,11 +27,9 @@ public class Shortcuts {
 	 * Initializes shortcuts
 	 *
 	 * @param context context
-	 * @return true if not initialized
 	 */
-	public static boolean initializeShortcuts(@NonNull Context context) {
+	public static void initializeShortcuts(@NonNull Context context) {
 		ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
-		//if (shortcutManager.getDynamicShortcuts().size() == 0) {
 		ArrayList<ShortcutInfo> shortcuts = new ArrayList<>(1);
 		if (!TrackerService.isRunning())
 			shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_start_tracking), context.getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, ShortcutType.START_COLLECTION));
@@ -39,9 +37,6 @@ public class Shortcuts {
 			shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_stop_tracking), context.getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, ShortcutType.STOP_COLLECTION));
 
 		shortcutManager.setDynamicShortcuts(shortcuts);
-		return false;
-		//}
-		//return true;
 	}
 
 

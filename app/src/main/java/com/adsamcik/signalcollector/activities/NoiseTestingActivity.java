@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.util.Log;
 import android.util.MutableInt;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -62,7 +61,7 @@ public class NoiseTestingActivity extends DetailActivity {
 
 		seekBar.setProgress(delayBetweenCollections.value - 1);
 
-		adapter = new ArrayAdapter(this, R.layout.spinner_item, arrayList);
+		adapter = new ArrayAdapter<>(this, R.layout.spinner_item, arrayList);
 		final ListView listView = ((ListView) v.findViewById(R.id.dev_noise_list_view));
 		listView.setAdapter(adapter);
 

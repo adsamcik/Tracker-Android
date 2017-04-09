@@ -218,7 +218,7 @@ public class AppTest {
 				Log.e(TAG, description.toString());
 				throw noViewException;
 			} else {
-				description.appendText(String.format("' doesn't match the selected view."));
+				description.appendText("' doesn't match the selected view.");
 				ViewMatchers.assertThat(description.toString(), view, viewMatcher);
 			}
 		};

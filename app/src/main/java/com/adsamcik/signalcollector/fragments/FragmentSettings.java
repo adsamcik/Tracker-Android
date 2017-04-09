@@ -371,7 +371,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public void onLeave(@NonNull FragmentActivity activity) {
 		if (signin != null) {
-			signin.forgetButtons();
 			signin = null;
 		}
 	}
