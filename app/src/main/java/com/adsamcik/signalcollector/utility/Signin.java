@@ -112,7 +112,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener {
 					signInButton.setOnClickListener((v) -> {
 						Activity a = getActivity();
 						if (a != null) {
-							activityWeakReference.get().startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(client), RC_SIGN_IN);
+							a.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(client), RC_SIGN_IN);
 						}
 					});
 				}
