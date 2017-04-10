@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.Button;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -41,6 +42,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	private static Signin instance = null;
 
+	private IValueCallback<String> onSignedCallback;
+
 	private Activity getActivity() {
 		return activityWeakReference != null ? activityWeakReference.get() : null;
 	}
@@ -65,6 +68,14 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	public static String getToken(@NonNull Context context) {
 		return getInstance(context).token;
+	}
+
+	public static void getTokenAsync(@NonNull Context context, IValueCallback<String> callback) {
+		Signin instance = getInstance(context);
+		if(instance.token != null)
+			callback.callback(instance.token);
+		else
+			instance.onSignedCallback = callback;
 	}
 
 	public static String getTokenFromResult(@NonNull GoogleSignInAccount acc) {
@@ -150,6 +161,10 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (showSnackbar)
 			showSnackbar(R.string.signed_in_message);
 		this.token = token;
+		if(onSignedCallback != null) {
+			onSignedCallback.callback(token);
+			onSignedCallback = null;
+		}
 	}
 
 	private void onSignedOut() {
