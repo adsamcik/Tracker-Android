@@ -26,6 +26,12 @@ import com.google.firebase.crash.FirebaseCrash;
 import java.io.File;
 import java.io.IOException;
 import java.security.InvalidParameterException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import okhttp3.Call;
 import okhttp3.MediaType;
@@ -153,11 +159,10 @@ public class UploadService extends JobService {
 		 *
 		 * @param file file to be uploaded
 		 */
-		private boolean upload(final File file) {
+		private boolean upload(final File file, String token) {
 			if (file == null)
 				throw new InvalidParameterException("file is null");
-			String token = Signin.getToken(context);
-			if (token == null) {
+			else if (token == null) {
 				FirebaseCrash.report(new Throwable("Token is null"));
 				return false;
 			}
@@ -186,6 +191,23 @@ public class UploadService extends JobService {
 			}
 		}
 
+		private class StringWrapper {
+			StringWrapper() {
+				string = null;
+			}
+
+			public synchronized String getString() {
+				return string;
+			}
+
+			public synchronized void setString(String string) {
+				this.string = string;
+			}
+
+			private String string;
+
+		}
+
 		@Override
 		protected Boolean doInBackground(JobParameters... params) {
 			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
@@ -201,7 +223,30 @@ public class UploadService extends JobService {
 					DataStore.closeUploadFile(files[files.length - 1]);
 				String zipName = "up" + System.currentTimeMillis();
 				tempZipFile = Compress.zip(directory, files, zipName);
-				if (upload(tempZipFile)) {
+				final Lock lock = new ReentrantLock();
+				final Condition callbackReceived = lock.newCondition();
+				final StringWrapper token = new StringWrapper();
+
+				Signin.getTokenAsync(context, value -> {
+					lock.lock();
+					token.setString(value);
+					callbackReceived.signal();
+					lock.unlock();
+				});
+
+				lock.lock();
+				try {
+					if (token.getString() == null)
+						callbackReceived.await();
+				} catch (InterruptedException e) {
+					FirebaseCrash.report(e);
+					DataStore.onUpload(-1);
+					return false;
+				} finally {
+					lock.unlock();
+				}
+
+				if (upload(tempZipFile, token.getString())) {
 					for (String file : files)
 						DataStore.deleteFile(file);
 					if (!DataStore.retryDelete(tempZipFile))
