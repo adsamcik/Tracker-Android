@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.animation.ObjectAnimator;
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -196,7 +195,7 @@ public class Assist {
 			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
-			if (Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+			if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.RECORD_AUDIO);
 
 			if (permissions.size() == 0)

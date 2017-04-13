@@ -53,11 +53,11 @@ public class MessageListenerService extends FirebaseMessagingService {
 				case UploadReport:
 					DataStore.removeOldRecentUploads();
 					UploadStats us = parseAndSaveUploadReport(getApplicationContext(), message.getSentTime(), data);
-					if (!sp.contains(Preferences.OLDEST_RECENT_UPLOAD))
-						sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, us.time).apply();
+					if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
+						sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply();
 					Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
-					if (Preferences.get().getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+					if (Preferences.get().getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
 						Resources r = getResources();
 						sendNotification(r.getString(R.string.new_upload_summary), us.generateNotificationText(getResources()), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 					}
@@ -110,7 +110,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 		Preferences.checkStatsDay(context);
 		SharedPreferences sp = Preferences.get(context);
-		sp.edit().putLong(Preferences.STATS_UPLOADED, sp.getLong(Preferences.STATS_UPLOADED, 0) + uploadSize).apply();
+		sp.edit().putLong(Preferences.PREF_STATS_UPLOADED, sp.getLong(Preferences.PREF_STATS_UPLOADED, 0) + uploadSize).apply();
 		return us;
 	}
 

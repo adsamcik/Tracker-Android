@@ -77,7 +77,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private void updateTracking(int select) {
 		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.BACKGROUND_TRACKING, select).apply();
+		Preferences.get(context).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -102,7 +102,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private void updateAutoup(int select) {
 		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.AUTO_UPLOAD, select).apply();
+		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_UPLOAD, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -162,8 +162,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		autoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
 		autoupAlways.setOnClickListener(v -> updateAutoup(2));
 
-		updateTracking(sharedPreferences.getInt(Preferences.BACKGROUND_TRACKING, 1));
-		updateAutoup(sharedPreferences.getInt(Preferences.AUTO_UPLOAD, 1));
+		updateTracking(sharedPreferences.getInt(Preferences.PREF_BACKGROUND_TRACKING, 1));
+		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, 1));
 
 		signInButton = (SignInButton) rootView.findViewById(R.id.sign_in_button);
 		signOutButton = (Button) rootView.findViewById(R.id.sign_out_button);
@@ -183,16 +183,16 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		Button mapOverlayButton = (Button) rootView.findViewById(R.id.setting_map_overlay_button);
 		mapOverlayButton.setEnabled(false);
 
-		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			Activity activity = getActivity();
 			if (activity != null) {
 				if (layerArray != null && layerArray.length > 0) {
 					SharedPreferences sp = Preferences.get(context);
-					String defaultOverlay = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+					String defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
 					int index = MapLayer.indexOf(layerArray, defaultOverlay);
 					final int selectIndex = index == -1 ? 0 : index;
 					if (index == -1)
-						sp.edit().putString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
+						sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
 
 					CharSequence[] items = new CharSequence[layerArray.length];
 					for (int i = 0; i < layerArray.length; i++)
@@ -203,7 +203,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						mapOverlayButton.setEnabled(true);
 						mapOverlayButton.setText(items[selectIndex]);
 						mapOverlayButton.setOnClickListener(v -> {
-							String ov = sp.getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+							String ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
 							int in = MapLayer.indexOf(layerArray, ov);
 							int selectIn = in == -1 ? 0 : in;
 
@@ -211,7 +211,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 							alertDialogBuilder
 									.setTitle(getString(R.string.settings_default_map_overlay))
 									.setSingleChoiceItems(items, selectIn, (dialog, which) -> {
-										Preferences.get(context).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply();
+										Preferences.get(context).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply();
 										mapOverlayButton.setText(items[which]);
 										dialog.dismiss();
 									})
@@ -227,20 +227,20 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			}
 		});
 
-		setSwitchChangeListener(context, Preferences.TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true, null);
-		setSwitchChangeListener(context, Preferences.TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true, null);
 
 		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
-		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false));
+		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));
 		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
 			else
-				Preferences.get(context).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, b).apply();
+				Preferences.get(context).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply();
 		});
 
-		setSwitchChangeListener(context, Preferences.UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
-		setSwitchChangeListener(context, Preferences.STOP_TILL_RECHARGE, (Switch) rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
+		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
+		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, (Switch) rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
 			if (b) {
 				Bundle bundle = new Bundle();
 				bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
@@ -262,7 +262,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
 				valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
 				if (fromUser)
-					Preferences.get(context).edit().putInt(Preferences.AUTO_UPLOAD_AT_MB, progress + MIN_UPLOAD_VALUE).apply();
+					Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, progress + MIN_UPLOAD_VALUE).apply();
 			}
 
 			@Override
@@ -275,7 +275,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 			}
 		});
-		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
+		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
 
 		if (Assist.hasNetwork()) {
 			signin = Signin.getInstance(getActivity());
@@ -325,9 +325,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			for (File file : files) {
 				String name = file.getName();
 				if (name.startsWith(DataStore.DATA_FILE) ||
-						name.startsWith(Preferences.GENERAL_STATS) ||
-						name.startsWith(Preferences.USER_STATS) ||
-						name.startsWith(Preferences.AVAILABLE_MAPS) ||
+						name.startsWith(Preferences.PREF_GENERAL_STATS) ||
+						name.startsWith(Preferences.PREF_USER_STATS) ||
+						name.startsWith(Preferences.PREF_AVAILABLE_MAPS) ||
 						name.startsWith(DataStore.RECENT_UPLOADS_FILE))
 					temp.add(name);
 			}
@@ -380,7 +380,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		switch (requestCode) {
 			case REQUEST_CODE_PERMISSIONS_MICROPHONE:
 				if (success)
-					Preferences.get(getContext()).edit().putBoolean(Preferences.TRACKING_NOISE_ENABLED, true).apply();
+					Preferences.get(getContext()).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, true).apply();
 				else
 					switchNoise.setChecked(false);
 				break;

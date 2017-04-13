@@ -237,9 +237,9 @@ public class TrackerService extends Service {
 
 		int wifiCount, cellCount, locations;
 
-		wifiCount = sp.getInt(Preferences.STATS_WIFI_FOUND, 0);
-		cellCount = sp.getInt(Preferences.STATS_CELL_FOUND, 0);
-		locations = sp.getInt(Preferences.STATS_LOCATIONS_FOUND, 0);
+		wifiCount = sp.getInt(Preferences.PREF_STATS_WIFI_FOUND, 0);
+		cellCount = sp.getInt(Preferences.PREF_STATS_CELL_FOUND, 0);
+		locations = sp.getInt(Preferences.PREF_STATS_LOCATIONS_FOUND, 0);
 		for (Data d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
@@ -247,7 +247,7 @@ public class TrackerService extends Service {
 				cellCount += d.cellCount;
 		}
 
-		sp.edit().putInt(Preferences.STATS_WIFI_FOUND, wifiCount).putInt(Preferences.STATS_CELL_FOUND, cellCount).putInt(Preferences.STATS_LOCATIONS_FOUND, locations + data.size()).apply();
+		sp.edit().putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount).putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount).putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
 		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
@@ -260,7 +260,7 @@ public class TrackerService extends Service {
 		} else {
 			data.clear();
 			if (result == DataStore.SaveStatus.SAVED_TO_NEW_FILE &&
-					DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
+					DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}
@@ -353,7 +353,7 @@ public class TrackerService extends Service {
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 
 		//Wifi tracking setup
-		if (sp.getBoolean(Preferences.TRACKING_WIFI_ENABLED, true)) {
+		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
 			wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
 			wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
@@ -365,7 +365,7 @@ public class TrackerService extends Service {
 		}
 
 		//Cell tracking setup
-		if (sp.getBoolean(Preferences.TRACKING_CELL_ENABLED, true)) {
+		if (sp.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, true)) {
 			telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
 		}
 
@@ -385,7 +385,7 @@ public class TrackerService extends Service {
 		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
-		if (Preferences.get(this).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false))
+		if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
 			noiseTracker = new NoiseTracker(this).start();
 		return super.onStartCommand(intent, flags, startId);
 	}
@@ -414,7 +414,7 @@ public class TrackerService extends Service {
 		}
 
 		SharedPreferences sp = Preferences.get(getApplicationContext());
-		sp.edit().putInt(Preferences.STATS_MINUTES, sp.getInt(Preferences.STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
+		sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.initializeShortcuts(this);

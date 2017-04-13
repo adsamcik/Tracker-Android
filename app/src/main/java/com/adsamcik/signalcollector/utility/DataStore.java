@@ -247,7 +247,7 @@ public class DataStore {
 	 */
 	public static void clearAllData() {
 		SharedPreferences sp = Preferences.get();
-		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Preferences.SCHEDULED_UPLOAD).apply();
+		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
 		File[] files = getContext().getFilesDir().listFiles();
 
@@ -344,7 +344,9 @@ public class DataStore {
 
 
 		if (fileHasNoData) {
+			String userID = sp.getString()
 			if (!saveString(DATA_FILE + id, "{,\"device\":\"" + Build.MODEL +
+
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +
@@ -658,7 +660,7 @@ public class DataStore {
 	 */
 	public static synchronized void removeOldRecentUploads() {
 		SharedPreferences sp = Preferences.get(contextWeak.get());
-		long oldestUpload = sp.getLong(Preferences.OLDEST_RECENT_UPLOAD, -1);
+		long oldestUpload = sp.getLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, -1);
 		if (oldestUpload != -1) {
 			long days = Assist.getAgeInDays(oldestUpload);
 			if (days > 30) {
@@ -671,9 +673,9 @@ public class DataStore {
 				}
 
 				if (stats.size() > 0)
-					sp.edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, stats.get(0).time).apply();
+					sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats.get(0).time).apply();
 				else
-					sp.edit().remove(Preferences.OLDEST_RECENT_UPLOAD).apply();
+					sp.edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply();
 
 				try {
 					DataStore.saveJsonArrayAppend(RECENT_UPLOADS_FILE, gson.toJson(stats), true, false);

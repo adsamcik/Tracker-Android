@@ -31,11 +31,11 @@ public class LaunchActivity extends Activity {
 		JobScheduler scheduler = ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE));
 		if (sp.getInt(Preferences.LAST_VERSION, 0) <= 138) {
 			SharedPreferences.Editor editor = sp.edit();
-			FirebaseAssist.updateValue(this, FirebaseAssist.autoTrackingString, getResources().getStringArray(R.array.background_tracking_options)[Preferences.get(this).getInt(Preferences.BACKGROUND_TRACKING, 0)]);
-			FirebaseAssist.updateValue(this, FirebaseAssist.autoUploadString, getResources().getStringArray(R.array.automatic_upload_options)[Preferences.get(this).getInt(Preferences.AUTO_UPLOAD, 0)]);
-			FirebaseAssist.updateValue(this, FirebaseAssist.uploadNotificationString, Boolean.toString(Preferences.get(this).getBoolean(Preferences.UPLOAD_NOTIFICATIONS_ENABLED, true)));
+			FirebaseAssist.updateValue(this, FirebaseAssist.autoTrackingString, getResources().getStringArray(R.array.background_tracking_options)[Preferences.get(this).getInt(Preferences.PREF_BACKGROUND_TRACKING, 0)]);
+			FirebaseAssist.updateValue(this, FirebaseAssist.autoUploadString, getResources().getStringArray(R.array.automatic_upload_options)[Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD, 0)]);
+			FirebaseAssist.updateValue(this, FirebaseAssist.uploadNotificationString, Boolean.toString(Preferences.get(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)));
 
-			editor.remove(Preferences.SCHEDULED_UPLOAD);
+			editor.remove(Preferences.PREF_SCHEDULED_UPLOAD);
 
 			try {
 				editor.putInt(Preferences.LAST_VERSION, getPackageManager().getPackageInfo(getPackageName(), 0).versionCode);
@@ -65,7 +65,7 @@ public class LaunchActivity extends Activity {
 			}
 		}
 
-		if (sp.getBoolean(Preferences.HAS_BEEN_LAUNCHED, false))
+		if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false))
 			startActivity(new Intent(this, MainActivity.class));
 		else
 			startActivity(new Intent(this, IntroActivity.class));

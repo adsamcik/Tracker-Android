@@ -95,7 +95,7 @@ public class MainActivity extends FragmentActivity {
 		Context context = getApplicationContext();
 		//todo uncomment this when server is ready
 		//SharedPreferences sp = Preferences.get(context);
-		//if (!sp.getBoolean(Preferences.SENT_TOKEN_TO_SERVER, false)) {
+		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
 			Network.registerToken(token);

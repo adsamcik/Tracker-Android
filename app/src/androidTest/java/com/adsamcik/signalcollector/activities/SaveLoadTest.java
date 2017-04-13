@@ -67,7 +67,7 @@ public class SaveLoadTest {
 		final String data = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":" + time + ",\"uploadSize\":10654465,\"wifi\":2500}";
 		final String dataOld = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":20,\"uploadSize\":10654465,\"wifi\":2500}";
 
-		Preferences.get().edit().putLong(Preferences.OLDEST_RECENT_UPLOAD, 20).apply();
+		Preferences.get().edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
 		Gson gson = new Gson();
 		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(us), true, true));
 		Assert.assertEquals(true, DataStore.exists(testFileName));

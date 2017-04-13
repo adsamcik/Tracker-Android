@@ -150,14 +150,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		else
 			return view = inflater.inflate(R.layout.no_play_services, container, false);
 
-		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
 				menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
 				menu.setCallback(this::changeMapOverlay);
-				String savedOverlay = Preferences.get(activity).getString(Preferences.DEFAULT_MAP_OVERLAY, layerArray[0].name);
+				String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
 				if (!MapLayer.contains(layerArray, savedOverlay)) {
 					savedOverlay = layerArray[0].name;
-					Preferences.get(activity).edit().putString(Preferences.DEFAULT_MAP_OVERLAY, savedOverlay).apply();
+					Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
 				}
 
 				final String defaultOverlay = savedOverlay;

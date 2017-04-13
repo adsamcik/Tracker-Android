@@ -111,7 +111,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
 		refreshingCount++;
 		refreshLayout.setRefreshing(true);
-		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.GENERAL_STATS, Stat[].class, (state, value) -> {
+		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) -> {
 			refreshDone();
 			final int initialIndex = ((ViewGroup) view).getChildCount();
 
@@ -125,7 +125,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		if (Signin.getToken(getActivity()) != null) {
 			refreshingCount++;
-			NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.USER_STATS, Stat[].class, (state, value) -> {
+			NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
 				refreshDone();
 				if (value != null) {
 					final int initialIndex = 1 + (lastUpload == null ? 0 : 1);

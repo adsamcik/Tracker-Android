@@ -22,37 +22,38 @@ public class Preferences {
 
 	public static final String LAST_VERSION = "lastVersion";
 
-	public static final String SCHEDULED_UPLOAD = "uploadSCHEDULED";
-	public static final String SENT_TOKEN_TO_SERVER = "sentTokenToServer";
-	public static final String REGISTERED_USER = "playUserRegistered";
-	public static final String BACKGROUND_TRACKING = "backgroundTracking";
-	public static final String AUTO_UPLOAD = "autoUpload";
-	public static final String HAS_BEEN_LAUNCHED = "hasBeenLaunched";
-	public static final String STOP_TILL_RECHARGE = "stoppedTillRecharge";
-	public static final String AUTO_UPLOAD_AT_MB = "autoUpAtMB";
+	public static final String PREF_SCHEDULED_UPLOAD = "uploadSCHEDULED";
+	public static final String PREF_SENT_TOKEN_TO_SERVER = "sentTokenToServer";
+	public static final String PREF_REGISTERED_USER = "playUserRegistered";
+	public static final String PREF_BACKGROUND_TRACKING = "backgroundTracking";
+	public static final String PREF_AUTO_UPLOAD = "autoUpload";
+	public static final String PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched";
+	public static final String PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge";
+
+	public static final String PREF_AUTO_UPLOAD_AT_MB = "autoUpAtMB";
 	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 3;
 
 	//Local tracking stats
-	public static final String STATS_WIFI_FOUND = "statsWifiFound";
-	public static final String STATS_CELL_FOUND = "statsCellFound";
-	public static final String STATS_LOCATIONS_FOUND = "statsLocationsFound";
-	public static final String STATS_MINUTES = "statsMinutes";
-	public static final String STATS_STAT_LAST_DAY = "statsLastDay";
-	public static final String STATS_LAST_7_DAYS = "statsLast7Days";
-	public static final String STATS_UPLOADED = "statsUploaded";
+	public static final String PREF_STATS_WIFI_FOUND = "statsWifiFound";
+	public static final String PREF_STATS_CELL_FOUND = "statsCellFound";
+	public static final String PREF_STATS_LOCATIONS_FOUND = "statsLocationsFound";
+	public static final String PREF_STATS_MINUTES = "statsMinutes";
+	public static final String PREF_STATS_STAT_LAST_DAY = "statsLastDay";
+	public static final String PREF_STATS_LAST_7_DAYS = "statsLast7Days";
+	public static final String PREF_STATS_UPLOADED = "statsUploaded";
 
-	public static final String OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
+	public static final String PREF_OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
 
-	public static final String GENERAL_STATS = "generalStats";
-	public static final String USER_STATS = "userStats";
-	public static final String AVAILABLE_MAPS = "availableMaps";
+	public static final String PREF_GENERAL_STATS = "generalStats";
+	public static final String PREF_USER_STATS = "userStats";
+	public static final String PREF_AVAILABLE_MAPS = "availableMaps";
 
-	public static final String TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
-	public static final String TRACKING_CELL_ENABLED = "trackingCellEnabled";
-	public static final String TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
-	public static final String DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
+	public static final String PREF_TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
+	public static final String PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled";
+	public static final String PREF_TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
+	public static final String PREF_DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
 
-	public static final String UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";
+	public static final String PREF_UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";
 
 	private static final int MAX_DAY_DIFF_STATS = 7;
 
@@ -64,7 +65,7 @@ public class Preferences {
 	 * @param c context
 	 */
 	public static void stopTillRecharge(@NonNull Context c) {
-		get(c).edit().putBoolean(STOP_TILL_RECHARGE, true).apply();
+		get(c).edit().putBoolean(PREF_STOP_TILL_RECHARGE, true).apply();
 		if (TrackerService.isRunning())
 			c.stopService(new Intent(c, TrackerService.class));
 	}
@@ -107,9 +108,9 @@ public class Preferences {
 				sharedPreferences = get(context);
 		}
 		long todayUTC = Assist.getDayInUTC();
-		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
+		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
-			Set<String> stringStats = sharedPreferences.getStringSet(STATS_LAST_7_DAYS, null);
+			Set<String> stringStats = sharedPreferences.getStringSet(PREF_STATS_LAST_7_DAYS, null);
 			List<StatDay> stats = fromJson(stringStats, dayDiff);
 
 			stats.add(getCurrent(sharedPreferences));
@@ -124,13 +125,13 @@ public class Preferences {
 				stringStats.add(gson.toJson(day));
 
 			sharedPreferences.edit()
-					.putLong(STATS_STAT_LAST_DAY, todayUTC)
-					.putStringSet(STATS_LAST_7_DAYS, stringStats)
-					.putInt(STATS_MINUTES, 0)
-					.putInt(STATS_LOCATIONS_FOUND, 0)
-					.putInt(STATS_WIFI_FOUND, 0)
-					.putInt(STATS_CELL_FOUND, 0)
-					.putLong(STATS_UPLOADED, 0)
+					.putLong(PREF_STATS_STAT_LAST_DAY, todayUTC)
+					.putStringSet(PREF_STATS_LAST_7_DAYS, stringStats)
+					.putInt(PREF_STATS_MINUTES, 0)
+					.putInt(PREF_STATS_LOCATIONS_FOUND, 0)
+					.putInt(PREF_STATS_WIFI_FOUND, 0)
+					.putInt(PREF_STATS_CELL_FOUND, 0)
+					.putLong(PREF_STATS_UPLOADED, 0)
 					.apply();
 		}
 	}
@@ -143,7 +144,7 @@ public class Preferences {
 	public static StatDay countStats(@NonNull Context context) {
 		SharedPreferences sp = get(context);
 		StatDay result = getCurrent(sp);
-		List<StatDay> set = fromJson(sp.getStringSet(STATS_LAST_7_DAYS, null), 0);
+		List<StatDay> set = fromJson(sp.getStringSet(PREF_STATS_LAST_7_DAYS, null), 0);
 		//noinspection Convert2streamapi
 		for (StatDay stat : set)
 			result.add(stat);
@@ -156,7 +157,7 @@ public class Preferences {
 	 * @return Today StatDay
 	 */
 	private static StatDay getCurrent(SharedPreferences sp) {
-		return new StatDay(sp.getInt(STATS_MINUTES, 0), sp.getInt(STATS_LOCATIONS_FOUND, 0), sp.getInt(STATS_WIFI_FOUND, 0), sp.getInt(STATS_CELL_FOUND, 0), 0, sp.getLong(STATS_UPLOADED, 0));
+		return new StatDay(sp.getInt(PREF_STATS_MINUTES, 0), sp.getInt(PREF_STATS_LOCATIONS_FOUND, 0), sp.getInt(PREF_STATS_WIFI_FOUND, 0), sp.getInt(PREF_STATS_CELL_FOUND, 0), 0, sp.getLong(PREF_STATS_UPLOADED, 0));
 	}
 
 	/**

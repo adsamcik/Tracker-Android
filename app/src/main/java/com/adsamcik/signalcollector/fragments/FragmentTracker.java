@@ -138,7 +138,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						startActivity(gpsOptionsIntent);
 					});
 				} else {
-					Preferences.get(activity).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
+					Preferences.get(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply();
 					Intent trackerService = new Intent(activity, TrackerService.class);
 					trackerService.putExtra("backTrack", false);
 					activity.startService(trackerService);
@@ -392,7 +392,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			layoutOther.setVisibility(View.VISIBLE);
 			if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
-			} else if (Preferences.get(context).getBoolean(Preferences.TRACKING_NOISE_ENABLED, false)) {
+			} else if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
 				textNoise.setText(res.getString(R.string.main_noise_not_collected));
 			} else
 				textNoise.setText(res.getString(R.string.main_noise_disabled));

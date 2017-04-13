@@ -26,9 +26,6 @@ import com.google.firebase.crash.FirebaseCrash;
 import java.io.File;
 import java.io.IOException;
 import java.security.InvalidParameterException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -53,7 +50,7 @@ public class UploadService extends JobService {
 	}
 
 	public static UploadScheduleSource getUploadScheduled(@NonNull Context c) {
-		return UploadScheduleSource.values()[Preferences.get(c).getInt(Preferences.SCHEDULED_UPLOAD, 0)];
+		return UploadScheduleSource.values()[Preferences.get(c).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)];
 	}
 
 	/**
@@ -70,7 +67,7 @@ public class UploadService extends JobService {
 			return new Failure<>(c.getString(R.string.error_upload_in_progress));
 
 		SharedPreferences sp = Preferences.get(c);
-		int autoUpload = sp.getInt(Preferences.AUTO_UPLOAD, 1);
+		int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, 1);
 		if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
 			JobScheduler scheduler = ((JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(c, UploadService.class));
@@ -98,12 +95,12 @@ public class UploadService extends JobService {
 	}
 
 	private static void updateUploadScheduleSource(@NonNull Context context, UploadScheduleSource uss) {
-		Preferences.get(context).edit().putInt(Preferences.SCHEDULED_UPLOAD, uss.ordinal()).apply();
+		Preferences.get(context).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal()).apply();
 	}
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		Preferences.get(this).edit().putInt(Preferences.SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
+		Preferences.get(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 		if (UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)] == UploadScheduleSource.NONE)
 			throw new InvalidParameterException("Upload source can't be NONE.");
 

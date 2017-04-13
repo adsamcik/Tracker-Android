@@ -10,6 +10,6 @@ public class ChargingReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		if (intent.getAction().equals(Intent.ACTION_POWER_CONNECTED))
-			Preferences.get(context).edit().putBoolean(Preferences.STOP_TILL_RECHARGE, false).apply();
+			Preferences.get(context).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply();
 	}
 }
