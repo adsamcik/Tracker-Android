@@ -200,7 +200,7 @@ public class MainActivity extends FragmentActivity {
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				signin.onSignedIn(acct, true);
-				Network.registerUser(token);
+				Network.registerUser(Signin.getToken(this));
 			} else
 				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
 		}
