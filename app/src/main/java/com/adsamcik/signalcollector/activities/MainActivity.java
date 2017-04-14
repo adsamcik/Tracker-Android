@@ -45,8 +45,6 @@ public class MainActivity extends FragmentActivity {
 
 	private ITabFragment currentFragment = null;
 
-	private Signin signin;
-
 	private final String BUNDLE_FRAGMENT = "fragment";
 
 	@Override
@@ -64,7 +62,7 @@ public class MainActivity extends FragmentActivity {
 				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		}
 
-		signin = Signin.getInstance(this);
+		Signin.getInstance(this);
 
 		Failure<String> s = ActivityService.initializeActivityClient(this);
 		if (s.hasFailed())
@@ -199,7 +197,7 @@ public class MainActivity extends FragmentActivity {
 			if (result.isSuccess()) {
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
-				signin.onSignedIn(acct, true);
+				Signin.onSignedIn(acct, true, this);
 				Network.registerUser(Signin.getToken(this));
 			} else
 				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));

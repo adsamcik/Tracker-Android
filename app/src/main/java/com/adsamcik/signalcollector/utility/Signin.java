@@ -78,12 +78,6 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			instance.onSignedCallback = callback;
 	}
 
-	public static String getTokenFromResult(@NonNull GoogleSignInAccount acc) {
-		String token = acc.getIdToken();
-		assert token != null;
-		return token;
-	}
-
 	private Signin(@NonNull FragmentActivity activity) {
 		setActivity(activity);
 		client = initializeClient(activity);
@@ -159,7 +153,11 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		}
 	}
 
-	public void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar) {
+	public static void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
+		getInstance(context).onSignedIn(account, showSnackbar);
+	}
+
+	private void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar) {
 		updateButtons(true);
 		if (showSnackbar)
 			showSnackbar(R.string.signed_in_message);
