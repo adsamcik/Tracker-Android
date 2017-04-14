@@ -17,12 +17,14 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
 import com.adsamcik.signalcollector.NoiseTracker;
@@ -85,6 +87,7 @@ public class TrackerService extends Service {
 	private PowerManager.WakeLock wakeLock;
 	private LocationManager locationManager;
 	private TelephonyManager telephonyManager;
+	private SubscriptionManager subscriptionManager;
 	private WifiManager wifiManager;
 
 	private NoiseTracker noiseTracker;
@@ -185,13 +188,12 @@ public class TrackerService extends Service {
 		}
 
 		if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
-			d.setCell(telephonyManager.getNetworkOperatorName(), telephonyManager.getAllCellInfo());
+			d.addCell(telephonyManager, null);
 		}
 
 		if (noiseTracker != null) {
-			int evalActivity = Assist.evaluateActivity(ActivityService.lastActivity);
 			float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
-			if ((evalActivity == 1 || (noiseActive && evalActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
+			if ((ActivityService.lastActivity == 1 || (noiseActive && ActivityService.lastActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
 				noiseTracker.start();
 				short value = noiseTracker.getSample(10);
 				if (value >= 0)
@@ -326,6 +328,8 @@ public class TrackerService extends Service {
 		//Get managers
 		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
 		//Enable location update
 
@@ -367,11 +371,13 @@ public class TrackerService extends Service {
 		//Cell tracking setup
 		if (sp.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, true)) {
 			telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+			if (Build.VERSION.SDK_INT >= 22)
+				subscriptionManager = SubscriptionManager.from(this);
+			else
+				subscriptionManager = null;
 		}
 
-		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
-
+		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.initializeShortcuts(this);
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION);

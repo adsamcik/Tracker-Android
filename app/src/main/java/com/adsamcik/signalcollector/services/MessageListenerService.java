@@ -57,7 +57,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 						sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply();
 					Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
 
-					if (Preferences.get().getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+					if (Preferences.get(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
 						Resources r = getResources();
 						sendNotification(r.getString(R.string.new_upload_summary), us.generateNotificationText(getResources()), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 					}

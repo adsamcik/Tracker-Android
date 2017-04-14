@@ -16,6 +16,8 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -132,7 +134,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 		if (requiredPermissions == null) {
 			if (!TrackerService.isRunning()) {
-				if(!Assist.isGNSSEnabled(activity)) {
+				if (!Assist.isGNSSEnabled(activity)) {
 					new SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, (v) -> {
 						Intent gpsOptionsIntent = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
 						startActivity(gpsOptionsIntent);
@@ -307,7 +309,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
 
-		//TrackerService.dataEcho = new Data(200).setActivity(1).setCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
+		//TrackerService.dataEcho = new Data(200).setActivity(1).addCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
 			updateData(activity);
@@ -378,10 +380,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			if (d.cellCount == -1) {
 				layoutCell.setVisibility(View.GONE);
 			} else {
-				CellData active = d.getActiveCell();
-				if (active != null) {
+				CellData[] active = d.getRegisteredCells();
+				if (active != null && active.length > 0) {
 					textCurrentCell.setVisibility(View.VISIBLE);
-					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active.getType(), active.dbm, active.asu));
+					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active[0].getType(), active[0].dbm, active[0].asu));
 				} else
 					textCurrentCell.setVisibility(View.GONE);
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));

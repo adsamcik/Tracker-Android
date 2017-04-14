@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.data;
 
 import android.location.Location;
 import android.net.wifi.ScanResult;
+import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.telephony.CellInfo;
@@ -9,26 +10,65 @@ import android.telephony.CellInfoCdma;
 import android.telephony.CellInfoGsm;
 import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
+import android.telephony.SubscriptionInfo;
+import android.telephony.TelephonyManager;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
 public class Data implements Serializable {
+	/**
+	 * Time of collection in milliseconds since midnight, January 1, 1970 UTC
+	 */
 	public final long time;
 
-	public CellData activeCell = null;
-	public String networkOperator = null;
-	public int cellCount = -1;
-
-	public WifiData[] wifi = null;
-	public long wifiTime;
-
+	/**
+	 * Longitude
+	 */
 	public double longitude;
+
+	/**
+	 * Latitude
+	 */
 	public double latitude;
+
+	/**
+	 * Altitude
+	 */
 	public double altitude;
+
+	/**
+	 * Accuracy in meters
+	 */
 	public float accuracy;
 
+	/**
+	 * List of registered cells
+	 * Null if not collected
+	 */
+	public CellData[] regCells = null;
+
+	/**
+	 * Total cell count
+	 * default (0) if not collected.
+	 */
+	public int cellCount;
+
+	/**
+	 * Array of collected wifi networks
+	 */
+	public WifiData[] wifi = null;
+
+	/**
+	 * Time of collection of wifi data
+	 */
+	public long wifiTime;
+
+	/**
+	 * Current activity
+	 */
 	public int activity;
 
 	public short noise;
@@ -98,56 +138,64 @@ public class Data implements Serializable {
 
 	/**
 	 * Sets current active cell from nearby cells
+	 * <p>
+	 * //* @param operator current network operator
+	 * //* @param data     nearby cell
 	 *
-	 * @param operator current network operator
-	 * @param data     nearby cell
 	 * @return this
 	 */
-	public Data setCell(String operator, List<CellInfo> data) {
-		if (data != null) {
-			cellCount = data.size();
-			boolean found = false;
-			for (int i = 0; i < data.size(); i++) {
-				CellInfo c = data.get(i);
-				if (c.isRegistered()) {
-					if (c instanceof CellInfoGsm)
-						setCell(operator, new CellData((CellInfoGsm) c));
-					else if (c instanceof CellInfoLte)
-						setCell(operator, new CellData((CellInfoLte) c));
-					else if (c instanceof CellInfoCdma)
-						setCell(operator, new CellData((CellInfoCdma) c));
-					else if (c instanceof CellInfoWcdma)
-						setCell(operator, new CellData((CellInfoWcdma) c));
-					found = true;
+	public Data addCell(@NonNull TelephonyManager telephonyManager, @Nullable List<SubscriptionInfo> subscriptionInfos) {
+		List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();
+		String nOp = telephonyManager.getNetworkOperator();
+		short mcc = Short.parseShort(nOp.substring(0, 3));
+		short mnc = Short.parseShort(nOp.substring(3));
+
+		if (cellInfos != null) {
+			cellCount = cellInfos.size();
+			ArrayList<CellData> registeredCells = new ArrayList<>(Build.VERSION.SDK_INT >= 23 ? telephonyManager.getPhoneCount() : 1);
+			for (CellInfo ci : cellInfos) {
+				if (ci.isRegistered()) {
+					if (ci instanceof CellInfoLte) {
+						CellInfoLte cig = (CellInfoLte) ci;
+						if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+							registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+						else
+							registeredCells.add(CellData.newInstance(cig, (String) null));
+					} else if (ci instanceof CellInfoGsm) {
+						CellInfoGsm cig = (CellInfoGsm) ci;
+						if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+							registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+						else
+							registeredCells.add(CellData.newInstance(cig, (String) null));
+					} else if (ci instanceof CellInfoWcdma) {
+						CellInfoWcdma cig = (CellInfoWcdma) ci;
+						if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+							registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+						else
+							registeredCells.add(CellData.newInstance(cig, (String) null));
+					} else if (ci instanceof CellInfoCdma) {
+						CellInfoCdma cig = (CellInfoCdma) ci;
+						/*if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+							addCell(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+						else*/
+						registeredCells.add(CellData.newInstance(cig, (String) null));
+					}
 					break;
 				}
 			}
 
-			if (!found)
-				setCell("", (CellData) null);
+			regCells = new CellData[registeredCells.size()];
+			registeredCells.toArray(regCells);
 		}
 		return this;
 	}
 
 	/**
-	 * Sets active cell and network operator
+	 * Returns cells that user is registered to
 	 *
-	 * @param operator   cell network operator
-	 * @param activeCell active cell
-	 * @return this
+	 * @return list of cells
 	 */
-	private Data setCell(@NonNull String operator, @Nullable CellData activeCell) {
-		this.activeCell = activeCell;
-		this.networkOperator = operator;
-		return this;
-	}
-
-	/**
-	 * Returns active cell
-	 *
-	 * @return active cell
-	 */
-	public CellData getActiveCell() {
-		return activeCell;
+	public CellData[] getRegisteredCells() {
+		return regCells;
 	}
 }
