@@ -72,7 +72,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	public static void getTokenAsync(@NonNull Context context, IValueCallback<String> callback) {
 		Signin instance = getInstance(context);
-		if(instance.token != null)
+		if (instance.token != null)
 			callback.callback(instance.token);
 		else
 			instance.onSignedCallback = callback;
@@ -87,18 +87,21 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	private Signin(@NonNull FragmentActivity activity) {
 		setActivity(activity);
 		client = initializeClient(activity);
+		Preferences.get(activity);
 		silentSignIn(client);
 	}
 
 	private Signin(@NonNull Context context) {
 		activityWeakReference = null;
 		client = initializeClient(context);
+		Preferences.get(context);
 		silentSignIn(client);
 	}
 
 	private GoogleApiClient initializeClient(@NonNull Context context) {
 		GoogleSignInOptions gso = new GoogleSignInOptions.Builder()
 				.requestIdToken(context.getString(R.string.server_client_id))
+				.requestId()
 				.build();
 		return new GoogleApiClient.Builder(context)
 				.addConnectionCallbacks(this)
@@ -113,13 +116,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (pendingResult.isDone()) {
 			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
 			assert acc != null;
-			onSignedIn(getTokenFromResult(acc), false);
+			onSignedIn(acc, false);
 		} else {
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
-							onSignedIn(getTokenFromResult(acc), false);
+							onSignedIn(acc, false);
 						}
 					}
 			);
@@ -156,12 +159,17 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		}
 	}
 
-	public void onSignedIn(@NonNull String token, boolean showSnackbar) {
+	public void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar) {
 		updateButtons(true);
 		if (showSnackbar)
 			showSnackbar(R.string.signed_in_message);
-		this.token = token;
-		if(onSignedCallback != null) {
+		this.token = account.getIdToken();
+		assert token != null;
+
+		assert account.getId() != null;
+		Preferences.get().edit().putString(Preferences.PREF_USER_ID, account.getId()).apply();
+
+		if (onSignedCallback != null) {
 			onSignedCallback.callback(token);
 			onSignedCallback = null;
 		}

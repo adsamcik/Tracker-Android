@@ -30,6 +30,8 @@ public class Preferences {
 	public static final String PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge";
 
+	public static final String PREF_USER_ID = "userID";
+
 	public static final String PREF_AUTO_UPLOAD_AT_MB = "autoUpAtMB";
 	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 3;
 

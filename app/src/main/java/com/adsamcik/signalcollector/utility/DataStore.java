@@ -344,9 +344,9 @@ public class DataStore {
 
 
 		if (fileHasNoData) {
-			String userID = sp.getString()
-			if (!saveString(DATA_FILE + id, "{,\"device\":\"" + Build.MODEL +
-
+			String userID = sp.getString(Preferences.PREF_USER_ID, null);
+			if (userID == null || !saveString(DATA_FILE + id, "{,\"device\":\"" + Build.MODEL +
+					"\",\"userID\":\"" + userID +
 					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
 					"\",\"api\":" + Build.VERSION.SDK_INT +
 					",\"version\":" + BuildConfig.VERSION_CODE + "," +
