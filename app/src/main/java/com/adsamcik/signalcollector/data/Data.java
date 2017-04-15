@@ -67,7 +67,7 @@ public class Data implements Serializable {
 	public long wifiTime;
 
 	/**
-	 * Current activity
+	 * Current resolved activity
 	 */
 	public int activity;
 

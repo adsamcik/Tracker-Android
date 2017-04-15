@@ -206,6 +206,14 @@ public class Assist {
 		return null;
 	}
 
+	/**
+	 * Tries to parse json to object
+	 *
+	 * @param json   json
+	 * @param tClass object class
+	 * @param <T>    object type
+	 * @return object if success, nul otherwise
+	 */
 	public static <T> T tryFromJson(String json, Class<T> tClass) {
 		if (json != null && !json.isEmpty()) {
 			try {
