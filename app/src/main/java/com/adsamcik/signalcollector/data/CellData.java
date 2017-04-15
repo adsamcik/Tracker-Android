@@ -27,16 +27,65 @@ public class CellData implements Serializable {
 	public static final int WCDMA = 2;
 	public static final int LTE = 3;
 
-	public final String operatorName;
-	public final int type;
+	/**
+	 * Cell id
+	 * GSM - cid
+	 * CDMA - baseStationId
+	 * WCDMA - cid
+	 * LTE - ci
+	 */
 	public final int id;
-	public final Integer mcc;
-	public final Integer mnc;
+
+	/**
+	 * Network operator name
+	 */
+	public final String operatorName;
+
+	/**
+	 * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
+	 */
+	public final int type;
+
+	/**
+	 * Mobile country code
+	 * Replaced with System ID on CDMA
+	 */
+	public final int mcc;
+
+	/**
+	 * Mobile network code
+	 * Replaced with Network ID on CDMA
+	 */
+	public final int mnc;
+
+	/**
+	 * Strength of signal in decibels
+	 */
 	public final int dbm;
+
+	/**
+	 * Strength of signal in asu
+	 */
 	public final int asu;
+
+	/**
+	 * Signal strength as int 0...4 calculated by device
+	 */
 	public final int level;
 
-	public CellData(String operatorName, int type, int id, Integer mcc, Integer mnc, int dbm, int asu, int level) {
+	/**
+	 * CellData constructor
+	 *
+	 * @param operatorName {@link CellData#operatorName}
+	 * @param type         {@link CellData#type}
+	 * @param id           {@link CellData#id}
+	 * @param mcc          {@link CellData#mcc}
+	 * @param mnc          {@link CellData#mnc}
+	 * @param dbm          {@link CellData#dbm}
+	 * @param asu          {@link CellData#asu}
+	 * @param level        {@link CellData#level}
+	 */
+	public CellData(String operatorName, int type, int id, int mcc, int mnc, int dbm, int asu, int level) {
 		this.operatorName = operatorName;
 		this.type = type;
 		this.id = id;
@@ -120,7 +169,7 @@ public class CellData implements Serializable {
 			return null;
 		CellIdentityCdma cic = cinc.getCellIdentity();
 		CellSignalStrengthCdma cssg = cinc.getCellSignalStrength();
-		return new CellData(operatorName, CDMA, cic.getBasestationId(), cic.getNetworkId(), cic.getSystemId(), cssg.getDbm(), cssg.getAsuLevel(), cssg.getLevel());
+		return new CellData(operatorName, CDMA, cic.getBasestationId(), cic.getSystemId(), cic.getNetworkId(), cssg.getDbm(), cssg.getAsuLevel(), cssg.getLevel());
 	}
 
 	@RequiresApi(22)
