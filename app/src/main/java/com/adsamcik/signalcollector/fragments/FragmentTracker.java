@@ -60,9 +60,6 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_main, container, false);
-		final String activity_name = "MainActivity";
-		if (!getActivity().getClass().getSimpleName().equals(activity_name))
-			throw new RuntimeException("Main fragment is attached to different activity than " + activity_name);
 
 		textAccuracy = (TextView) view.findViewById(R.id.textAccuracy);
 		textPosition = (TextView) view.findViewById(R.id.textPosition);
