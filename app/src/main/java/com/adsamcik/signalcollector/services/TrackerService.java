@@ -193,7 +193,7 @@ public class TrackerService extends Service {
 
 		if (noiseTracker != null) {
 			float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
-			if ((ActivityService.lastActivity == 1 || (noiseActive && ActivityService.lastActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
+			if ((ActivityService.lastResolvedActivity == 1 || (noiseActive && ActivityService.lastResolvedActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
 				noiseTracker.start();
 				short value = noiseTracker.getSample(10);
 				if (value >= 0)
@@ -205,7 +205,7 @@ public class TrackerService extends Service {
 			}
 		}
 
-		d.setLocation(location).setActivity(ActivityService.lastActivity);
+		d.setLocation(location).setActivity(ActivityService.lastResolvedActivity);
 
 		data.add(d);
 		dataEcho = d;

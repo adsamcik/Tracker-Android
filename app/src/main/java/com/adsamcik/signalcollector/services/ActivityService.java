@@ -25,7 +25,7 @@ public class ActivityService extends IntentService {
 	private static final String TAG = "Signals" + ActivityService.class.getSimpleName();
 	private static final int GOOGLE_API_ID = 77285;
 	private static final int REQUIRED_CONFIDENCE = 75;
-	public static int lastActivity;
+	public static int lastResolvedActivity;
 	public static int lastConfidence;
 	private static GoogleApiClient gapiClient;
 	private PowerManager powerManager;
@@ -113,13 +113,13 @@ public class ActivityService extends IntentService {
 			DetectedActivity detectedActivity = result.getMostProbableActivity();
 
 			lastConfidence = detectedActivity.getConfidence();
-			lastActivity = Assist.evaluateActivity(detectedActivity.getType());
+			lastResolvedActivity = Assist.evaluateActivity(detectedActivity.getType());
 
 			if (lastConfidence >= REQUIRED_CONFIDENCE) {
 				if (TrackerService.isRunning()) {
-					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastActivity))
+					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastResolvedActivity))
 						stopService(new Intent(this, TrackerService.class));
-				} else if (canBackgroundTrack(lastActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+				} else if (canBackgroundTrack(lastResolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("backTrack", true);
 					startService(trackerService);
