@@ -156,7 +156,7 @@ public class UploadService extends JobService {
 		 *
 		 * @param file file to be uploaded
 		 */
-		private boolean upload(final File file, String token) {
+		private boolean upload(final File file, String token, String userID) {
 			if (file == null)
 				throw new InvalidParameterException("file is null");
 			else if (token == null) {
@@ -166,7 +166,7 @@ public class UploadService extends JobService {
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
 					.addFormDataPart("token", token)
-					.addFormDataPart("file", Network.generateVerificationString(Assist.getDeviceID(), file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
+					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
 			try {
@@ -223,10 +223,12 @@ public class UploadService extends JobService {
 				final Lock lock = new ReentrantLock();
 				final Condition callbackReceived = lock.newCondition();
 				final StringWrapper token = new StringWrapper();
+				final StringWrapper userID = new StringWrapper();
 
 				Signin.getTokenAsync(context, value -> {
 					lock.lock();
 					token.setString(value);
+					userID.setString(Signin.getUserID(context));
 					callbackReceived.signal();
 					lock.unlock();
 				});
@@ -243,7 +245,7 @@ public class UploadService extends JobService {
 					lock.unlock();
 				}
 
-				if (upload(tempZipFile, token.getString())) {
+				if (upload(tempZipFile, token.getString(), userID.getString())) {
 					for (String file : files)
 						DataStore.deleteFile(file);
 					if (!DataStore.retryDelete(tempZipFile))
