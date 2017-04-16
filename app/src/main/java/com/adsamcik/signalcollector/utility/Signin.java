@@ -78,6 +78,10 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			instance.onSignedCallback = callback;
 	}
 
+	public static String getUserID(@NonNull Context context) {
+		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
+	}
+
 	private Signin(@NonNull FragmentActivity activity) {
 		setActivity(activity);
 		client = initializeClient(activity);
