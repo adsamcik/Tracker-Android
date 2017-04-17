@@ -38,11 +38,11 @@ public class WifiData implements Serializable {
 				case CHANNEL_WIDTH_40MHZ:
 					sr.channelWidth = 40;
 					break;
+				case CHANNEL_WIDTH_80MHZ_PLUS_MHZ:
+					this.centerFreq1 = sr.centerFreq1;
 				case CHANNEL_WIDTH_80MHZ:
 					sr.channelWidth = 80;
 					break;
-				case CHANNEL_WIDTH_80MHZ_PLUS_MHZ:
-					this.centerFreq1 = sr.centerFreq1;
 				case CHANNEL_WIDTH_160MHZ:
 					sr.channelWidth = 160;
 					break;
