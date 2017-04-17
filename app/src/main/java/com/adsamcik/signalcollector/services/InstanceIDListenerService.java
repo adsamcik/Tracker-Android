@@ -5,6 +5,7 @@ import android.support.v4.content.ContextCompat;
 
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.FirebaseInstanceIdService;
 
@@ -20,9 +21,7 @@ public class InstanceIDListenerService extends FirebaseInstanceIdService {
 	public void onTokenRefresh() {
 		String refreshedToken = FirebaseInstanceId.getInstance().getToken();
 		if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED)
-			Network.registerToken(refreshedToken);
-		else
-			Preferences.get(this).edit().putBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false).apply();
+			Signin.getTokenAsync(this, value -> Network.register(value, refreshedToken));
 	}
 
 }

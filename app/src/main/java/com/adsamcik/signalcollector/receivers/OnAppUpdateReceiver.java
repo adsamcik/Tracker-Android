@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.receivers;
 
+import android.app.job.JobScheduler;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -20,11 +21,11 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			SharedPreferences.Editor editor = sp.edit();
 			DataStore.setContext(context);
 			Assist.initialize(context);
-			DataStore.cleanup();
-
-			if (sp.getInt(Preferences.LAST_VERSION, 0) < 142)
+			if (sp.getInt(Preferences.LAST_VERSION, 0) < 159) {
 				DataStore.clearAllData();
-
+				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
+				scheduler.cancelAll();
+			}
 
 			try {
 				editor.putInt(Preferences.LAST_VERSION, context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode);
@@ -32,11 +33,6 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 				FirebaseCrash.report(e);
 			}
 			editor.apply();
-
-			UploadService.UploadScheduleSource uss = UploadService.getUploadScheduled(context);
-			if (uss != UploadService.UploadScheduleSource.NONE) {
-				UploadService.requestUpload(context, uss);
-			}
 		}
 	}
 }

@@ -96,7 +96,7 @@ public class MainActivity extends FragmentActivity {
 		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
-			Network.registerToken(token);
+			Signin.getTokenAsync(this, value -> Network.register(value, token));
 		//}
 	}
 
@@ -198,7 +198,6 @@ public class MainActivity extends FragmentActivity {
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				Signin.onSignedIn(acct, true, this);
-				Network.registerUser(Signin.getToken(this));
 			} else
 				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
 		}
