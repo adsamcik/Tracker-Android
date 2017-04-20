@@ -11,9 +11,12 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -111,15 +114,12 @@ public class UploadService extends JobService {
 			Assist.initialize(c);
 
 		isUploading = true;
-		worker = new JobWorker(getFilesDir().getAbsolutePath(), c) {
-			@Override
-			protected void onPostExecute(Boolean success) {
-				if (success)
-					DataStore.onUpload(100);
-				isUploading = false;
-				jobFinished(jobParameters, !success);
-			}
-		};
+		worker = new JobWorker(getFilesDir().getAbsolutePath(), c, success -> {
+			if (success)
+				DataStore.onUpload(100);
+			isUploading = false;
+			jobFinished(jobParameters, !success);
+		});
 		worker.execute(jobParameters);
 		return true;
 	}
@@ -146,9 +146,12 @@ public class UploadService extends JobService {
 		private Response response = null;
 		private Call call = null;
 
-		JobWorker(final String dir, final Context context) {
+		private IValueCallback<Boolean> callback;
+
+		JobWorker(final String dir, final Context context, @Nullable IValueCallback<Boolean> callback) {
 			this.directory = dir;
 			this.context = context;
+			this.callback = callback;
 		}
 
 		/**
@@ -212,7 +215,6 @@ public class UploadService extends JobService {
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(-1);
-				isUploading = false;
 				return false;
 			} else {
 				if (source.equals(UploadScheduleSource.USER))
@@ -221,7 +223,7 @@ public class UploadService extends JobService {
 				tempZipFile = Compress.zip(directory, files, zipName);
 				if (tempZipFile == null)
 					return false;
-				
+
 				final Lock lock = new ReentrantLock();
 				final Condition callbackReceived = lock.newCondition();
 				final StringWrapper token = new StringWrapper();
@@ -270,6 +272,9 @@ public class UploadService extends JobService {
 
 			if (tempZipFile != null && !DataStore.retryDelete(tempZipFile))
 				FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
+
+			if (callback != null)
+				callback.callback(aBoolean);
 		}
 
 		@Override
