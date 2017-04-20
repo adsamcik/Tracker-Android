@@ -77,7 +77,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private Circle userRadius;
 	private Marker userCenter;
 
-	private FloatingActionButton fabTwo;
+	private FloatingActionButton fabTwo, fabOne;
 	private FabMenu menu;
 
 	@Override
@@ -135,6 +135,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return new Failure<>(activity.getString(R.string.error_missing_permission));
 
 		this.fabTwo = fabTwo;
+		this.fabOne = fabOne;
 
 		fabOne.show();
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
@@ -293,8 +294,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			changeMapOverlay(type);
 
 		map.setOnMapClickListener(latLng -> {
-			Assist.hideSoftKeyboard(getActivity(), searchText);
-			searchText.clearFocus();
+			if(searchText.hasFocus()) {
+				Assist.hideSoftKeyboard(getActivity(), searchText);
+				searchText.clearFocus();
+			} else if(searchText.getVisibility() == View.VISIBLE) {
+				searchText.setVisibility(View.INVISIBLE);
+				fabTwo.hide();
+				fabOne.hide();
+			} else {
+				searchText.setVisibility(View.VISIBLE);
+				fabTwo.show();
+				fabOne.show();
+			}
 		});
 	}
 
