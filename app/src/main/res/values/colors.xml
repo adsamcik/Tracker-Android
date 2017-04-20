@@ -8,6 +8,8 @@
     <color name="background_splash">@color/colorPrimary</color>
     <color name="textPrimary">#FFFFFFFF</color>
     <color name="textSecondary">#B2FFFFFF</color>
+    <color name="textPrimaryDark">#DF000000</color>
+    <color name="textSecondaryDark">#8A000000</color>
     <color name="textDisabled">#80FFFFFF</color>
     <color name="dividerColor">#1FFFFFFF</color>
     <color name="error">#d32f2f</color>

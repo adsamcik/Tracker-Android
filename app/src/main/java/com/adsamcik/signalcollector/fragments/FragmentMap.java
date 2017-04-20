@@ -4,7 +4,9 @@ package com.adsamcik.signalcollector.fragments;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.location.Address;
 import android.location.Criteria;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -20,6 +22,7 @@ import android.support.v4.content.ContextCompat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -30,6 +33,7 @@ import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -47,8 +51,10 @@ import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.android.gms.maps.model.UrlTileProvider;
 
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
@@ -171,6 +177,24 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
+
+		((EditText) view.findViewById(R.id.map_search)).setOnEditorActionListener((v, actionId, event) -> {
+			Geocoder geocoder = new Geocoder(getContext());
+			try {
+				List<Address> addresses = geocoder.getFromLocationName(v.getText().toString(), 1);
+				if (addresses != null && addresses.size() > 0) {
+					if (map != null) {
+						Address address = addresses.get(0);
+						locationListener.moveTo(new LatLng(address.getLatitude(), address.getLongitude()), 13);
+					}
+				}
+
+			} catch (IOException e) {
+				new SnackMaker(view).showSnackbar(R.string.error_general);
+			}
+			return true;
+		});
+
 		return view;
 	}
 
@@ -179,7 +203,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		super.onCreate(savedInstanceState);
 		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
 		FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
-		fragmentTransaction.replace(R.id.container_map, mapFragment);
+		fragmentTransaction.add(R.id.container_map, mapFragment);
 		fragmentTransaction.commit();
 		mapFragment.getMapAsync(this);
 	}
@@ -217,6 +241,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (c == null)
 			return;
 		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(c, R.raw.map_style));
+
+		map.setPadding(0, Assist.dpToPx(c, 48 + 40 + 8), 0, 0);
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
