@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.animation.ObjectAnimator;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -20,7 +21,9 @@ import android.support.v4.content.ContextCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
+import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ScrollView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -432,5 +435,16 @@ public class Assist {
 	public static String formatNumber(int number) {
 		DecimalFormat df = new DecimalFormat("#,###,###");
 		return df.format(number).replaceAll(",", " ");
+	}
+
+	/**
+	 * Hides software keyboard
+	 *
+	 * @param activity activity
+	 * @param view     view that should have summoned the keyboard
+	 */
+	public static void hideSoftKeyboard(Activity activity, View view) {
+		InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+		imm.hideSoftInputFromWindow(view.getApplicationWindowToken(), 0);
 	}
 }

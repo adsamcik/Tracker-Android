@@ -19,9 +19,11 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.EditText;
 
 import com.adsamcik.signalcollector.utility.Assist;
@@ -67,6 +69,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private TileProvider tileProvider;
 	private LocationManager locationManager;
 	private TileOverlay activeOverlay;
+
+	private EditText searchText;
 
 	private View view;
 
@@ -177,8 +181,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
-
-		((EditText) view.findViewById(R.id.map_search)).setOnEditorActionListener((v, actionId, event) -> {
+		searchText = ((EditText) view.findViewById(R.id.map_search));
+		searchText.setOnEditorActionListener((v, actionId, event) -> {
 			Geocoder geocoder = new Geocoder(getContext());
 			try {
 				List<Address> addresses = geocoder.getFromLocationName(v.getText().toString(), 1);
@@ -287,6 +291,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		if (type != null)
 			changeMapOverlay(type);
+
+		map.setOnMapClickListener(latLng -> {
+			Assist.hideSoftKeyboard(getActivity(), searchText);
+			searchText.clearFocus();
+		});
 	}
 
 	/**
