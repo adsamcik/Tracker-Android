@@ -5,8 +5,8 @@
               android:animateLayoutChanges="true"
               android:orientation="vertical"
               android:paddingBottom="@dimen/navbar_height"
-              android:paddingLeft="@dimen/activity_horizontal_margin"
-              android:paddingRight="@dimen/activity_horizontal_margin"
+              android:paddingStart="@dimen/edge_margin"
+              android:paddingEnd="@dimen/edge_margin"
               android:paddingTop="@dimen/status_bar_height_and_padding"
               tools:context=".fragments.FragmentTracker">
 

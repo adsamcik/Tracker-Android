@@ -20,4 +20,5 @@
     <dimen name="divider_height">2dp</dimen>
     <dimen name="progress_bar_ring_width">7dp</dimen>
     <dimen name="bottom_bar_height">56dp</dimen>
+    <dimen name="edge_margin">16dp</dimen>
 </resources>
