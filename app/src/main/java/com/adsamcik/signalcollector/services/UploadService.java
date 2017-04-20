@@ -215,14 +215,13 @@ public class UploadService extends JobService {
 				isUploading = false;
 				return false;
 			} else {
-
 				if (source.equals(UploadScheduleSource.USER))
 					DataStore.closeUploadFile(files[files.length - 1]);
 				String zipName = "up" + System.currentTimeMillis();
 				tempZipFile = Compress.zip(directory, files, zipName);
-				if(tempZipFile == null) {
+				if (tempZipFile == null)
 					return false;
-				}
+				
 				final Lock lock = new ReentrantLock();
 				final Condition callbackReceived = lock.newCondition();
 				final StringWrapper token = new StringWrapper();
@@ -265,7 +264,7 @@ public class UploadService extends JobService {
 			super.onPostExecute(aBoolean);
 			DataStore.cleanup();
 
-			if(!aBoolean) {
+			if (!aBoolean) {
 				DataStore.onUpload(-1);
 			}
 
