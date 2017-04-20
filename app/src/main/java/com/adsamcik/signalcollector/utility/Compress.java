@@ -7,6 +7,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -28,8 +29,15 @@ public final class Compress {
 
 			byte data[] = new byte[BUFFER];
 
+			int fileCount = 0;
 			for (String _file : fileNames) {
-				FileInputStream fi = new FileInputStream(path + _file);
+				FileInputStream fi = null;
+				try {
+					fi = new FileInputStream(path + _file);
+					fileCount++;
+				} catch (FileNotFoundException e) {
+					continue;
+				}
 				origin = new BufferedInputStream(fi, BUFFER);
 				ZipEntry entry = new ZipEntry(_file);
 				out.putNextEntry(entry);
@@ -41,7 +49,13 @@ public final class Compress {
 			}
 
 			out.close();
-			return new File(path + zipName);
+			File f = new File(path + zipName);
+			if (fileCount == 0) {
+				if (!f.delete())
+					f.deleteOnExit();
+				return null;
+			}
+			return f;
 		} catch (Exception e) {
 			e.printStackTrace();
 			FirebaseCrash.report(e);

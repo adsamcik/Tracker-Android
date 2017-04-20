@@ -29,6 +29,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -298,6 +299,9 @@ public class DataStore {
 	 * @return true if file was deleted, false otherwise
 	 */
 	public static boolean retryDelete(File file, int maxRetryCount) {
+		if (file == null)
+			throw new InvalidParameterException("file is null");
+
 		int retryCount = 0;
 		for (; ; ) {
 			if (!file.exists() || file.delete())

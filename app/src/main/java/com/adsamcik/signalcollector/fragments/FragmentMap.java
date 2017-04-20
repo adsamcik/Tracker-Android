@@ -294,10 +294,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			changeMapOverlay(type);
 
 		map.setOnMapClickListener(latLng -> {
-			if(searchText.hasFocus()) {
+			if (searchText.hasFocus()) {
 				Assist.hideSoftKeyboard(getActivity(), searchText);
 				searchText.clearFocus();
-			} else if(searchText.getVisibility() == View.VISIBLE) {
+			} else if (searchText.getVisibility() == View.VISIBLE) {
 				searchText.setVisibility(View.INVISIBLE);
 				fabTwo.hide();
 				fabOne.hide();

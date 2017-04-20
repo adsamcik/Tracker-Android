@@ -220,6 +220,9 @@ public class UploadService extends JobService {
 					DataStore.closeUploadFile(files[files.length - 1]);
 				String zipName = "up" + System.currentTimeMillis();
 				tempZipFile = Compress.zip(directory, files, zipName);
+				if(tempZipFile == null) {
+					return false;
+				}
 				final Lock lock = new ReentrantLock();
 				final Condition callbackReceived = lock.newCondition();
 				final StringWrapper token = new StringWrapper();
@@ -239,7 +242,6 @@ public class UploadService extends JobService {
 						callbackReceived.await();
 				} catch (InterruptedException e) {
 					FirebaseCrash.report(e);
-					DataStore.onUpload(-1);
 					return false;
 				} finally {
 					lock.unlock();
@@ -248,18 +250,27 @@ public class UploadService extends JobService {
 				if (upload(tempZipFile, token.getString(), userID.getString())) {
 					for (String file : files)
 						DataStore.deleteFile(file);
-					if (!DataStore.retryDelete(tempZipFile))
-						FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 					tempZipFile = null;
 				} else {
-					DataStore.onUpload(-1);
 					return false;
 				}
 			}
 
-			DataStore.cleanup();
 			DataStore.recountDataSize();
 			return true;
+		}
+
+		@Override
+		protected void onPostExecute(Boolean aBoolean) {
+			super.onPostExecute(aBoolean);
+			DataStore.cleanup();
+
+			if(!aBoolean) {
+				DataStore.onUpload(-1);
+			}
+
+			if (tempZipFile != null && !DataStore.retryDelete(tempZipFile))
+				FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 		}
 
 		@Override
