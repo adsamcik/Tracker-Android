@@ -135,7 +135,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return new Failure<>(activity.getString(R.string.error_missing_permission));
 
 		initializeLocationListener(activity);
-		locationListener.setFAB(fabOne);
+		locationListener.setFAB(fabOne, activity);
 
 		this.fabTwo = fabTwo;
 		this.fabOne = fabOne;
@@ -288,7 +288,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		map.setMaxZoomPreference(MAX_ZOOM);
 		if (checkLocationPermission(c, false)) {
-			locationListener.setFollowMyPosition(true);
+			locationListener.setFollowMyPosition(true, c);
 			if (locationManager == null)
 				locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
@@ -392,22 +392,22 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			targetZoom = cameraPosition.zoom;
 		}
 
-		public void setFAB(@NonNull FloatingActionButton fab) {
+		public void setFAB(@NonNull FloatingActionButton fab, @NonNull Context context) {
 			this.fab = fab;
-			setFollowMyPosition(followMyPosition);
+			setFollowMyPosition(followMyPosition, context);
 		}
 
 		public void unregisterMap(GoogleMap map) {
 
 		}
 
-		public void setFollowMyPosition(boolean value) {
+		public void setFollowMyPosition(boolean value, @NonNull Context context) {
 			this.followMyPosition = value;
-			if (fab != null) {
+			if (fab != null && getContext() != null) {
 				if (followMyPosition)
-					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textAccent)));
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textAccent)));
 				else
-					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
 			}
 		}
 
@@ -422,7 +422,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		public void stopUsingUserPosition(boolean returnToDefault) {
 			if (followMyPosition) {
-				setFollowMyPosition(false);
+				setFollowMyPosition(false, getContext());
 				if (useGyroscope) {
 					stopUsingGyroscope(returnToDefault);
 					fab.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
@@ -480,7 +480,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 					fab.setImageResource(R.drawable.ic_compass);
 				}
 			} else {
-				setFollowMyPosition(true);
+				setFollowMyPosition(true, getContext());
 			}
 
 			if (lastUserPos != null)
