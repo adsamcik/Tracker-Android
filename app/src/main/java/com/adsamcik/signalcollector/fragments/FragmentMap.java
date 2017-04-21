@@ -4,6 +4,7 @@ package com.adsamcik.signalcollector.fragments;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -133,6 +134,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (!checkLocationPermission(activity, true))
 			return new Failure<>(activity.getString(R.string.error_missing_permission));
 
+		initializeLocationListener(activity);
+		locationListener.setFAB(fabOne);
+
 		this.fabTwo = fabTwo;
 		this.fabOne = fabOne;
 
@@ -237,6 +241,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		} else this.type = type;
 	}
 
+	private void initializeLocationListener(@NonNull Context context) {
+		if (locationListener == null)
+			locationListener = new UpdateLocationListener((SensorManager) context.getSystemService(Context.SENSOR_SERVICE));
+	}
+
 	@Override
 	public void onMapReady(GoogleMap map) {
 		this.map = map;
@@ -274,11 +283,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		};
 
-		locationListener = new UpdateLocationListener((SensorManager) c.getSystemService(Context.SENSOR_SERVICE));
+
+		initializeLocationListener(c);
 
 		map.setMaxZoomPreference(MAX_ZOOM);
 		if (checkLocationPermission(c, false)) {
-			locationListener.followMyPosition = true;
+			locationListener.setFollowMyPosition(true);
 			if (locationManager == null)
 				locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
@@ -313,7 +323,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		uiSettings.setIndoorLevelPickerEnabled(false);
 		uiSettings.setCompassEnabled(false);
 
-		locationListener.RegisterMap(map);
+		locationListener.registerMap(map);
 
 		if (locationManager == null)
 			locationManager = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
@@ -354,7 +364,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	}
 
 	private class UpdateLocationListener implements LocationListener, SensorEventListener {
-		boolean followMyPosition = false;
+		private boolean followMyPosition = false;
 		boolean useGyroscope = false;
 
 		private Sensor rotationVector;
@@ -366,12 +376,14 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		private float targetBearing;
 		private float targetZoom;
 
+		private FloatingActionButton fab;
+
 		public UpdateLocationListener(@NonNull SensorManager sensorManager) {
 			rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
 			this.sensorManager = sensorManager;
 		}
 
-		public void RegisterMap(GoogleMap map) {
+		public void registerMap(GoogleMap map) {
 			map.setOnCameraMoveStartedListener(cameraChangeListener);
 			CameraPosition cameraPosition = map.getCameraPosition();
 			targetPosition = cameraPosition.target == null ? new LatLng(0, 0) : cameraPosition.target;
@@ -380,8 +392,20 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			targetZoom = cameraPosition.zoom;
 		}
 
-		public void UnregisterMap(GoogleMap map) {
+		public void setFAB(@NonNull FloatingActionButton fab) {
+			this.fab = fab;
+		}
 
+		public void unregisterMap(GoogleMap map) {
+
+		}
+
+		public void setFollowMyPosition(boolean value) {
+			this.followMyPosition = value;
+			if (followMyPosition)
+				fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textAccent)));
+			else
+				fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
 		}
 
 		private void stopUsingGyroscope(boolean returnToDefault) {
@@ -394,11 +418,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 
 		public void stopUsingUserPosition(boolean returnToDefault) {
-			if (useGyroscope)
-				stopUsingGyroscope(returnToDefault);
-
-			if (followMyPosition)
-				followMyPosition = false;
+			if (followMyPosition) {
+				setFollowMyPosition(false);
+				if (useGyroscope) {
+					stopUsingGyroscope(returnToDefault);
+					fab.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
+				}
+			}
 		}
 
 		private final GoogleMap.OnCameraMoveStartedListener cameraChangeListener = i -> {
@@ -441,15 +467,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		private void onMyPositionFabClick() {
 			if (followMyPosition) {
 				if (useGyroscope) {
+					fab.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 					stopUsingGyroscope(true);
 				} else {
 					useGyroscope = true;
 					sensorManager.registerListener(this, rotationVector,
 							SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI);
 					animateToTilt(45);
+					fab.setImageResource(R.drawable.ic_compass);
 				}
-			} else
-				followMyPosition = true;
+			} else {
+				setFollowMyPosition(true);
+			}
 
 			if (lastUserPos != null)
 				moveTo(lastUserPos);
