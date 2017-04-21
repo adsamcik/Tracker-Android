@@ -113,6 +113,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	private void silentSignIn(GoogleApiClient googleApiClient) {
+		googleApiClient.connect();
 		OptionalPendingResult<GoogleSignInResult> pendingResult = Auth.GoogleSignInApi.silentSignIn(googleApiClient);
 
 		if (pendingResult.isDone()) {
