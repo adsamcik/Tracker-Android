@@ -394,6 +394,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		public void setFAB(@NonNull FloatingActionButton fab) {
 			this.fab = fab;
+			setFollowMyPosition(followMyPosition);
 		}
 
 		public void unregisterMap(GoogleMap map) {
@@ -402,10 +403,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		public void setFollowMyPosition(boolean value) {
 			this.followMyPosition = value;
-			if (followMyPosition)
-				fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textAccent)));
-			else
-				fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
+			if (fab != null) {
+				if (followMyPosition)
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textAccent)));
+				else
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(getContext(), R.color.textPrimary)));
+			}
 		}
 
 		private void stopUsingGyroscope(boolean returnToDefault) {
