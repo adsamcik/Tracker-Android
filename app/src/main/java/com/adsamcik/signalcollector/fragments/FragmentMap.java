@@ -132,13 +132,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		if (!Assist.isPlayServiceAvailable(activity))
 			return new Failure<>(activity.getString(R.string.error_play_services_not_available));
-		if (checkLocationPermission(activity, true)) {
-			if (locationListener == null)
-				locationListener = new UpdateLocationListener((SensorManager) activity.getSystemService(Context.SENSOR_SERVICE));
-			if (locationManager == null)
-				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
-			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
-		} else
+		if (!checkLocationPermission(activity, true))
 			return new Failure<>(activity.getString(R.string.error_missing_permission));
 
 		this.fabTwo = fabTwo;
@@ -195,8 +189,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			try {
 				List<Address> addresses = geocoder.getFromLocationName(v.getText().toString(), 1);
 				if (addresses != null && addresses.size() > 0) {
-					if (map != null) {
+					if (map != null && locationListener != null) {
 						Address address = addresses.get(0);
+						locationListener.stopUsingUserPosition(true);
 						locationListener.moveTo(new LatLng(address.getLatitude(), address.getLongitude()), 13);
 					}
 				}
@@ -281,10 +276,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			}
 		};
 
+		locationListener = new UpdateLocationListener((SensorManager) c.getSystemService(Context.SENSOR_SERVICE));
+
 		map.setMaxZoomPreference(MAX_ZOOM);
 		if (checkLocationPermission(c, false)) {
-			if (locationListener == null)
-				locationListener = new UpdateLocationListener((SensorManager) c.getSystemService(Context.SENSOR_SERVICE));
 			locationListener.followMyPosition = true;
 			if (locationManager == null)
 				locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
@@ -321,6 +316,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		uiSettings.setCompassEnabled(false);
 
 		locationListener.RegisterMap(map);
+
+		if (locationManager == null)
+			locationManager = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
+		locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
 
 	}
 
@@ -386,20 +385,26 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		}
 
-		private void stopUsingGyroscope() {
+		private void stopUsingGyroscope(boolean returnToDefault) {
 			useGyroscope = false;
 			sensorManager.unregisterListener(this, rotationVector);
 			targetBearing = 0;
 			targetTilt = 0;
-			animateTo(targetPosition, targetZoom, 0, 0);
+			if (returnToDefault)
+				animateTo(targetPosition, targetZoom, 0, 0);
+		}
+
+		public void stopUsingUserPosition(boolean returnToDefault) {
+			if (useGyroscope)
+				stopUsingGyroscope(returnToDefault);
+
+			if (followMyPosition)
+				followMyPosition = false;
 		}
 
 		private final GoogleMap.OnCameraMoveStartedListener cameraChangeListener = i -> {
-			if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-				followMyPosition = false;
-				if (useGyroscope)
-					stopUsingGyroscope();
-			}
+			if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
+				stopUsingUserPosition(true);
 		};
 
 		@Override
@@ -434,7 +439,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		private void onMyPositionFabClick() {
 			if (followMyPosition) {
 				if (useGyroscope) {
-					stopUsingGyroscope();
+					stopUsingGyroscope(true);
 				} else {
 					useGyroscope = true;
 					sensorManager.registerListener(this, rotationVector,
