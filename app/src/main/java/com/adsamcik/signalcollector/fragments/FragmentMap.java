@@ -15,6 +15,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -27,6 +28,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.RelativeLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -252,8 +254,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return;
 		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(c, R.raw.map_style));
 
+		//does not work well with bearing. Known bug in Google maps api since 2014.
 		//map.setPadding(0, Assist.dpToPx(c, 48 + 40 + 8), 0, 0);
-
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
@@ -316,6 +318,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		UiSettings uiSettings = map.getUiSettings();
 		uiSettings.setMapToolbarEnabled(false);
 		uiSettings.setIndoorLevelPickerEnabled(false);
+		uiSettings.setCompassEnabled(false);
 
 		locationListener.RegisterMap(map);
 
@@ -414,8 +417,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 
 		private void animateToBearing(float bearing) {
-			targetBearing = bearing;
 			animateTo(targetPosition, targetZoom, targetTilt, bearing);
+			targetBearing = bearing;
 		}
 
 		private void animateToTilt(float tilt) {
