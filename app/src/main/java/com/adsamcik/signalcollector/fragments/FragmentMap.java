@@ -120,6 +120,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		if (menu != null)
 			menu.hideAndDestroy(activity);
+
+		fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
 	}
 
 	/**
