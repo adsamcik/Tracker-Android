@@ -15,7 +15,6 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -28,7 +27,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.RelativeLayout;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -192,7 +190,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 					if (map != null && locationListener != null) {
 						Address address = addresses.get(0);
 						locationListener.stopUsingUserPosition(true);
-						locationListener.moveTo(new LatLng(address.getLatitude(), address.getLongitude()), 13);
+						locationListener.animateToPositionZoom(new LatLng(address.getLatitude(), address.getLongitude()), 13);
 					}
 				}
 
@@ -362,6 +360,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		private Sensor rotationVector;
 		private SensorManager sensorManager;
 
+		private LatLng lastUserPos;
 		private LatLng targetPosition;
 		private float targetTilt;
 		private float targetBearing;
@@ -391,7 +390,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			targetBearing = 0;
 			targetTilt = 0;
 			if (returnToDefault)
-				animateTo(targetPosition, targetZoom, 0, 0);
+				animateTo(targetPosition, targetZoom, 0, 0, DURATION_SHORT);
 		}
 
 		public void stopUsingUserPosition(boolean returnToDefault) {
@@ -407,33 +406,36 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				stopUsingUserPosition(true);
 		};
 
+		private final int DURATION_STANDARD = 1000;
+		private final int DURATION_SHORT = 200;
+
 		@Override
 		public void onLocationChanged(Location location) {
-			targetPosition = new LatLng(location.getLatitude(), location.getLongitude());
-			DrawUserPosition(targetPosition, location.getAccuracy());
+			lastUserPos = new LatLng(location.getLatitude(), location.getLongitude());
+			DrawUserPosition(lastUserPos, location.getAccuracy());
 			if (followMyPosition && map != null)
-				moveTo(targetPosition);
+				moveTo(lastUserPos);
 		}
 
 		private void animateToPositionZoom(LatLng position, float zoom) {
 			targetPosition = position;
 			targetZoom = zoom;
-			animateTo(position, zoom, targetTilt, targetBearing);
+			animateTo(position, zoom, targetTilt, targetBearing, DURATION_STANDARD);
 		}
 
 		private void animateToBearing(float bearing) {
-			animateTo(targetPosition, targetZoom, targetTilt, bearing);
+			animateTo(targetPosition, targetZoom, targetTilt, bearing, DURATION_SHORT);
 			targetBearing = bearing;
 		}
 
 		private void animateToTilt(float tilt) {
 			targetTilt = tilt;
-			animateTo(targetPosition, targetZoom, tilt, targetBearing);
+			animateTo(targetPosition, targetZoom, tilt, targetBearing, DURATION_SHORT);
 		}
 
-		private void animateTo(LatLng position, float zoom, float tilt, float bearing) {
+		private void animateTo(LatLng position, float zoom, float tilt, float bearing, int duration) {
 			CameraPosition.Builder builder = new CameraPosition.Builder(map.getCameraPosition()).target(position).zoom(zoom).tilt(tilt).bearing(bearing);
-			map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), 200, null);
+			map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null);
 		}
 
 		private void onMyPositionFabClick() {
@@ -449,19 +451,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			} else
 				followMyPosition = true;
 
-			if (targetPosition != null)
-				moveTo(targetPosition);
+			if (lastUserPos != null)
+				moveTo(lastUserPos);
 		}
 
 		private void moveTo(@NonNull LatLng latlng) {
 			float zoom = map.getCameraPosition().zoom;
-			moveTo(latlng, zoom < 16 ? 16 : zoom > 17 ? 17 : zoom);
-		}
-
-		private void moveTo(@NonNull LatLng latlng, float zoom) {
-			CameraPosition cPos = map.getCameraPosition();
-			if (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude)
-				animateToPositionZoom(latlng, zoom);
+			animateToPositionZoom(latlng, zoom < 16 ? 16 : zoom > 17 ? 17 : zoom);
 		}
 
 		@Override
