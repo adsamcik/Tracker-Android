@@ -278,7 +278,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
 
 		if (Assist.hasNetwork()) {
-			signin = Signin.getInstance(getActivity());
+			signin = Signin.signin(getActivity());
 			signin.setButtons(signInButton, signOutButton);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);

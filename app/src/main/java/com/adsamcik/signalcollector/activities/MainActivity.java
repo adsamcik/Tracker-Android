@@ -62,7 +62,7 @@ public class MainActivity extends FragmentActivity {
 				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		}
 
-		Signin.getInstance(this);
+		Signin.signin(this);
 
 		Failure<String> s = ActivityService.initializeActivityClient(this);
 		if (s.hasFailed())
@@ -198,8 +198,10 @@ public class MainActivity extends FragmentActivity {
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				Signin.onSignedIn(acct, true, this);
-			} else
+			} else {
 				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
+				Signin.onSignInFailed(this);
+			}
 		}
 	}
 }

@@ -18,19 +18,20 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.ErrorDialogFragment;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.OptionalPendingResult;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.lang.ref.WeakReference;
+import java.util.concurrent.TimeUnit;
 
 
 public class Signin implements GoogleApiClient.OnConnectionFailedListener, GoogleApiClient.ConnectionCallbacks {
 	public static final int RC_SIGN_IN = 4654;
 	private static final int ERROR_REQUEST_CODE = 3543;
+
+	private SigninStatus status = SigninStatus.NOT_SIGNED;
 
 	private final GoogleApiClient client;
 	private WeakReference<SignInButton> signInButton;
@@ -52,26 +53,29 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		activityWeakReference = new WeakReference<>(activity);
 	}
 
-	public static Signin getInstance(@NonNull FragmentActivity fragmentActivity) {
+	public static Signin signin(@NonNull FragmentActivity fragmentActivity) {
 		if (instance == null)
 			instance = new Signin(fragmentActivity);
-		else if (instance.getActivity() == null)
+		else if (instance.getActivity() == null) {
 			instance.setActivity(fragmentActivity);
+			if (instance.status == SigninStatus.SILENT_SIGNIN_FAILED && !instance.resolvingError)
+				fragmentActivity.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(instance.client), RC_SIGN_IN);
+		}
 		return instance;
 	}
 
-	public static Signin getInstance(@NonNull Context context) {
+	public static Signin signin(@NonNull Context context) {
 		if (instance == null)
 			instance = new Signin(context);
 		return instance;
 	}
 
 	public static String getToken(@NonNull Context context) {
-		return getInstance(context).token;
+		return signin(context).token;
 	}
 
 	public static void getTokenAsync(@NonNull Context context, IValueCallback<String> callback) {
-		Signin instance = getInstance(context);
+		Signin instance = signin(context);
 		if (instance.token != null)
 			callback.callback(instance.token);
 		else
@@ -116,53 +120,65 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			assert acc != null;
 			onSignedIn(acc, false);
 		} else {
+			updateStatus(SigninStatus.SIGNIN_IN_PROGRESS);
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
 							onSignedIn(acc, false);
-						}
+						} else
+							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED);
 					}
-			);
+			, 10, TimeUnit.SECONDS);
 		}
 	}
 
 	public Signin setButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
 		this.signInButton = new WeakReference<>(signInButton);
 		this.signOutButton = new WeakReference<>(signOutButton);
-		updateButtons(token != null);
+		updateStatus(status);
 		return this;
 	}
 
-	private void updateButtons(boolean signed) {
+	private void updateStatus(SigninStatus signinStatus) {
+		status = signinStatus;
 		if (signInButton != null && signOutButton != null) {
 			SignInButton signInButton = this.signInButton.get();
 			Button signOutButton = this.signOutButton.get();
 			if (signInButton != null && signOutButton != null) {
-				if (signed) {
-					signInButton.setVisibility(View.GONE);
-					signOutButton.setVisibility(View.VISIBLE);
-					signOutButton.setOnClickListener(v -> signout());
-				} else {
-					signInButton.setVisibility(View.VISIBLE);
-					signOutButton.setVisibility(View.GONE);
-					signInButton.setOnClickListener((v) -> {
-						Activity a = getActivity();
-						if (a != null) {
-							a.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(client), RC_SIGN_IN);
-						}
-					});
+				switch (status) {
+					case SIGNED:
+						signInButton.setVisibility(View.GONE);
+						signOutButton.setVisibility(View.VISIBLE);
+						signOutButton.setOnClickListener(v -> signout());
+						break;
+					case SIGNIN_FAILED:
+					case SILENT_SIGNIN_FAILED:
+					case NOT_SIGNED:
+						signInButton.setVisibility(View.VISIBLE);
+						signOutButton.setVisibility(View.GONE);
+						signInButton.setOnClickListener((v) -> {
+							Activity a = getActivity();
+							if (a != null) {
+								a.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(client), RC_SIGN_IN);
+							}
+						});
+						break;
+					case SIGNIN_IN_PROGRESS:
+						signInButton.setVisibility(View.GONE);
+						signOutButton.setVisibility(View.GONE);
+						break;
 				}
 			}
 		}
 	}
 
 	public static void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
-		getInstance(context).onSignedIn(account, showSnackbar);
+		signin(context).onSignedIn(account, showSnackbar);
 	}
 
 	private void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar) {
-		updateButtons(true);
+		updateStatus(SigninStatus.SIGNED);
 		if (showSnackbar)
 			showSnackbar(R.string.signed_in_message);
 		this.token = account.getIdToken();
@@ -177,8 +193,12 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		}
 	}
 
+	public static void onSignInFailed(@NonNull Context context) {
+		signin(context).updateStatus(SigninStatus.SIGNIN_FAILED);
+	}
+
 	private void onSignedOut() {
-		updateButtons(false);
+		updateStatus(SigninStatus.NOT_SIGNED);
 		showSnackbar(R.string.signed_out_message);
 	}
 
@@ -189,12 +209,12 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	private void signout() {
-		if (token != null) {
+		if (status == SigninStatus.SIGNED) {
 			if (client.isConnected())
 				Auth.GoogleSignInApi.signOut(client).setResultCallback(status -> onSignedOut());
 			client.disconnect();
 			token = null;
-			updateButtons(false);
+			updateStatus(SigninStatus.NOT_SIGNED);
 		}
 	}
 
@@ -227,5 +247,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	@Override
 	public void onConnectionSuspended(int i) {
 
+	}
+
+	public enum SigninStatus {
+		NOT_SIGNED,
+		SIGNIN_IN_PROGRESS,
+		SIGNED,
+		SILENT_SIGNIN_FAILED,
+		SIGNIN_FAILED
 	}
 }
