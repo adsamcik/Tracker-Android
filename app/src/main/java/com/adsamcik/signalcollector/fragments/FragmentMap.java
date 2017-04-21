@@ -4,6 +4,10 @@ package com.adsamcik.signalcollector.fragments;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Address;
 import android.location.Criteria;
 import android.location.Geocoder;
@@ -19,11 +23,9 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
-import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.widget.EditText;
 
 import com.adsamcik.signalcollector.utility.Assist;
@@ -40,6 +42,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
@@ -63,7 +66,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private static final int MAX_ZOOM = 17;
 
 	private static final String TAG = "SignalsMap";
-	private final UpdateLocationListener locationListener = new UpdateLocationListener();
+	private UpdateLocationListener locationListener;
 	private String type = null;
 	private GoogleMap map;
 	private TileProvider tileProvider;
@@ -128,6 +131,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (!Assist.isPlayServiceAvailable(activity))
 			return new Failure<>(activity.getString(R.string.error_play_services_not_available));
 		if (checkLocationPermission(activity, true)) {
+			if (locationListener == null)
+				locationListener = new UpdateLocationListener((SensorManager) activity.getSystemService(Context.SENSOR_SERVICE));
 			if (locationManager == null)
 				locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
 			locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
@@ -141,7 +146,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
 			if (checkLocationPermission(activity, true) && map != null)
-				locationListener.moveToMyPosition();
+				locationListener.onMyPositionFabClick();
 		});
 
 
@@ -247,7 +252,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return;
 		map.setMapStyle(MapStyleOptions.loadRawResourceStyle(c, R.raw.map_style));
 
-		map.setPadding(0, Assist.dpToPx(c, 48 + 40 + 8), 0, 0);
+		//map.setPadding(0, Assist.dpToPx(c, 48 + 40 + 8), 0, 0);
+
 
 		tileProvider = new UrlTileProvider(256, 256) {
 			@Override
@@ -274,8 +280,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		};
 
 		map.setMaxZoomPreference(MAX_ZOOM);
-
-		if (checkLocationPermission(getContext(), false)) {
+		if (checkLocationPermission(c, false)) {
+			if (locationListener == null)
+				locationListener = new UpdateLocationListener((SensorManager) c.getSystemService(Context.SENSOR_SERVICE));
 			locationListener.followMyPosition = true;
 			if (locationManager == null)
 				locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
@@ -283,12 +290,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			if (l != null) {
 				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();
 				map.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
-				locationListener.position = cp.target;
+				locationListener.targetPosition = cp.target;
 				DrawUserPosition(cp.target, l.getAccuracy());
 			}
 		}
-
-		map.setOnCameraMoveStartedListener(locationListener.cameraChangeListener);
 		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 		if (type != null)
 			changeMapOverlay(type);
@@ -307,6 +312,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				fabOne.show();
 			}
 		});
+
+		UiSettings uiSettings = map.getUiSettings();
+		uiSettings.setMapToolbarEnabled(false);
+		uiSettings.setIndoorLevelPickerEnabled(false);
+
+		locationListener.RegisterMap(map);
+
 	}
 
 	/**
@@ -341,27 +353,96 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 	}
 
-	private class UpdateLocationListener implements LocationListener {
-		LatLng position;
+	private class UpdateLocationListener implements LocationListener, SensorEventListener {
 		boolean followMyPosition = false;
+		boolean useGyroscope = false;
+
+		private Sensor rotationVector;
+		private SensorManager sensorManager;
+
+		private LatLng targetPosition;
+		private float targetTilt;
+		private float targetBearing;
+		private float targetZoom;
+
+		public UpdateLocationListener(@NonNull SensorManager sensorManager) {
+			rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+			this.sensorManager = sensorManager;
+		}
+
+		public void RegisterMap(GoogleMap map) {
+			map.setOnCameraMoveStartedListener(cameraChangeListener);
+			CameraPosition cameraPosition = map.getCameraPosition();
+			targetPosition = cameraPosition.target == null ? new LatLng(0, 0) : cameraPosition.target;
+			targetTilt = cameraPosition.tilt;
+			targetBearing = cameraPosition.bearing;
+			targetZoom = cameraPosition.zoom;
+		}
+
+		public void UnregisterMap(GoogleMap map) {
+
+		}
+
+		private void stopUsingGyroscope() {
+			useGyroscope = false;
+			sensorManager.unregisterListener(this, rotationVector);
+			targetBearing = 0;
+			targetTilt = 0;
+			animateTo(targetPosition, targetZoom, 0, 0);
+		}
 
 		private final GoogleMap.OnCameraMoveStartedListener cameraChangeListener = i -> {
-			if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
+			if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
 				followMyPosition = false;
+				if (useGyroscope)
+					stopUsingGyroscope();
+			}
 		};
 
 		@Override
 		public void onLocationChanged(Location location) {
-			position = new LatLng(location.getLatitude(), location.getLongitude());
-			DrawUserPosition(position, location.getAccuracy());
+			targetPosition = new LatLng(location.getLatitude(), location.getLongitude());
+			DrawUserPosition(targetPosition, location.getAccuracy());
 			if (followMyPosition && map != null)
-				moveTo(position);
+				moveTo(targetPosition);
 		}
 
-		private void moveToMyPosition() {
-			followMyPosition = true;
-			if (position != null)
-				moveTo(position);
+		private void animateToPositionZoom(LatLng position, float zoom) {
+			targetPosition = position;
+			targetZoom = zoom;
+			animateTo(position, zoom, targetTilt, targetBearing);
+		}
+
+		private void animateToBearing(float bearing) {
+			targetBearing = bearing;
+			animateTo(targetPosition, targetZoom, targetTilt, bearing);
+		}
+
+		private void animateToTilt(float tilt) {
+			targetTilt = tilt;
+			animateTo(targetPosition, targetZoom, tilt, targetBearing);
+		}
+
+		private void animateTo(LatLng position, float zoom, float tilt, float bearing) {
+			CameraPosition.Builder builder = new CameraPosition.Builder(map.getCameraPosition()).target(position).zoom(zoom).tilt(tilt).bearing(bearing);
+			map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), 200, null);
+		}
+
+		private void onMyPositionFabClick() {
+			if (followMyPosition) {
+				if (useGyroscope) {
+					stopUsingGyroscope();
+				} else {
+					useGyroscope = true;
+					sensorManager.registerListener(this, rotationVector,
+							SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI);
+					animateToTilt(45);
+				}
+			} else
+				followMyPosition = true;
+
+			if (targetPosition != null)
+				moveTo(targetPosition);
 		}
 
 		private void moveTo(@NonNull LatLng latlng) {
@@ -372,7 +453,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		private void moveTo(@NonNull LatLng latlng, float zoom) {
 			CameraPosition cPos = map.getCameraPosition();
 			if (cPos.target.latitude != latlng.latitude || cPos.target.longitude != latlng.longitude)
-				map.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
+				animateToPositionZoom(latlng, zoom);
 		}
 
 		@Override
@@ -393,6 +474,32 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		private void cleanup() {
 			if (map != null)
 				map.setOnMyLocationButtonClickListener(null);
+		}
+
+		float prevRotation;
+
+		private void updateRotation(int rotation) {
+			if (map != null && targetPosition != null && prevRotation != rotation) {
+				animateToBearing(rotation);
+			}
+		}
+
+		float[] orientation = new float[3];
+		float[] rMat = new float[9];
+
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+				// calculate th rotation matrix
+				SensorManager.getRotationMatrixFromVector(rMat, event.values);
+				// get the azimuth value (orientation[0]) in degree
+				updateRotation((int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360);
+			}
+		}
+
+		@Override
+		public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
 		}
 	}
 
