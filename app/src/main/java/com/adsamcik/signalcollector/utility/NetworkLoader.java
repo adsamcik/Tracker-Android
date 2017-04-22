@@ -46,7 +46,7 @@ public class NetworkLoader {
 	 * @param <T>                 Value type
 	 */
 	public static <S, T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
-		String token = Signin.getToken(null);
+		String token = Signin.getToken(context);
 		if (token != null)
 			requestString(new Request.Builder().url(url + "?token=" + token).build(), updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Assist.tryFromJson(value, tClass)));
 	}
@@ -74,7 +74,7 @@ public class NetworkLoader {
 	 * @param callback            Callback which is called when the result is ready
 	 */
 	public static void requestUserString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
-		String token = Signin.getToken(null);
+		String token = Signin.getToken(context);
 		if (token != null)
 			requestString(new Request.Builder().url(url).post(new FormBody.Builder().add("token", token).build()).build(), updateTimeInMinutes, context, preferenceString, callback);
 	}
