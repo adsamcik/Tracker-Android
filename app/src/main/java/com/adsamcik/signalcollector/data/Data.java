@@ -147,45 +147,47 @@ public class Data implements Serializable {
 	public Data addCell(@NonNull TelephonyManager telephonyManager, @Nullable List<SubscriptionInfo> subscriptionInfos) {
 		List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();
 		String nOp = telephonyManager.getNetworkOperator();
-		short mcc = Short.parseShort(nOp.substring(0, 3));
-		short mnc = Short.parseShort(nOp.substring(3));
+		if (!nOp.isEmpty()) {
+			short mcc = Short.parseShort(nOp.substring(0, 3));
+			short mnc = Short.parseShort(nOp.substring(3));
 
-		if (cellInfos != null) {
-			cellCount = cellInfos.size();
-			ArrayList<CellData> registeredCells = new ArrayList<>(Build.VERSION.SDK_INT >= 23 ? telephonyManager.getPhoneCount() : 1);
-			for (CellInfo ci : cellInfos) {
-				if (ci.isRegistered()) {
-					if (ci instanceof CellInfoLte) {
-						CellInfoLte cig = (CellInfoLte) ci;
-						if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-							registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
-						else
-							registeredCells.add(CellData.newInstance(cig, (String) null));
-					} else if (ci instanceof CellInfoGsm) {
-						CellInfoGsm cig = (CellInfoGsm) ci;
-						if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-							registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
-						else
-							registeredCells.add(CellData.newInstance(cig, (String) null));
-					} else if (ci instanceof CellInfoWcdma) {
-						CellInfoWcdma cig = (CellInfoWcdma) ci;
-						if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-							registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
-						else
-							registeredCells.add(CellData.newInstance(cig, (String) null));
-					} else if (ci instanceof CellInfoCdma) {
-						CellInfoCdma cig = (CellInfoCdma) ci;
-						/*if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-							addCell(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+			if (cellInfos != null) {
+				cellCount = cellInfos.size();
+				ArrayList<CellData> registeredCells = new ArrayList<>(Build.VERSION.SDK_INT >= 23 ? telephonyManager.getPhoneCount() : 1);
+				for (CellInfo ci : cellInfos) {
+					if (ci.isRegistered()) {
+						if (ci instanceof CellInfoLte) {
+							CellInfoLte cig = (CellInfoLte) ci;
+							if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+								registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+							else
+								registeredCells.add(CellData.newInstance(cig, (String) null));
+						} else if (ci instanceof CellInfoGsm) {
+							CellInfoGsm cig = (CellInfoGsm) ci;
+							if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+								registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+							else
+								registeredCells.add(CellData.newInstance(cig, (String) null));
+						} else if (ci instanceof CellInfoWcdma) {
+							CellInfoWcdma cig = (CellInfoWcdma) ci;
+							if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
+								registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+							else
+								registeredCells.add(CellData.newInstance(cig, (String) null));
+						} else if (ci instanceof CellInfoCdma) {
+							CellInfoCdma cic = (CellInfoCdma) ci;
+						/*if (cic.getCellIdentity().getMnc() == mnc && cic.getCellIdentity().getMcc() == mcc)
+							addCell(CellData.newInstance(cic, telephonyManager.getNetworkOperatorName()));
 						else*/
-						registeredCells.add(CellData.newInstance(cig, (String) null));
+							registeredCells.add(CellData.newInstance(cic, (String) null));
+						}
+						break;
 					}
-					break;
 				}
-			}
 
-			regCells = new CellData[registeredCells.size()];
-			registeredCells.toArray(regCells);
+				regCells = new CellData[registeredCells.size()];
+				registeredCells.toArray(regCells);
+			}
 		}
 		return this;
 	}
