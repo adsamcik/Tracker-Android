@@ -1,13 +1,9 @@
 package com.adsamcik.signalcollector.activities;
 
-import android.app.Instrumentation;
 import android.content.Context;
-import android.content.Intent;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.runner.AndroidJUnit4;
-import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
-import android.support.test.uiautomator.Until;
 
 import com.adsamcik.signalcollector.utility.Signin;
 

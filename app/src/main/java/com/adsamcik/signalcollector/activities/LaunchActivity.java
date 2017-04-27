@@ -20,12 +20,24 @@ import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.List;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+
 public class LaunchActivity extends Activity {
 
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		if (Build.MANUFACTURER.equals("Xiaomi")) {
+			OkHttpClient client = new OkHttpClient();
+			try {
+				FirebaseCrash.report(new Throwable(client.newCall(new Request.Builder().url("https://google.com").build()).execute().isSuccessful() ? "success" : "FUCK XIAOMI"));
+			} catch (Exception e) {
+				FirebaseCrash.report(e);
+			}
+		}
+
 		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
 		JobScheduler scheduler = ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE));
@@ -56,10 +68,10 @@ public class LaunchActivity extends Activity {
 						found++;
 					}
 				}
-				if(found > 1) {
+				if (found > 1) {
 					scheduler.cancelAll();
 					UploadService.requestUpload(this, uss);
-				} else if(found == 0) {
+				} else if (found == 0) {
 					UploadService.requestUpload(this, uss);
 				}
 			}
