@@ -31,7 +31,7 @@ public final class Compress {
 
 			int fileCount = 0;
 			for (String _file : fileNames) {
-				FileInputStream fi = null;
+				FileInputStream fi;
 				try {
 					fi = new FileInputStream(path + _file);
 					fileCount++;

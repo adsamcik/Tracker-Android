@@ -5,6 +5,7 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
 
@@ -76,7 +77,7 @@ public class NetworkLoader {
 	public static void requestUserString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		String token = Signin.getToken(context);
 		if (token != null)
-			requestString(new Request.Builder().url(url).post(new FormBody.Builder().add("token", token).build()).build(), updateTimeInMinutes, context, preferenceString, callback);
+			requestString(Network.request(url, new FormBody.Builder().add("token", token).build()), updateTimeInMinutes, context, preferenceString, callback);
 	}
 
 	/**
@@ -99,7 +100,7 @@ public class NetworkLoader {
 				return;
 			}
 
-			OkHttpClient client = new OkHttpClient();
+			OkHttpClient client = Network.client();
 
 			client.newCall(request).enqueue(new Callback() {
 				@Override
@@ -107,7 +108,10 @@ public class NetworkLoader {
 					if (lastUpdate != -1)
 						callback.callback(Source.cache_connection_failed, DataStore.loadString(preferenceString));
 					else
-						callback.callback(Source.cache_connection_failed, null);
+						callback.callback(Source.no_data, null);
+
+					FirebaseCrash.log("Load " + preferenceString);
+					FirebaseCrash.report(e);
 				}
 
 				@Override

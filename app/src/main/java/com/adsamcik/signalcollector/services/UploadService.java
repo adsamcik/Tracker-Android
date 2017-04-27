@@ -172,7 +172,7 @@ public class UploadService extends JobService {
 					.build();
 			Request request = Network.request(Network.URL_DATA_UPLOAD, formBody);
 			try {
-				call = new OkHttpClient().newCall(request);
+				call = Network.client().newCall(request);
 				response = call.execute();
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();
