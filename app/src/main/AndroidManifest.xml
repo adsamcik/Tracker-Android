@@ -27,6 +27,10 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
 
+        <meta-data
+            android:name="android.max_aspect"
+            android:value="2.1"/>
+
         <provider
             android:name="android.support.v4.content.FileProvider"
             android:authorities="com.asdamcik.signalcollector.fileprovider"
@@ -36,10 +40,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/sharable_paths"/>
         </provider>
-
-        <meta-data
-            android:name="android.max_aspect"
-            android:value="2.1"/>
 
         <activity
             android:name=".activities.LaunchActivity"
@@ -94,6 +94,11 @@
                 <data android:mimeType="application/zip"/>
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".activities.FeedbackActivity"
+            android:parentActivityName=".activities.MainActivity"
+            android:screenOrientation="portrait"/>
 
         <receiver android:name=".receivers.BatteryStateReceiver">
             <intent-filter>

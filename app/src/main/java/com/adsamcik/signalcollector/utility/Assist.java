@@ -18,6 +18,7 @@ import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.res.ResourcesCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
@@ -26,6 +27,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.ScrollView;
 
+import com.adsamcik.signalcollector.R;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
@@ -446,5 +448,18 @@ public class Assist {
 	public static void hideSoftKeyboard(Activity activity, View view) {
 		InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
 		imm.hideSoftInputFromWindow(view.getApplicationWindowToken(), 0);
+	}
+
+	/**
+	 * Returns array of color state lists in this order: Default, Selected
+	 *
+	 * @param context context
+	 * @return array of color states
+	 */
+	public static ColorStateList[] getSelectionStateLists(@NonNull Resources resources, @NonNull Resources.Theme theme) {
+		return new ColorStateList[]{
+				ResourcesCompat.getColorStateList(resources, R.color.default_value, theme),
+				ResourcesCompat.getColorStateList(resources, R.color.selected_value, theme)
+		};
 	}
 }
