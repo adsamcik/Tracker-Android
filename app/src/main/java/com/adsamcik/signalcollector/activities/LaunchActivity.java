@@ -29,15 +29,6 @@ public class LaunchActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		if (Build.MANUFACTURER.equals("Xiaomi")) {
-			OkHttpClient client = new OkHttpClient();
-			try {
-				FirebaseCrash.report(new Throwable(client.newCall(new Request.Builder().url("https://google.com").build()).execute().isSuccessful() ? "success" : "FUCK XIAOMI"));
-			} catch (Exception e) {
-				FirebaseCrash.report(e);
-			}
-		}
-
 		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
 		JobScheduler scheduler = ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE));
