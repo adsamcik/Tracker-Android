@@ -8,6 +8,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.v4.app.FragmentActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
@@ -22,6 +23,8 @@ import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.OptionalPendingResult;
+import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.TimeUnit;
@@ -113,6 +116,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	private void silentSignIn(GoogleApiClient googleApiClient) {
+		if (googleApiClient.isConnected())
+			return;
+
 		googleApiClient.connect();
 		OptionalPendingResult<GoogleSignInResult> pendingResult = Auth.GoogleSignInApi.silentSignIn(googleApiClient);
 
@@ -130,7 +136,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 						} else
 							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED);
 					}
-			, 10, TimeUnit.SECONDS);
+					, 10, TimeUnit.SECONDS);
 		}
 	}
 
@@ -192,6 +198,17 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			onSignedCallback.callback(token);
 			onSignedCallback = null;
 		}
+
+		//todo uncomment this when server is ready
+		//SharedPreferences sp = Preferences.get(context);
+		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
+		String token = FirebaseInstanceId.getInstance().getToken();
+		Log.d("TOKEN", token);
+		if (token != null)
+			Network.register(this.token, token);
+		else
+			FirebaseCrash.report(new Throwable("Token is null"));
+		//}
 	}
 
 	public static void onSignInFailed(@NonNull Context context) {

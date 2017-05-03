@@ -89,15 +89,6 @@ public class MainActivity extends FragmentActivity {
 		int currentFragment = savedInstanceState != null && savedInstanceState.containsKey(BUNDLE_FRAGMENT) ? savedInstanceState.getInt(BUNDLE_FRAGMENT) : R.id.action_tracker;
 		changeFragment(currentFragment);
 		bottomNavigationView.setSelectedItemId(currentFragment);
-
-		Context context = getApplicationContext();
-		//todo uncomment this when server is ready
-		//SharedPreferences sp = Preferences.get(context);
-		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
-		String token = FirebaseInstanceId.getInstance().getToken();
-		if (token != null)
-			Signin.getTokenAsync(this, value -> Network.register(value, token));
-		//}
 	}
 
 	private boolean changeFragment(int index) {
