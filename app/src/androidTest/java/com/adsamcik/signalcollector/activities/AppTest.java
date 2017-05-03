@@ -23,6 +23,7 @@ import android.view.ViewParent;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.services.MessageListenerService;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -36,7 +37,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.runner.RunWith;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static android.support.test.espresso.Espresso.onView;
+import static android.support.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static android.support.test.espresso.matcher.ViewMatchers.withId;
 import static org.hamcrest.Matchers.allOf;
@@ -78,7 +83,7 @@ public class AppTest {
 	}
 
 	@org.junit.Test
-	public void RepeatedSaveTest() throws MalformedJsonException, InterruptedException {
+	public void NotificationSavingTest() throws MalformedJsonException, InterruptedException {
 		final String testFileName = DataStore.RECENT_UPLOADS_FILE;
 
 		long time = System.currentTimeMillis();
@@ -106,15 +111,32 @@ public class AppTest {
 		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
 		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
 
-		Instrumentation mInstrumentation = InstrumentationRegistry.getInstrumentation();
+		DataStore.deleteFile(testFileName);
+		DataStore.deleteFile(DataStore.RECENT_UPLOADS_FILE);
 
-		Intent intent = new Intent(Intent.ACTION_MAIN);
-		intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-		intent.setClassName(mInstrumentation.getTargetContext(), RecentUploadsActivity.class.getName());
-		mInstrumentation.startActivitySync(intent);
-		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
-		context.startActivity(intent);
-		Thread.sleep(5000);
+		final String WIFI = "wifi";
+		final String NEW_WIFI = "newWifi";
+		final String CELL = "cell";
+		final String NEW_CELL = "newCell";
+		final String COLLECTIONS = "collections";
+		final String NEW_LOCATIONS = "newLocations";
+		final String SIZE = "uploadSize";
+
+		Map<String, String> d = new HashMap<>(10);
+		d.put(WIFI, Integer.toString(us.wifi));
+		d.put(NEW_WIFI, Integer.toString(us.newWifi));
+		d.put(CELL, Integer.toString(us.cell));
+		d.put(NEW_CELL, Integer.toString(us.newCell));
+		d.put(COLLECTIONS, Integer.toString(us.collections));
+		d.put(NEW_LOCATIONS, Integer.toString(us.newLocations));
+		d.put(SIZE, Long.toString(us.uploadSize));
+
+		MessageListenerService.parseAndSaveUploadReport(context, time, d);
+		Assert.assertEquals('[' + data, DataStore.loadString(DataStore.RECENT_UPLOADS_FILE));
+
+		MessageListenerService.parseAndSaveUploadReport(context, time, d);
+		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(DataStore.RECENT_UPLOADS_FILE));
+		DataStore.deleteFile(DataStore.RECENT_UPLOADS_FILE);
 	}
 
 	@org.junit.Test
@@ -164,7 +186,7 @@ public class AppTest {
 		Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		Thread.sleep(2500);
 		fabUpload.check(matches(isDisplayed()));
-		progressBar.check(matches(not(isDisplayed())));
+		progressBar.check(doesNotExist());
 	}
 
 	private static Matcher<View> childAtPosition(
