@@ -74,7 +74,7 @@
         <EditText
             android:id="@+id/feedback_description"
             style="@style/InputLayoutEditText"
-            android:hint="Additional description (optional)"
+            android:hint="@string/feedback_description"
             android:lines="10"
             android:maxLines="20"
             android:minLines="4"/>
@@ -84,7 +84,8 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/edge_margin">
 
         <Button
             android:id="@+id/feedback_send_button"
@@ -92,8 +93,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:layout_marginEnd="@dimen/edge_margin"
-            android:layout_marginStart="@dimen/edge_margin"
             android:text="@string/send"
             android:textAlignment="center"
             android:textAllCaps="true"
