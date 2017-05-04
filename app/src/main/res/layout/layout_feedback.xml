@@ -5,7 +5,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:windowSoftInputMode="adjustResize">
 
     <LinearLayout
         android:id="@+id/feedback_type_layout"
@@ -51,12 +52,10 @@
         android:layout_height="wrap_content"
         app:counterEnabled="true"
         app:counterMaxLength="140"
-        app:errorEnabled="true"
-        app:hintAnimationEnabled="true"
-        app:counterOverflowTextAppearance="@style/ErrorTextAppearance">
+        app:counterOverflowTextAppearance="@style/ErrorTextAppearance"
+        app:hintAnimationEnabled="true">
 
         <android.support.design.widget.TextInputEditText
-            android:id="@+id/feedback_summary"
             style="@style/InputLayoutEditText"
             android:hint="@string/feedback_summary"
             android:lines="10"
@@ -72,7 +71,6 @@
         android:layout_height="wrap_content">
 
         <EditText
-            android:id="@+id/feedback_description"
             style="@style/InputLayoutEditText"
             android:hint="@string/feedback_description"
             android:lines="10"

@@ -79,7 +79,9 @@
     <string name="feedback_description">Description (optional)</string>
 
     <string name="feedback_error_type">You must select a type of feedback</string>
-    <string name="feedback_error_short_summary">Summary is too short</string>
+    <string name="feedback_error_short_summary">Summary is too brief</string>
+    <string name="feedback_error_long_summary">Summary is too long</string>
+    <string name="feedback_error_spaces_summary">Too much spacing</string>
 
     <!-- Generic strings -->
     <string name="other">Other</string>
