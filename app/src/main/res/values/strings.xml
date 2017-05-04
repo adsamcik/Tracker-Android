@@ -78,6 +78,9 @@
     <string name="feedback_summary">Summary</string>
     <string name="feedback_description">Description (optional)</string>
 
+    <string name="feedback_error_type">You must select a type of feedback</string>
+    <string name="feedback_error_short_summary">Summary is too short</string>
+
     <!-- Generic strings -->
     <string name="other">Other</string>
     <string name="signin_connecting">Connecting!</string>
