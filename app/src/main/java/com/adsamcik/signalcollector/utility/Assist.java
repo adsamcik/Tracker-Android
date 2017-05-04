@@ -453,7 +453,7 @@ public class Assist {
 	/**
 	 * Returns array of color state lists in this order: Default, Selected
 	 *
-	 * @param context context
+	 * @param resources resources
 	 * @return array of color states
 	 */
 	public static ColorStateList[] getSelectionStateLists(@NonNull Resources resources, @NonNull Resources.Theme theme) {
