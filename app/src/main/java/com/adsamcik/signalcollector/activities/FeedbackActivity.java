@@ -23,7 +23,7 @@ public class FeedbackActivity extends DetailActivity {
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		LinearLayout parent = createContentParent(false);
+		LinearLayout parent = createScrollableContentParent(true);
 		ViewGroup groupRoot = (ViewGroup) getLayoutInflater().inflate(R.layout.layout_feedback, parent);
 
 		LinearLayout feedbackLayout = (LinearLayout) groupRoot.findViewById(R.id.feedback_type_layout);
