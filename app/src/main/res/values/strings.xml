@@ -70,7 +70,14 @@
     <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new wifi</string>
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
 
-    <!--- Generic strings -->
+    <!-- Feedback strings -->
+
+    <string name="feedback_bug">Bug</string>
+    <string name="feedback_feature">Enhancement</string>
+    <string name="feedback_summary">Summary</string>
+    <string name="feedback_description">Description (optional)</string>
+
+    <!-- Generic strings -->
     <string name="other">Other</string>
     <string name="signin_connecting">Connecting!</string>
     <string name="cancel">Cancel</string>

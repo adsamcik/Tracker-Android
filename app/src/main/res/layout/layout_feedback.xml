@@ -21,7 +21,7 @@
             android:layout_gravity="start"
             android:layout_weight="1"
             android:gravity="start"
-            android:text="BUG"
+            android:text="@string/feedback_bug"
             android:textSize="@dimen/primary_text_size"/>
 
         <TextView
@@ -30,7 +30,7 @@
             android:layout_gravity="center"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="FEATURE"
+            android:text="@string/feedback_feature"
             android:textSize="@dimen/primary_text_size"/>
 
         <TextView
@@ -39,7 +39,7 @@
             android:layout_gravity="end"
             android:layout_weight="1"
             android:gravity="end"
-            android:text="OTHER"
+            android:text="@string/other"
             android:textSize="@dimen/primary_text_size"/>
     </LinearLayout>
 
@@ -58,7 +58,7 @@
         <android.support.design.widget.TextInputEditText
             android:id="@+id/feedback_summary"
             style="@style/InputLayoutEditText"
-            android:hint="Summary"
+            android:hint="@string/feedback_summary"
             android:lines="10"
             android:maxLines="4"
             android:minLines="2"/>
