@@ -72,6 +72,7 @@
 
     <!-- Feedback strings -->
 
+    <string name="feedback_title">Feedback</string>
     <string name="feedback_bug">Bug</string>
     <string name="feedback_feature">Enhancement</string>
     <string name="feedback_summary">Summary</string>
