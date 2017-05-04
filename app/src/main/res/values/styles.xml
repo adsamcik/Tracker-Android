@@ -66,6 +66,11 @@
         <item name="android:background">@color/dividerColor</item>
     </style>
 
+    <style name="ErrorTextAppearance" parent="@android:style/TextAppearance">
+        <item name="android:textColor">@color/error</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
     <style name="InputLayoutMaterial">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -88,5 +93,4 @@
         <item name="android:scrollbars">vertical</item>
         <item name="android:inputType">textMultiLine</item>
     </style>
-
 </resources>
