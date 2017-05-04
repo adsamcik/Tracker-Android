@@ -286,7 +286,12 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.export_share_button).setOnClickListener(v -> startActivity(new Intent(getActivity(), FileSharingActivity.class)));
 
-		rootView.findViewById(R.id.other_feedback).setOnClickListener(v -> startActivity(new Intent(getActivity(), FeedbackActivity.class)));
+		rootView.findViewById(R.id.other_feedback).setOnClickListener(v -> {
+			if (Signin.isSignedIn())
+				startActivity(new Intent(getActivity(), FeedbackActivity.class));
+			else
+				new SnackMaker(getActivity()).showSnackbar(R.string.feedback_error_not_signed_in);
+		});
 
 		//Dev stuff
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {

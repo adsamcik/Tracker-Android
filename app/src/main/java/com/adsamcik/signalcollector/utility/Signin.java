@@ -86,10 +86,14 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	public static void removeTokenListener() {
-		if(instance == null)
+		if (instance == null)
 			return;
 
 		instance.onSignedCallback = null;
+	}
+
+	public static boolean isSignedIn() {
+		return instance != null && instance.token != null;
 	}
 
 	public static String getUserID(@NonNull Context context) {
