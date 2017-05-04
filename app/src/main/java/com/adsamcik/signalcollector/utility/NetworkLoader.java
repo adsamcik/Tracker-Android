@@ -27,10 +27,9 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param tClass              Class of the type
 	 * @param callback            Callback which is called when the result is ready
-	 * @param <S>                 State type (enum)
 	 * @param <T>                 Value type
 	 */
-	public static <S, T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
+	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
 		loadString(url, updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Assist.tryFromJson(value, tClass)));
 	}
 
@@ -43,10 +42,9 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param tClass              Class of the type
 	 * @param callback            Callback which is called when the result is ready
-	 * @param <S>                 State type (enum)
 	 * @param <T>                 Value type
 	 */
-	public static <S, T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
+	public static <T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
 		String token = Signin.getToken(context);
 		if (token != null)
 			requestString(new Request.Builder().url(url + "?token=" + token).build(), updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Assist.tryFromJson(value, tClass)));

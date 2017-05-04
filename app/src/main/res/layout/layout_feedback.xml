@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:windowSoftInputMode="adjustResize">
+
+    <LinearLayout
+        android:id="@+id/feedback_type_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="@dimen/edge_margin"
+        android:paddingEnd="@dimen/edge_margin"
+        android:paddingStart="@dimen/edge_margin">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start"
+            android:layout_weight="1"
+            android:gravity="start"
+            android:text="@string/feedback_bug"
+            android:textSize="@dimen/primary_text_size"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/feedback_feature"
+            android:textSize="@dimen/primary_text_size"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:text="@string/other"
+            android:textSize="@dimen/primary_text_size"/>
+    </LinearLayout>
+
+
+    <android.support.design.widget.TextInputLayout
+        android:id="@+id/feedback_summary_wrap"
+        style="@style/InputLayoutMaterial"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:counterEnabled="true"
+        app:counterMaxLength="140"
+        app:counterOverflowTextAppearance="@style/ErrorTextAppearance"
+        app:hintAnimationEnabled="true">
+
+        <android.support.design.widget.TextInputEditText
+            style="@style/InputLayoutEditText"
+            android:hint="@string/feedback_summary"
+            android:lines="10"
+            android:maxLines="4"
+            android:minLines="2"/>
+    </android.support.design.widget.TextInputLayout>
+
+
+    <android.support.design.widget.TextInputLayout
+        android:id="@+id/feedback_description_wrap"
+        style="@style/InputLayoutMaterial"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <EditText
+            style="@style/InputLayoutEditText"
+            android:hint="@string/feedback_description"
+            android:lines="10"
+            android:maxLines="20"
+            android:minLines="4"/>
+
+    </android.support.design.widget.TextInputLayout>
+
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/edge_margin">
+
+        <Button
+            android:id="@+id/feedback_send_button"
+            style="@style/SettingsButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:text="@string/send"
+            android:textAlignment="center"
+            android:textAllCaps="true"
+            android:textColor="@color/textPrimary"/>
+
+        <Button
+            android:id="@+id/feedback_cancel_button"
+            style="@style/SettingsButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@id/feedback_send_button"
+            android:text="@string/cancel"
+            android:textAlignment="center"
+            android:textAllCaps="true"
+            android:textColor="@color/textPrimary"/>
+    </RelativeLayout>
+</LinearLayout>

@@ -229,6 +229,21 @@
             android:layout_height="wrap_content"/>
 
         <View
+            style="@style/Divider"/>
+
+        <TextView
+            style="@style/SettingsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/export_title"/>
+
+        <Button
+            android:id="@+id/export_share_button"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/export_share_button"/>
+
+        <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/divider_height"
             android:background="@color/dividerColor"/>
@@ -245,25 +260,16 @@
             android:text="@string/settings_allow_notifications_upload"/>
 
         <Button
-            android:id="@+id/other_clear"
+            android:id="@+id/other_clear_data"
             style="@style/SettingsButton"
             android:backgroundTint="@color/colorAccent"
-            android:text="@string/settings_clear"/>
-
-        <View
-            style="@style/Divider"/>
-
-        <TextView
-            style="@style/SettingsTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/export_title"/>
+            android:text="@string/settings_clear_data"/>
 
         <Button
-            android:id="@+id/export_share_button"
+            android:id="@+id/other_feedback"
             style="@style/SettingsButton"
             android:backgroundTint="@color/colorAccent"
-            android:text="@string/export_share_button"/>
+            android:text="@string/settings_feedback"/>
 
         <View
             style="@style/Divider"/>

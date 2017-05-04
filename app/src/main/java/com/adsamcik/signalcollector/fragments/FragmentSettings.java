@@ -17,7 +17,6 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.res.ResourcesCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,6 +31,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
+import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
@@ -139,8 +139,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			Log.d(TAG, "Failed to set version");
 		}
 
-		mSelectedState = ResourcesCompat.getColorStateList(resources, R.color.selected_value, context.getTheme());
-		mDefaultState = ResourcesCompat.getColorStateList(resources, R.color.default_value, context.getTheme());
+		ColorStateList[] csl = Assist.getSelectionStateLists(resources, context.getTheme());
+		mSelectedState = csl[1];
+		mDefaultState = csl[0];
 
 		trackingString = resources.getStringArray(R.array.background_tracking_options);
 		autoupString = resources.getStringArray(R.array.automatic_upload_options);
@@ -169,7 +170,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		signOutButton = (Button) rootView.findViewById(R.id.sign_out_button);
 		signInNoConnection = (TextView) rootView.findViewById(R.id.sign_in_no_connection);
 
-		rootView.findViewById(R.id.other_clear).setOnClickListener(v -> {
+		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
@@ -284,6 +285,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			signInNoConnection.setVisibility(View.VISIBLE);
 
 		rootView.findViewById(R.id.export_share_button).setOnClickListener(v -> startActivity(new Intent(getActivity(), FileSharingActivity.class)));
+
+		rootView.findViewById(R.id.other_feedback).setOnClickListener(v -> startActivity(new Intent(getActivity(), FeedbackActivity.class)));
 
 		//Dev stuff
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {

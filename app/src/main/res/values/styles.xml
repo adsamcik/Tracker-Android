@@ -59,11 +59,38 @@
         <item name="android:paddingBottom">@dimen/setting_item_padding</item>
         <item name="android:paddingTop">@dimen/setting_item_padding</item>
     </style>
-    
+
     <style name="Divider">
         <item name="android:layout_height">1dp</item>
         <item name="android:layout_width">match_parent</item>
         <item name="android:background">@color/dividerColor</item>
     </style>
 
+    <style name="ErrorTextAppearance" parent="@android:style/TextAppearance">
+        <item name="android:textColor">@color/error</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="InputLayoutMaterial">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">@dimen/activity_vertical_margin</item>
+        <item name="android:background">@drawable/textarea_border</item>
+        <item name="android:paddingBottom">@dimen/edge_margin</item>
+        <item name="android:paddingEnd">@dimen/edge_margin</item>
+        <item name="android:paddingStart">@dimen/edge_margin</item>
+        <item name="android:paddingTop">8dp</item>
+    </style>
+
+    <style name="InputLayoutEditText">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@null</item>
+        <item name="android:gravity">top|start</item>
+        <item name="android:overScrollMode">always</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:scrollbarStyle">insideInset</item>
+        <item name="android:scrollbars">vertical</item>
+        <item name="android:inputType">textMultiLine</item>
+    </style>
 </resources>
