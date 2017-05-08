@@ -13,6 +13,8 @@ import android.telephony.CellInfoWcdma;
 import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 
+import com.google.firebase.crash.FirebaseCrash;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -156,32 +158,37 @@ public class Data implements Serializable {
 				ArrayList<CellData> registeredCells = new ArrayList<>(Build.VERSION.SDK_INT >= 23 ? telephonyManager.getPhoneCount() : 1);
 				for (CellInfo ci : cellInfos) {
 					if (ci.isRegistered()) {
+						CellData cd = null;
 						if (ci instanceof CellInfoLte) {
 							CellInfoLte cig = (CellInfoLte) ci;
 							if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-								registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+								cd = CellData.newInstance(cig, telephonyManager.getNetworkOperatorName());
 							else
-								registeredCells.add(CellData.newInstance(cig, (String) null));
+								cd = CellData.newInstance(cig, (String) null);
 						} else if (ci instanceof CellInfoGsm) {
 							CellInfoGsm cig = (CellInfoGsm) ci;
 							if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-								registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+								cd = CellData.newInstance(cig, telephonyManager.getNetworkOperatorName());
 							else
-								registeredCells.add(CellData.newInstance(cig, (String) null));
+								cd = CellData.newInstance(cig, (String) null);
 						} else if (ci instanceof CellInfoWcdma) {
 							CellInfoWcdma cig = (CellInfoWcdma) ci;
 							if (cig.getCellIdentity().getMnc() == mnc && cig.getCellIdentity().getMcc() == mcc)
-								registeredCells.add(CellData.newInstance(cig, telephonyManager.getNetworkOperatorName()));
+								cd = CellData.newInstance(cig, telephonyManager.getNetworkOperatorName());
 							else
-								registeredCells.add(CellData.newInstance(cig, (String) null));
+								cd = CellData.newInstance(cig, (String) null);
 						} else if (ci instanceof CellInfoCdma) {
 							CellInfoCdma cic = (CellInfoCdma) ci;
 						/*if (cic.getCellIdentity().getMnc() == mnc && cic.getCellIdentity().getMcc() == mcc)
 							addCell(CellData.newInstance(cic, telephonyManager.getNetworkOperatorName()));
 						else*/
-							registeredCells.add(CellData.newInstance(cic, (String) null));
+							cd = CellData.newInstance(cic, (String) null);
+						} else {
+							FirebaseCrash.report(new Throwable("UNKNOWN CELL TYPE"));
 						}
-						break;
+
+						if (cd != null)
+							registeredCells.add(cd);
 					}
 				}
 
