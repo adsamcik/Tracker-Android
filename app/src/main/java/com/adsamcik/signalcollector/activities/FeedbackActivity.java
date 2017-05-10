@@ -98,7 +98,7 @@ public class FeedbackActivity extends DetailActivity {
 					if (result.length() <= MIN_TEXT_LENGTH)
 						summaryTextLayout.setError(getString(R.string.feedback_error_spaces_summary));
 					else {
-						MultipartBody.Builder builder = Network.generateAuthBody(value).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType));
+						MultipartBody.Builder builder = Network.generateAuthBody(value).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType.ordinal()));
 
 						TextInputLayout descriptionTextLayout = (TextInputLayout) parent.findViewById(R.id.feedback_description_wrap);
 						EditText descriptionText = descriptionTextLayout.getEditText();
