@@ -26,7 +26,7 @@ import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
 
 public class FeedbackActivity extends DetailActivity {
-	private Integer currentType = null;
+	private FeedbackType currentType = null;
 	private View selected = null;
 
 	private ColorStateList mSelectedState;
@@ -47,7 +47,7 @@ public class FeedbackActivity extends DetailActivity {
 			mDefaultState = csl[0];
 
 			for (int i = 0; i < feedbackLayout.getChildCount(); i++)
-				feedbackLayout.getChildAt(i).setOnClickListener((v) -> updateType(v, feedbackLayout.indexOfChild(v)));
+				feedbackLayout.getChildAt(i).setOnClickListener((v) -> updateType(v, FeedbackType.values()[feedbackLayout.indexOfChild(v)]));
 
 			groupRoot.findViewById(R.id.feedback_cancel_button).setOnClickListener(v -> finish());
 			groupRoot.findViewById(R.id.feedback_send_button).setOnClickListener(v -> {
@@ -122,7 +122,7 @@ public class FeedbackActivity extends DetailActivity {
 		Signin.removeTokenListener();
 	}
 
-	private void updateType(View v, int select) {
+	private void updateType(View v, FeedbackType select) {
 		currentType = select;
 
 		if (selected != null)
@@ -130,5 +130,11 @@ public class FeedbackActivity extends DetailActivity {
 
 		((TextView) v).setTextColor(mSelectedState);
 		selected = v;
+	}
+
+	private enum FeedbackType {
+		Bug,
+		Feature,
+		Other
 	}
 }
