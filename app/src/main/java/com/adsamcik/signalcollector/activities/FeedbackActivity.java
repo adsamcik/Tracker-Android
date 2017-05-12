@@ -22,8 +22,13 @@ import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 
+import java.io.IOException;
+
+import okhttp3.Call;
+import okhttp3.Callback;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class FeedbackActivity extends DetailActivity {
 	private FeedbackType currentType = null;
@@ -106,10 +111,23 @@ public class FeedbackActivity extends DetailActivity {
 						assert descriptionText != null;
 
 						String description = descriptionText.getText().toString().trim();
-						if (description.length() > 0)
-							builder.addFormDataPart("description", description);
+						builder.addFormDataPart("description", description.length() > 0 ? description : "");
 
-						Network.request(Network.URL_FEEDBACK, builder.build());
+						Network.client().newCall(Network.request(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
+							@Override
+							public void onFailure(Call call, IOException e) {
+								new SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed);
+							}
+
+							@Override
+							public void onResponse(Call call, Response response) throws IOException {
+								if (response.isSuccessful())
+									finish();
+								else
+									new SnackMaker(groupRoot).showSnackbar(R.string.error_general);
+							}
+						});
+
 					}
 				}
 			});
