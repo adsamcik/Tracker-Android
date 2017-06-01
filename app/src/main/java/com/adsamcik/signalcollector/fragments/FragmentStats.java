@@ -146,8 +146,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void refreshDone() {
 		if (--refreshingCount == 0)
-			if (refreshLayout != null && refreshLayout.isRefreshing())
-				getActivity().runOnUiThread(() -> refreshLayout.setRefreshing(false));
+			if (refreshLayout != null && refreshLayout.isRefreshing()) {
+				Activity activity = getActivity();
+				if (activity != null)
+					activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
+			}
 	}
 
 	private void generateStats(Stat[] stats, ArrayList<Table> items, int insertAt, Activity activity) {
