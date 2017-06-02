@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.widget.CardView;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public class Table {
+	private final CardView card;
 	private final TableLayout layout;
 	private final Context context;
 	private final ArrayList<TableRow> rows;
@@ -44,28 +46,30 @@ public class Table {
 		this.showNumber = showNumber;
 		this.textColor = textColor;
 
-		layout = new TableLayout(context);
 		Resources r = context.getResources();
-		int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
-		layout.setPadding(hPadding, 30, hPadding, 30);
-		layout.setBackgroundColor(ContextCompat.getColor(context, R.color.cardBackground));
-		layout.setElevation(r.getDimension(R.dimen.main_card_elevation));
 
+		card = new CardView(context);
 		TableLayout.LayoutParams lp = new TableLayout.LayoutParams();
 		lp.topMargin = (int) r.getDimension(R.dimen.activity_vertical_margin);
-		layout.setLayoutParams(lp);
+		card.setLayoutParams(lp);
+
+		layout = new TableLayout(context);
+
+		int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
+		layout.setPadding(hPadding, 30, hPadding, 30);
+		card.addView(layout);
 	}
 
 	public void addToViewGroup(ViewGroup viewGroup, int index, boolean animate, long delay) {
 		if (index >= 0 && index < viewGroup.getChildCount())
-			viewGroup.addView(layout, index);
+			viewGroup.addView(card, index);
 		else
-			viewGroup.addView(layout);
+			viewGroup.addView(card);
 
 		if (animate) {
-			layout.setTranslationY(viewGroup.getHeight());
-			layout.setAlpha(0);
-			layout.animate()
+			card.setTranslationY(viewGroup.getHeight());
+			card.setAlpha(0);
+			card.animate()
 					.translationY(0)
 					.setInterpolator(new DecelerateInterpolator(3.f))
 					.setDuration(700)
@@ -212,9 +216,9 @@ public class Table {
 
 	public void destroy(Activity activity) {
 		activity.runOnUiThread(() -> {
-			LinearLayout ll = ((LinearLayout) layout.getParent());
+			LinearLayout ll = ((LinearLayout) card.getParent());
 			if (ll != null)
-				ll.removeView(layout);
+				ll.removeView(card);
 		});
 	}
 
