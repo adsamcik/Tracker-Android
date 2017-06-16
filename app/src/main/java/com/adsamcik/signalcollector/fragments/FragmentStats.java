@@ -70,10 +70,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		boolean hasRecentUpload = false;
 
 		Activity activity = getActivity();
+		DataStore.setContext(getContext());
 
 		UploadStats us = DataStore.loadLastObjectJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
-			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, (LinearLayout) view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
+			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
 			lastUpload.addButton(getString(R.string.more_uploads), v -> {
 				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
 				startActivity(intent);
