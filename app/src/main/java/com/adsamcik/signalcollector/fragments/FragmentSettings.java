@@ -379,7 +379,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			String helloWorld = getString(R.string.dev_notification_dummy);
 			int color = getResources().getColor(R.color.colorPrimary);
 			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_upload_id))
-					.setSmallIcon(R.drawable.ic_signals_launcher)
+					.setSmallIcon(R.drawable.ic_signals_icon)
 					.setTicker(helloWorld)
 					.setColor(color)
 					.setLights(color, 2000, 5000)
