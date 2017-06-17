@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Notification;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -146,29 +147,29 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		trackingString = resources.getStringArray(R.array.background_tracking_options);
 		autoupString = resources.getStringArray(R.array.automatic_upload_options);
 
-		autoupDesc = (TextView) rootView.findViewById(R.id.autoupload_description);
-		trackDesc = (TextView) rootView.findViewById(R.id.tracking_description);
+		autoupDesc = rootView.findViewById(R.id.autoupload_description);
+		trackDesc = rootView.findViewById(R.id.tracking_description);
 
-		trackingNone = (ImageView) rootView.findViewById(R.id.tracking_none);
+		trackingNone = rootView.findViewById(R.id.tracking_none);
 		trackingNone.setOnClickListener(v -> updateTracking(0));
-		trackingOnFoot = (ImageView) rootView.findViewById(R.id.tracking_onfoot);
+		trackingOnFoot = rootView.findViewById(R.id.tracking_onfoot);
 		trackingOnFoot.setOnClickListener(v -> updateTracking(1));
-		trackingAlways = (ImageView) rootView.findViewById(R.id.tracking_always);
+		trackingAlways = rootView.findViewById(R.id.tracking_always);
 		trackingAlways.setOnClickListener(v -> updateTracking(2));
 
-		autoupDisabled = (ImageView) rootView.findViewById(R.id.autoupload_disabled);
+		autoupDisabled = rootView.findViewById(R.id.autoupload_disabled);
 		autoupDisabled.setOnClickListener(v -> updateAutoup(0));
-		autoupWifi = (ImageView) rootView.findViewById(R.id.autoupload_wifi);
+		autoupWifi = rootView.findViewById(R.id.autoupload_wifi);
 		autoupWifi.setOnClickListener(v -> updateAutoup(1));
-		autoupAlways = (ImageView) rootView.findViewById(R.id.autoupload_always);
+		autoupAlways = rootView.findViewById(R.id.autoupload_always);
 		autoupAlways.setOnClickListener(v -> updateAutoup(2));
 
 		updateTracking(sharedPreferences.getInt(Preferences.PREF_BACKGROUND_TRACKING, 1));
 		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, 1));
 
-		signInButton = (SignInButton) rootView.findViewById(R.id.sign_in_button);
-		signOutButton = (Button) rootView.findViewById(R.id.sign_out_button);
-		signInNoConnection = (TextView) rootView.findViewById(R.id.sign_in_no_connection);
+		signInButton = rootView.findViewById(R.id.sign_in_button);
+		signOutButton = rootView.findViewById(R.id.sign_out_button);
+		signInNoConnection = rootView.findViewById(R.id.sign_in_no_connection);
 
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
@@ -181,7 +182,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			alertDialogBuilder.create().show();
 		});
 
-		Button mapOverlayButton = (Button) rootView.findViewById(R.id.setting_map_overlay_button);
+		Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
 		mapOverlayButton.setEnabled(false);
 
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
@@ -228,10 +229,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			}
 		});
 
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackWifi), true, null);
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, (Switch) rootView.findViewById(R.id.switchTrackCell), true, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), true, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), true, null);
 
-		switchNoise = (Switch) rootView.findViewById(R.id.switchTrackNoise);
+		switchNoise = rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));
 		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
@@ -240,8 +241,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				Preferences.get(context).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply();
 		});
 
-		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, (Switch) rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
-		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, (Switch) rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
+		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
+		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
 			if (b) {
 				Bundle bundle = new Bundle();
 				bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
@@ -251,8 +252,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			}
 		});
 
-		TextView valueAutoUploadAt = (TextView) rootView.findViewById(R.id.settings_autoupload_at_value);
-		SeekBar seekAutoUploadAt = (SeekBar) rootView.findViewById(R.id.settings_autoupload_at_seekbar);
+		TextView valueAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_value);
+		SeekBar seekAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_seekbar);
 
 		final int MIN_UPLOAD_VALUE = 1;
 
@@ -401,7 +402,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	public void onHomeAction() {
 		View v = getView();
 		if (v != null) {
-			Assist.verticalSmoothScrollTo((ScrollView) v.findViewById(R.id.settings_scrollbar), 0, 500);
+			Assist.verticalSmoothScrollTo(v.findViewById(R.id.settings_scrollbar), 0, 500);
 		}
 	}
 

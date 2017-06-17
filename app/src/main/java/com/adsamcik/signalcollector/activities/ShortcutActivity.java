@@ -2,7 +2,9 @@ package com.adsamcik.signalcollector.activities;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.RequiresApi;
 
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.NotYetImplementedException;
@@ -12,6 +14,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class ShortcutActivity extends Activity {
 
+	@RequiresApi(api = Build.VERSION_CODES.N_MR1)
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
