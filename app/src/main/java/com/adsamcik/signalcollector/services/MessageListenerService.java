@@ -7,10 +7,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.StringRes;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
@@ -59,11 +63,11 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 					if (Preferences.get(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
 						Resources r = getResources();
-						sendNotification(r.getString(R.string.new_upload_summary), us.generateNotificationText(getResources()), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+						sendNotification(MessageType.UploadReport, r.getString(R.string.new_upload_summary), us.generateNotificationText(getResources()), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT), message.getSentTime());
 					}
 					break;
 				case Notification:
-					sendNotification(data.get(TITLE), data.get(MESSAGE), null);
+					sendNotification(MessageType.Notification, data.get(TITLE), data.get(MESSAGE), null, message.getSentTime());
 					break;
 			}
 		}
@@ -121,25 +125,31 @@ public class MessageListenerService extends FirebaseMessagingService {
 	 * @param message       message
 	 * @param pendingIntent intent if special action is wanted
 	 */
-	private void sendNotification(@NonNull final String title, @NonNull final String message, @Nullable PendingIntent pendingIntent) {
+	private void sendNotification(MessageType messageType, @NonNull final String title, @NonNull final String message, @Nullable PendingIntent pendingIntent, long time) {
 		Intent intent = new Intent(this, MainActivity.class);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 		if (pendingIntent == null)
 			pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
 
-		Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-		Notification.Builder notificationBuilder = new Notification.Builder(this)
+		@StringRes int channelId = messageType == MessageType.UploadReport ? R.string.channel_upload_id : R.string.channel_other_id;
+
+		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary);
+
+		NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(this)
+				.setChannel(getString(channelId))
 				.setSmallIcon(R.drawable.ic_signals_notification)
+				.setTicker(title)
+				.setColor(notiColor)
+				.setLights(notiColor, 2000, 5000)
 				.setContentTitle(title)
 				.setContentText(message)
-				.setAutoCancel(true)
-				.setSound(defaultSoundUri)
 				.setContentIntent(pendingIntent)
-				.setStyle(new Notification.BigTextStyle().bigText(message));
+				.setWhen(time)
+				.setStyle(new NotificationCompat.BigTextStyle().bigText(message));
 
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-		notificationManager.notify(notificationIndex++, notificationBuilder.build());
+		notificationManager.notify(notificationIndex++, notiBuilder.build());
 	}
 
 	public enum MessageType {

@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
+import com.adsamcik.signalcollector.utility.NotificationManager;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
@@ -73,6 +74,9 @@ public class LaunchActivity extends Activity {
 
 		if (Build.VERSION.SDK_INT >= 25)
 			Shortcuts.initializeShortcuts(this);
+
+		if(Build.VERSION.SDK_INT >= 26)
+			NotificationManager.prepareChannels(this);
 
 		overridePendingTransition(0, 0);
 		finish();
