@@ -298,6 +298,13 @@
             android:backgroundTint="@color/colorAccent"
             android:text="@string/dev_noise_tracking_test"/>
 
+        <Button
+            android:id="@+id/dev_button_notification_dummy"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/colorAccent"
+            android:text="@string/dev_notification_dummy"/>
+
+
         <TextView
             android:id="@+id/versionNum"
             style="@style/SettingsItem"

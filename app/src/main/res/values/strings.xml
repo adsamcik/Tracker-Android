@@ -56,6 +56,7 @@
     <string name="dev_noise_average">Average noise</string>
     <string name="dev_noise_pocket">Pocket noise</string>
     <string name="dev_noise_tracking_test">Noise tester</string>
+    <string name="dev_notification_dummy">Hello World!</string>
 
     <string name="recent_uploads">Recent uploads</string>
     <string name="most_recent_upload">Most recent upload</string>
