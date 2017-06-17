@@ -5,10 +5,13 @@
         android:drawable="@color/background_splash"/>
 
     <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/ic_signals_logo"
-            android:mipMap="true"/>
+        <shape>
+            <size android:height="128dp" android:width="128dp"/>
+        </shape>
     </item>
+    <item
+        android:drawable="@drawable/ic_signals_logo"
+        android:gravity="center"
+        />
 
 </layer-list>

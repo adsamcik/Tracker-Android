@@ -10,9 +10,10 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="80dp"
-        android:background="@color/background_splash"
+        android:background="@color/colorPrimary"
         android:elevation="4dp"
-        android:paddingTop="@dimen/status_bar_height">
+        android:paddingTop="@dimen/status_bar_height"
+        tools:ignore="UselessParent">
 
         <ImageButton
             android:id="@+id/back_button"

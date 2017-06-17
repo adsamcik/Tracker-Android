@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_track_id">tracking_channel_id</string>
+    <string name="channel_track_name">Tracking channel</string>
+    <string name="channel_track_description">Channel containing tracking notifications</string>
+    <string name="channel_upload_id">upload_channel_id</string>
+    <string name="channel_upload_name">Upload channel</string>
+    <string name="channel_upload_description">Channel containing upload notifications</string>
+    <string name="channel_other_id">other_channel_id</string>
+    <string name="channel_other_name">Other channel</string>
+    <string name="channel_other_description">Channel containing various notifications</string>
+</resources>
