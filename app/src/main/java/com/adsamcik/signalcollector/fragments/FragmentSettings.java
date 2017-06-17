@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
@@ -28,7 +27,6 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
-import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -54,6 +52,8 @@ import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
+
+import org.w3c.dom.Text;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -135,9 +135,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		final Context context = getContext();
 		final Resources resources = getResources();
 		final SharedPreferences sharedPreferences = Preferences.get(getContext());
-
+        final TextView versionView = rootView.findViewById(R.id.versionNum);
 		try {
-			((TextView) rootView.findViewById(R.id.versionNum)).setText(context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName);
+			versionView.setText(context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName);
 		} catch (Exception e) {
 			Log.d(TAG, "Failed to set version");
 		}
@@ -297,6 +297,19 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		//Dev stuff
+
+		View devView = rootView.findViewById(R.id.dev_corner_layout);
+		versionView.setOnLongClickListener(view -> {
+			boolean setVisible = devView.getVisibility() == View.GONE;
+			devView.setVisibility(setVisible ? View.VISIBLE : View.GONE);
+			sharedPreferences.edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply();
+			new SnackMaker(getActivity()).showSnackbar(getString(setVisible ? R.string.dev_join : R.string.dev_leave));
+			return true;
+		});
+
+		boolean isDevEnabled = sharedPreferences.getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false);
+		devView.setVisibility(isDevEnabled ? View.VISIBLE : View.GONE);
+
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
