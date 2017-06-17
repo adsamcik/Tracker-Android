@@ -10,7 +10,7 @@ import android.os.Build;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.NotificationManager;
+import com.adsamcik.signalcollector.utility.NotificationTools;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -37,6 +37,6 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 		}
 
 		if(Build.VERSION.SDK_INT >= 26)
-			NotificationManager.prepareChannels(context);
+			NotificationTools.prepareChannels(context);
 	}
 }
