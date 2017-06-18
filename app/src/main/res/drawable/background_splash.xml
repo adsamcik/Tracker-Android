@@ -10,7 +10,7 @@
         </shape>
     </item>
     <item
-        android:drawable="@drawable/ic_signals_icon"
+        android:drawable="@drawable/ic_signals"
         android:gravity="center"
         />
 

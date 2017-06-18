@@ -97,9 +97,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
 		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
-		weeklyStats.addToViewGroup((LinearLayout) view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
+		weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
-		refreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.statsSwipeRefresh);
+		refreshLayout = view.findViewById(R.id.statsSwipeRefresh);
 		refreshLayout.setOnRefreshListener(this::updateStats);
 		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
 		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
@@ -177,7 +177,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		if (context == null)
 			return null;
 
-		LinearLayout ll = (LinearLayout) view.findViewById(R.id.statsLayout);
+		LinearLayout ll = view.findViewById(R.id.statsLayout);
 		int color = ContextCompat.getColor(context, R.color.textPrimary);
 		for (int i = 0; i < stats.length; i++) {
 			Stat s = stats[i];

@@ -187,7 +187,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
-		searchText = ((EditText) view.findViewById(R.id.map_search));
+		searchText = view.findViewById(R.id.map_search);
 		searchText.setOnEditorActionListener((v, actionId, event) -> {
 			Geocoder geocoder = new Geocoder(getContext());
 			try {

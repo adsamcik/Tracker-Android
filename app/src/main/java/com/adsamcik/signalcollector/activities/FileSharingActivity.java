@@ -47,7 +47,7 @@ public class FileSharingActivity extends DetailActivity {
 
 			LinearLayout parent = createContentParent(false);
 			CoordinatorLayout layout = (CoordinatorLayout) ((ViewGroup) getLayoutInflater().inflate(R.layout.layout_file_share, parent)).getChildAt(parent.getChildCount() - 1);
-			ListView listView = (ListView) layout.findViewById(R.id.share_list_view);
+			ListView listView = layout.findViewById(R.id.share_list_view);
 			ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_multiple_choice, fileNames);
 			listView.setAdapter(adapter);
 			listView.setChoiceMode(AbsListView.CHOICE_MODE_MULTIPLE);

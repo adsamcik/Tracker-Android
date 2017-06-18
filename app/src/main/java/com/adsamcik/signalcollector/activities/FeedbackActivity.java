@@ -3,11 +3,9 @@ package com.adsamcik.signalcollector.activities;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
-import android.support.design.widget.TextInputEditText;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -16,7 +14,6 @@ import android.widget.TextView;
 
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.utility.Signin;
@@ -27,7 +24,6 @@ import java.io.IOException;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.MultipartBody;
-import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class FeedbackActivity extends DetailActivity {
@@ -45,7 +41,7 @@ public class FeedbackActivity extends DetailActivity {
 			LinearLayout parent = createScrollableContentParent(true);
 			ViewGroup groupRoot = (ViewGroup) getLayoutInflater().inflate(R.layout.layout_feedback, parent);
 
-			LinearLayout feedbackLayout = (LinearLayout) groupRoot.findViewById(R.id.feedback_type_layout);
+			LinearLayout feedbackLayout = groupRoot.findViewById(R.id.feedback_type_layout);
 
 			ColorStateList[] csl = Assist.getSelectionStateLists(getResources(), getTheme());
 			mSelectedState = csl[1];
@@ -62,7 +58,7 @@ public class FeedbackActivity extends DetailActivity {
 					return;
 				}
 
-				TextInputLayout summaryTextLayout = (TextInputLayout) parent.findViewById(R.id.feedback_summary_wrap);
+				TextInputLayout summaryTextLayout = parent.findViewById(R.id.feedback_summary_wrap);
 				EditText summaryText = summaryTextLayout.getEditText();
 
 				assert summaryText != null;
@@ -105,7 +101,7 @@ public class FeedbackActivity extends DetailActivity {
 					else {
 						MultipartBody.Builder builder = Network.generateAuthBody(value).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType.ordinal()));
 
-						TextInputLayout descriptionTextLayout = (TextInputLayout) parent.findViewById(R.id.feedback_description_wrap);
+						TextInputLayout descriptionTextLayout = parent.findViewById(R.id.feedback_description_wrap);
 						EditText descriptionText = descriptionTextLayout.getEditText();
 
 						assert descriptionText != null;

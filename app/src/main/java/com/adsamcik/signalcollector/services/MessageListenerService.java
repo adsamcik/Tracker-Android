@@ -1,15 +1,11 @@
 package com.adsamcik.signalcollector.services;
 
-import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
-import android.graphics.Color;
-import android.media.RingtoneManager;
-import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
@@ -136,7 +132,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary);
 
 		NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(this, getString(channelId))
-				.setSmallIcon(R.drawable.ic_signals_icon)
+				.setSmallIcon(R.drawable.ic_signals)
 				.setTicker(title)
 				.setColor(notiColor)
 				.setLights(notiColor, 2000, 5000)

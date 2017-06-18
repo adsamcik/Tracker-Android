@@ -71,15 +71,15 @@ public class MainActivity extends FragmentActivity {
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
 
-		fabOne = (FloatingActionButton) findViewById(R.id.fabOne);
+		fabOne = findViewById(R.id.fabOne);
 		fabOne.setBackgroundTintList(secondary);
 		fabOne.setImageTintList(primary);
 
-		fabTwo = (FloatingActionButton) findViewById(R.id.fabTwo);
+		fabTwo = findViewById(R.id.fabTwo);
 		fabTwo.setBackgroundTintList(primary);
 		fabTwo.setImageTintList(secondary);
 
-		BottomNavigationView bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_navigation);
+		BottomNavigationView bottomNavigationView = findViewById(R.id.bottom_navigation);
 
 		bottomNavigationView.setOnNavigationItemSelectedListener(
 				item -> changeFragment(item.getItemId()));

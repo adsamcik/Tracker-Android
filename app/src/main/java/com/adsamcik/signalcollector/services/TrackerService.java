@@ -159,7 +159,7 @@ public class TrackerService extends Service {
 			return;
 		}
 
-		wakeLock.acquire();
+		wakeLock.acquire(10*60*1000L /*10 minutes*/);
 		Data d = new Data(System.currentTimeMillis());
 
 		if (wifiManager != null) {
@@ -273,7 +273,7 @@ public class TrackerService extends Service {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this, getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals_icon)  // the status icon
+				.setSmallIcon(R.drawable.ic_signals)  // the status icon
 				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the status text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked

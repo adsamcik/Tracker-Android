@@ -577,18 +577,18 @@ public class DataStore {
 	public static String arrayToJSON(Object[] array) {
 		if (array == null)
 			return "";
-		String out = "[";
+		StringBuilder out = new StringBuilder("[");
 		String data;
 		for (Object anArray : array) {
 			data = objectToJSON(anArray);
 			if (!data.equals(""))
-				out += data + ",";
+				out.append(data).append(",");
 		}
 
 		if (out.length() > 1)
-			out = out.substring(0, out.length() - 1);
-		out += "]";
-		return out;
+			out = new StringBuilder(out.substring(0, out.length() - 1));
+		out.append("]");
+		return out.toString();
 	}
 
 	/**
@@ -601,7 +601,7 @@ public class DataStore {
 		if (o == null) return "";
 		Class c = o.getClass();
 		Field[] fields = c.getFields();
-		String out = "{";
+		StringBuilder out = new StringBuilder("{");
 		for (Field field : fields) {
 			try {
 				if (field == null || Modifier.isStatic(field.getModifiers()))
@@ -644,9 +644,9 @@ public class DataStore {
 				}
 
 				if (!data.equals("")) {
-					out += "\"" + field.getName() + "\":";
-					out += data;
-					out += ",";
+					out.append("\"").append(field.getName()).append("\":");
+					out.append(data);
+					out.append(",");
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -654,9 +654,9 @@ public class DataStore {
 			}
 		}
 		if (out.length() <= 1) return "";
-		out = out.substring(0, out.length() - 1);
-		out += "}";
-		return out;
+		out = new StringBuilder(out.substring(0, out.length() - 1));
+		out.append("}");
+		return out.toString();
 	}
 
 	/**

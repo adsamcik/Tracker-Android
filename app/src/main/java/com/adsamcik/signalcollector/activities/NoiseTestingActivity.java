@@ -32,13 +32,13 @@ public class NoiseTestingActivity extends DetailActivity {
 		super.onCreate(savedInstanceState);
 
 		View v = getLayoutInflater().inflate(R.layout.layout_noise_testing, createContentParent(false));
-		startStopButton = (Button) findViewById(R.id.noiseTestStartStopButton);
+		startStopButton = findViewById(R.id.noiseTestStartStopButton);
 
 		setTitle(R.string.settings_track_noise);
 
-		TextView sampleIntervalTV = (TextView) v.findViewById(R.id.dev_text_noise_sample_size);
+		TextView sampleIntervalTV = v.findViewById(R.id.dev_text_noise_sample_size);
 
-		SeekBar seekBar = (SeekBar) v.findViewById(R.id.dev_noise_sample_rate_seek_bar);
+		SeekBar seekBar = v.findViewById(R.id.dev_noise_sample_rate_seek_bar);
 		seekBar.setMax(9);
 		seekBar.incrementProgressBy(1);
 		seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -62,7 +62,7 @@ public class NoiseTestingActivity extends DetailActivity {
 		seekBar.setProgress(delayBetweenCollections.value - 1);
 
 		adapter = new ArrayAdapter<>(this, R.layout.spinner_item, arrayList);
-		final ListView listView = ((ListView) v.findViewById(R.id.dev_noise_list_view));
+		final ListView listView = v.findViewById(R.id.dev_noise_list_view);
 		listView.setAdapter(adapter);
 
 		startStopButton.setOnClickListener(view -> {

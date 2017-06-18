@@ -20,7 +20,7 @@ public abstract class DetailActivity extends Activity {
 	}
 
 	public void setTitle(String title) {
-		TextView titleView = (TextView) findViewById(R.id.content_detail_title);
+		TextView titleView = findViewById(R.id.content_detail_title);
 		titleView.setText(title);
 	}
 
@@ -50,14 +50,14 @@ public abstract class DetailActivity extends Activity {
 	}
 
 	protected LinearLayout createContentParent(boolean addContentPadding) {
-		LinearLayout root = (LinearLayout) findViewById(R.id.content_detail_root);
+		LinearLayout root = findViewById(R.id.content_detail_root);
 		LinearLayout contentParent = createContentLayout(false, addContentPadding);
 		root.addView(contentParent);
 		return contentParent;
 	}
 
 	protected LinearLayout createScrollableContentParent(boolean addContentPadding) {
-		LinearLayout root = (LinearLayout) findViewById(R.id.content_detail_root);
+		LinearLayout root = findViewById(R.id.content_detail_root);
 		ScrollView scrollView = new ScrollView(this);
 		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
 		scrollView.setLayoutParams(lp);

@@ -59,20 +59,20 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_main, container, false);
 
-		textAccuracy = (TextView) view.findViewById(R.id.textAccuracy);
-		textPosition = (TextView) view.findViewById(R.id.textPosition);
-		textCellCount = (TextView) view.findViewById(R.id.textCellCount);
-		textCurrentCell = (TextView) view.findViewById(R.id.textCurrentCell);
-		textWifiCount = (TextView) view.findViewById(R.id.textWifiCount);
-		textWifiCollection = (TextView) view.findViewById(R.id.textWifiCollection);
-		textTime = (TextView) view.findViewById(R.id.textTime);
-		textNoise = (TextView) view.findViewById(R.id.textNoise);
-		textActivity = (TextView) view.findViewById(R.id.textActivity);
-		textCollected = (TextView) view.findViewById(R.id.textCollected);
+		textAccuracy = view.findViewById(R.id.textAccuracy);
+		textPosition = view.findViewById(R.id.textPosition);
+		textCellCount = view.findViewById(R.id.textCellCount);
+		textCurrentCell = view.findViewById(R.id.textCurrentCell);
+		textWifiCount = view.findViewById(R.id.textWifiCount);
+		textWifiCollection = view.findViewById(R.id.textWifiCollection);
+		textTime = view.findViewById(R.id.textTime);
+		textNoise = view.findViewById(R.id.textNoise);
+		textActivity = view.findViewById(R.id.textActivity);
+		textCollected = view.findViewById(R.id.textCollected);
 
-		layoutWifi = (LinearLayout) view.findViewById(R.id.layout_wifi);
-		layoutCell = (LinearLayout) view.findViewById(R.id.layout_cells);
-		layoutOther = (LinearLayout) view.findViewById(R.id.layout_other);
+		layoutWifi = view.findViewById(R.id.layout_wifi);
+		layoutCell = view.findViewById(R.id.layout_cells);
+		layoutOther = view.findViewById(R.id.layout_other);
 
 		layoutWifi.setVisibility(View.GONE);
 		layoutCell.setVisibility(View.GONE);
@@ -272,7 +272,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	public Failure<String> onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;
 		fabUp = fabTwo;
-		progressBar = (ProgressBar) ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
+		progressBar = ((ViewGroup) fabTwo.getParent()).findViewById(R.id.progressBar);
 
 		if (UploadService.isUploading() || UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
 			updateUploadProgress(0);
