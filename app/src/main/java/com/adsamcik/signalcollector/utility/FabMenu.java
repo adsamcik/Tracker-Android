@@ -40,7 +40,7 @@ public class FabMenu {
 	public FabMenu(ViewGroup parent, FloatingActionButton fab, Activity activity) {
 		wrapper = (ViewGroup) LayoutInflater.from(activity).inflate(R.layout.fab_menu, parent, false);
 		menu = (ViewGroup) wrapper.getChildAt(0);
-		container = (ViewGroup) menu.getChildAt(0);
+		container = (ViewGroup) ((ViewGroup) menu.getChildAt(0)).getChildAt(0);
 		wrapper.setVisibility(View.INVISIBLE);
 		menu.setVisibility(View.INVISIBLE);
 
