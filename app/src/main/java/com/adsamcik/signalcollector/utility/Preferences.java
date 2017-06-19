@@ -57,6 +57,8 @@ public class Preferences {
 
 	public static final String PREF_UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";
 
+	public static final String PREF_SHOW_DEV_SETTINGS = "showDevSettings";
+
 	private static final int MAX_DAY_DIFF_STATS = 7;
 
 	private static SharedPreferences sharedPreferences;

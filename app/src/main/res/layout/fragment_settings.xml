@@ -271,38 +271,47 @@
             android:backgroundTint="@color/colorAccent"
             android:text="@string/settings_feedback"/>
 
-        <View
-            style="@style/Divider"/>
-
-        <TextView
-            style="@style/SettingsTitle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/dev_corner_layout"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/dev_title"/>
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <Button
-            android:id="@+id/dev_button_cache_clear"
-            style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
-            android:text="@string/dev_clear_cache"/>
+            <View
+                style="@style/Divider"/>
 
-        <Button
-            android:id="@+id/dev_button_browse_files"
-            style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
-            android:text="@string/dev_browse_files"/>
+            <TextView
+                style="@style/SettingsTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dev_title"/>
 
-        <Button
-            android:id="@+id/dev_button_noise_tracking"
-            style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
-            android:text="@string/dev_noise_tracking_test"/>
+            <Button
+                android:id="@+id/dev_button_cache_clear"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/colorAccent"
+                android:text="@string/dev_clear_cache"/>
 
-        <Button
-            android:id="@+id/dev_button_notification_dummy"
-            style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
-            android:text="@string/dev_notification_dummy"/>
+            <Button
+                android:id="@+id/dev_button_browse_files"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/colorAccent"
+                android:text="@string/dev_browse_files"/>
+
+            <Button
+                android:id="@+id/dev_button_noise_tracking"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/colorAccent"
+                android:text="@string/dev_noise_tracking_test"/>
+
+            <Button
+                android:id="@+id/dev_button_notification_dummy"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/colorAccent"
+                android:text="@string/dev_notification_dummy"/>
+
+        </LinearLayout>
 
 
         <TextView
@@ -310,6 +319,7 @@
             style="@style/SettingsItem"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
             android:textSize="@dimen/secondary_text_size"/>
     </LinearLayout>
 </ScrollView>
