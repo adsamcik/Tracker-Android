@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -47,7 +48,8 @@ public class ActivityRecognitionActivity extends DetailActivity {
 		String line = getDateTimeInstance().format(System.currentTimeMillis()) + '\t' + activity + '\t' + action + '\n';
 		DataStore.saveStringAppend(FILE, line);
 		if (instance != null && instance.get() != null) {
-			instance.get().arrayList.add(line);
+			final ActivityRecognitionActivity _this = instance.get();
+			_this.runOnUiThread(() -> _this.adapter.add(line));
 		}
 	}
 
@@ -72,11 +74,14 @@ public class ActivityRecognitionActivity extends DetailActivity {
 		startStopButton.setOnClickListener(view -> {
 			SharedPreferences sp = Preferences.get(this);
 			boolean setEnabled = !sp.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false);
-			sp.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, setEnabled).apply();
-			if (setEnabled)
+			SharedPreferences.Editor editor = sp.edit();
+			editor.putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, setEnabled);
+			if (setEnabled) {
 				startStopButton.setText(getString(R.string.stop));
-			else
+				editor.putLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, System.currentTimeMillis());
+			} else
 				startStopButton.setText(getString(R.string.start));
+			editor.apply();
 		});
 
 		final Activity activity = this;
@@ -85,8 +90,10 @@ public class ActivityRecognitionActivity extends DetailActivity {
 			@Override
 			public void run() {
 				ArrayList<String[]> items = Parser.parseTSVFromFile(activity, FILE);
-				if (items == null)
+				if (items == null) {
+					arrayList = new ArrayList<>();
 					return;
+				}
 
 				final String delim = ", ";
 				arrayList = new ArrayList<>(items.size());
