@@ -58,6 +58,7 @@ public class Preferences {
 	public static final String PREF_UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";
 
 	public static final String PREF_SHOW_DEV_SETTINGS = "showDevSettings";
+	public static final String PREF_DEV_ACTIVITY_TRACKING_ENABLED = "activityDebugTracking";
 
 	private static final int MAX_DAY_DIFF_STATS = 7;
 

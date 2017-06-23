@@ -306,6 +306,12 @@
                 android:text="@string/dev_noise_tracking_test"/>
 
             <Button
+                android:id="@+id/dev_button_activity_recognition"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/colorAccent"
+                android:text="@string/dev_activity_recognition_title"/>
+
+            <Button
                 android:id="@+id/dev_button_notification_dummy"
                 style="@style/SettingsButton"
                 android:backgroundTint="@color/colorAccent"

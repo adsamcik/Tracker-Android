@@ -30,7 +30,7 @@ public class NetworkLoader {
 	 * @param <T>                 Value type
 	 */
 	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
-		loadString(url, updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Assist.tryFromJson(value, tClass)));
+		loadString(url, updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
 	}
 
 	/**
@@ -47,7 +47,7 @@ public class NetworkLoader {
 	public static <T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
 		String token = Signin.getToken(context);
 		if (token != null)
-			requestString(new Request.Builder().url(url + "?token=" + token).build(), updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Assist.tryFromJson(value, tClass)));
+			requestString(new Request.Builder().url(url + "?token=" + token).build(), updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
 	}
 
 	/**

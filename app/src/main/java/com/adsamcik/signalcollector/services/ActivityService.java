@@ -11,6 +11,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
@@ -117,12 +118,19 @@ public class ActivityService extends IntentService {
 
 			if (lastConfidence >= REQUIRED_CONFIDENCE) {
 				if (TrackerService.isRunning()) {
-					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastResolvedActivity))
+					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastResolvedActivity)) {
 						stopService(new Intent(this, TrackerService.class));
+						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "stopped tracking", this);
+					} else {
+						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "", this);
+					}
 				} else if (canBackgroundTrack(lastResolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("backTrack", true);
 					startService(trackerService);
+					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "started tracking", this);
+				} else {
+					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "", this);
 				}
 			}
 		} else {

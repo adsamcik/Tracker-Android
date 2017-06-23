@@ -59,6 +59,7 @@
     <string name="dev_notification_dummy">Hello World!</string>
     <string name="dev_join">59 6f 75 are now developer!</string>
     <string name="dev_leave">You human! Sit, lie-down, roll around!</string>
+    <string name="dev_activity_recognition_title">Activity recognition debug</string>
 
     <string name="recent_uploads">Recent uploads</string>
     <string name="most_recent_upload">Most recent upload</string>
