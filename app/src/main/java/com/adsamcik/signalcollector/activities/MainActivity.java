@@ -85,7 +85,6 @@ public class MainActivity extends FragmentActivity {
 				item -> changeFragment(item.getItemId()));
 
 		int currentFragment = savedInstanceState != null && savedInstanceState.containsKey(BUNDLE_FRAGMENT) ? savedInstanceState.getInt(BUNDLE_FRAGMENT) : R.id.action_tracker;
-		changeFragment(currentFragment);
 		bottomNavigationView.setSelectedItemId(currentFragment);
 	}
 
@@ -140,7 +139,7 @@ public class MainActivity extends FragmentActivity {
 
 			FragmentManager fragmentManager = getSupportFragmentManager();
 			FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-			fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
+			//fragmentTransaction.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out);
 
 			if (currentFragment != null) {
 				currentFragment.onLeave(this);
@@ -155,9 +154,13 @@ public class MainActivity extends FragmentActivity {
 			}
 
 			String str = getString(resId);
-			fragmentTransaction.replace(R.id.container, (Fragment) currentFragment, str).commit();
+			fragmentTransaction.replace(R.id.container, (Fragment) currentFragment, str);
 
-			currentFragment.onEnter(this, fabOne, fabTwo);
+			Failure<String> state = currentFragment.onEnter(this, fabOne, fabTwo);
+			fragmentTransaction.commit();
+
+			if(state.hasFailed())
+				new SnackMaker(this).showSnackbar(state.value);
 		}
 	}
 

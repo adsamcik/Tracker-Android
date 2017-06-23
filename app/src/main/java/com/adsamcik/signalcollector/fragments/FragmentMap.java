@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -24,10 +25,12 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.TextView;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -65,6 +68,7 @@ import java.util.Locale;
 
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
+	private static final int PERMISSION_LOCATION_CODE = 200;
 
 	private static final String TAG = "SignalsMap";
 	private UpdateLocationListener locationListener;
@@ -81,12 +85,19 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private Circle userRadius;
 	private Marker userCenter;
 
+	private FragmentActivity activity;
 	private FloatingActionButton fabTwo, fabOne;
 	private FabMenu menu;
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
-
+		if (requestCode == PERMISSION_LOCATION_CODE && success) {
+			FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
+			FragmentMap newFrag = new FragmentMap();
+			fragmentTransaction.replace(R.id.container, newFrag, getString(R.string.menu_map));
+			newFrag.onEnter(activity, fabOne, fabTwo);
+			fragmentTransaction.commit();
+		}
 	}
 
 	@Override
@@ -106,7 +117,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
 		else if (request)
-			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 200);
+			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_LOCATION_CODE);
 		return false;
 	}
 
@@ -114,14 +125,16 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * This function should be called when fragment is left
 	 */
 	public void onLeave(@NonNull FragmentActivity activity) {
-		if (locationManager != null && checkLocationPermission(activity, false))
-			locationManager.removeUpdates(locationListener);
-		locationListener.cleanup();
+		if (hasPermissions) {
+			if (locationManager != null)
+				locationManager.removeUpdates(locationListener);
+			locationListener.cleanup();
 
-		if (menu != null)
-			menu.hideAndDestroy(activity);
+			if (menu != null)
+				menu.hideAndDestroy(activity);
 
-		fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
+			fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
+		}
 	}
 
 	/**
@@ -131,40 +144,41 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
+		this.fabTwo = fabTwo;
+		this.fabOne = fabOne;
+		this.activity = activity;
+
 		if (!Assist.isPlayServiceAvailable(activity))
 			return new Failure<>(activity.getString(R.string.error_play_services_not_available));
-		if (!checkLocationPermission(activity, true))
-			return new Failure<>(activity.getString(R.string.error_missing_permission));
 
 		initializeLocationListener(activity);
 		locationListener.setFAB(fabOne, activity);
 
-		this.fabTwo = fabTwo;
-		this.fabOne = fabOne;
-
 		fabOne.show();
-		fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
 		fabOne.setOnClickListener(v -> {
 			if (checkLocationPermission(activity, true) && map != null)
 				locationListener.onMyPositionFabClick();
 		});
 
 
-		fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
 		//fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
 		fabTwo.setOnClickListener(v -> menu.show(activity));
 
 		return new Failure<>();
 	}
 
+	boolean hasPermissions = false;
+
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		final FragmentActivity activity = getActivity();
-		if (Assist.isPlayServiceAvailable(activity) && container != null)
+		if (Assist.isPlayServiceAvailable(activity == null ? getActivity() : activity) && container != null && hasPermissions)
 			view = inflater.inflate(R.layout.fragment_map, container, false);
-		else
-			return view = inflater.inflate(R.layout.no_play_services, container, false);
+		else {
+			view = inflater.inflate(R.layout.layout_error, container, false);
+			((TextView) view.findViewById(R.id.activity_error_text)).setText(hasPermissions ? R.string.error_play_services_not_available : R.string.error_missing_permission);
+			return view;
+		}
 
 		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
@@ -187,6 +201,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				});
 			}
 		});
+
 		searchText = view.findViewById(R.id.map_search);
 		searchText.setOnEditorActionListener((v, actionId, event) -> {
 			Geocoder geocoder = new Geocoder(getContext());
@@ -212,11 +227,23 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Override
 	public void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		SupportMapFragment mapFragment = SupportMapFragment.newInstance();
-		FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
-		fragmentTransaction.add(R.id.container_map, mapFragment);
-		fragmentTransaction.commit();
-		mapFragment.getMapAsync(this);
+		hasPermissions = checkLocationPermission(getContext(), true);
+		if (hasPermissions) {
+			SupportMapFragment mapFragment = SupportMapFragment.newInstance();
+			FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
+			fragmentTransaction.add(R.id.container_map, mapFragment);
+			fragmentTransaction.commit();
+			mapFragment.getMapAsync(this);
+			if (fabOne != null && fabTwo != null) {
+				fabOne.setImageResource(R.drawable.ic_gps_fixed_black_24dp);
+				fabTwo.setImageResource(R.drawable.ic_layers_black_24dp);
+			}
+		} else {
+			if (fabOne != null && fabTwo != null) {
+				fabOne.hide();
+				fabTwo.hide();
+			}
+		}
 	}
 
 	@Override
@@ -307,7 +334,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		map.setOnMapClickListener(latLng -> {
 			if (searchText.hasFocus()) {
-				Assist.hideSoftKeyboard(getActivity(), searchText);
+				Assist.hideSoftKeyboard(activity, searchText);
 				searchText.clearFocus();
 			} else if (searchText.getVisibility() == View.VISIBLE) {
 				searchText.setVisibility(View.INVISIBLE);
@@ -330,7 +357,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (locationManager == null)
 			locationManager = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
 		locationManager.requestLocationUpdates(1, 5, new Criteria(), locationListener, Looper.myLooper());
-
 	}
 
 	/**

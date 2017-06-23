@@ -5,6 +5,7 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent">
 <TextView
+    android:id="@+id/activity_error_text"
     android:text="@string/map_no_play_services"
     android:layout_height="wrap_content"
     android:layout_width="wrap_content"
