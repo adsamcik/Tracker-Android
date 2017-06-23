@@ -34,11 +34,12 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:paddingTop="14dp"
-            android:text="Loremgggggggggggfffffffffffffffffffffffffffffffff ipsum"
+            android:text="Lorem ipsum"
             android:textColor="@color/textPrimary"
             android:textSize="@dimen/primary_text_size"
             android:textStyle="bold"
             tools:ignore="HardcodedText"/>
+
     </RelativeLayout>
 
 </LinearLayout>

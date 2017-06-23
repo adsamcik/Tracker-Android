@@ -59,6 +59,7 @@ public class Preferences {
 
 	public static final String PREF_SHOW_DEV_SETTINGS = "showDevSettings";
 	public static final String PREF_DEV_ACTIVITY_TRACKING_ENABLED = "activityDebugTracking";
+	public static final String PREF_DEV_ACTIVITY_TRACKING_STARTED = "adevTrackingStartTime";
 
 	private static final int MAX_DAY_DIFF_STATS = 7;
 

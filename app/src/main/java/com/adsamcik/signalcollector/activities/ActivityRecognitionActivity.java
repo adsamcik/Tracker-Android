@@ -15,15 +15,15 @@ import android.widget.Button;
 import android.widget.ListView;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
 
-import java.text.SimpleDateFormat;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Date;
 
-import static java.text.DateFormat.getDateInstance;
+import static java.text.DateFormat.getDateTimeInstance;
 
 public class ActivityRecognitionActivity extends DetailActivity {
 	private static final String FILE = "activityRecognitionDebug.tsv";
@@ -32,18 +32,30 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	private ArrayList<String> arrayList;
 	private ArrayAdapter<String> adapter;
 
+	private static WeakReference<ActivityRecognitionActivity> instance = null;
+
 	public static void addLineIfDebug(String activity, String action, @NonNull Context context) {
-		if(Preferences.get(context).getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
+		SharedPreferences preferences = Preferences.get(context);
+		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
+			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 1)
+				preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply();
 			addLine(activity, action);
+		}
 	}
 
 	private static void addLine(String activity, String action) {
-		DataStore.saveStringAppend(FILE, getDateInstance().format(System.currentTimeMillis()) + '\t' + activity + '\t' + action + '\n');
+		String line = getDateTimeInstance().format(System.currentTimeMillis()) + '\t' + activity + '\t' + action + '\n';
+		DataStore.saveStringAppend(FILE, line);
+		if (instance != null && instance.get() != null) {
+			instance.get().arrayList.add(line);
+		}
 	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+
+		instance = new WeakReference<>(this);
 
 		View v = getLayoutInflater().inflate(R.layout.layout_activity_recognition, createContentParent(false));
 		startStopButton = findViewById(R.id.dev_activity_debug_start_stop_button);
@@ -52,6 +64,10 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 		final ListView listView = v.findViewById(R.id.dev_activity_list_view);
 
+		if (Preferences.get(this).getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
+			startStopButton.setText(getString(R.string.stop));
+		else
+			startStopButton.setText(getString(R.string.start));
 
 		startStopButton.setOnClickListener(view -> {
 			SharedPreferences sp = Preferences.get(this);
