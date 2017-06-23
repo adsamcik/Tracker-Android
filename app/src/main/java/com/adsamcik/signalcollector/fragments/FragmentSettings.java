@@ -77,6 +77,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ColorStateList mSelectedState;
 	private ColorStateList mDefaultState;
 
+
+	private int dummyNotificationIndex = 1972;
+
 	private void updateTracking(int select) {
 		Context context = getContext();
 		Preferences.get(context).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, select).apply();
@@ -134,7 +137,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		final Context context = getContext();
 		final Resources resources = getResources();
 		final SharedPreferences sharedPreferences = Preferences.get(getContext());
-        final TextView versionView = rootView.findViewById(R.id.versionNum);
+		final TextView versionView = rootView.findViewById(R.id.versionNum);
 		try {
 			versionView.setText(context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName);
 		} catch (Exception e) {
@@ -386,7 +389,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					.setContentText(helloWorld)
 					.setWhen(System.currentTimeMillis());
 			NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-			notificationManager.notify(1972, notiBuilder.build());
+			notificationManager.notify(dummyNotificationIndex++, notiBuilder.build());
 		});
 
 		rootView.findViewById(R.id.dev_button_activity_recognition).setOnClickListener(v -> startActivity(new Intent(getActivity(), ActivityRecognitionActivity.class)));

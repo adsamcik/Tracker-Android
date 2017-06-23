@@ -31,9 +31,6 @@ import com.adsamcik.signalcollector.R;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
-import com.google.firebase.crash.FirebaseCrash;
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
