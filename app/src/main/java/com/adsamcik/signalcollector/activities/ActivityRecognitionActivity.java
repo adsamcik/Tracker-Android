@@ -93,21 +93,19 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 				final String delim = ", ";
 				arrayList = new ArrayList<>(items.size());
-				activity.runOnUiThread(() -> {
-					for (String[] arr : items) {
-						if (Build.VERSION.SDK_INT >= 26)
-							arrayList.add(String.join(delim, arr));
-						else {
-							StringBuilder builder = new StringBuilder();
-							for (String s : arr)
-								builder.append(s).append(delim);
-							builder.setLength(builder.length() - delim.length());
-							arrayList.add(builder.toString());
-						}
+				for (String[] arr : items) {
+					if (Build.VERSION.SDK_INT >= 26)
+						arrayList.add(String.join(delim, arr));
+					else {
+						StringBuilder builder = new StringBuilder();
+						for (String s : arr)
+							builder.append(s).append(delim);
+						builder.setLength(builder.length() - delim.length());
+						arrayList.add(builder.toString());
 					}
-					adapter = new ArrayAdapter<>(activity, R.layout.spinner_item, arrayList);
-					listView.setAdapter(adapter);
-				});
+				}
+				adapter = new ArrayAdapter<>(activity, R.layout.spinner_item, arrayList);
+				listView.setAdapter(adapter);
 			}
 		}.run();
 
