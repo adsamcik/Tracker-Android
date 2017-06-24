@@ -14,6 +14,7 @@ import android.widget.ListView;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.FilterableAdapter;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
 
@@ -27,9 +28,13 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 	private Button startStopButton;
 	private ArrayList<String> arrayList;
-	private ArrayAdapter<String> adapter;
+	private FilterableAdapter adapter;
 
 	private static WeakReference<ActivityRecognitionActivity> instance = null;
+
+	private static final String delim = " - ";
+
+	private boolean usingFilter = false;
 
 	public static void addLineIfDebug(String activity, String action, @NonNull Context context) {
 		SharedPreferences preferences = Preferences.get(context);
@@ -41,11 +46,12 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	}
 
 	private static void addLine(String activity, String action) {
-		String line = getDateTimeInstance().format(System.currentTimeMillis()) + '\t' + activity + '\t' + action + '\n';
+		String time = getDateTimeInstance().format(System.currentTimeMillis());
+		String line = time + '\t' + activity + '\t' + action + '\n';
 		DataStore.saveStringAppend(FILE, line);
 		if (instance != null && instance.get() != null) {
 			final ActivityRecognitionActivity _this = instance.get();
-			_this.runOnUiThread(() -> _this.adapter.add(line));
+			_this.runOnUiThread(() -> _this.adapter.add(new String[]{time, action, activity}));
 		}
 	}
 
@@ -86,30 +92,27 @@ public class ActivityRecognitionActivity extends DetailActivity {
 			@Override
 			public void run() {
 				ArrayList<String[]> items = Parser.parseTSVFromFile(activity, FILE);
-				if (items == null) {
-					arrayList = new ArrayList<>();
-					return;
-				}
-
-				final String delim = ", ";
-				arrayList = new ArrayList<>(items.size());
-				for (String[] arr : items) {
-					if (Build.VERSION.SDK_INT >= 26)
-						arrayList.add(String.join(delim, arr));
-					else {
-						StringBuilder builder = new StringBuilder();
-						for (String s : arr)
-							builder.append(s).append(delim);
-						builder.setLength(builder.length() - delim.length());
-						arrayList.add(builder.toString());
-					}
-				}
-				adapter = new ArrayAdapter<>(activity, R.layout.spinner_item, arrayList);
+				if (items == null)
+					items = new ArrayList<>();
+				adapter = new FilterableAdapter(activity, R.layout.spinner_item, items, delim);
 				listView.setAdapter(adapter);
+				listView.setSelection(items.size() - 1);
 			}
 		}.run();
 
-		findViewById(R.id.dev_activity_recognition_clear).setOnClickListener((f) -> {
+		findViewById(R.id.dev_activity_recognition_filter).setOnClickListener(f -> {
+			if (usingFilter) {
+				adapter.getFilter().filter(null);
+				((Button) f).setText(R.string.dev_activity_recognition_hide);
+			} else {
+				((Button) f).setText(R.string.dev_activity_recognition_show);
+				adapter.getFilter().filter(".*" + delim + ".*" + delim + ".*");
+			}
+
+			usingFilter = !usingFilter;
+		});
+
+		findViewById(R.id.dev_activity_recognition_clear).setOnClickListener(f -> {
 			adapter.clear();
 			DataStore.deleteFile(FILE);
 		});

@@ -60,6 +60,8 @@
     <string name="dev_join">59 6f 75 are now developer!</string>
     <string name="dev_leave">You human! Sit, lie-down, roll around!</string>
     <string name="dev_activity_recognition_title">Activity recognition debug</string>
+    <string name="dev_activity_recognition_hide">Filter</string>
+    <string name="dev_activity_recognition_show">Show all</string>
 
     <string name="recent_uploads">Recent uploads</string>
     <string name="most_recent_upload">Most recent upload</string>
@@ -75,7 +77,6 @@
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
 
     <!-- Feedback strings -->
-
     <string name="feedback_title">Feedback</string>
     <string name="feedback_bug">Bug</string>
     <string name="feedback_feature">Enhancement</string>

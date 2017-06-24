@@ -7,6 +7,5 @@
     android:textSize="@dimen/setting_text_size"
     android:gravity="start"
     android:textColor="@color/textPrimary"
-    android:paddingTop="@dimen/setting_item_padding"
-    android:paddingBottom="@dimen/setting_item_padding"
+    android:padding="@dimen/setting_item_padding"
     android:minWidth="100dp"/>
