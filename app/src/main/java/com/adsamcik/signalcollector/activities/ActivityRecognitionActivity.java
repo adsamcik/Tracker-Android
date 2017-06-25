@@ -43,6 +43,10 @@ public class ActivityRecognitionActivity extends DetailActivity {
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
 			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 0) {
 				preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply();
+				if (instance != null && instance.get() != null) {
+					final ActivityRecognitionActivity _this = instance.get();
+					_this.runOnUiThread(() -> _this.startStopButton.setText(_this.getString(R.string.start)));
+				}
 			}
 			addLine(activity, action);
 		}
@@ -50,7 +54,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 	private static void addLine(@NonNull String activity, @Nullable String action) {
 		String time = getDateTimeInstance().format(System.currentTimeMillis());
-		String line = time + '\t' + activity + '\t' + (action != null ? action +'\n' : '\n');
+		String line = time + '\t' + activity + '\t' + (action != null ? action + '\n' : '\n');
 		DataStore.saveStringAppend(FILE, line);
 		if (instance != null && instance.get() != null) {
 			final ActivityRecognitionActivity _this = instance.get();
