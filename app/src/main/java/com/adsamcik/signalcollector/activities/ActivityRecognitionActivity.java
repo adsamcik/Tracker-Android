@@ -41,8 +41,9 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	public static void addLineIfDebug(@NonNull String activity, @Nullable String action, @NonNull Context context) {
 		SharedPreferences preferences = Preferences.get(context);
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
-			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 1)
+			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 0) {
 				preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply();
+			}
 			addLine(activity, action);
 		}
 	}
