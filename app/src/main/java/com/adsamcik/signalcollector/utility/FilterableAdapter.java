@@ -2,19 +2,14 @@ package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.os.Build;
-import android.support.annotation.IdRes;
 import android.support.annotation.LayoutRes;
-import android.support.annotation.NonNull;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.Filter;
 import android.widget.Filterable;
 import android.widget.TextView;
-
-import com.adsamcik.signalcollector.R;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,12 +19,12 @@ import java.util.regex.Pattern;
 public class FilterableAdapter extends BaseAdapter implements Filterable {
 	private final String delim;
 
-	private List<String[]> originalData;
-	private List<String> originalDataSerialized;
+	private final List<String[]> originalData;
+	private final List<String> originalDataSerialized;
 	private List<String> filteredData;
-	private LayoutInflater mInflater;
-	private int res;
-	private ItemFilter mFilter = new ItemFilter();
+	private final LayoutInflater mInflater;
+	private final int res;
+	private final ItemFilter mFilter = new ItemFilter();
 
 	private String serializeLine(String[] line) {
 		if (Build.VERSION.SDK_INT >= 26)
@@ -48,9 +43,8 @@ public class FilterableAdapter extends BaseAdapter implements Filterable {
 		this.originalData = items;
 
 		originalDataSerialized = new ArrayList<>(items.size());
-		for (String[] line : items) {
+		for (String[] line : items)
 			originalDataSerialized.add(serializeLine(line));
-		}
 
 		this.filteredData = originalDataSerialized;
 		mInflater = LayoutInflater.from(context);
@@ -111,11 +105,13 @@ public class FilterableAdapter extends BaseAdapter implements Filterable {
 	public void add(String[] item) {
 		originalData.add(item);
 		originalDataSerialized.add(serializeLine(item));
+		notifyDataSetChanged();
 	}
 
 	public void clear() {
 		originalData.clear();
 		originalDataSerialized.clear();
+		notifyDataSetChanged();
 	}
 
 	private class ItemFilter extends Filter {
@@ -129,12 +125,10 @@ public class FilterableAdapter extends BaseAdapter implements Filterable {
 				int count = originalDataSerialized.size();
 				final ArrayList<String> nlist = new ArrayList<>(count);
 
-				String filterableString;
-
 				Pattern pattern = Pattern.compile(constraint.toString());
 
 				for (int i = 0; i < count; i++) {
-					filterableString = originalDataSerialized.get(i);
+					String filterableString = originalDataSerialized.get(i);
 					Matcher matcher = pattern.matcher(filterableString);
 					if (matcher.find()) {
 						nlist.add(filterableString);

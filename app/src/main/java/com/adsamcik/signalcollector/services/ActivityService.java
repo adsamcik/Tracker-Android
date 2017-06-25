@@ -122,7 +122,7 @@ public class ActivityService extends IntentService {
 						stopService(new Intent(this, TrackerService.class));
 						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "stopped tracking", this);
 					} else {
-						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "", this);
+						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), null, this);
 					}
 				} else if (canBackgroundTrack(lastResolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
@@ -130,7 +130,7 @@ public class ActivityService extends IntentService {
 					startService(trackerService);
 					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "started tracking", this);
 				} else {
-					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "", this);
+					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), null, this);
 				}
 			}
 		} else {

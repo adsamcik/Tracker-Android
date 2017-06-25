@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -27,8 +29,8 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	private static final String FILE = "activityRecognitionDebug.tsv";
 
 	private Button startStopButton;
-	private ArrayList<String> arrayList;
 	private FilterableAdapter adapter;
+	private ListView listView;
 
 	private static WeakReference<ActivityRecognitionActivity> instance = null;
 
@@ -36,7 +38,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 	private boolean usingFilter = false;
 
-	public static void addLineIfDebug(String activity, String action, @NonNull Context context) {
+	public static void addLineIfDebug(@NonNull String activity, @Nullable String action, @NonNull Context context) {
 		SharedPreferences preferences = Preferences.get(context);
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
 			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 1)
@@ -45,13 +47,17 @@ public class ActivityRecognitionActivity extends DetailActivity {
 		}
 	}
 
-	private static void addLine(String activity, String action) {
+	private static void addLine(@NonNull String activity, @Nullable String action) {
 		String time = getDateTimeInstance().format(System.currentTimeMillis());
-		String line = time + '\t' + activity + '\t' + action + '\n';
+		String line = time + '\t' + activity + '\t' + (action != null ? action +'\n' : '\n');
 		DataStore.saveStringAppend(FILE, line);
 		if (instance != null && instance.get() != null) {
 			final ActivityRecognitionActivity _this = instance.get();
-			_this.runOnUiThread(() -> _this.adapter.add(new String[]{time, action, activity}));
+			_this.runOnUiThread(() -> {
+				_this.adapter.add(action == null ? new String[]{time, activity} : new String[]{time, activity, action});
+				if (_this.listView.getLastVisiblePosition() == _this.adapter.getCount() - 2)
+					_this.listView.smoothScrollToPosition(_this.adapter.getCount() - 1);
+			});
 		}
 	}
 
@@ -66,7 +72,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 		setTitle(R.string.dev_activity_recognition_title);
 
-		final ListView listView = v.findViewById(R.id.dev_activity_list_view);
+		listView = v.findViewById(R.id.dev_activity_list_view);
 
 		if (Preferences.get(this).getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
 			startStopButton.setText(getString(R.string.stop));
