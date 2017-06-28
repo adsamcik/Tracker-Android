@@ -134,14 +134,14 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (pendingResult.isDone()) {
 			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
 			assert acc != null;
-			onSignedIn(acc, false, context);
+			onSignIn(acc, false, context);
 		} else {
 			updateStatus(SigninStatus.SIGNIN_IN_PROGRESS);
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
-							onSignedIn(acc, false,context);
+							onSignIn(acc, false,context);
 						} else
 							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED);
 					}
