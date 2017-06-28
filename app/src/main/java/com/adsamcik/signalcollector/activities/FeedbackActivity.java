@@ -109,7 +109,7 @@ public class FeedbackActivity extends DetailActivity {
 						String description = descriptionText.getText().toString().trim();
 						builder.addFormDataPart("description", description.length() > 0 ? description : "");
 
-						Network.client().newCall(Network.request(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
+						Network.client(this).newCall(Network.request(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
 							@Override
 							public void onFailure(Call call, IOException e) {
 								new SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed);

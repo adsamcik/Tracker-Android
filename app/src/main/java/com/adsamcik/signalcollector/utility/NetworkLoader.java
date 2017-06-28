@@ -98,7 +98,7 @@ public class NetworkLoader {
 				return;
 			}
 
-			OkHttpClient client = Network.client();
+			OkHttpClient client = Network.client(context);
 
 			client.newCall(request).enqueue(new Callback() {
 				@Override

@@ -135,7 +135,7 @@ public class UploadService extends JobService {
 		USER
 	}
 
-	private static class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
+	private class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
 		private final String directory;
 		private final Context context;
 
@@ -169,7 +169,7 @@ public class UploadService extends JobService {
 					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			try {
-				call = Network.client().newCall(Network.request(Network.URL_DATA_UPLOAD, formBody));
+				call = Network.client(context).newCall(Network.request(Network.URL_DATA_UPLOAD, formBody));
 				response = call.execute();
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();

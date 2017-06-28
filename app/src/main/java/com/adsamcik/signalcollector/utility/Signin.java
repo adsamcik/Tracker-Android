@@ -103,15 +103,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	private Signin(@NonNull FragmentActivity activity) {
 		setActivity(activity);
 		client = initializeClient(activity);
-		Preferences.get(activity);
-		silentSignIn(client);
+		silentSignIn(client, activity);
 	}
 
 	private Signin(@NonNull Context context) {
 		activityWeakReference = null;
 		client = initializeClient(context);
-		Preferences.get(context);
-		silentSignIn(client);
+		silentSignIn(client, context);
 	}
 
 	private GoogleApiClient initializeClient(@NonNull Context context) {
@@ -126,7 +124,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 				.build();
 	}
 
-	private void silentSignIn(GoogleApiClient googleApiClient) {
+	private void silentSignIn(GoogleApiClient googleApiClient, @NonNull Context context) {
 		if (googleApiClient.isConnected())
 			return;
 
@@ -136,14 +134,14 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (pendingResult.isDone()) {
 			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
 			assert acc != null;
-			onSignedIn(acc, false);
+			onSignedIn(acc, false, context);
 		} else {
 			updateStatus(SigninStatus.SIGNIN_IN_PROGRESS);
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
-							onSignedIn(acc, false);
+							onSignedIn(acc, false,context);
 						} else
 							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED);
 					}
@@ -192,10 +190,10 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	public static void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
-		signin(context).onSignedIn(account, showSnackbar);
+		signin(context).onSignIn(account, showSnackbar, context);
 	}
 
-	private void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar) {
+	private void onSignIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
 		updateStatus(SigninStatus.SIGNED);
 		if (showSnackbar)
 			showSnackbar(R.string.signed_in_message);
@@ -203,7 +201,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		assert token != null;
 
 		assert account.getId() != null;
-		Preferences.get().edit().putString(Preferences.PREF_USER_ID, account.getId()).apply();
+		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, account.getId()).apply();
 
 		if (onSignedCallback != null) {
 			onSignedCallback.callback(token);
@@ -216,7 +214,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		String token = FirebaseInstanceId.getInstance().getToken();
 		Log.d("TOKEN", token);
 		if (token != null)
-			Network.register(this.token, token);
+			Network.register(this.token, token, context);
 		else
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}

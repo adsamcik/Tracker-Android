@@ -3,13 +3,10 @@ package com.adsamcik.signalcollector.activities;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 
@@ -38,7 +35,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 	private boolean usingFilter = false;
 
-	public static void addLineIfDebug(@NonNull String activity, @Nullable String action, @NonNull Context context) {
+	public static void addLineIfDebug(@NonNull String activity, @NonNull @Nullable String action, @NonNull Context context) {
 		SharedPreferences preferences = Preferences.get(context);
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
 			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 0) {
