@@ -42,6 +42,7 @@ dependencies {
     compile 'com.google.code.gson:gson:2.8.1'
     compile 'com.github.paolorotolo:appintro:4.1.0'
     compile 'com.github.PhilJay:MPAndroidChart:v3.0.2'
+    compile 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     compile 'com.google.android.gms:play-services-maps:11.0.1'
     compile 'com.google.android.gms:play-services-location:11.0.1'
     compile 'com.google.android.gms:play-services-auth:11.0.1'
