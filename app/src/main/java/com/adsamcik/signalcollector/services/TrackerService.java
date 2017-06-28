@@ -355,6 +355,11 @@ public class TrackerService extends Service {
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
+		else {
+			FirebaseCrash.report(new Exception("Tracker does not have sufficient permissions"));
+			stopSelf();
+			return;
+		}
 
 		//Wifi tracking setup
 		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
