@@ -242,6 +242,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			client.disconnect();
 			token = null;
 			updateStatus(SigninStatus.NOT_SIGNED);
+			Network.clearCookieJar();
 		}
 	}
 
