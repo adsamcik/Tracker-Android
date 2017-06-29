@@ -52,6 +52,7 @@ public class Table {
 		TableLayout.LayoutParams lp = new TableLayout.LayoutParams();
 		lp.topMargin = (int) r.getDimension(R.dimen.activity_vertical_margin);
 		card.setLayoutParams(lp);
+		card.setCardBackgroundColor(r.getColor(R.color.cardview_dark_background));
 
 		layout = new TableLayout(context);
 
