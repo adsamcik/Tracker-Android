@@ -305,7 +305,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				DrawUserPosition(cp.target, l.getAccuracy());
 			}
 		}
-		activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+
 		if (type != null)
 			changeMapOverlay(type);
 
