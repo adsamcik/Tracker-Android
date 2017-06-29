@@ -39,6 +39,7 @@ import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.utility.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.utility.SignalsTileProvider;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -53,6 +54,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Tile;
 import com.google.android.gms.maps.model.TileOverlay;
 import com.google.android.gms.maps.model.TileOverlayOptions;
 import com.google.android.gms.maps.model.TileProvider;
@@ -72,7 +74,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private UpdateLocationListener locationListener;
 	private String type = null;
 	private GoogleMap map;
-	private TileProvider tileProvider;
+	private SignalsTileProvider tileProvider;
 	private LocationManager locationManager;
 	private TileOverlay activeOverlay;
 
@@ -262,8 +264,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			if ((!type.equals(this.type) || activeOverlay == null)) {
 				if (activeOverlay != null)
 					activeOverlay.remove();
-				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+				tileProvider.setType(type);
 				this.type = type;
+				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 			}
 		} else this.type = type;
 	}
@@ -285,31 +288,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		//does not work well with bearing. Known bug in Google maps api since 2014.
 		//map.setPadding(0, Assist.dpToPx(c, 48 + 40 + 8), 0, 0);
-
-		tileProvider = new UrlTileProvider(256, 256) {
-			@Override
-			public URL getTileUrl(int x, int y, int zoom) {
-				String s = String.format(Locale.ENGLISH, Network.URL_TILES, zoom, x, y, type);
-
-				if (!checkTileExists(x, y, zoom))
-					return null;
-
-				try {
-					URL u = new URL(s);
-					HttpURLConnection huc = (HttpURLConnection) u.openConnection();
-					huc.setRequestMethod("HEAD");
-					return huc.getResponseCode() == 200 ? u : null;
-				} catch (Exception e) {
-					throw new AssertionError(e);
-				}
-			}
-
-			@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-			private boolean checkTileExists(int x, int y, int zoom) {
-				return !(zoom < 10 || zoom > MAX_ZOOM);
-			}
-		};
-
+		tileProvider = new SignalsTileProvider(c, MAX_ZOOM);
 
 		initializeLocationListener(c);
 
@@ -421,10 +400,6 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		public void setFAB(@NonNull FloatingActionButton fab, @NonNull Context context) {
 			this.fab = fab;
 			setFollowMyPosition(followMyPosition, context);
-		}
-
-		public void unregisterMap(GoogleMap map) {
-
 		}
 
 		public void setFollowMyPosition(boolean value, @NonNull Context context) {

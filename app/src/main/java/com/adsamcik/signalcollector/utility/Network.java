@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.utility;
 import android.content.Context;
 import android.os.Build;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.franmontiel.persistentcookiejar.ClearableCookieJar;
@@ -36,6 +37,7 @@ import okhttp3.Response;
 import okhttp3.TlsVersion;
 
 public final class Network {
+	private static final String TAG = "SignalsNetwork";
 	public static final String URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD;
 	public static final String URL_TILES = Server.URL_TILES;
 	public static final String URL_USER_STATS = Server.URL_USER_STATS;
@@ -44,6 +46,8 @@ public final class Network {
 	public static final String URL_FEEDBACK = Server.URL_FEEDBACK;
 
 	public static CloudStatus cloudStatus;
+
+	private static PersistentCookieJar cookieJar = null;
 
 	private static ConnectionSpec getSpec() {
 		return new ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
@@ -56,17 +60,25 @@ public final class Network {
 	}
 
 	private static CookieJar getCookieJar(@NonNull Context context) {
-		return new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
+		return cookieJar != null ? cookieJar : (cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
+	}
+
+	public static void clearCookieJar() {
+		cookieJar.clear();
 	}
 
 	public static OkHttpClient client(final String userToken, final Context context) {
 		return new OkHttpClient.Builder()
 				.connectionSpecs(Collections.singletonList(getSpec()))
 				.cookieJar(getCookieJar(context))
-				.authenticator((route, response) ->
-						response.request().newBuilder()
-								.headers(new Headers.Builder().add("userToken", userToken).add("manufacturer", Build.MANUFACTURER).add("model", Build.MODEL).build())
-								.build())
+				.authenticator((route, response) -> {
+					if (response.request().header("userToken") != null)
+						return null;
+
+					return response.request().newBuilder()
+							.header("userToken", userToken)
+							.build();
+				})
 				.build();
 	}
 

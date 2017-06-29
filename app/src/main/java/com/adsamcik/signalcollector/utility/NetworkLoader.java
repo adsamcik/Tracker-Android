@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
@@ -47,7 +48,11 @@ public class NetworkLoader {
 	public static <T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
 		String token = Signin.getToken(context);
 		if (token != null)
-			requestString(new Request.Builder().url(url + "?token=" + token).build(), updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
+			requestString(Network.client(token, context),
+					new Request.Builder().url(url).build(),
+					updateTimeInMinutes,
+					context,
+					preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
 	}
 
 	/**
@@ -60,7 +65,7 @@ public class NetworkLoader {
 	 * @param callback            Callback which is called when the result is ready
 	 */
 	public static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
-		requestString(new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
+		requestString(Network.client(context), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
 	}
 
 	/**
@@ -75,7 +80,7 @@ public class NetworkLoader {
 	public static void requestUserString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		String token = Signin.getToken(context);
 		if (token != null)
-			requestString(Network.request(url, new FormBody.Builder().add("token", token).build()), updateTimeInMinutes, context, preferenceString, callback);
+			requestString(Network.client(token, context), Network.request(url, new FormBody.Builder().add("token", token).build()), updateTimeInMinutes, context, preferenceString, callback);
 	}
 
 	/**
@@ -87,7 +92,7 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
-	public static void requestString(@NonNull final Request request, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
+	public static void requestString(@NonNull OkHttpClient client, @NonNull final Request request, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
 		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !DataStore.exists(preferenceString)) {
 			if (!Assist.hasNetwork()) {
@@ -97,8 +102,6 @@ public class NetworkLoader {
 					callback.callback(Source.cache_no_internet, DataStore.loadString(preferenceString));
 				return;
 			}
-
-			OkHttpClient client = Network.client(context);
 
 			client.newCall(request).enqueue(new Callback() {
 				@Override
@@ -115,6 +118,8 @@ public class NetworkLoader {
 				@Override
 				public void onResponse(Call call, Response response) throws IOException {
 					String json = response.body().string();
+
+					Log.d("TAG", json);
 					response.close();
 
 					if (json.isEmpty()) {
