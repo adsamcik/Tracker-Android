@@ -11,6 +11,7 @@ import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
@@ -38,7 +39,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	private final GoogleApiClient client;
 	private WeakReference<SignInButton> signInButton;
-	private WeakReference<Button> signOutButton;
+	private WeakReference<LinearLayout> signedInMenu;
 	private WeakReference<FragmentActivity> activityWeakReference;
 
 	private String token = null;
@@ -149,30 +150,29 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		}
 	}
 
-	public Signin setButtons(@NonNull SignInButton signInButton, @NonNull Button signOutButton) {
+	public void setButtons(@NonNull SignInButton signInButton, @NonNull LinearLayout signedMenu) {
 		this.signInButton = new WeakReference<>(signInButton);
-		this.signOutButton = new WeakReference<>(signOutButton);
+		this.signedInMenu = new WeakReference<>(signedMenu);
 		updateStatus(status);
-		return this;
 	}
 
 	private void updateStatus(SigninStatus signinStatus) {
 		status = signinStatus;
-		if (signInButton != null && signOutButton != null) {
+		if (signInButton != null && signedInMenu != null) {
 			SignInButton signInButton = this.signInButton.get();
-			Button signOutButton = this.signOutButton.get();
-			if (signInButton != null && signOutButton != null) {
+			LinearLayout signedMenu = this.signedInMenu.get();
+			if (signInButton != null && signedMenu != null) {
 				switch (status) {
 					case SIGNED:
 						signInButton.setVisibility(View.GONE);
-						signOutButton.setVisibility(View.VISIBLE);
-						signOutButton.setOnClickListener(v -> signout());
+						signedMenu.setVisibility(View.VISIBLE);
+						signedMenu.findViewById(R.id.sign_out_button).setOnClickListener(v -> signout());
 						break;
 					case SIGNIN_FAILED:
 					case SILENT_SIGNIN_FAILED:
 					case NOT_SIGNED:
 						signInButton.setVisibility(View.VISIBLE);
-						signOutButton.setVisibility(View.GONE);
+						signedMenu.setVisibility(View.GONE);
 						signInButton.setOnClickListener((v) -> {
 							Activity a = getActivity();
 							if (a != null) {
@@ -182,7 +182,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 						break;
 					case SIGNIN_IN_PROGRESS:
 						signInButton.setVisibility(View.GONE);
-						signOutButton.setVisibility(View.GONE);
+						signedMenu.setVisibility(View.GONE);
 						break;
 				}
 			}

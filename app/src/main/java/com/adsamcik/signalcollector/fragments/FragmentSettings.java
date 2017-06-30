@@ -27,6 +27,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -71,7 +72,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ImageView mTrackingSelected, mAutoupSelected;
 
 	private SignInButton signInButton;
-	private Button signOutButton;
+	private LinearLayout signedInMenu;
 	private Signin signin;
 
 	private ColorStateList mSelectedState;
@@ -172,8 +173,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, 1));
 
 		signInButton = rootView.findViewById(R.id.sign_in_button);
-		signOutButton = rootView.findViewById(R.id.sign_out_button);
-		signInNoConnection = rootView.findViewById(R.id.sign_in_no_connection);
+		signedInMenu = rootView.findViewById(R.id.signed_in_menu);
+		signInNoConnection = rootView.findViewById(R.id.sign_in_message);
 
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
@@ -285,7 +286,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		if (Assist.hasNetwork()) {
 			signin = Signin.signin(getActivity());
-			signin.setButtons(signInButton, signOutButton);
+			signin.setButtons(signInButton, signedInMenu);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 
