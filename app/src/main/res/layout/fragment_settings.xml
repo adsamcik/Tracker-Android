@@ -14,6 +14,74 @@
 
         <TextView
             style="@style/SettingsTitle"
+            android:text="@string/settings_playGames"/>
+
+        <com.google.android.gms.common.SignInButton
+            android:id="@+id/sign_in_button"
+            style="@style/SettingsItem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:visibility="gone"/>
+
+        <TextView
+            android:id="@+id/sign_in_message"
+            style="@style/SettingsText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/internet_connection_required"
+            android:visibility="gone"/>
+
+        <LinearLayout
+            android:id="@+id/signed_in_menu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <TextView
+                style="@style/SettingsText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/user_have_wireless_points"/>
+
+            <Switch
+                android:id="@+id/switch_map_enabled"
+                style="@style/SettingsText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="@dimen/setting_item_padding"
+                android:paddingTop="@dimen/setting_item_padding"
+                android:text="@string/user_use_map"
+                android:thumbTint="@color/negative_switch_color"
+                android:thumbTintMode="src_in"/>
+
+            <Switch
+                android:id="@+id/switch_personal_map_enabled"
+                style="@style/SettingsText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="@dimen/setting_item_padding"
+                android:paddingTop="@dimen/setting_item_padding"
+                android:text="@string/user_use_personal_map"
+                android:thumbTint="@color/negative_switch_color"
+                android:thumbTintMode="src_in"/>
+
+
+            <Button
+                android:id="@+id/sign_out_button"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/colorAccent"
+                android:text="@string/signout"/>
+
+        </LinearLayout>
+
+
+        <View
+            style="@style/Divider"/>
+
+        <TextView
+            style="@style/SettingsTitle"
             android:text="@string/settings_automaticTracking"/>
 
         <TextView
@@ -154,36 +222,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
         </LinearLayout>
-
-        <View
-            style="@style/Divider"/>
-
-        <TextView
-            style="@style/SettingsTitle"
-            android:text="@string/settings_playGames"/>
-
-        <com.google.android.gms.common.SignInButton
-            android:id="@+id/sign_in_button"
-            style="@style/SettingsItem"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingTop="@dimen/setting_item_padding"
-            android:visibility="gone"/>
-
-        <Button
-            android:id="@+id/sign_out_button"
-            style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
-            android:text="@string/signout"
-            android:visibility="gone"/>
-
-        <TextView
-            android:id="@+id/sign_in_no_connection"
-            style="@style/SettingsText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/internet_connection_required"
-            android:visibility="gone"/>
 
         <View
             style="@style/Divider"/>
