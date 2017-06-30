@@ -41,4 +41,8 @@
     <string name="signed_out_message">Signed out</string>
 
     <string name="settings_disable_tracking_till_recharge">Disabled till recharge</string>
+
+    <string name="user_have_wireless_points">You have %1$d wireless points</string>
+    <string name="user_use_map">Access map</string>
+    <string name="user_use_personal_map">Access personal map</string>
 </resources>
