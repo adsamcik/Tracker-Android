@@ -110,7 +110,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	public static boolean isSignedIn() {
-		return instance != null && instance.token != null;
+		return instance != null && instance.status == SigninStatus.SIGNED;
 	}
 
 	public static String getUserID(@NonNull Context context) {
