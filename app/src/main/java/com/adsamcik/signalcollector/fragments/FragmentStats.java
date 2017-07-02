@@ -20,13 +20,13 @@ import android.widget.ScrollView;
 
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
-import com.adsamcik.signalcollector.utility.NetworkLoader;
+import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
@@ -112,7 +112,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
 		refreshingCount++;
 		refreshLayout.setRefreshing(true);
-		NetworkLoader.load(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) -> {
+		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) -> {
 			refreshDone();
 			final int initialIndex = ((ViewGroup) view).getChildCount();
 

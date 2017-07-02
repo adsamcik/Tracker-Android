@@ -1,34 +1,26 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 import android.os.Build;
 import android.support.annotation.NonNull;
-import android.util.Log;
+import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
-import com.franmontiel.persistentcookiejar.ClearableCookieJar;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
-import java.net.CookieHandler;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.CipherSuite;
 import okhttp3.ConnectionSpec;
-import okhttp3.Cookie;
 import okhttp3.CookieJar;
-import okhttp3.Headers;
-import okhttp3.HttpUrl;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -44,6 +36,7 @@ public final class Network {
 	public static final String URL_STATS = Server.URL_STATS;
 	public static final String URL_MAPS_AVAILABLE = Server.URL_MAPS_AVAILABLE;
 	public static final String URL_FEEDBACK = Server.URL_FEEDBACK;
+	public static final String URL_USER_SETTINGS = Server.URL_USER_SETTINGS;
 
 	public static CloudStatus cloudStatus;
 
@@ -67,8 +60,8 @@ public final class Network {
 		cookieJar.clear();
 	}
 
-	public static OkHttpClient client(final String userToken, final Context context) {
-		return new OkHttpClient.Builder()
+	public static OkHttpClient client(@Nullable final String userToken, final Context context) {
+		return userToken == null ? client(context) : new OkHttpClient.Builder()
 				.connectionSpecs(Collections.singletonList(getSpec()))
 				.cookieJar(getCookieJar(context))
 				.authenticator((route, response) -> {
@@ -82,14 +75,18 @@ public final class Network {
 				.build();
 	}
 
-	public static OkHttpClient client(final Context context) {
+	private static OkHttpClient client(final Context context) {
 		return new OkHttpClient.Builder()
 				.connectionSpecs(Collections.singletonList(getSpec()))
 				.cookieJar(getCookieJar(context))
 				.build();
 	}
 
-	public static Request request(final String url, final RequestBody body) {
+	public static Request requestGET(final String url) {
+		return new Request.Builder().url(url).build();
+	}
+
+	public static Request requestPOST(final String url, final RequestBody body) {
 		return new Request.Builder().url(url).post(body).build();
 	}
 
@@ -110,7 +107,7 @@ public final class Network {
 		RequestBody formBody = generateAuthBody(userToken)
 				.addFormDataPart(valueName, value)
 				.build();
-		Request request = request(url, formBody);
+		Request request = requestPOST(url, formBody);
 		client(userToken, context).newCall(request).enqueue(new Callback() {
 			@Override
 			public void onFailure(@NonNull Call call, @NonNull IOException e) {

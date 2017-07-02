@@ -31,7 +31,7 @@ import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.Data;

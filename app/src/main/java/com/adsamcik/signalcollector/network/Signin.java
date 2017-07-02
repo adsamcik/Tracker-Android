@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.network;
 
 import android.app.Activity;
 import android.content.Context;
@@ -10,11 +10,12 @@ import android.support.annotation.StringRes;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -26,14 +27,26 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.OptionalPendingResult;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.InstanceCreator;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Type;
 import java.util.concurrent.TimeUnit;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 
 public class Signin implements GoogleApiClient.OnConnectionFailedListener, GoogleApiClient.ConnectionCallbacks {
 	public static final int RC_SIGN_IN = 4654;
 	private static final int ERROR_REQUEST_CODE = 3543;
+
+	private static Signin instance = null;
 
 	private SigninStatus status = SigninStatus.NOT_SIGNED;
 
@@ -42,10 +55,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	private WeakReference<LinearLayout> signedInMenu;
 	private WeakReference<FragmentActivity> activityWeakReference;
 
-	private String token = null;
 	private boolean resolvingError = false;
 
-	private static Signin instance = null;
+	private User user = null;
 
 	private IValueCallback<String> onSignedCallback;
 
@@ -75,15 +87,19 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	public static String getToken(@NonNull Context context) {
-		return signin(context).token;
+		return signin(context).user != null ? signin(context).user.token : null;
 	}
 
 	public static void getTokenAsync(@NonNull Context context, IValueCallback<String> callback) {
 		Signin instance = signin(context);
-		if (instance.token != null)
-			callback.callback(instance.token);
+		if (instance.user != null)
+			callback.callback(instance.user.token);
 		else
 			instance.onSignedCallback = callback;
+	}
+
+	public static User getUser(@NonNull Context context) {
+		return signin(context).user;
 	}
 
 	public static void removeTokenListener() {
@@ -137,26 +153,26 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			assert acc != null;
 			onSignIn(acc, false, context);
 		} else {
-			updateStatus(SigninStatus.SIGNIN_IN_PROGRESS);
+			updateStatus(SigninStatus.SIGNIN_IN_PROGRESS, context);
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
-							onSignIn(acc, false,context);
+							onSignIn(acc, false, context);
 						} else
-							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED);
+							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED, context);
 					}
 					, 10, TimeUnit.SECONDS);
 		}
 	}
 
-	public void setButtons(@NonNull SignInButton signInButton, @NonNull LinearLayout signedMenu) {
+	public void setButtons(@NonNull SignInButton signInButton, @NonNull LinearLayout signedMenu, @NonNull Context context) {
 		this.signInButton = new WeakReference<>(signInButton);
 		this.signedInMenu = new WeakReference<>(signedMenu);
-		updateStatus(status);
+		updateStatus(status, context);
 	}
 
-	private void updateStatus(SigninStatus signinStatus) {
+	private void updateStatus(SigninStatus signinStatus, @NonNull Context context) {
 		status = signinStatus;
 		if (signInButton != null && signedInMenu != null) {
 			SignInButton signInButton = this.signInButton.get();
@@ -166,7 +182,32 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 					case SIGNED:
 						signInButton.setVisibility(View.GONE);
 						signedMenu.setVisibility(View.VISIBLE);
-						signedMenu.findViewById(R.id.sign_out_button).setOnClickListener(v -> signout());
+						signedMenu.findViewById(R.id.sign_out_button).setOnClickListener(v -> signout(context));
+						Network.client(user.token, context).newCall(Network.requestGET(Network.URL_USER_SETTINGS)).enqueue(new Callback() {
+							@Override
+							public void onFailure(@NonNull Call call, @NonNull IOException e) {
+								if (activityWeakReference.get() != null)
+									new SnackMaker(activityWeakReference.get()).showSnackbar(R.string.error_connection_failed);
+							}
+
+							@Override
+							public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+								ResponseBody body = response.body();
+								if (body != null) {
+									String json = body.string();
+									InstanceCreator<User> creator = type -> user;
+
+									Gson gson = new GsonBuilder().registerTypeAdapter(User.class, creator).create();
+									user = gson.fromJson(json, User.class);
+								} else {
+									//todo add job schedule to download data at later date
+									Activity activity = getActivity();
+									if (activity != null)
+										new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+								}
+								response.close();
+							}
+						});
 						break;
 					case SIGNIN_FAILED:
 					case SILENT_SIGNIN_FAILED:
@@ -194,17 +235,18 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	private void onSignIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
-		updateStatus(SigninStatus.SIGNED);
 		if (showSnackbar)
 			showSnackbar(R.string.signed_in_message);
-		this.token = account.getIdToken();
-		assert token != null;
 
-		assert account.getId() != null;
-		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, account.getId()).apply();
+		this.user = new User(account.getId(), account.getIdToken());
+
+		assert user.token != null;
+		assert user.id != null;
+
+		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
 
 		if (onSignedCallback != null) {
-			onSignedCallback.callback(token);
+			onSignedCallback.callback(user.token);
 			onSignedCallback = null;
 		}
 
@@ -212,20 +254,21 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		//SharedPreferences sp = Preferences.get(context);
 		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
-		Log.d("TOKEN", token);
 		if (token != null)
-			Network.register(this.token, token, context);
+			Network.register(user.token, token, context);
 		else
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
+
+		updateStatus(SigninStatus.SIGNED, context);
 	}
 
-	public static void onSignInFailed(@NonNull Context context) {
-		signin(context).updateStatus(SigninStatus.SIGNIN_FAILED);
+	public static void onSignInFailed(@NonNull final Context context) {
+		signin(context).updateStatus(SigninStatus.SIGNIN_FAILED, context);
 	}
 
-	private void onSignedOut() {
-		updateStatus(SigninStatus.NOT_SIGNED);
+	private void onSignedOut(@NonNull final Context context) {
+		updateStatus(SigninStatus.NOT_SIGNED, context);
 		showSnackbar(R.string.signed_out_message);
 	}
 
@@ -235,13 +278,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			new SnackMaker(a).showSnackbar(a.getString(messageResId));
 	}
 
-	private void signout() {
+	private void signout(@NonNull final Context context) {
 		if (status == SigninStatus.SIGNED) {
 			if (client.isConnected())
-				Auth.GoogleSignInApi.signOut(client).setResultCallback(status -> onSignedOut());
+				Auth.GoogleSignInApi.signOut(client).setResultCallback(status -> onSignedOut(context));
 			client.disconnect();
-			token = null;
-			updateStatus(SigninStatus.NOT_SIGNED);
+			user = null;
+			updateStatus(SigninStatus.NOT_SIGNED, context);
 			Network.clearCookieJar();
 		}
 	}

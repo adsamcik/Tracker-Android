@@ -21,8 +21,8 @@ import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.Signin;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
@@ -169,7 +169,7 @@ public class UploadService extends JobService {
 					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			try {
-				call = Network.client(context).newCall(Network.request(Network.URL_DATA_UPLOAD, formBody));
+				call = Network.client(null, context).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody));
 				response = call.execute();
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();

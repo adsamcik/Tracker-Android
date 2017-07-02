@@ -43,13 +43,13 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.MapLayer;
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.NetworkLoader;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -190,7 +190,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
 		mapOverlayButton.setEnabled(false);
 
-		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			Activity activity = getActivity();
 			if (activity != null) {
 				if (layerArray != null && layerArray.length > 0) {
@@ -286,7 +286,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		if (Assist.hasNetwork()) {
 			signin = Signin.signin(getActivity());
-			signin.setButtons(signInButton, signedInMenu);
+			signin.setButtons(signInButton, signedInMenu, context);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 
@@ -429,7 +429,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					switchNoise.setChecked(false);
 				break;
 			default:
-				throw new UnsupportedOperationException("Permissions with request code " + requestCode + " has no defined behavior");
+				throw new UnsupportedOperationException("Permissions with requestPOST code " + requestCode + " has no defined behavior");
 		}
 	}
 

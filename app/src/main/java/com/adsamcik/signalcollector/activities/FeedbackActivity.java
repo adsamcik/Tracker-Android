@@ -15,8 +15,8 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 
 import java.io.IOException;
@@ -109,7 +109,7 @@ public class FeedbackActivity extends DetailActivity {
 						String description = descriptionText.getText().toString().trim();
 						builder.addFormDataPart("description", description.length() > 0 ? description : "");
 
-						Network.client(this).newCall(Network.request(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
+						Network.client(null, this).newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
 							@Override
 							public void onFailure(Call call, IOException e) {
 								new SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed);

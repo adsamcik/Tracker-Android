@@ -45,27 +45,61 @@
                 android:layout_height="wrap_content"
                 android:text="@string/user_have_wireless_points"/>
 
-            <Switch
-                android:id="@+id/switch_map_enabled"
-                style="@style/SettingsText"
+            <LinearLayout
+                android:id="@+id/layout_map_access"
+                style="@style/SettingsItem"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingBottom="@dimen/setting_item_padding"
-                android:paddingTop="@dimen/setting_item_padding"
-                android:text="@string/user_use_map"
-                android:thumbTint="@color/negative_switch_color"
-                android:thumbTintMode="src_in"/>
+                android:orientation="vertical">
 
-            <Switch
-                android:id="@+id/switch_personal_map_enabled"
-                style="@style/SettingsText"
+                <Switch
+                    style="@style/SettingsTextNoParent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="@dimen/setting_item_padding"
+                    android:paddingTop="@dimen/setting_item_padding"
+                    android:text="@string/user_renew_map"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_cost_per_month"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_access_date"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layout_user_map_access"
+                style="@style/SettingsItem"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingBottom="@dimen/setting_item_padding"
-                android:paddingTop="@dimen/setting_item_padding"
-                android:text="@string/user_use_personal_map"
-                android:thumbTint="@color/negative_switch_color"
-                android:thumbTintMode="src_in"/>
+                android:orientation="vertical">
+
+                <Switch
+                    style="@style/SettingsTextNoParent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="@dimen/setting_item_padding"
+                    android:paddingTop="@dimen/setting_item_padding"
+                    android:text="@string/user_renew_personal_map"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_cost_per_month"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_access_date"/>
+            </LinearLayout>
 
 
             <Button

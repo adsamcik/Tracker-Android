@@ -13,6 +13,7 @@ import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
+import com.adsamcik.signalcollector.network.Network;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
