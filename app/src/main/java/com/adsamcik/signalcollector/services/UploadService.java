@@ -165,7 +165,6 @@ public class UploadService extends JobService {
 			}
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
-					.addFormDataPart("token", token)
 					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			try {
