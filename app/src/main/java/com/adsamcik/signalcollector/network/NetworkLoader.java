@@ -120,6 +120,10 @@ public class NetworkLoader {
 			return this.ordinal() <= 1;
 		}
 
+		public boolean isDataAvailable() {
+			return this.ordinal() <= 4;
+		}
+
 		public String toString(@NonNull Context context) {
 			switch (this) {
 				case cache_connection_failed:
