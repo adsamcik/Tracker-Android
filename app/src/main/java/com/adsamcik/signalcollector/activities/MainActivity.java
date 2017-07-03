@@ -20,7 +20,7 @@ import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.fragments.FragmentTracker;
@@ -28,7 +28,7 @@ import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -52,6 +52,7 @@ public class MainActivity extends FragmentActivity {
 		setContentView(R.layout.activity_main);
 		DataStore.setContext(this);
 		SnackMaker snackMaker = new SnackMaker(this);
+		Assist.initialize(this);
 
 		if (Network.cloudStatus == null) {
 			if (UploadService.getUploadScheduled(this).equals(UploadService.UploadScheduleSource.NONE))
@@ -60,13 +61,11 @@ public class MainActivity extends FragmentActivity {
 				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		}
 
-		Signin.signin(this);
+		Signin.signin(this, null);
 
 		Failure<String> s = ActivityService.initializeActivityClient(this);
 		if (s.hasFailed())
 			snackMaker.showSnackbar(s.value);
-
-		Assist.initialize(this);
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));

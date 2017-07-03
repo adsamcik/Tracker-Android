@@ -1,18 +1,15 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 
+import com.adsamcik.signalcollector.network.Network;
 import com.google.android.gms.maps.model.Tile;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.firebase.crash.FirebaseCrash;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Locale;
 
 import okhttp3.Call;
@@ -33,7 +30,7 @@ public class SignalsTileProvider implements TileProvider {
 	private final int maxZoom;
 
 	public SignalsTileProvider(Context context, int maxZoom) {
-		client = Network.client(context);
+		client = Network.client(null, context);
 		this.maxZoom = maxZoom;
 	}
 

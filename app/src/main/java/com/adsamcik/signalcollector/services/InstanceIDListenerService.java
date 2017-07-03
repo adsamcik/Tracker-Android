@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.services;
 import android.content.pm.PackageManager;
 import android.support.v4.content.ContextCompat;
 
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.Signin;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.FirebaseInstanceIdService;
 
@@ -20,7 +20,7 @@ public class InstanceIDListenerService extends FirebaseInstanceIdService {
 	public void onTokenRefresh() {
 		String refreshedToken = FirebaseInstanceId.getInstance().getToken();
 		if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED)
-			Signin.getTokenAsync(this, value -> Network.register(value, refreshedToken, this));
+			Signin.getUserAsync(this, value -> Network.register(value.token, refreshedToken, this));
 	}
 
 }

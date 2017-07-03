@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
@@ -6,34 +6,21 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.Parser;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
 
 import okhttp3.Call;
 import okhttp3.Callback;
-import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
 public class NetworkLoader {
-
-	/**
-	 * Loads json from the web and converts it to java object
-	 *
-	 * @param url                 URL
-	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
-	 * @param context             Context
-	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
-	 * @param tClass              Class of the type
-	 * @param callback            Callback which is called when the result is ready
-	 * @param <T>                 Value type
-	 */
-	public static <T> void load(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
-		loadString(url, updateTimeInMinutes, context, preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
-	}
-
 	/**
 	 * Loads json from the web and converts it to java object
 	 *
@@ -46,13 +33,11 @@ public class NetworkLoader {
 	 * @param <T>                 Value type
 	 */
 	public static <T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
-		String token = Signin.getToken(context);
-		if (token != null)
-			requestString(Network.client(token, context),
-					new Request.Builder().url(url).build(),
-					updateTimeInMinutes,
-					context,
-					preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
+		requestString(Network.client(Signin.getUser(context).token, context),
+				new Request.Builder().url(url).build(),
+				updateTimeInMinutes,
+				context,
+				preferenceString, (src, value) -> callback.callback(src, Parser.tryFromJson(value, tClass)));
 	}
 
 	/**
@@ -64,29 +49,14 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
-	public static void loadString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
-		requestString(Network.client(context), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
+	public static void requestString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
+		requestString(Network.client(Signin.getUser(context).token, context), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
 	}
 
 	/**
-	 * Method which loads string from the web or cache
+	 * Method to requestPOST string from server.
 	 *
-	 * @param url                 URL
-	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
-	 * @param context             Context
-	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
-	 * @param callback            Callback which is called when the result is ready
-	 */
-	public static void requestUserString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
-		String token = Signin.getToken(context);
-		if (token != null)
-			requestString(Network.client(token, context), Network.request(url, new FormBody.Builder().add("token", token).build()), updateTimeInMinutes, context, preferenceString, callback);
-	}
-
-	/**
-	 * Method to request string from server.
-	 *
-	 * @param request             request data
+	 * @param request             requestPOST data
 	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
 	 * @param context             Context
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
@@ -148,6 +118,10 @@ public class NetworkLoader {
 
 		public boolean isSuccess() {
 			return this.ordinal() <= 1;
+		}
+
+		public boolean isDataAvailable() {
+			return this.ordinal() <= 4;
 		}
 
 		public String toString(@NonNull Context context) {

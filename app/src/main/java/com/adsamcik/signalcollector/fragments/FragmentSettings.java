@@ -27,6 +27,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -37,26 +38,41 @@ import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.network.Prices;
+import com.adsamcik.signalcollector.network.User;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.MapLayer;
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.NetworkLoader;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.InstanceCreator;
 
 import java.io.File;
+import java.io.IOException;
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
+import java.util.Locale;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MultipartBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -71,7 +87,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ImageView mTrackingSelected, mAutoupSelected;
 
 	private SignInButton signInButton;
-	private Button signOutButton;
+	private LinearLayout signedInMenu;
 	private Signin signin;
 
 	private ColorStateList mSelectedState;
@@ -79,6 +95,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 
 	private int dummyNotificationIndex = 1972;
+
+	private final IValueCallback<User> userSignedCallback = u -> {
+		final Activity activity = getActivity();
+		if (activity != null) {
+			NetworkLoader.request(Network.URL_USER_PRICES, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
+				if (s.isSuccess())
+					resolveUserMenuOnLogin(u, p);
+				else
+					new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+			});
+		}
+	};
 
 	private void updateTracking(int select) {
 		Context context = getContext();
@@ -172,8 +200,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, 1));
 
 		signInButton = rootView.findViewById(R.id.sign_in_button);
-		signOutButton = rootView.findViewById(R.id.sign_out_button);
-		signInNoConnection = rootView.findViewById(R.id.sign_in_no_connection);
+		signedInMenu = rootView.findViewById(R.id.signed_in_menu);
+		signInNoConnection = rootView.findViewById(R.id.sign_in_message);
 
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
@@ -189,7 +217,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
 		mapOverlayButton.setEnabled(false);
 
-		NetworkLoader.load(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			Activity activity = getActivity();
 			if (activity != null) {
 				if (layerArray != null && layerArray.length > 0) {
@@ -284,8 +312,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
 
 		if (Assist.hasNetwork()) {
-			signin = Signin.signin(getActivity());
-			signin.setButtons(signInButton, signOutButton);
+			signin = Signin.signin(getActivity(), userSignedCallback);
+			signin.setButtons(signInButton, signedInMenu, context);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 
@@ -350,12 +378,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			ArrayList<String> temp = new ArrayList<>();
 			for (File file : files) {
 				String name = file.getName();
-				if (name.startsWith(DataStore.DATA_FILE) ||
-						name.startsWith(Preferences.PREF_GENERAL_STATS) ||
-						name.startsWith(Preferences.PREF_USER_STATS) ||
-						name.startsWith(Preferences.PREF_AVAILABLE_MAPS) ||
-						name.startsWith(DataStore.RECENT_UPLOADS_FILE))
-					temp.add(name);
+				if(!name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data"))
+				temp.add(name);
 			}
 
 			Collections.sort(temp, String::compareTo);
@@ -397,6 +421,129 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		return rootView;
 	}
 
+	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
+		Activity activity = getActivity();
+		if (activity != null) {
+			activity.runOnUiThread(() -> {
+				DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault());
+				TextView wPointsTextView = ((TextView) signedInMenu.getChildAt(0));
+				wPointsTextView.setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
+
+				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
+				Switch mapAccessSwitch = (Switch) mapAccessLayout.getChildAt(0);
+				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
+
+				mapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
+				mapAccessSwitch.setChecked(u.networkPreferences.renewMap);
+				mapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+					compoundButton.setEnabled(false);
+					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
+					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(new Callback() {
+						@Override
+						public void onFailure(Call call, IOException e) {
+							activity.runOnUiThread(() -> {
+								compoundButton.setEnabled(true);
+								compoundButton.setChecked(!b);
+							});
+						}
+
+						@Override
+						public void onResponse(Call call, Response response) throws IOException {
+							if (response.isSuccessful()) {
+								u.networkPreferences.renewMap = b;
+								if (b) {
+									ResponseBody body = response.body();
+									if (body != null) {
+										long temp = u.networkInfo.mapAccessUntil;
+										u.networkInfo.mapAccessUntil = Long.parseLong(body.string());
+										if (temp != u.networkInfo.mapAccessUntil) {
+											u.wirelessPoints -= prices.PRICE_30DAY_MAP;
+											activity.runOnUiThread(() -> {
+												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints)));
+												mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+												mapAccessTimeTextView.setVisibility(View.VISIBLE);
+											});
+										}
+
+									} else
+										FirebaseCrash.report(new Throwable("Body is null"));
+								}
+								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+							} else {
+								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
+								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);
+							}
+							activity.runOnUiThread(() -> compoundButton.setEnabled(true));
+							response.close();
+						}
+					});
+				});
+
+				if (u.networkInfo.mapAccessUntil > System.currentTimeMillis())
+					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+				else
+					mapAccessTimeTextView.setVisibility(View.GONE);
+				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP)));
+
+				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
+				Switch userMapAccessSwitch = (Switch) userMapAccessLayout.getChildAt(0);
+				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
+
+				userMapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
+				userMapAccessSwitch.setChecked(u.networkPreferences.renewPersonalMap);
+				userMapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+					compoundButton.setEnabled(false);
+					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
+					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(new Callback() {
+						@Override
+						public void onFailure(Call call, IOException e) {
+							activity.runOnUiThread(() -> {
+								compoundButton.setEnabled(true);
+								compoundButton.setChecked(!b);
+							});
+						}
+
+						@Override
+						public void onResponse(Call call, Response response) throws IOException {
+							if (response.isSuccessful()) {
+								u.networkPreferences.renewPersonalMap = b;
+								if (b) {
+									ResponseBody body = response.body();
+									if (body != null) {
+										long temp = u.networkInfo.personalMapAccessUntil;
+										u.networkInfo.personalMapAccessUntil = Long.parseLong(body.string());
+										if (temp != u.networkInfo.personalMapAccessUntil) {
+											u.wirelessPoints -= prices.PRICE_30DAY_PERSONAL_MAP;
+											activity.runOnUiThread(() -> {
+												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints)));
+												personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+												personalMapAccessTimeTextView.setVisibility(View.VISIBLE);
+											});
+										}
+
+									} else
+										FirebaseCrash.report(new Throwable("Body is null"));
+								}
+								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+							} else {
+								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
+								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);
+							}
+							activity.runOnUiThread(() -> compoundButton.setEnabled(true));
+							response.close();
+						}
+					});
+				});
+
+				if (u.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
+					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));
+				else
+					personalMapAccessTimeTextView.setVisibility(View.GONE);
+				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP)));
+			});
+		}
+	}
+
 	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final IValueCallback<Boolean> callback) {
 		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
 		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
@@ -428,7 +575,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					switchNoise.setChecked(false);
 				break;
 			default:
-				throw new UnsupportedOperationException("Permissions with request code " + requestCode + " has no defined behavior");
+				throw new UnsupportedOperationException("Permissions with requestPOST code " + requestCode + " has no defined behavior");
 		}
 	}
 

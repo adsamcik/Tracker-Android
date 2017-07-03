@@ -24,7 +24,7 @@ import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.services.MessageListenerService;
 import com.adsamcik.signalcollector.utility.DataStore;
-import com.adsamcik.signalcollector.utility.Network;
+import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
 

@@ -5,7 +5,7 @@ import android.support.test.InstrumentationRegistry;
 import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.UiDevice;
 
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Signin;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -38,7 +38,7 @@ public class ServiceTests {
 		final Condition callbackReceived = lock.newCondition();
 
 		asyncBooleanVariable = new AtomicBoolean(false);
-		Signin.getTokenAsync(context, value -> {
+		Signin.getUserAsync(context, value -> {
 			lock.lock();
 			Assert.assertNotNull(value);
 			asyncBooleanVariable.set(true);

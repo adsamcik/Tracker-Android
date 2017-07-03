@@ -53,6 +53,16 @@
         <item name="android:textSize">@dimen/setting_text_size</item>
     </style>
 
+    <style name="SettingsTextNoParent">
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textSize">@dimen/setting_text_size</item>
+    </style>
+
+    <style name="SettingsTextSmall">
+        <item name="android:textColor">@color/textSecondary</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
     <style name="SettingsItem">
         <item name="android:paddingEnd">@dimen/activity_horizontal_margin</item>
         <item name="android:paddingStart">@dimen/activity_horizontal_margin</item>

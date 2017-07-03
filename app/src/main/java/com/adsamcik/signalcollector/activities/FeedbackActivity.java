@@ -15,8 +15,8 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.Network;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class FeedbackActivity extends DetailActivity {
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setTitle(R.string.feedback_title);
-		Signin.getTokenAsync(this, value -> {
+		Signin.getUserAsync(this, value -> {
 			LinearLayout parent = createScrollableContentParent(true);
 			ViewGroup groupRoot = (ViewGroup) getLayoutInflater().inflate(R.layout.layout_feedback, parent);
 
@@ -99,7 +99,7 @@ public class FeedbackActivity extends DetailActivity {
 					if (result.length() <= MIN_TEXT_LENGTH)
 						summaryTextLayout.setError(getString(R.string.feedback_error_spaces_summary));
 					else {
-						MultipartBody.Builder builder = Network.generateAuthBody(value).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType.ordinal()));
+						MultipartBody.Builder builder = Network.generateAuthBody(value.token).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType.ordinal()));
 
 						TextInputLayout descriptionTextLayout = parent.findViewById(R.id.feedback_description_wrap);
 						EditText descriptionText = descriptionTextLayout.getEditText();
@@ -109,7 +109,7 @@ public class FeedbackActivity extends DetailActivity {
 						String description = descriptionText.getText().toString().trim();
 						builder.addFormDataPart("description", description.length() > 0 ? description : "");
 
-						Network.client(this).newCall(Network.request(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
+						Network.client(null, this).newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
 							@Override
 							public void onFailure(Call call, IOException e) {
 								new SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed);
@@ -133,7 +133,7 @@ public class FeedbackActivity extends DetailActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		Signin.removeTokenListener();
+		Signin.removeOnSignedListeners();
 	}
 
 	private void updateType(View v, FeedbackType select) {
