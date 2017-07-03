@@ -97,7 +97,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
-	public static void removeTokenListener() {
+	public static void removeOnSignedListeners() {
 		if (instance == null)
 			return;
 		instance.onSignedCallbackList.clear();
@@ -243,8 +243,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 		updateStatus(SigninStatus.SIGNED, context);
 
-		for (IValueCallback<User> callback : onSignedCallbackList)
-			callback.callback(user);
+		for (IValueCallback<User> c : onSignedCallbackList)
+			c.callback(user);
 		onSignedCallbackList.clear();
 	}
 

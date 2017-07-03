@@ -133,7 +133,7 @@ public class FeedbackActivity extends DetailActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		Signin.removeTokenListener();
+		Signin.removeOnSignedListeners();
 	}
 
 	private void updateType(View v, FeedbackType select) {
