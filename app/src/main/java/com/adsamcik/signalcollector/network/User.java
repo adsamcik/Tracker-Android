@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.network;
 public class User {
 	public final String id;
 	public final String token;
+	public long wirelessPoints;
 
 	public NetworkInfo networkInfo = null;
 	public NetworkPreferences networkPreferences = null;
