@@ -84,6 +84,7 @@
                     style="@style/SettingsTextNoParent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:enabled="false"
                     android:paddingBottom="@dimen/setting_item_padding"
                     android:paddingTop="@dimen/setting_item_padding"
                     android:text="@string/user_renew_personal_map"/>
