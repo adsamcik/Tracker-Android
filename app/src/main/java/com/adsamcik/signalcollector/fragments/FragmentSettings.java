@@ -37,6 +37,7 @@ import com.adsamcik.signalcollector.activities.DebugFileActivity;
 import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
+import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
@@ -291,6 +292,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		seekAutoUploadAt.incrementProgressBy(1);
 		seekAutoUploadAt.setMax(10 - MIN_UPLOAD_VALUE);
+		int progress = Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE;
+		seekAutoUploadAt.setProgress(progress);
 		seekAutoUploadAt.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 			@Override
 			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -309,7 +312,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 			}
 		});
-		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
+		valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
 
 		if (Assist.hasNetwork()) {
 			signin = Signin.signin(getActivity(), userSignedCallback);
@@ -378,8 +381,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			ArrayList<String> temp = new ArrayList<>();
 			for (File file : files) {
 				String name = file.getName();
-				if(!name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data"))
-				temp.add(name);
+				if (!name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data"))
+					temp.add(name);
 			}
 
 			Collections.sort(temp, String::compareTo);
@@ -489,7 +492,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				Switch userMapAccessSwitch = (Switch) userMapAccessLayout.getChildAt(0);
 				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
 
-				userMapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
+				userMapAccessSwitch.setText(activity.getString(R.string.user_renew_personal_map));
 				userMapAccessSwitch.setChecked(u.networkPreferences.renewPersonalMap);
 				userMapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 					compoundButton.setEnabled(false);
