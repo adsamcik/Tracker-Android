@@ -13,6 +13,7 @@ import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.auth.api.Auth;
@@ -287,6 +288,9 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			user = null;
 			updateStatus(SigninStatus.NOT_SIGNED, context);
 			Network.clearCookieJar();
+			Preferences.get(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply();
+			DataStore.deleteFile(Preferences.PREF_USER_DATA);
+			DataStore.deleteFile(Preferences.PREF_USER_STATS);
 		}
 	}
 
