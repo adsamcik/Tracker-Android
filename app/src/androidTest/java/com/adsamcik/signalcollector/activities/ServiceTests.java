@@ -38,7 +38,7 @@ public class ServiceTests {
 		final Condition callbackReceived = lock.newCondition();
 
 		asyncBooleanVariable = new AtomicBoolean(false);
-		Signin.getTokenAsync(context, value -> {
+		Signin.getUserAsync(context, value -> {
 			lock.lock();
 			Assert.assertNotNull(value);
 			asyncBooleanVariable.set(true);

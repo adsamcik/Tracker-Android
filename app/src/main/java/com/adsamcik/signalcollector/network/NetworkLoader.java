@@ -33,7 +33,7 @@ public class NetworkLoader {
 	 * @param <T>                 Value type
 	 */
 	public static <T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
-		requestString(Network.client(Signin.getToken(context), context),
+		requestString(Network.client(Signin.getUser(context), context),
 				new Request.Builder().url(url).build(),
 				updateTimeInMinutes,
 				context,
@@ -50,7 +50,7 @@ public class NetworkLoader {
 	 * @param callback            Callback which is called when the result is ready
 	 */
 	public static void requestString(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
-		requestString(Network.client(Signin.getToken(context), context), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
+		requestString(Network.client(Signin.getUser(context), context), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
 	}
 
 	/**

@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.network.User;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -54,10 +55,22 @@ import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.InstanceCreator;
 
 import java.io.File;
+import java.io.IOException;
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
+import java.util.Locale;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
@@ -396,6 +409,35 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_activity_recognition).setOnClickListener(v -> startActivity(new Intent(getActivity(), ActivityRecognitionActivity.class)));
 
 		return rootView;
+	}
+
+	private void resolveUserMenuOnLogin() {
+		Activity activity = getActivity();
+		if (activity != null) {
+			User u = signin.getUser();
+			activity.runOnUiThread(() -> {
+				DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.LONG, Locale.getDefault());
+				((TextView) signedInMenu.getChildAt(0)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+
+				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
+				((Switch) mapAccessLayout.getChildAt(0)).setText(activity.getString(R.string.user_renew_map));
+				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
+				if (u.networkInfo.mapAccessUntil > System.currentTimeMillis())
+					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+				else
+					mapAccessTimeTextView.setVisibility(View.GONE);
+				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+
+				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
+				((Switch) userMapAccessLayout.getChildAt(0)).setText(activity.getString(R.string.user_renew_map));
+				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
+				if (u.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
+					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));
+				else
+					personalMapAccessTimeTextView.setVisibility(View.GONE);
+				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+			});
+		}
 	}
 
 	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final IValueCallback<Boolean> callback) {

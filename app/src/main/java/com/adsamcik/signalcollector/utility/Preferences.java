@@ -50,6 +50,8 @@ public class Preferences {
 	public static final String PREF_USER_STATS = "userStats";
 	public static final String PREF_AVAILABLE_MAPS = "availableMaps";
 
+	public static final String PREF_USER_DATA = "userDATA";
+
 	public static final String PREF_TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
 	public static final String PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled";
 	public static final String PREF_TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";

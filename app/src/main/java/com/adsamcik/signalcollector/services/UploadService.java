@@ -224,9 +224,9 @@ public class UploadService extends JobService {
 				final StringWrapper token = new StringWrapper();
 				final StringWrapper userID = new StringWrapper();
 
-				Signin.getTokenAsync(context, value -> {
+				Signin.getUserAsync(context, value -> {
 					lock.lock();
-					token.setString(value);
+					token.setString(value.token);
 					userID.setString(Signin.getUserID(context));
 					callbackReceived.signal();
 					lock.unlock();

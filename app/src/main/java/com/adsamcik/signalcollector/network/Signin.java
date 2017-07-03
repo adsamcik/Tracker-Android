@@ -79,16 +79,24 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		return instance;
 	}
 
-	public static String getToken(@NonNull Context context) {
-		return signin(context).user != null ? signin(context).user.token : null;
-	}
-
-	public static void getTokenAsync(@NonNull Context context, IValueCallback<User> callback) {
+	public static void getUserAsync(@NonNull Context context, IValueCallback<User> callback) {
 		Signin instance = signin(context);
 		if (instance.user != null)
 			callback.callback(instance.user);
 		else
 			instance.onSignedCallbackList.add(callback);
+	}
+
+	public static User getUser(@NonNull Context context) {
+		return signin(context).getUser();
+	}
+
+	public User getUser() {
+		return user;
+	}
+
+	public static String getUserID(@NonNull Context context) {
+		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
 	public static void removeTokenListener() {
@@ -99,10 +107,6 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	public static boolean isSignedIn() {
 		return instance != null && instance.status == SigninStatus.SIGNED;
-	}
-
-	public static String getUserID(@NonNull Context context) {
-		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
 	private Signin(@NonNull FragmentActivity activity) {
@@ -219,13 +223,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		//}
 
 		NetworkLoader.requestString(Network.URL_USER_SETTINGS, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
-			if(state.isDataAvailable()) {
+			if (state.isDataAvailable()) {
 				InstanceCreator<User> creator = type -> user;
 				Gson gson = new GsonBuilder().registerTypeAdapter(User.class, creator).create();
 				user = gson.fromJson(value, User.class);
 			}
 
-			if(!state.isSuccess()) {
+			if (!state.isSuccess()) {
 				//todo add job schedule to download data at later date
 				Activity activity = getActivity();
 				if (activity != null)
