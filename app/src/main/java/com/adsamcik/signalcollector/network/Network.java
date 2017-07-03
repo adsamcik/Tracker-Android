@@ -37,6 +37,7 @@ public final class Network {
 	public static final String URL_MAPS_AVAILABLE = Server.URL_MAPS_AVAILABLE;
 	public static final String URL_FEEDBACK = Server.URL_FEEDBACK;
 	public static final String URL_USER_SETTINGS = Server.URL_USER_SETTINGS;
+	public static final String URL_USER_PRICES = Server.URL_USER_PRICES;
 
 	public static CloudStatus cloudStatus;
 

@@ -10,6 +10,7 @@ public class Server {
 	static final String URL_MAPS_AVAILABLE = URL_WEB + "map/available";
 	static final String URL_FEEDBACK = URL_WEB + "feedback/new";
 	static final String URL_USER_SETTINGS = URL_WEB + "user/settings";
+	public static final String URL_USER_PRICES = URL_WEB + "user/prices";
 
 	public static String generateVerificationString(String userID, Long length) {
 		StringBuilder result = new StringBuilder(userID);

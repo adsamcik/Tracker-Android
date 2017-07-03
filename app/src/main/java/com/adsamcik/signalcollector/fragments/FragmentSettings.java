@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -93,6 +94,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 
 	private int dummyNotificationIndex = 1972;
+
+	private final IValueCallback<User> userSignedCallback = u -> {
+		final Activity activity = getActivity();
+		if (activity != null) {
+			NetworkLoader.request(Network.URL_USER_PRICES, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
+				if (s.isSuccess())
+					resolveUserMenuOnLogin(u, p);
+				else
+					new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+			});
+		}
+	};
 
 	private void updateTracking(int select) {
 		Context context = getContext();
@@ -298,7 +311,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		seekAutoUploadAt.setProgress(Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE);
 
 		if (Assist.hasNetwork()) {
-			signin = Signin.signin(getActivity());
+			signin = Signin.signin(getActivity(), userSignedCallback);
 			signin.setButtons(signInButton, signedInMenu, context);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
@@ -411,10 +424,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		return rootView;
 	}
 
-	private void resolveUserMenuOnLogin() {
+	private void resolveUserMenuOnLogin(@NonNull User u, @NonNull Prices prices) {
 		Activity activity = getActivity();
 		if (activity != null) {
-			User u = signin.getUser();
 			activity.runOnUiThread(() -> {
 				DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.LONG, Locale.getDefault());
 				((TextView) signedInMenu.getChildAt(0)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
@@ -426,7 +438,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
 				else
 					mapAccessTimeTextView.setVisibility(View.GONE);
-				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), prices.PRICE_30DAY_MAP));
 
 				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
 				((Switch) userMapAccessLayout.getChildAt(0)).setText(activity.getString(R.string.user_renew_map));
@@ -435,7 +447,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));
 				else
 					personalMapAccessTimeTextView.setVisibility(View.GONE);
-				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), prices.PRICE_30DAY_PERSONAL_MAP));
 			});
 		}
 	}
