@@ -42,7 +42,7 @@
 
     <string name="settings_disable_tracking_till_recharge">Disabled till recharge</string>
 
-    <string name="user_have_wireless_points">You have %1$d wireless points</string>
+    <string name="user_have_wireless_points">You have %1$s wireless points</string>
     <string name="user_renew_map">Renew map access</string>
     <string name="user_access_date">You have access until %1$s</string>
     <string name="user_cost_per_month">%1$d wireless points/month</string>

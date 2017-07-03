@@ -418,6 +418,17 @@ public class Assist {
 	}
 
 	/**
+	 * Formats 1000 as 1 000
+	 *
+	 * @param number input number
+	 * @return formatted number
+	 */
+	public static String formatNumber(long number) {
+		DecimalFormat df = new DecimalFormat("#,###,###");
+		return df.format(number).replaceAll(",", " ");
+	}
+
+	/**
 	 * Hides software keyboard
 	 *
 	 * @param activity activity
