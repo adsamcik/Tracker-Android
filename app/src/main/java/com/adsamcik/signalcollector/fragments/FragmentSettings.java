@@ -378,12 +378,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			ArrayList<String> temp = new ArrayList<>();
 			for (File file : files) {
 				String name = file.getName();
-				if (name.startsWith(DataStore.DATA_FILE) ||
-						name.startsWith(Preferences.PREF_GENERAL_STATS) ||
-						name.startsWith(Preferences.PREF_USER_STATS) ||
-						name.startsWith(Preferences.PREF_AVAILABLE_MAPS) ||
-						name.startsWith(DataStore.RECENT_UPLOADS_FILE))
-					temp.add(name);
+				if(!name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data"))
+				temp.add(name);
 			}
 
 			Collections.sort(temp, String::compareTo);
@@ -451,9 +447,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 						@Override
 						public void onResponse(Call call, Response response) throws IOException {
-							if(response.isSuccessful()) {
+							if (response.isSuccessful()) {
 								u.networkPreferences.renewMap = b;
-								if(b) {
+								if (b) {
 									ResponseBody body = response.body();
 									if (body != null) {
 										long temp = u.networkInfo.mapAccessUntil;
@@ -502,9 +498,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 						@Override
 						public void onResponse(Call call, Response response) throws IOException {
-							if(response.isSuccessful()) {
+							if (response.isSuccessful()) {
 								u.networkPreferences.renewPersonalMap = b;
-								if(b) {
+								if (b) {
 									ResponseBody body = response.body();
 									if (body != null) {
 										long temp = u.networkInfo.personalMapAccessUntil;
