@@ -431,6 +431,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
 				Switch mapAccessSwitch = (Switch) mapAccessLayout.getChildAt(0);
+				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
+
 				mapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
 				mapAccessSwitch.setChecked(u.networkPreferences.renewMap);
 				mapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
@@ -456,7 +458,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 										u.networkInfo.mapAccessUntil = Long.parseLong(body.string());
 										if (temp != u.networkInfo.mapAccessUntil) {
 											u.wirelessPoints -= prices.PRICE_30DAY_MAP;
-											activity.runOnUiThread(() -> wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))));
+											activity.runOnUiThread(() -> {
+												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints)));
+												mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+												mapAccessTimeTextView.setVisibility(View.VISIBLE);
+											});
 										}
 
 									} else
@@ -473,7 +479,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					});
 				});
 
-				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
 				if (u.networkInfo.mapAccessUntil > System.currentTimeMillis())
 					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
 				else
@@ -482,6 +487,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
 				Switch userMapAccessSwitch = (Switch) userMapAccessLayout.getChildAt(0);
+				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
+
 				userMapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
 				userMapAccessSwitch.setChecked(u.networkPreferences.renewPersonalMap);
 				userMapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
@@ -507,7 +514,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 										u.networkInfo.personalMapAccessUntil = Long.parseLong(body.string());
 										if (temp != u.networkInfo.personalMapAccessUntil) {
 											u.wirelessPoints -= prices.PRICE_30DAY_PERSONAL_MAP;
-											activity.runOnUiThread(() -> wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))));
+											activity.runOnUiThread(() -> {
+												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints)));
+												personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+												personalMapAccessTimeTextView.setVisibility(View.VISIBLE);
+											});
 										}
 
 									} else
@@ -524,7 +535,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					});
 				});
 
-				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
 				if (u.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
 					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));
 				else
