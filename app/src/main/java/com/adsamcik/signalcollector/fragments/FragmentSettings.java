@@ -429,10 +429,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if (activity != null) {
 			activity.runOnUiThread(() -> {
 				DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.LONG, Locale.getDefault());
-				((TextView) signedInMenu.getChildAt(0)).setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+				((TextView) signedInMenu.getChildAt(0)).setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
 
 				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
-				((Switch) mapAccessLayout.getChildAt(0)).setText(activity.getString(R.string.user_renew_map));
+				Switch mapAccessSwitch = ((Switch) mapAccessLayout.getChildAt(0));
+				mapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
+				mapAccessSwitch.setOnClickListener(v -> {
+
+				});
 				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
 				if (u.networkInfo.mapAccessUntil > System.currentTimeMillis())
 					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
