@@ -66,16 +66,28 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (instance == null)
 			instance = new Signin(fragmentActivity, callback);
 		else if (instance.getActivity() == null) {
+			if (callback != null)
+				instance.onSignedCallbackList.add(callback);
 			instance.setActivity(fragmentActivity);
 			if (instance.status == SigninStatus.SILENT_SIGNIN_FAILED && !instance.resolvingError)
 				fragmentActivity.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(instance.client), RC_SIGN_IN);
-		}
+		} else if (callback != null && instance.user != null)
+			callback.callback(instance.user);
+
 		return instance;
 	}
 
 	private static Signin signin(@NonNull Context context, @Nullable IValueCallback<User> callback) {
 		if (instance == null)
-			instance = new Signin(context, callback);
+			//instance is assigned in constructor to make it sooner available
+			new Signin(context, callback);
+		else if (callback != null) {
+			if (instance.user != null)
+				callback.callback(instance.user);
+			else
+				instance.onSignedCallbackList.add(callback);
+		}
+
 		return instance;
 	}
 
@@ -111,6 +123,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (callback != null)
 			onSignedCallbackList.add(callback);
 
+		instance = this;
+
 		setActivity(activity);
 		client = initializeClient(activity);
 		silentSignIn(client, activity);
@@ -119,6 +133,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	private Signin(@NonNull Context context, @Nullable IValueCallback<User> callback) {
 		if (callback != null)
 			onSignedCallbackList.add(callback);
+
+		instance = this;
 
 		activityWeakReference = null;
 		client = initializeClient(context);
@@ -226,7 +242,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
 
-		NetworkLoader.requestString(Network.URL_USER_SETTINGS, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
+		NetworkLoader.requestString(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
 			if (state.isDataAvailable()) {
 				InstanceCreator<User> creator = type -> user;
 				Gson gson = new GsonBuilder().registerTypeAdapter(User.class, creator).create();
