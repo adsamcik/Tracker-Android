@@ -70,6 +70,7 @@ import java.util.Locale;
 
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MultipartBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
@@ -424,19 +425,58 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		return rootView;
 	}
 
-	private void resolveUserMenuOnLogin(@NonNull User u, @NonNull Prices prices) {
+	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
 		Activity activity = getActivity();
 		if (activity != null) {
 			activity.runOnUiThread(() -> {
-				DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.LONG, Locale.getDefault());
-				((TextView) signedInMenu.getChildAt(0)).setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
+				DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault());
+				TextView wPointsTextView = ((TextView) signedInMenu.getChildAt(0));
+				wPointsTextView.setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
 
 				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
-				Switch mapAccessSwitch = ((Switch) mapAccessLayout.getChildAt(0));
+				Switch mapAccessSwitch = (Switch) mapAccessLayout.getChildAt(0);
 				mapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
-				mapAccessSwitch.setOnClickListener(v -> {
+				mapAccessSwitch.setChecked(u.networkPreferences.renewMap);
+				mapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+					compoundButton.setEnabled(false);
+					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
+					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(new Callback() {
+						@Override
+						public void onFailure(Call call, IOException e) {
+							activity.runOnUiThread(() -> {
+								compoundButton.setEnabled(true);
+								compoundButton.setChecked(!b);
+							});
+						}
 
+						@Override
+						public void onResponse(Call call, Response response) throws IOException {
+							if(response.isSuccessful()) {
+								u.networkPreferences.renewMap = b;
+								if(b) {
+									ResponseBody body = response.body();
+									if (body != null) {
+										long temp = u.networkInfo.mapAccessUntil;
+										u.networkInfo.mapAccessUntil = Long.parseLong(body.string());
+										if (temp != u.networkInfo.mapAccessUntil) {
+											u.wirelessPoints -= prices.PRICE_30DAY_MAP;
+											activity.runOnUiThread(() -> wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))));
+										}
+
+									} else
+										FirebaseCrash.report(new Throwable("Body is null"));
+								}
+								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+							} else {
+								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
+								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);
+							}
+							activity.runOnUiThread(() -> compoundButton.setEnabled(true));
+							response.close();
+						}
+					});
 				});
+
 				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
 				if (u.networkInfo.mapAccessUntil > System.currentTimeMillis())
 					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
@@ -445,7 +485,49 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP)));
 
 				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
-				((Switch) userMapAccessLayout.getChildAt(0)).setText(activity.getString(R.string.user_renew_map));
+				Switch userMapAccessSwitch = (Switch) userMapAccessLayout.getChildAt(0);
+				userMapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
+				userMapAccessSwitch.setChecked(u.networkPreferences.renewPersonalMap);
+				userMapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+					compoundButton.setEnabled(false);
+					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
+					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(new Callback() {
+						@Override
+						public void onFailure(Call call, IOException e) {
+							activity.runOnUiThread(() -> {
+								compoundButton.setEnabled(true);
+								compoundButton.setChecked(!b);
+							});
+						}
+
+						@Override
+						public void onResponse(Call call, Response response) throws IOException {
+							if(response.isSuccessful()) {
+								u.networkPreferences.renewPersonalMap = b;
+								if(b) {
+									ResponseBody body = response.body();
+									if (body != null) {
+										long temp = u.networkInfo.personalMapAccessUntil;
+										u.networkInfo.personalMapAccessUntil = Long.parseLong(body.string());
+										if (temp != u.networkInfo.personalMapAccessUntil) {
+											u.wirelessPoints -= prices.PRICE_30DAY_PERSONAL_MAP;
+											activity.runOnUiThread(() -> wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))));
+										}
+
+									} else
+										FirebaseCrash.report(new Throwable("Body is null"));
+								}
+								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+							} else {
+								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
+								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);
+							}
+							activity.runOnUiThread(() -> compoundButton.setEnabled(true));
+							response.close();
+						}
+					});
+				});
+
 				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
 				if (u.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
 					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));

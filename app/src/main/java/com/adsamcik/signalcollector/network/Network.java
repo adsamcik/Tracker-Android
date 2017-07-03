@@ -39,6 +39,9 @@ public final class Network {
 	public static final String URL_USER_INFO = Server.URL_USER_INFO;
 	public static final String URL_USER_PRICES = Server.URL_USER_PRICES;
 
+	public static final String URL_USER_UPDATE_MAP_PREFERENCE = Server.URL_USER_UPDATE_MAP_PREFERENCE;
+	public static final String URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE;
+
 	public static CloudStatus cloudStatus;
 
 	private static PersistentCookieJar cookieJar = null;
