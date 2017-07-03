@@ -442,7 +442,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
 				else
 					mapAccessTimeTextView.setVisibility(View.GONE);
-				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), prices.PRICE_30DAY_MAP));
+				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP)));
 
 				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
 				((Switch) userMapAccessLayout.getChildAt(0)).setText(activity.getString(R.string.user_renew_map));
@@ -451,7 +451,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));
 				else
 					personalMapAccessTimeTextView.setVisibility(View.GONE);
-				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), prices.PRICE_30DAY_PERSONAL_MAP));
+				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP)));
 			});
 		}
 	}

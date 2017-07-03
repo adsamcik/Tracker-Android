@@ -45,6 +45,6 @@
     <string name="user_have_wireless_points">You have %1$s wireless points</string>
     <string name="user_renew_map">Renew map access</string>
     <string name="user_access_date">You have access until %1$s</string>
-    <string name="user_cost_per_month">%1$d wireless points/month</string>
+    <string name="user_cost_per_month">%1$s wireless points/month</string>
     <string name="user_renew_personal_map">Renew personal map</string>
 </resources>
