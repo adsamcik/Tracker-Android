@@ -52,6 +52,7 @@ public class MainActivity extends FragmentActivity {
 		setContentView(R.layout.activity_main);
 		DataStore.setContext(this);
 		SnackMaker snackMaker = new SnackMaker(this);
+		Assist.initialize(this);
 
 		if (Network.cloudStatus == null) {
 			if (UploadService.getUploadScheduled(this).equals(UploadService.UploadScheduleSource.NONE))
@@ -65,8 +66,6 @@ public class MainActivity extends FragmentActivity {
 		Failure<String> s = ActivityService.initializeActivityClient(this);
 		if (s.hasFailed())
 			snackMaker.showSnackbar(s.value);
-
-		Assist.initialize(this);
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
