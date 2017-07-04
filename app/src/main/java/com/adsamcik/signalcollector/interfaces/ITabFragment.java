@@ -12,7 +12,7 @@ public interface ITabFragment{
 	 * Called when entering the tab
 	 * @return if tab successfully loaded
 	 */
-	Failure<String> onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo);
+	@NonNull Failure<String> onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo);
 
 	/**
 	 * Called when leaving tab
