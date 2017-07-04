@@ -443,7 +443,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
 					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(new Callback() {
 						@Override
-						public void onFailure(Call call, IOException e) {
+						public void onFailure(@NonNull Call call, @NonNull IOException e) {
 							activity.runOnUiThread(() -> {
 								compoundButton.setEnabled(true);
 								compoundButton.setChecked(!b);
@@ -451,7 +451,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						}
 
 						@Override
-						public void onResponse(Call call, Response response) throws IOException {
+						public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
 							if (response.isSuccessful()) {
 								u.networkPreferences.renewMap = b;
 								if (b) {
@@ -499,7 +499,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
 					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(new Callback() {
 						@Override
-						public void onFailure(Call call, IOException e) {
+						public void onFailure(@NonNull Call call, @NonNull IOException e) {
 							activity.runOnUiThread(() -> {
 								compoundButton.setEnabled(true);
 								compoundButton.setChecked(!b);
@@ -507,7 +507,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						}
 
 						@Override
-						public void onResponse(Call call, Response response) throws IOException {
+						public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
 							if (response.isSuccessful()) {
 								u.networkPreferences.renewPersonalMap = b;
 								if (b) {

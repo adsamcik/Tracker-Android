@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.activities;
 
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
@@ -111,12 +112,12 @@ public class FeedbackActivity extends DetailActivity {
 
 						Network.client(null, this).newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
 							@Override
-							public void onFailure(Call call, IOException e) {
+							public void onFailure(@NonNull Call call, @NonNull IOException e) {
 								new SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed);
 							}
 
 							@Override
-							public void onResponse(Call call, Response response) throws IOException {
+							public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
 								if (response.isSuccessful())
 									finish();
 								else
