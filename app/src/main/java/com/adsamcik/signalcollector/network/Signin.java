@@ -98,14 +98,6 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			callback.callback(instance.user);
 	}
 
-	public static @Nullable User getUser(@NonNull Context context) {
-		return signin(context, null).getUser();
-	}
-
-	public @Nullable User getUser() {
-		return user;
-	}
-
 	public static @Nullable String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
