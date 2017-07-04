@@ -155,9 +155,6 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	private void silentSignIn(GoogleApiClient googleApiClient, @NonNull Context context) {
-		if (googleApiClient.isConnected())
-			return;
-
 		googleApiClient.connect();
 		OptionalPendingResult<GoogleSignInResult> pendingResult = Auth.GoogleSignInApi.silentSignIn(googleApiClient);
 
@@ -173,7 +170,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 							assert acc != null;
 							onSignIn(acc, false, context);
 						} else
-							updateStatus(SigninStatus.SILENT_SIGNIN_FAILED, context);
+							onSignInFailed(context);
 					}
 					, 10, TimeUnit.SECONDS);
 		}
@@ -259,14 +256,18 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		});
 
 		updateStatus(SigninStatus.SIGNED, context);
+		callCallbacks();
+	}
 
+	private void onSignInFailed(@NonNull final Context context) {
+		updateStatus(SigninStatus.SIGNIN_FAILED, context);
+		callCallbacks();
+	}
+
+	private void callCallbacks() {
 		for (IValueCallback<User> c : onSignedCallbackList)
 			c.callback(user);
 		onSignedCallbackList.clear();
-	}
-
-	public static void onSignInFailed(@NonNull final Context context) {
-		signin(context, null).updateStatus(SigninStatus.SIGNIN_FAILED, context);
 	}
 
 	private void onSignedOut(@NonNull final Context context) {
