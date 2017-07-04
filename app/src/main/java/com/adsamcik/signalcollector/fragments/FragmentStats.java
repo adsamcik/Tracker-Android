@@ -123,24 +123,26 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				new SnackMaker(activity).showSnackbar(state.toString(activity));
 			}
 		});
-
-		if (Signin.getUser(getActivity()) != null) {
-			refreshingCount++;
-			NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
-				refreshDone();
-				if (value != null) {
-					final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
-					if (state.isSuccess()) {
-						if (value.length == 1 && value[0].name.isEmpty())
-							value[0] = new Stat(getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
-						generateStats(value, userStats, initialIndex, activity);
-					} else {
-						generateStats(value, userStats, initialIndex, activity);
-						new SnackMaker(activity).showSnackbar(state.toString(activity));
+		refreshingCount++;
+		Signin.getUserAsync(getActivity(), user -> {
+			if(user != null) {
+				NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
+					refreshDone();
+					if (value != null) {
+						final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
+						if (state.isSuccess()) {
+							if (value.length == 1 && value[0].name.isEmpty())
+								value[0] = new Stat(getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
+							generateStats(value, userStats, initialIndex, activity);
+						} else {
+							generateStats(value, userStats, initialIndex, activity);
+							new SnackMaker(activity).showSnackbar(state.toString(activity));
+						}
 					}
-				}
-			});
-		}
+				});
+			} else
+				refreshDone();
+		});
 	}
 
 	private int refreshingCount = 0;

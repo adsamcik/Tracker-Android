@@ -98,7 +98,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			callback.callback(instance.user);
 	}
 
-	public static @Nullable String getUserID(@NonNull Context context) {
+	public static @Nullable
+	String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
@@ -153,14 +154,14 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (pendingResult.isDone()) {
 			final GoogleSignInAccount acc = pendingResult.get().getSignInAccount();
 			assert acc != null;
-			onSignIn(acc, false, context);
+			onSignIn(acc, context);
 		} else {
 			updateStatus(SigninStatus.SIGNIN_IN_PROGRESS, context);
 			pendingResult.setResultCallback((@NonNull GoogleSignInResult result) -> {
 						if (result.isSuccess()) {
 							final GoogleSignInAccount acc = result.getSignInAccount();
 							assert acc != null;
-							onSignIn(acc, false, context);
+							onSignIn(acc, context);
 						} else
 							onSignInFailed(context);
 					}
@@ -207,14 +208,19 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		}
 	}
 
-	public static void onSignedIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
-		signin(context, null).onSignIn(account, showSnackbar, context);
+	public static void onSignedIn(@NonNull GoogleSignInAccount account, @NonNull Context context) {
+		Signin signin = signin(context, null);
+		signin.onSignIn(account, context);
+		signin.showSnackbar(R.string.signed_in_message);
 	}
 
-	private void onSignIn(@NonNull GoogleSignInAccount account, boolean showSnackbar, @NonNull Context context) {
-		if (showSnackbar)
-			showSnackbar(R.string.signed_in_message);
+	public static void onSignedInFailed(@NonNull Context context) {
+		Signin signin = signin(context, null);
+		signin.onSignInFailed(context);
+		signin.showSnackbar(R.string.error_failed_signin);
+	}
 
+	private void onSignIn(@NonNull GoogleSignInAccount account, @NonNull Context context) {
 		this.user = new User(account.getId(), account.getIdToken());
 
 		assert user.token != null;
@@ -232,7 +238,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
 
-		NetworkLoader.requestString(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
+		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
 			if (state.isDataAvailable()) {
 				InstanceCreator<User> creator = type -> user;
 				Gson gson = new GsonBuilder().registerTypeAdapter(User.class, creator).create();
@@ -241,9 +247,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 			if (!state.isSuccess()) {
 				//todo add job schedule to download data at later date
-				Activity activity = getActivity();
-				if (activity != null)
-					new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+				showSnackbar(R.string.error_connection_failed);
 			}
 		});
 

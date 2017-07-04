@@ -188,10 +188,10 @@ public class MainActivity extends FragmentActivity {
 			if (result.isSuccess()) {
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
-				Signin.onSignedIn(acct, true, this);
+				Signin.onSignedIn(acct, this);
 			} else {
 				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
-				Signin.onSignInFailed(this);
+				Signin.onSignedInFailed(this);
 			}
 		}
 	}
