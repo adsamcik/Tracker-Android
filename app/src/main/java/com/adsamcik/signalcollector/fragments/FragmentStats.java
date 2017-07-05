@@ -197,6 +197,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		return items;
 	}
 
+	@NonNull
 	@Override
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		//todo check if up to date

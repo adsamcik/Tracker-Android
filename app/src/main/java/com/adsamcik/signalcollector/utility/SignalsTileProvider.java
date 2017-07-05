@@ -18,8 +18,6 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-import static java.util.stream.Collectors.joining;
-
 public class SignalsTileProvider implements TileProvider {
 	private final static int size = 256;
 	private final static int halfSize = size / 2;

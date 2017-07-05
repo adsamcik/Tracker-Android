@@ -137,6 +137,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	 * @param fabOne fabOne (lower)
 	 * @param fabTwo fabTwo (above fabOne)
 	 */
+	@NonNull
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		this.fabTwo = fabTwo;
 		this.fabOne = fabOne;

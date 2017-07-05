@@ -268,6 +268,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		fab.setElevation(6 * resources.getDisplayMetrics().density);
 	}
 
+	@NonNull
 	@Override
 	public Failure<String> onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo) {
 		fabTrack = fabOne;

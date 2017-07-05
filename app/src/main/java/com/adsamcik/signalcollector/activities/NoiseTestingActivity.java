@@ -15,6 +15,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 public class NoiseTestingActivity extends DetailActivity {
@@ -90,19 +91,20 @@ public class NoiseTestingActivity extends DetailActivity {
 	}
 
 
-	private class NoiseGetter extends AsyncTask<Void, Void, Void> {
+	private static class NoiseGetter extends AsyncTask<Void, Void, Void> {
 		private final NoiseTracker noiseTracker;
 		private final MutableInt delayBetweenSamples;
 		private final ArrayAdapter<String> adapter;
-		private final Activity activity;
-		private final ListView listView;
+
+		private final WeakReference<Activity> activity;
+		private final WeakReference<ListView> listView;
 
 		private NoiseGetter(@NonNull Activity activity, ArrayAdapter<String> adapter, ListView listView, MutableInt delayBetweenSamples) {
 			this.delayBetweenSamples = delayBetweenSamples;
 			noiseTracker = new NoiseTracker(activity);
 			this.adapter = adapter;
-			this.activity = activity;
-			this.listView = listView;
+			this.activity = new WeakReference<>(activity);
+			this.listView = new WeakReference<>(listView);
 		}
 
 		@Override
@@ -120,10 +122,13 @@ public class NoiseTestingActivity extends DetailActivity {
 
 				short sample = noiseTracker.getSample(delayBetweenSamples.value);
 				if (sample != -1) {
-					activity.runOnUiThread(() -> {
-						adapter.add(Integer.toString(sample));
-						listView.smoothScrollToPosition(adapter.getCount() - 1);
-					});
+					Activity activity = this.activity.get();
+					ListView listView = this.listView.get();
+					if (activity != null && listView != null)
+						activity.runOnUiThread(() -> {
+							adapter.add(Integer.toString(sample));
+							listView.smoothScrollToPosition(adapter.getCount() - 1);
+						});
 				}
 				//todo add snackbar if noise tracker failed to initialize
 			}

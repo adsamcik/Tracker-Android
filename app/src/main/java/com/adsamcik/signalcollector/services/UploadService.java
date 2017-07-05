@@ -15,6 +15,7 @@ import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Compress;
@@ -27,6 +28,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.security.InvalidParameterException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -135,19 +137,19 @@ public class UploadService extends JobService {
 		USER
 	}
 
-	private class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
+	private static class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
 		private final String directory;
-		private final Context context;
+		private final WeakReference<Context> context;
 
 		private File tempZipFile = null;
 		private Response response = null;
 		private Call call = null;
 
-		private IValueCallback<Boolean> callback;
+		private INonNullValueCallback<Boolean> callback;
 
-		JobWorker(final String dir, final Context context, @Nullable IValueCallback<Boolean> callback) {
+		JobWorker(final String dir, final Context context, @Nullable INonNullValueCallback<Boolean> callback) {
 			this.directory = dir;
-			this.context = context;
+			this.context = new WeakReference<>(context);
 			this.callback = callback;
 		}
 
@@ -163,12 +165,13 @@ public class UploadService extends JobService {
 				FirebaseCrash.report(new Throwable("Token is null"));
 				return false;
 			}
+			
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
 					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			try {
-				call = Network.client(null, context).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody));
+				call = Network.client(null, context.get()).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody));
 				response = call.execute();
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();
@@ -224,10 +227,12 @@ public class UploadService extends JobService {
 				final StringWrapper token = new StringWrapper();
 				final StringWrapper userID = new StringWrapper();
 
-				Signin.getUserAsync(context, value -> {
+				Signin.getUserAsync(context.get(), value -> {
 					lock.lock();
-					token.setString(value.token);
-					userID.setString(Signin.getUserID(context));
+					if (value != null) {
+						token.setString(value.token);
+						userID.setString(value.id);
+					}
 					callbackReceived.signal();
 					lock.unlock();
 				});
