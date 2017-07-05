@@ -98,14 +98,19 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private int dummyNotificationIndex = 1972;
 
 	private final IValueCallback<User> userSignedCallback = u -> {
-		final Activity activity = getActivity();
-		if (activity != null) {
-			NetworkLoader.request(Network.URL_USER_PRICES, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
-				if (s.isSuccess())
-					resolveUserMenuOnLogin(u, p);
-				else
-					new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
-			});
+		if (u != null) {
+			final Activity activity = getActivity();
+			if (activity != null) {
+				NetworkLoader.request(Network.URL_USER_PRICES, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
+					if (s.isSuccess()) {
+						if (p == null)
+							new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
+						else
+							resolveUserMenuOnLogin(u, p);
+					} else
+						new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+				});
+			}
 		}
 	};
 
