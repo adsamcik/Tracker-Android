@@ -26,6 +26,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
@@ -167,14 +168,18 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
 						v -> {
-							final Context context = getContext();
-							Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
-							FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
-							if (failure.hasFailed())
-								new SnackMaker(getActivity()).showSnackbar(failure.value);
-							else {
-								updateUploadProgress(0);
-								updateUploadButton();
+							if(Signin.isSignedIn()) {
+								final Context context = getContext();
+								Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
+								FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
+								if (failure.hasFailed())
+									new SnackMaker(getActivity()).showSnackbar(failure.value);
+								else {
+									updateUploadProgress(0);
+									updateUploadButton();
+								}
+							} else {
+								new SnackMaker(getActivity()).showSnackbar(R.string.sign_in_required);
 							}
 						}
 				);

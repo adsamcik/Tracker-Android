@@ -194,8 +194,8 @@ public class Assist {
 			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION);
 
-			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
-				permissions.add(android.Manifest.permission.READ_PHONE_STATE);
+			//if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
+				//permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
 			if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.RECORD_AUDIO);
