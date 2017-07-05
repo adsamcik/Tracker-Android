@@ -39,6 +39,10 @@ public class FeedbackActivity extends DetailActivity {
 		super.onCreate(savedInstanceState);
 		setTitle(R.string.feedback_title);
 		Signin.getUserAsync(this, value -> {
+			if(value == null) {
+				finish();
+				return;
+			}
 			LinearLayout parent = createScrollableContentParent(true);
 			ViewGroup groupRoot = (ViewGroup) getLayoutInflater().inflate(R.layout.layout_feedback, parent);
 

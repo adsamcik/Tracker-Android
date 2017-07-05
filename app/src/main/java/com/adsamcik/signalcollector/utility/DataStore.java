@@ -11,7 +11,7 @@ import android.util.MalformedJsonException;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.network.Network;
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -47,7 +47,7 @@ public class DataStore {
 
 	private static WeakReference<Context> contextWeak;
 	private static ICallback onDataChanged;
-	private static IValueCallback<Integer> onUploadProgress;
+	private static INonNullValueCallback<Integer> onUploadProgress;
 
 	private static volatile long approxSize = -1;
 
@@ -104,7 +104,7 @@ public class DataStore {
 	 *
 	 * @param callback callback
 	 */
-	public static void setOnUploadProgress(IValueCallback<Integer> callback) {
+	public static void setOnUploadProgress(INonNullValueCallback<Integer> callback) {
 		onUploadProgress = callback;
 	}
 

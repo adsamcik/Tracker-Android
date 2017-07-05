@@ -1,5 +1,7 @@
 package com.adsamcik.signalcollector.utility;
 
+import android.support.annotation.NonNull;
+
 public class Failure<T> {
 	public final T value;
 
@@ -15,7 +17,7 @@ public class Failure<T> {
 	 *
 	 * @param message value
 	 */
-	public Failure(T message) {
+	public Failure(@NonNull T message) {
 		this.value = message;
 	}
 

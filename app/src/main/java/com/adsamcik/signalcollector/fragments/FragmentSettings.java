@@ -37,7 +37,7 @@ import com.adsamcik.signalcollector.activities.DebugFileActivity;
 import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
-import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
@@ -58,8 +58,6 @@ import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.InstanceCreator;
 
 import java.io.File;
 import java.io.IOException;
@@ -552,7 +550,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		}
 	}
 
-	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final IValueCallback<Boolean> callback) {
+	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
 		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
 		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			Preferences.get(context).edit().putBoolean(name, b).apply();
@@ -561,6 +559,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 	}
 
+	@NonNull
 	@Override
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
 		return new Failure<>();
