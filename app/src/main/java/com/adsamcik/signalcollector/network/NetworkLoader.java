@@ -118,7 +118,6 @@ public class NetworkLoader {
 				@Override
 				public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
 					ResponseBody body = response.body();
-					response.close();
 					if (body == null)
 						return;
 
