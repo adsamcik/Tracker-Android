@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 26
-        versionCode 181
-        versionName "3.6.2"
+        versionCode 182
+        versionName "3.6.3"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
     }
     buildTypes {
@@ -54,6 +54,7 @@ dependencies {
     androidTestCompile 'com.android.support.test:rules:0.6-alpha'
     androidTestCompile 'com.android.support.test.uiautomator:uiautomator-v18:2.1.2'
     androidTestCompile 'org.hamcrest:hamcrest-integration:1.4-atlassian-1'
+    implementation 'com.google.firebase:firebase-crash:11.0.2'
 }
 
 apply plugin: 'com.google.gms.google-services'
