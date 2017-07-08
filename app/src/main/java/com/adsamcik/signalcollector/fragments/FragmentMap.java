@@ -167,7 +167,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		if (Assist.isPlayServiceAvailable(activity == null ? getActivity() : activity) && container != null && hasPermissions)
+		activity = activity == null ? getActivity() : activity;
+		if (Assist.isPlayServiceAvailable(activity) && container != null && hasPermissions)
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		else {
 			view = inflater.inflate(R.layout.layout_error, container, false);
