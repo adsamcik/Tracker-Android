@@ -40,7 +40,7 @@ import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.utility.SignalsTileProvider;
+import com.adsamcik.signalcollector.network.SignalsTileProvider;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -269,7 +269,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			if ((!type.equals(this.type) || activeOverlay == null)) {
 				if (activeOverlay != null)
 					activeOverlay.remove();
-				tileProvider.setType(type);
+
+				if (type.equals(getString(R.string.map_personal)))
+					tileProvider.setTypePersonal();
+				else
+					tileProvider.setType(type);
+
 				this.type = type;
 				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
 			}

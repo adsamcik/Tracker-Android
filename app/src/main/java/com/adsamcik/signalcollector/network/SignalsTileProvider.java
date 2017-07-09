@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 
@@ -25,6 +25,7 @@ public class SignalsTileProvider implements TileProvider {
 	private final OkHttpClient client;
 
 	private String type;
+	private boolean personal;
 	private final int maxZoom;
 
 	public SignalsTileProvider(Context context, int maxZoom) {
@@ -34,6 +35,11 @@ public class SignalsTileProvider implements TileProvider {
 
 	public void setType(String type) {
 		this.type = type;
+		this.personal = false;
+	}
+
+	public void setTypePersonal() {
+		this.personal = true;
 	}
 
 	@Override
@@ -52,7 +58,8 @@ public class SignalsTileProvider implements TileProvider {
 		if(!canTileExist(z))
 			return null;
 
-		Call c = client.newCall(new Request.Builder().url(String.format(Locale.ENGLISH, Network.URL_TILES, z, x, y, type)).build());
+
+		Call c = client.newCall(new Request.Builder().url(String.format(Locale.ENGLISH, personal ? Network.URL_PERSONAL_TILES : Network.URL_TILES, z, x, y, type)).build());
 		Response r = null;
 
 		try {
