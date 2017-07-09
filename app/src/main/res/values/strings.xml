@@ -26,6 +26,7 @@
     <string name="main_activity">Activity %1$s</string>
 
     <string name="map_search">Search</string>
+    <string name="map_personal">Personal</string>
 
     <string name="stats_weekly_title">Last 7 days</string>
     <string name="stats_weekly_collected_wifi">Wifi data collected</string>

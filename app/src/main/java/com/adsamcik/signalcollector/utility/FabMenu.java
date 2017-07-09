@@ -81,6 +81,10 @@ public class FabMenu {
 		return this;
 	}
 
+	public int getItemCount() {
+		return container.getChildCount();
+	}
+
 	private View findTopParent(View view, final int temp[]) {
 		if (view == null || view.getTop() == 0)
 			return view;

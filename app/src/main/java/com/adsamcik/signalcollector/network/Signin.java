@@ -54,6 +54,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	private User user = null;
 
 	private final ArrayList<IValueCallback<User>> onSignedCallbackList = new ArrayList<>(3);
+	private final ArrayList<IValueCallback<User>> onDataReceivedCallbackList = new ArrayList<>(1);
 
 	private Activity getActivity() {
 		return activityWeakReference != null ? activityWeakReference.get() : null;
@@ -98,8 +99,15 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			callback.callback(instance.user);
 	}
 
-	public static @Nullable
-	String getUserID(@NonNull Context context) {
+	public static void getUserDataAsync(@NonNull Context context, IValueCallback<User> callback) {
+		Signin instance = signin(context, null);
+		if (instance.user != null && instance.user.networkInfo != null)
+			callback.callback(instance.user);
+		else
+			instance.onDataReceivedCallbackList.add(callback);
+	}
+
+	public static @Nullable String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
@@ -243,6 +251,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 				InstanceCreator<User> creator = type -> user;
 				Gson gson = new GsonBuilder().registerTypeAdapter(User.class, creator).create();
 				user = gson.fromJson(value, User.class);
+				callOnDataCallbacks();
 			}
 
 			if (!state.isSuccess()) {
@@ -252,18 +261,25 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		});
 
 		updateStatus(SigninStatus.SIGNED, context);
-		callCallbacks();
+		callOnSigninCallbacks();
 	}
 
 	private void onSignInFailed(@NonNull final Context context) {
 		updateStatus(SigninStatus.SIGNIN_FAILED, context);
-		callCallbacks();
+		callOnSigninCallbacks();
+		callOnDataCallbacks();
 	}
 
-	private void callCallbacks() {
+	private void callOnSigninCallbacks() {
 		for (IValueCallback<User> c : onSignedCallbackList)
 			c.callback(user);
 		onSignedCallbackList.clear();
+	}
+
+	private void callOnDataCallbacks() {
+		for (IValueCallback<User> c : onDataReceivedCallbackList)
+			c.callback(user);
+		onDataReceivedCallbackList.clear();
 	}
 
 	private void onSignedOut(@NonNull final Context context) {
@@ -288,6 +304,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			Preferences.get(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply();
 			DataStore.deleteFile(Preferences.PREF_USER_DATA);
 			DataStore.deleteFile(Preferences.PREF_USER_STATS);
+			callOnDataCallbacks();
+			callOnSigninCallbacks();
 		}
 	}
 

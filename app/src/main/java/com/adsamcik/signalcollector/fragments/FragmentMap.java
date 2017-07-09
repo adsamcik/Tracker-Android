@@ -30,6 +30,7 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.MapLayer;
@@ -176,10 +177,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return view;
 		}
 
+		menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
+		menu.setCallback(this::changeMapOverlay);
+
 		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
-				menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
-				menu.setCallback(this::changeMapOverlay);
 				String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
 				if (!MapLayer.contains(layerArray, savedOverlay)) {
 					savedOverlay = layerArray[0].name;
@@ -188,7 +190,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 				final String defaultOverlay = savedOverlay;
 				activity.runOnUiThread(() -> {
-					changeMapOverlay(defaultOverlay);
+					if (menu.getItemCount() == 0)
+						changeMapOverlay(defaultOverlay);
+
 					if (layerArray.length > 0) {
 						for (MapLayer layer : layerArray)
 							menu.addItem(layer.name, activity);
@@ -196,6 +200,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 					fabTwo.show();
 				});
 			}
+		});
+
+		Signin.getUserDataAsync(activity, u -> {
+			if (fabTwo != null && u != null)
+				activity.runOnUiThread(() -> menu.addItem(activity.getString(R.string.map_personal), activity));
 		});
 
 		searchText = view.findViewById(R.id.map_search);
