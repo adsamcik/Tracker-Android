@@ -59,7 +59,8 @@ public class SignalsTileProvider implements TileProvider {
 			return null;
 
 
-		Call c = client.newCall(new Request.Builder().url(String.format(Locale.ENGLISH, personal ? Network.URL_PERSONAL_TILES : Network.URL_TILES, z, x, y, type)).build());
+		String url = personal ? String.format(Locale.ENGLISH, Network.URL_PERSONAL_TILES, z, x, y) : String.format(Locale.ENGLISH, Network.URL_TILES, z, x, y, type);
+		Call c = client.newCall(new Request.Builder().url(url).build());
 		Response r = null;
 
 		try {
