@@ -317,7 +317,9 @@ public class Assist {
 	 *
 	 * @return true if connected or connecting
 	 */
-	public static boolean hasNetwork() {
+	public static boolean hasNetwork(@NonNull Context context) {
+		if(connectivityManager == null)
+			initialize(context);
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
 		return activeNetwork != null && activeNetwork.isConnectedOrConnecting();
 	}
