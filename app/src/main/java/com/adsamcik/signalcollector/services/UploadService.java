@@ -16,7 +16,6 @@ import android.support.annotation.Nullable;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.utility.Failure;
