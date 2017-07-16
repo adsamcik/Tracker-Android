@@ -61,7 +61,8 @@ public class ActivityService extends IntentService {
 						.build();
 			}
 			gapiClient.connect();
-		}
+		} else
+			FirebaseCrash.report(new Throwable("Unavailable play services"));
 	}
 
 	public static Failure<String> initializeActivityClient(@NonNull FragmentActivity activity) {
