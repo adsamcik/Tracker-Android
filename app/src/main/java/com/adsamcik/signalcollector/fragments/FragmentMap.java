@@ -204,7 +204,10 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		Signin.getUserDataAsync(activity, u -> {
 			if (fabTwo != null && u != null)
-				activity.runOnUiThread(() -> menu.addItem(activity.getString(R.string.map_personal), activity));
+				activity.runOnUiThread(() -> {
+					if (menu != null)
+						menu.addItem(activity.getString(R.string.map_personal), activity);
+				});
 		});
 
 		searchText = view.findViewById(R.id.map_search);
