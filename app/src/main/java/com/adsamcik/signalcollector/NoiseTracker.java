@@ -16,12 +16,10 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";
-	private final int SAMPLING = 22050;
+	private static final int SAMPLING = 22050;
 	// AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
-	private final int bufferSize = SAMPLING;
-	private final AudioRecord audioRecorder;
+	private static final int bufferSize = SAMPLING;
 
-	private short currentIndex = -1;
 	private final short MAX_HISTORY_SIZE = 20;
 	private final short[] values = new short[MAX_HISTORY_SIZE];
 	private final boolean[] valuesPocket = new boolean[MAX_HISTORY_SIZE];
@@ -30,20 +28,12 @@ public class NoiseTracker implements SensorEventListener {
 	private final Sensor mProximity;
 	private boolean proximityNear;
 
-	private AsyncTask<AudioRecord, Void, Void> task;
+	private NoiseCheckTask task;
 
 	/**
 	 * Creates new instance of noise tracker. Does not start tracking.
 	 */
 	public NoiseTracker(@NonNull Context context) {
-		audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
-		if (NoiseSuppressor.isAvailable()) {
-			NoiseSuppressor noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
-			if (noiseSuppressor == null)
-				FirebaseCrash.report(new Throwable("noise suppressor is null when it should be available."));
-			else if (!noiseSuppressor.getEnabled())
-				noiseSuppressor.setEnabled(true);
-		}
 		mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
 		mProximity = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
 	}
@@ -55,10 +45,10 @@ public class NoiseTracker implements SensorEventListener {
 	 */
 
 	public NoiseTracker start() {
-		if (audioRecorder.getState() == AudioRecord.RECORDSTATE_STOPPED)
-			audioRecorder.startRecording();
-		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED)
-			task = new NoiseCheckTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, audioRecorder);
+		if (task == null || task.getStatus() == AsyncTask.Status.FINISHED) {
+			task = new NoiseCheckTask(this);
+			task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+		}
 		mSensorManager.registerListener(this, mProximity, SensorManager.SENSOR_DELAY_NORMAL);
 		return this;
 	}
@@ -69,7 +59,7 @@ public class NoiseTracker implements SensorEventListener {
 	 * @return true if audioRecorder is running
 	 */
 	public boolean isRunning() {
-		return audioRecorder.getState() == AudioRecord.STATE_INITIALIZED && audioRecorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING;
+		return task != null;
 	}
 
 	/**
@@ -78,15 +68,12 @@ public class NoiseTracker implements SensorEventListener {
 	 * @return this
 	 */
 	public NoiseTracker stop() {
-		if (audioRecorder.getState() > 0)
-			audioRecorder.stop();
 		if (task != null) {
 			task.cancel(true);
 			task = null;
 		}
 		mSensorManager.unregisterListener(this);
 
-		currentIndex = 0;
 		return this;
 	}
 
@@ -98,6 +85,7 @@ public class NoiseTracker implements SensorEventListener {
 	 * @return average noise (amplitude) value
 	 */
 	public short getSample(final int seconds) {
+		short currentIndex = task.currentIndex;
 		if (currentIndex == -1)
 			return -1;
 		final short s = seconds > currentIndex ? currentIndex : (short) seconds;
@@ -114,7 +102,7 @@ public class NoiseTracker implements SensorEventListener {
 		}
 
 		avg /= cnt;
-		currentIndex = 0;
+		task.currentIndex = 0;
 		return (short) avg;
 	}
 
@@ -129,37 +117,41 @@ public class NoiseTracker implements SensorEventListener {
 
 	}
 
-	private class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
+	private static class NoiseCheckTask extends AsyncTask<AudioRecord, Void, Void> {
 		private final int PROCESS_SAMPLES_EVERY_SECOND = 25;
 		private final int SKIP_SAMPLES = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
 
+		private final AudioRecord audioRecorder;
 		private short lastAvg = -1;
+		private short currentIndex = -1;
+		private final NoiseTracker noiseTracker;
+
+		private NoiseCheckTask(NoiseTracker noiseTracker) {
+			audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+			if (NoiseSuppressor.isAvailable()) {
+				NoiseSuppressor noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
+				if (noiseSuppressor == null)
+					FirebaseCrash.report(new Throwable("noise suppressor is null when it should be available."));
+				else if (!noiseSuppressor.getEnabled())
+					noiseSuppressor.setEnabled(true);
+			}
+			this.noiseTracker = noiseTracker;
+		}
 
 		@Override
 		protected Void doInBackground(AudioRecord... records) {
-			AudioRecord audio = records[0];
-			while (!isCancelled()) {
-				int state = audio.getState();
-				if (state == AudioRecord.STATE_UNINITIALIZED) {
-					try {
-						Thread.sleep(100);
-					} catch (InterruptedException e) {
-						//I see no reason to
-					}
-					continue;
-				} else if (state < 0 || audio.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
-					break;
-
-				boolean inPocket = proximityNear;
+			audioRecorder.startRecording();
+			while (!isCancelled() && audioRecorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) {
+				boolean inPocket = noiseTracker.proximityNear;
 				short approxVal = getApproxAmplitude(inPocket);
 				if (approxVal == -1)
 					break;
 				else if (approxVal == -2)
 					continue;
-				values[++currentIndex] = approxVal;
-				valuesPocket[currentIndex] = inPocket;
+				noiseTracker.values[++currentIndex] = approxVal;
+				noiseTracker.valuesPocket[currentIndex] = inPocket;
 
-				if (currentIndex >= MAX_HISTORY_SIZE - 1)
+				if (currentIndex >= noiseTracker.MAX_HISTORY_SIZE - 1)
 					break;
 
 				try {
@@ -168,10 +160,23 @@ public class NoiseTracker implements SensorEventListener {
 					break;
 				}
 			}
-			stop();
+			noiseTracker.stop();
 			return null;
 		}
 
+		@Override
+		protected void onPostExecute(Void aVoid) {
+			if (audioRecorder.getState() > 0)
+				audioRecorder.stop();
+			super.onPostExecute(aVoid);
+		}
+
+		@Override
+		protected void onCancelled() {
+			if (audioRecorder.getState() > 0)
+				audioRecorder.stop();
+			super.onCancelled();
+		}
 
 		private short getApproxAmplitude(boolean inPocket) {
 			short[] buffer = new short[bufferSize];
