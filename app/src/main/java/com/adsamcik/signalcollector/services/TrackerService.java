@@ -159,7 +159,7 @@ public class TrackerService extends Service {
 			return;
 		}
 
-		wakeLock.acquire(10*60*1000L /*10 minutes*/);
+		wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/);
 		Data d = new Data(System.currentTimeMillis());
 
 		if (wifiManager != null) {
@@ -412,7 +412,9 @@ public class TrackerService extends Service {
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);
-		unregisterReceiver(wifiReceiver);
+
+		if (wifiReceiver != null)
+			unregisterReceiver(wifiReceiver);
 
 		saveData();
 		if (onServiceStateChange != null)
