@@ -5,6 +5,13 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:paddingTop="@dimen/status_bar_height">
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/challenge_list_title"
+        style="@style/Base.TextAppearance.AppCompat.Title"
+        android:padding="@dimen/edge_margin"/>
+
     <ListView
         android:id="@+id/listview_challenges"
         tools:listitem="@layout/layout_challenge_small"
