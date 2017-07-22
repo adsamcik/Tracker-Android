@@ -6,6 +6,6 @@
     android:layout_height="wrap_content"
     android:textSize="@dimen/setting_text_size"
     android:gravity="start"
-    android:textColor="@color/textPrimary"
+    android:textColor="@color/text_primary"
     android:padding="@dimen/setting_item_padding"
     android:minWidth="100dp"/>

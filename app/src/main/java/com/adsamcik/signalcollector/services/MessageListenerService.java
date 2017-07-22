@@ -129,7 +129,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 		@StringRes int channelId = messageType == MessageType.UploadReport ? R.string.channel_upload_id : R.string.channel_other_id;
 
-		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary);
+		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.color_primary);
 
 		NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(this, getString(channelId))
 				.setSmallIcon(R.drawable.ic_signals)

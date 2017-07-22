@@ -409,7 +409,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.dev_button_notification_dummy).setOnClickListener(v -> {
 			String helloWorld = getString(R.string.dev_notification_dummy);
-			int color = getResources().getColor(R.color.colorPrimary);
+			int color = getResources().getColor(R.color.color_primary);
 			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_upload_id))
 					.setSmallIcon(R.drawable.ic_signals)
 					.setTicker(helloWorld)

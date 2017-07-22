@@ -4,7 +4,7 @@
     android:shape="rectangle"   >
 
     <solid
-        android:color="@color/cardBackground" >
+        android:color="@color/card_background" >
     </solid>
 
     <corners

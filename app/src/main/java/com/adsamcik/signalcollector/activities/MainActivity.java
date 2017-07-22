@@ -69,8 +69,8 @@ public class MainActivity extends FragmentActivity {
 		if (s.hasFailed())
 			snackMaker.showSnackbar(s.value);
 
-		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.textPrimary));
-		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorAccent));
+		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.text_primary));
+		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.color_accent));
 
 		fabOne = findViewById(R.id.fabOne);
 		fabOne.setBackgroundTintList(secondary);

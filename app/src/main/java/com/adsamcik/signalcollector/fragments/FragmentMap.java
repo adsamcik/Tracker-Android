@@ -128,7 +128,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			if (menu != null)
 				menu.hideAndDestroy(activity);
 
-			fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
+			fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.text_primary)));
 		}
 	}
 
@@ -362,7 +362,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (userRadius == null) {
 			Context c = getContext();
 			userRadius = map.addCircle(new CircleOptions()
-					.fillColor(ContextCompat.getColor(c, R.color.colorUserAccuracy))
+					.fillColor(ContextCompat.getColor(c, R.color.color_user_accuracy))
 					.center(latlng)
 					.radius(accuracy)
 					.zIndex(100)
@@ -419,9 +419,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			this.followMyPosition = value;
 			if (fab != null && getContext() != null) {
 				if (followMyPosition)
-					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textAccent)));
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_accent)));
 				else
-					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
 			}
 		}
 

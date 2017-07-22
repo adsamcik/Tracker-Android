@@ -10,5 +10,5 @@
     android:layout_height="wrap_content"
     android:layout_width="wrap_content"
     android:textSize="@dimen/primary_text_size"
-    android:textColor="@color/textAccent"/>
+    android:textColor="@color/text_accent"/>
 </LinearLayout>

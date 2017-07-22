@@ -33,7 +33,7 @@ public class RecentUploadsActivity extends DetailActivity {
 	 */
 	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, ViewGroup parent, @NonNull Context context, @Nullable String title) {
 		Resources resources = context.getResources();
-		Table t = new Table(context, 9, false, ContextCompat.getColor(context, R.color.textPrimary));
+		Table t = new Table(context, 9, false, ContextCompat.getColor(context, R.color.text_primary));
 
 
 		if (title == null) {

@@ -152,7 +152,7 @@ public class Table {
 		button.setOnClickListener(callback);
 		button.setTextSize(16);
 		button.setGravity(Gravity.CENTER);
-		button.setBackground(Assist.getPressedColorRippleDrawable(0, ContextCompat.getColor(context, R.color.colorAccent), context.getDrawable(R.drawable.rectangle)));
+		button.setBackground(Assist.getPressedColorRippleDrawable(0, ContextCompat.getColor(context, R.color.color_accent), context.getDrawable(R.drawable.rectangle)));
 		buttonRow.addView(button);
 		return this;
 	}
