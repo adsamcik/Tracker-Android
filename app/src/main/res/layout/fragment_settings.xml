@@ -283,7 +283,8 @@
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_track_noise"/>
+            android:text="@string/settings_track_noise"
+            android:enabled="false"/>
 
         <View
             style="@style/Divider"/>

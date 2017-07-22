@@ -396,8 +396,8 @@ public class TrackerService extends Service {
 		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
-		if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
-			noiseTracker = new NoiseTracker(this).start();
+		//if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
+		//	noiseTracker = new NoiseTracker(this).start();
 		return super.onStartCommand(intent, flags, startId);
 	}
 
