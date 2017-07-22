@@ -14,8 +14,10 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.fragments.FragmentActivities;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
@@ -101,8 +103,11 @@ public class MainActivity extends FragmentActivity {
 			case R.id.action_settings:
 				handleBottomNav(FragmentSettings.class, R.string.menu_settings);
 				break;
+			case R.id.action_activities:
+				handleBottomNav(FragmentActivities.class, R.string.menu_activities);
+				break;
 			default:
-				FirebaseCrash.report(new Throwable("Unknown fragment item id " + index));
+				Log.e(TAG, "Unknown fragment item id " + index);
 				return false;
 		}
 		return true;
@@ -125,7 +130,9 @@ public class MainActivity extends FragmentActivity {
 			case "FragmentSettings":
 				outState.putInt(BUNDLE_FRAGMENT, R.id.action_settings);
 				break;
-
+			case "FragmentActivities":
+				outState.putInt(BUNDLE_FRAGMENT, R.id.action_activities);
+				break;
 		}
 	}
 
