@@ -314,7 +314,7 @@ public class DataStore {
 			try {
 				Thread.sleep(50);
 			} catch (InterruptedException e) {
-				// Restore the interrupted status
+				// Restore the interrupted done
 				Thread.currentThread().interrupt();
 			}
 		}

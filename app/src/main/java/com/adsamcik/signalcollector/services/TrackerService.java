@@ -273,8 +273,8 @@ public class TrackerService extends Service {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this, getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals)  // the status icon
-				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the status text
+				.setSmallIcon(R.drawable.ic_signals)  // the done icon
+				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.color_primary));

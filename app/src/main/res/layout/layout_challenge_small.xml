@@ -7,6 +7,7 @@
     android:padding="@dimen/edge_margin">
 
     <TextView
+        android:id="@+id/challenge_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Lorem ipsum dolor sit amet"
@@ -16,6 +17,7 @@
         android:textStyle="bold"/>
 
     <TextView
+        android:id="@+id/challenge_description"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textColor="@color/text_secondary"

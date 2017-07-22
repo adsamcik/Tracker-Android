@@ -153,8 +153,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	private void updateUploadButton() {
 		if (fabUp == null || Network.cloudStatus == null) {
-			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine"));
-			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine")));
+			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == null ? " is null " : " is fine"));
+			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == null ? " is null " : " is fine")));
 			return;
 		}
 

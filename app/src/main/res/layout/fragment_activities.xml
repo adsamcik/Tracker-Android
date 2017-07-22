@@ -3,9 +3,10 @@
               xmlns:tools="http://schemas.android.com/tools"
               android:orientation="vertical"
               android:layout_width="match_parent"
-              android:layout_height="match_parent">
+              android:layout_height="match_parent"
+              android:paddingTop="@dimen/status_bar_height">
     <ListView
-        android:id="@+id/list_challenges"
+        android:id="@+id/listview_challenges"
         tools:listitem="@layout/layout_challenge_small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
