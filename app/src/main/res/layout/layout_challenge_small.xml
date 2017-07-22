@@ -12,11 +12,13 @@
         android:text="Lorem ipsum dolor sit amet"
         android:textAllCaps="true"
         android:textSize="@dimen/primary_text_size"
+        android:textColor="@color/text_primary"
         android:textStyle="bold"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:textColor="@color/text_secondary"
         android:text="Far far away, behind the word mountains, far from the countries Vokalia and Consonantia, there live the blind texts."
         android:textSize="@dimen/secondary_text_size"/>
 </LinearLayout>
