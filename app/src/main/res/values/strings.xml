@@ -4,6 +4,7 @@
     <string name="menu_tracker">tracker</string>
     <string name="menu_map">map</string>
     <string name="menu_stats">stats</string>
+    <string name="menu_activities">activities</string>
     <string name="menu_settings">settings</string>
 
     <string name="button_back">back</string>
