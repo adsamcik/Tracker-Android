@@ -31,6 +31,7 @@ public class LaunchActivity extends Activity {
 		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
 		JobScheduler scheduler = ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE));
+		assert scheduler != null;
 		if (sp.getInt(Preferences.LAST_VERSION, 0) <= 138) {
 			SharedPreferences.Editor editor = sp.edit();
 			FirebaseAssist.updateValue(this, FirebaseAssist.autoTrackingString, getResources().getStringArray(R.array.background_tracking_options)[Preferences.get(this).getInt(Preferences.PREF_BACKGROUND_TRACKING, 0)]);
