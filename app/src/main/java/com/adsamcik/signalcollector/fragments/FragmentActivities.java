@@ -12,7 +12,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -94,7 +93,7 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			((TextView)view.findViewById(R.id.challenge_title)).setText(challenge.title);
 			((TextView)view.findViewById(R.id.challenge_description)).setText(challenge.description);
 			Resources resources = getResources();
-			view.setBackgroundColor(challenge.done ? resources.getColor(R.color.background_success) : resources.getColor(R.color.card_background));
+			view.setBackgroundColor(challenge.isDone ? resources.getColor(R.color.background_success) : resources.getColor(R.color.card_background));
 			return view;
 		}
 	}

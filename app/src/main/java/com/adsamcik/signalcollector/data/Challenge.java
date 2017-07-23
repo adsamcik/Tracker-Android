@@ -3,13 +3,22 @@ package com.adsamcik.signalcollector.data;
 public class Challenge {
 	public String title;
 	public String description;
-	public boolean done;
+	public String[] descVars;
+	public boolean isDone;
 
 	public Challenge() {}
 
-	public Challenge(String title, String description, boolean done) {
+	public Challenge(String title, String description, boolean isDone) {
 		this.title = title;
 		this.description = description;
-		this.done = done;
+		this.isDone = isDone;
+		this.descVars = null;
+	}
+
+	public Challenge(String title, String[] descVars, boolean isDone) {
+		this.title = title;
+		this.descVars = descVars;
+		this.description = null;
+		this.isDone = false;
 	}
 }
