@@ -14,6 +14,8 @@ import android.support.v4.content.ContextCompat;
 import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
+import com.adsamcik.signalcollector.data.Challenge;
+import com.adsamcik.signalcollector.utility.ChallengeManager;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
@@ -64,6 +66,22 @@ public class MessageListenerService extends FirebaseMessagingService {
 					break;
 				case Notification:
 					sendNotification(MessageType.Notification, data.get(TITLE), data.get(MESSAGE), null, message.getSentTime());
+					break;
+				case ChallengeReport:
+					boolean isDone = Boolean.parseBoolean(data.get("isDone"));
+					if (isDone) {
+						Challenge.ChallengeType challengeType = Challenge.ChallengeType.values()[Integer.parseInt(data.get("id"))];
+						sendNotification(MessageType.Notification, data.get(TITLE), data.get(MESSAGE), null, message.getSentTime());
+						ChallengeManager.getChallenges(this, (source, challenges) -> {
+							if (source.isSuccess() && challenges != null) {
+								for (Challenge challenge : challenges) {
+									if (challenge.getType() == challengeType) {
+										challenge.isDone = true;
+									}
+								}
+							}
+						});
+					}
 					break;
 			}
 		}
@@ -144,11 +162,13 @@ public class MessageListenerService extends FirebaseMessagingService {
 
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
+		assert notificationManager != null;
 		notificationManager.notify(notificationIndex++, notiBuilder.build());
 	}
 
 	public enum MessageType {
 		Notification,
-		UploadReport
+		UploadReport,
+		ChallengeReport
 	}
 }

@@ -6,11 +6,14 @@ import android.content.res.Resources;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
+import com.google.gson.annotations.Expose;
 
 public class Challenge {
 	private final ChallengeType type;
 	private String title;
 	public boolean isDone;
+
+	@Expose(serialize = false, deserialize = false)
 	private String description;
 	private String[] descVars;
 
@@ -28,6 +31,10 @@ public class Challenge {
 		this.descVars = descVars;
 		this.description = null;
 		this.isDone = isDone;
+	}
+
+	public ChallengeType getType() {
+		return type;
 	}
 
 	public String getTitle() {

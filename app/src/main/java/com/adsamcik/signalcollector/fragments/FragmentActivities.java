@@ -19,15 +19,9 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Challenge;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.network.NetworkLoader;
-import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.ChallengeDeserializer;
+import com.adsamcik.signalcollector.utility.ChallengeManager;
 import com.adsamcik.signalcollector.utility.Failure;
-import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 public class FragmentActivities extends Fragment implements ITabFragment {
 	@Nullable
@@ -38,17 +32,11 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 
 		ListView listViewChallenges = rootView.findViewById(R.id.listview_challenges);
 
-		NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_ACTIVE_CHALLENGE_LIST, (source, jsonChallenges) -> {
+		ChallengeManager.getChallenges(activity, (source, challenges) -> {
 			if (!source.isSuccess())
 				new SnackMaker(rootView).showSnackbar(R.string.error_connection_failed);
 			else if (activity != null) {
-				GsonBuilder gsonBuilder = new GsonBuilder();
-				gsonBuilder.registerTypeAdapter(Challenge.class, new ChallengeDeserializer());
-				Gson gson = gsonBuilder.create();
-				Challenge[] challengeArray = gson.fromJson(jsonChallenges, Challenge[].class);
-				for (Challenge challenge : challengeArray)
-					challenge.generateTexts(activity);
-				activity.runOnUiThread(() -> listViewChallenges.setAdapter(new ChallengesAdapter(getContext(), challengeArray)));
+				activity.runOnUiThread(() -> listViewChallenges.setAdapter(new ChallengesAdapter(getContext(), challenges)));
 			}
 		});
 		return rootView;
@@ -76,9 +64,9 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 	}
 
 	private class ChallengesAdapter extends BaseAdapter {
-		private Context mContext;
-		private LayoutInflater mInflater;
-		private Challenge[] mDataSource;
+		private final Context mContext;
+		private final LayoutInflater mInflater;
+		private final Challenge[] mDataSource;
 
 		public ChallengesAdapter(Context context, Challenge[] items) {
 			mContext = context;
