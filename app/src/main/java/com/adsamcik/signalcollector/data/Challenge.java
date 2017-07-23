@@ -10,15 +10,6 @@ public class Challenge {
 	private final ChallengeType type;
 	public String title;
 	public boolean isDone;
-
-	public String getTitle() {
-		return title;
-	}
-
-	public String getDescription() {
-		return description;
-	}
-
 	private String description;
 	private String[] descVars;
 
@@ -36,6 +27,14 @@ public class Challenge {
 		this.descVars = descVars;
 		this.description = null;
 		this.isDone = false;
+	}
+	
+	public String getTitle() {
+		return title;
+	}
+
+	public String getDescription() {
+		return description;
 	}
 
 	public void generateTexts(@NonNull Context context) {
