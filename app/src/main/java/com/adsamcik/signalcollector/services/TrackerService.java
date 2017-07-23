@@ -329,6 +329,7 @@ public class TrackerService extends Service {
 		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+		assert powerManager != null;
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
 		//Enable location update
@@ -364,7 +365,7 @@ public class TrackerService extends Service {
 		//Wifi tracking setup
 		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
 			wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-
+			assert wifiManager != null;
 			wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
 			if (wasWifiEnabled)
 				wifiManager.setWifiEnabled(true);
