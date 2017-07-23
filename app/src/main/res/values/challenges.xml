@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="challenge_error_name">Please update your app to latest version.</string>
+
     <string name="challenge_lawful_explorer_title">Lawful explorer</string>
     <string name="challenge_lawful_explorer_description">Collect %1$s new locations without breaking the speed limit of %2$s km/h</string>
 
