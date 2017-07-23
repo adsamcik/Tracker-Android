@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.fragments;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
 import android.os.Bundle;
@@ -18,22 +19,38 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Challenge;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.NetworkLoader;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.ChallengeDeserializer;
 import com.adsamcik.signalcollector.utility.Failure;
-
-import java.util.ArrayList;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 public class FragmentActivities extends Fragment implements ITabFragment {
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		final View rootView = inflater.inflate(R.layout.fragment_activities, container, false);
+		Activity activity = getActivity();
 
 		ListView listViewChallenges = rootView.findViewById(R.id.listview_challenges);
-		ArrayList<Challenge> challenges = new ArrayList<>();
-		challenges.add(new Challenge("Lawful explorer", "lorem dolor amet", true));
-		challenges.add(new Challenge("Lawful explorer", "lorem dolor amet", false));
-		challenges.add(new Challenge("Lawful explorer", "lorem dolor amet", false));
-		listViewChallenges.setAdapter(new ChallengesAdapter(getContext(), challenges));
+
+		NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_ACTIVE_CHALLENGE_LIST, (source, jsonChallenges) -> {
+			if (!source.isSuccess())
+				new SnackMaker(rootView).showSnackbar(R.string.error_connection_failed);
+			else if (activity != null) {
+				GsonBuilder gsonBuilder = new GsonBuilder();
+				gsonBuilder.registerTypeAdapter(Challenge.class, new ChallengeDeserializer());
+				Gson gson = gsonBuilder.create();
+				Challenge[] challengeArray = gson.fromJson(jsonChallenges, Challenge[].class);
+				for (Challenge challenge : challengeArray)
+					challenge.generateTexts(activity);
+				activity.runOnUiThread(() -> listViewChallenges.setAdapter(new ChallengesAdapter(getContext(), challengeArray)));
+			}
+		});
 		return rootView;
 	}
 
@@ -61,9 +78,9 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 	private class ChallengesAdapter extends BaseAdapter {
 		private Context mContext;
 		private LayoutInflater mInflater;
-		private ArrayList<Challenge> mDataSource;
+		private Challenge[] mDataSource;
 
-		public ChallengesAdapter(Context context, ArrayList<Challenge> items) {
+		public ChallengesAdapter(Context context, Challenge[] items) {
 			mContext = context;
 			mDataSource = items;
 			mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -71,12 +88,12 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 
 		@Override
 		public int getCount() {
-			return mDataSource.size();
+			return mDataSource.length;
 		}
 
 		@Override
 		public Object getItem(int i) {
-			return mDataSource.get(i);
+			return mDataSource[i];
 		}
 
 		@Override
@@ -86,12 +103,12 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 
 		@Override
 		public View getView(int i, View view, ViewGroup viewGroup) {
-			if(view == null)
+			if (view == null)
 				view = mInflater.inflate(R.layout.layout_challenge_small, viewGroup, false);
 
-			Challenge challenge = mDataSource.get(i);
-			((TextView)view.findViewById(R.id.challenge_title)).setText(challenge.title);
-			((TextView)view.findViewById(R.id.challenge_description)).setText(challenge.description);
+			Challenge challenge = mDataSource[i];
+			((TextView) view.findViewById(R.id.challenge_title)).setText(challenge.getTitle());
+			((TextView) view.findViewById(R.id.challenge_description)).setText(challenge.getDescription());
 			Resources resources = getResources();
 			view.setBackgroundColor(challenge.isDone ? resources.getColor(R.color.background_success) : resources.getColor(R.color.card_background));
 			return view;

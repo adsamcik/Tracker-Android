@@ -64,6 +64,8 @@ public class Preferences {
 	public static final String PREF_DEV_ACTIVITY_TRACKING_ENABLED = "activityDebugTracking";
 	public static final String PREF_DEV_ACTIVITY_TRACKING_STARTED = "adevTrackingStartTime";
 
+	public static final String PREF_ACTIVE_CHALLENGE_LIST = "activeChallengeList";
+
 	private static final int MAX_DAY_DIFF_STATS = 7;
 
 	private static SharedPreferences sharedPreferences;
