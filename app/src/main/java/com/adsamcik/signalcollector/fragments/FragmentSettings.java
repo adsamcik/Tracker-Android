@@ -95,7 +95,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private int dummyNotificationIndex = 1972;
 
-	private final IValueCallback<User> userSignedCallback = u -> {
+	public final IValueCallback<User> userSignedCallback = u -> {
 		if (u != null) {
 			final Activity activity = getActivity();
 			if (activity != null) {
@@ -419,6 +419,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					.setContentText(helloWorld)
 					.setWhen(System.currentTimeMillis());
 			NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+			assert notificationManager != null;
 			notificationManager.notify(dummyNotificationIndex++, notiBuilder.build());
 		});
 
@@ -432,10 +433,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if (activity != null) {
 			activity.runOnUiThread(() -> {
 				DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault());
-				TextView wPointsTextView = ((TextView) signedInMenu.getChildAt(0));
+				LinearLayout userInfoLayout = (LinearLayout) signedInMenu.getChildAt(0);
+				userInfoLayout.setVisibility(View.VISIBLE);
+
+				TextView wPointsTextView = (TextView) userInfoLayout.getChildAt(0);
 				wPointsTextView.setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
 
-				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
+				LinearLayout mapAccessLayout = (LinearLayout) userInfoLayout.getChildAt(1);
 				Switch mapAccessSwitch = (Switch) mapAccessLayout.getChildAt(0);
 				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
 
@@ -491,7 +495,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					mapAccessTimeTextView.setVisibility(View.GONE);
 				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP)));
 
-				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
+				LinearLayout userMapAccessLayout = (LinearLayout) userInfoLayout.getChildAt(2);
 				Switch userMapAccessSwitch = (Switch) userMapAccessLayout.getChildAt(0);
 				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
 

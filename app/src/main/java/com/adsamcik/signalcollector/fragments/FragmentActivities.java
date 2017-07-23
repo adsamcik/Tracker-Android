@@ -9,6 +9,7 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,27 +20,45 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Challenge;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.ChallengeManager;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 
 public class FragmentActivities extends Fragment implements ITabFragment {
+	private ListView listViewChallenges;
+	private View rootView;
+	private SwipeRefreshLayout refreshLayout;
+
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		final View rootView = inflater.inflate(R.layout.fragment_activities, container, false);
-		Activity activity = getActivity();
+		rootView = inflater.inflate(R.layout.fragment_activities, container, false);
+		final Activity activity = getActivity();
 
-		ListView listViewChallenges = rootView.findViewById(R.id.listview_challenges);
+		listViewChallenges = rootView.findViewById(R.id.listview_challenges);
 
-		ChallengeManager.getChallenges(activity, false, (source, challenges) -> {
+		refreshLayout = (SwipeRefreshLayout) rootView;
+		refreshLayout.setColorSchemeResources(R.color.color_primary);
+		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
+		refreshLayout.setOnRefreshListener(this::updateData);
+
+		updateData();
+
+		return rootView;
+	}
+
+	private void updateData() {
+		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
+		final Activity activity = getActivity();
+		ChallengeManager.getChallenges(activity, isRefresh, (source, challenges) -> {
 			if (!source.isSuccess())
 				new SnackMaker(rootView).showSnackbar(R.string.error_connection_failed);
-			else if (activity != null) {
+			else {
 				activity.runOnUiThread(() -> listViewChallenges.setAdapter(new ChallengesAdapter(getContext(), challenges)));
 			}
+			activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
 		});
-		return rootView;
 	}
 
 	@NonNull

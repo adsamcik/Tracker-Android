@@ -1,21 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:tools="http://schemas.android.com/tools"
-              android:orientation="vertical"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:paddingTop="@dimen/status_bar_height">
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/challenge_list_title"
-        style="@style/Base.TextAppearance.AppCompat.Title"
-        android:padding="@dimen/edge_margin"/>
+<android.support.v4.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                              android:layout_width="match_parent"
+                                              android:layout_height="match_parent">
 
-    <ListView
-        android:id="@+id/listview_challenges"
-        tools:listitem="@layout/layout_challenge_small"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                  xmlns:tools="http://schemas.android.com/tools"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:orientation="vertical"
+                  android:paddingTop="@dimen/status_bar_height">
 
-</LinearLayout>
+        <TextView
+            style="@style/Base.TextAppearance.AppCompat.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="@dimen/edge_margin"
+            android:text="@string/challenge_list_title"/>
+
+        <ListView
+            android:id="@+id/listview_challenges"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:listitem="@layout/layout_challenge_small"/>
+
+    </LinearLayout>
+</android.support.v4.widget.SwipeRefreshLayout>

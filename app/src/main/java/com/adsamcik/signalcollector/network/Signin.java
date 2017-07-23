@@ -8,6 +8,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.v4.app.FragmentActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
 
@@ -107,7 +108,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			instance.onDataReceivedCallbackList.add(callback);
 	}
 
-	public static @Nullable String getUserID(@NonNull Context context) {
+	public static @Nullable
+	String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
@@ -193,6 +195,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 					case SIGNED:
 						signInButton.setVisibility(View.GONE);
 						signedMenu.setVisibility(View.VISIBLE);
+						signedMenu.getChildAt(0).setVisibility(user.networkInfo == null ? View.GONE : View.VISIBLE);
 						signedMenu.findViewById(R.id.sign_out_button).setOnClickListener(v -> signout(context));
 						break;
 					case SIGNIN_FAILED:
@@ -246,6 +249,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
 
+		updateStatus(SigninStatus.SIGNED, context);
+
 		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
 			if (state.isDataAvailable()) {
 				InstanceCreator<User> creator = type -> user;
@@ -260,7 +265,6 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			}
 		});
 
-		updateStatus(SigninStatus.SIGNED, context);
 		callOnSigninCallbacks();
 	}
 

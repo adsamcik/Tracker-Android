@@ -193,6 +193,11 @@ public class MainActivity extends FragmentActivity {
 		if (requestCode == Signin.RC_SIGN_IN) {
 			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
 			if (result.isSuccess()) {
+				if(currentFragment instanceof FragmentSettings) {
+					FragmentSettings fragmentSettings = (FragmentSettings) currentFragment;
+					Signin.getUserDataAsync(this, fragmentSettings.userSignedCallback);
+				}
+				
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				Signin.onSignedIn(acct, this);

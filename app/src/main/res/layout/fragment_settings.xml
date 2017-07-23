@@ -39,66 +39,73 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <TextView
-                style="@style/SettingsText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/user_have_wireless_points"/>
-
             <LinearLayout
-                android:id="@+id/layout_map_access"
-                style="@style/SettingsItem"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:visibility="gone">
 
-                <Switch
-                    style="@style/SettingsTextNoParent"
+                <TextView
+                    style="@style/SettingsText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_have_wireless_points"/>
+
+                <LinearLayout
+                    android:id="@+id/layout_map_access"
+                    style="@style/SettingsItem"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingBottom="@dimen/setting_item_padding"
-                    android:paddingTop="@dimen/setting_item_padding"
-                    android:text="@string/user_renew_map"/>
+                    android:orientation="vertical">
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_cost_per_month"/>
+                    <Switch
+                        style="@style/SettingsTextNoParent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="@dimen/setting_item_padding"
+                        android:paddingTop="@dimen/setting_item_padding"
+                        android:text="@string/user_renew_map"/>
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_access_date"/>
-            </LinearLayout>
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_cost_per_month"/>
 
-            <LinearLayout
-                android:id="@+id/layout_user_map_access"
-                style="@style/SettingsItem"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_access_date"/>
+                </LinearLayout>
 
-                <Switch
-                    style="@style/SettingsTextNoParent"
+                <LinearLayout
+                    android:id="@+id/layout_user_map_access"
+                    style="@style/SettingsItem"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingBottom="@dimen/setting_item_padding"
-                    android:paddingTop="@dimen/setting_item_padding"
-                    android:text="@string/user_renew_personal_map"/>
+                    android:orientation="vertical">
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_cost_per_month"/>
+                    <Switch
+                        style="@style/SettingsTextNoParent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="@dimen/setting_item_padding"
+                        android:paddingTop="@dimen/setting_item_padding"
+                        android:text="@string/user_renew_personal_map"/>
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_access_date"/>
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_cost_per_month"/>
+
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_access_date"/>
+                </LinearLayout>
             </LinearLayout>
 
 
@@ -283,8 +290,8 @@
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_track_noise"
-            android:enabled="false"/>
+            android:enabled="false"
+            android:text="@string/settings_track_noise"/>
 
         <View
             style="@style/Divider"/>
