@@ -3,9 +3,7 @@ package com.adsamcik.signalcollector.utility;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
-import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.Challenge;
-import com.adsamcik.signalcollector.fragments.FragmentActivities;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;

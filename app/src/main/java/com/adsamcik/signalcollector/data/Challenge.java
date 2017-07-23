@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.data;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Resources;
 import android.support.annotation.NonNull;
