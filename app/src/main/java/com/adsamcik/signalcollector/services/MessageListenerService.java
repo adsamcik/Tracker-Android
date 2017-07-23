@@ -72,7 +72,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 					if (isDone) {
 						Challenge.ChallengeType challengeType = Challenge.ChallengeType.values()[Integer.parseInt(data.get("id"))];
 						sendNotification(MessageType.Notification, data.get(TITLE), data.get(MESSAGE), null, message.getSentTime());
-						ChallengeManager.getChallenges(this, (source, challenges) -> {
+						ChallengeManager.getChallenges(this, false, (source, challenges) -> {
 							if (source.isSuccess() && challenges != null) {
 								for (Challenge challenge : challenges) {
 									if (challenge.getType() == challengeType) {

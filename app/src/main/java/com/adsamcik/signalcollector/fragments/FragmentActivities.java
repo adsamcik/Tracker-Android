@@ -32,7 +32,7 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 
 		ListView listViewChallenges = rootView.findViewById(R.id.listview_challenges);
 
-		ChallengeManager.getChallenges(activity, (source, challenges) -> {
+		ChallengeManager.getChallenges(activity, false, (source, challenges) -> {
 			if (!source.isSuccess())
 				new SnackMaker(rootView).showSnackbar(R.string.error_connection_failed);
 			else if (activity != null) {
