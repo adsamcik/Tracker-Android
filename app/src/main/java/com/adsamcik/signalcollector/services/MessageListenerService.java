@@ -77,8 +77,10 @@ public class MessageListenerService extends FirebaseMessagingService {
 								for (Challenge challenge : challenges) {
 									if (challenge.getType() == challengeType) {
 										challenge.isDone = true;
+										break;
 									}
 								}
+								ChallengeManager.saveChallenges(challenges);
 							}
 						});
 					}
