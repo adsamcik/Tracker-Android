@@ -39,6 +39,7 @@ public final class Network {
 	public static final String URL_FEEDBACK = Server.URL_FEEDBACK;
 	public static final String URL_USER_INFO = Server.URL_USER_INFO;
 	public static final String URL_USER_PRICES = Server.URL_USER_PRICES;
+	public static final String URL_CHALLENGES_LIST = Server.URL_CHALLENGES_LIST;
 
 	public static final String URL_USER_UPDATE_MAP_PREFERENCE = Server.URL_USER_UPDATE_MAP_PREFERENCE;
 	public static final String URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE;
