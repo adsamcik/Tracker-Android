@@ -15,6 +15,7 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -24,6 +25,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -86,8 +88,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
-		if (requestCode == PERMISSION_LOCATION_CODE && success) {
-			FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
+		if (requestCode == PERMISSION_LOCATION_CODE && success && getActivity() != null) {
+			FragmentTransaction fragmentTransaction = getActivity().getSupportFragmentManager().beginTransaction();
 			FragmentMap newFrag = new FragmentMap();
 			fragmentTransaction.replace(R.id.container, newFrag, getString(R.string.menu_map));
 			newFrag.onEnter(activity, fabOne, fabTwo);
@@ -111,8 +113,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return false;
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
-		else if (request)
-			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_LOCATION_CODE);
+		else if (request && Build.VERSION.SDK_INT >= 23)
+			getActivity().requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_LOCATION_CODE);
 		return false;
 	}
 
