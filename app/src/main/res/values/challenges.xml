@@ -21,7 +21,7 @@
     <string name="challenge_crowded_description">Find a new place with at least %1$s new wifi networks</string>
 
     <string name="challenge_peaceful_forest_title">Peaceful forest</string>
-    <string name="challenge_peaceful_forest_description">You should head out and find $1%s new places without any wifi networks. Be careful not to trespass!</string>
+    <string name="challenge_peaceful_forest_description">You should head out and find %1$s new places without any wifi networks. Be careful not to trespass!</string>
 
     <string name="challenge_cross_country_title">Cross country</string>
     <string name="challenge_cross_country_description">Climb %1$s meters while on foot</string>
