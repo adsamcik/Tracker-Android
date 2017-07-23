@@ -273,11 +273,11 @@ public class TrackerService extends Service {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this, getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals)  // the status icon
-				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the status text
+				.setSmallIcon(R.drawable.ic_signals)  // the done icon
+				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
-				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.colorPrimary));
+				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.color_primary));
 
 		Intent stopIntent = new Intent(this, NotificationReceiver.class);
 		stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);
@@ -329,6 +329,7 @@ public class TrackerService extends Service {
 		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+		assert powerManager != null;
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
 		//Enable location update
@@ -364,7 +365,7 @@ public class TrackerService extends Service {
 		//Wifi tracking setup
 		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
 			wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-
+			assert wifiManager != null;
 			wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
 			if (wasWifiEnabled)
 				wifiManager.setWifiEnabled(true);

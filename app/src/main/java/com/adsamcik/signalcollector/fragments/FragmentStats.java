@@ -50,7 +50,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	public void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		Context context = getContext();
-		weeklyStats = new Table(context, 4, false, ContextCompat.getColor(context, R.color.textPrimary));
+		weeklyStats = new Table(context, 4, false, ContextCompat.getColor(context, R.color.text_primary));
 	}
 
 	@Override
@@ -101,7 +101,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		refreshLayout = view.findViewById(R.id.statsSwipeRefresh);
 		refreshLayout.setOnRefreshListener(this::updateStats);
-		refreshLayout.setColorSchemeResources(R.color.colorPrimary);
+		refreshLayout.setColorSchemeResources(R.color.color_primary);
 		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
 		updateStats();
 		return view;
@@ -183,7 +183,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			return null;
 
 		LinearLayout ll = view.findViewById(R.id.statsLayout);
-		int color = ContextCompat.getColor(context, R.color.textPrimary);
+		int color = ContextCompat.getColor(context, R.color.text_primary);
 		for (int i = 0; i < stats.length; i++) {
 			Stat s = stats[i];
 			if (s.data != null) {

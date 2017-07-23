@@ -153,8 +153,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	private void updateUploadButton() {
 		if (fabUp == null || Network.cloudStatus == null) {
-			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine"));
-			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " status " + (Network.cloudStatus == null ? " is null " : " is fine")));
+			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == null ? " is null " : " is fine"));
+			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == null ? " is null " : " is fine")));
 			return;
 		}
 
@@ -227,11 +227,11 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		} else if (percentage == -1) {
 			progressBar.animate().alpha(0).setDuration(400).start();
 			fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error)));
-			fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+			fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
 			fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp));
 			handler.postDelayed(() -> {
-				fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-				fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+				fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
+				fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
 				updateUploadButton();
 				resetFabElevation(fabUp, getResources());
 			}, 3000);
@@ -241,8 +241,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			animation.setDuration(400);
 			if (percentage == 100) {
 				handler.postDelayed(() -> {
-					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
-					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
+					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
 					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
 
 					progressBar.animate().alpha(0).setDuration(400).start();
@@ -250,15 +250,15 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 					handler.postDelayed(() -> {
 						progressBar.setVisibility(View.GONE);
 						if (DataStore.sizeOfData() > 0) {
-							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
+							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
 							resetFabElevation(fabUp, getResources());
 							updateUploadButton();
 						} else {
 							fabUp.hide();
 							handler.postDelayed(() -> {
-								fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
-								fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)));
+								fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
+								fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
 								resetFabElevation(fabUp, getResources());
 							}, 300);
 						}
@@ -332,8 +332,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		progressBar.setVisibility(View.GONE);
 		progressBar.setAlpha(1);
 		resetFabElevation(fabUp, activity.getResources());
-		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
-		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.colorAccent)));
+		fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.text_primary)));
+		fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.color_accent)));
 		fabUp = null;
 		fabTrack = null;
 	}

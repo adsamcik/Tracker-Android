@@ -39,73 +39,80 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <TextView
-                style="@style/SettingsText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/user_have_wireless_points"/>
-
             <LinearLayout
-                android:id="@+id/layout_map_access"
-                style="@style/SettingsItem"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:visibility="gone">
 
-                <Switch
-                    style="@style/SettingsTextNoParent"
+                <TextView
+                    style="@style/SettingsText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_have_wireless_points"/>
+
+                <LinearLayout
+                    android:id="@+id/layout_map_access"
+                    style="@style/SettingsItem"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingBottom="@dimen/setting_item_padding"
-                    android:paddingTop="@dimen/setting_item_padding"
-                    android:text="@string/user_renew_map"/>
+                    android:orientation="vertical">
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_cost_per_month"/>
+                    <Switch
+                        style="@style/SettingsTextNoParent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="@dimen/setting_item_padding"
+                        android:paddingTop="@dimen/setting_item_padding"
+                        android:text="@string/user_renew_map"/>
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_access_date"/>
-            </LinearLayout>
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_cost_per_month"/>
 
-            <LinearLayout
-                android:id="@+id/layout_user_map_access"
-                style="@style/SettingsItem"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_access_date"/>
+                </LinearLayout>
 
-                <Switch
-                    style="@style/SettingsTextNoParent"
+                <LinearLayout
+                    android:id="@+id/layout_user_map_access"
+                    style="@style/SettingsItem"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingBottom="@dimen/setting_item_padding"
-                    android:paddingTop="@dimen/setting_item_padding"
-                    android:text="@string/user_renew_personal_map"/>
+                    android:orientation="vertical">
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_cost_per_month"/>
+                    <Switch
+                        style="@style/SettingsTextNoParent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="@dimen/setting_item_padding"
+                        android:paddingTop="@dimen/setting_item_padding"
+                        android:text="@string/user_renew_personal_map"/>
 
-                <TextView
-                    style="@style/SettingsTextSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/user_access_date"/>
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_cost_per_month"/>
+
+                    <TextView
+                        style="@style/SettingsTextSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/user_access_date"/>
+                </LinearLayout>
             </LinearLayout>
 
 
             <Button
                 android:id="@+id/sign_out_button"
                 style="@style/SettingsButton"
-                android:backgroundTint="@color/colorAccent"
+                android:backgroundTint="@color/color_accent"
                 android:text="@string/signout"/>
 
         </LinearLayout>
@@ -124,7 +131,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:paddingTop="@dimen/setting_item_padding"
-            android:textColor="@color/textPrimary"
+            android:textColor="@color/text_primary"
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
@@ -139,7 +146,7 @@
                 android:layout_margin="10dp"
                 android:contentDescription="@string/autotracking_disabled_description"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textDisabled"/>
+                android:tint="@color/text_disabled"/>
 
             <ImageView
                 android:id="@+id/tracking_onfoot"
@@ -149,7 +156,7 @@
                 android:layout_toEndOf="@id/tracking_none"
                 android:contentDescription="@string/autotracking_onfoot_description"
                 android:src="@drawable/ic_directions_walk_black_24dp"
-                android:tint="@color/textDisabled"/>
+                android:tint="@color/text_disabled"/>
 
             <ImageView
                 android:id="@+id/tracking_always"
@@ -159,7 +166,7 @@
                 android:layout_toEndOf="@id/tracking_onfoot"
                 android:contentDescription="@string/autotracking_onfootvehicle_description"
                 android:src="@drawable/ic_directions_car_black_24dp"
-                android:tint="@color/textDisabled"/>
+                android:tint="@color/text_disabled"/>
         </RelativeLayout>
 
         <Switch
@@ -186,7 +193,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:paddingTop="@dimen/setting_item_padding"
-            android:textColor="@color/textPrimary"
+            android:textColor="@color/text_primary"
             android:textSize="@dimen/setting_text_size"/>
 
         <RelativeLayout
@@ -201,7 +208,7 @@
                 android:layout_margin="10dp"
                 android:contentDescription="@string/autoupload_disabled_description"
                 android:src="@drawable/ic_close_black_24dp"
-                android:tint="@color/textDisabled"/>
+                android:tint="@color/text_disabled"/>
 
             <ImageView
                 android:id="@+id/autoupload_wifi"
@@ -211,7 +218,7 @@
                 android:layout_toEndOf="@id/autoupload_disabled"
                 android:contentDescription="@string/autoupload_wifi_description"
                 android:src="@drawable/ic_network_wifi_24dp"
-                android:tint="@color/textDisabled"/>
+                android:tint="@color/text_disabled"/>
 
             <ImageView
                 android:id="@+id/autoupload_always"
@@ -221,7 +228,7 @@
                 android:layout_toEndOf="@id/autoupload_wifi"
                 android:contentDescription="@string/autoupload_always_description"
                 android:src="@drawable/ic_autorenew_black_24dp"
-                android:tint="@color/textDisabled"/>
+                android:tint="@color/text_disabled"/>
         </RelativeLayout>
 
         <LinearLayout
@@ -283,8 +290,8 @@
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_track_noise"
-            android:enabled="false"/>
+            android:enabled="false"
+            android:text="@string/settings_track_noise"/>
 
         <View
             style="@style/Divider"/>
@@ -313,13 +320,13 @@
         <Button
             android:id="@+id/export_share_button"
             style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
+            android:backgroundTint="@color/color_accent"
             android:text="@string/export_share_button"/>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/divider_height"
-            android:background="@color/dividerColor"/>
+            android:background="@color/divider_color"/>
 
         <TextView
             style="@style/SettingsTitle"
@@ -335,13 +342,13 @@
         <Button
             android:id="@+id/other_clear_data"
             style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
+            android:backgroundTint="@color/color_accent"
             android:text="@string/settings_clear_data"/>
 
         <Button
             android:id="@+id/other_feedback"
             style="@style/SettingsButton"
-            android:backgroundTint="@color/colorAccent"
+            android:backgroundTint="@color/color_accent"
             android:text="@string/settings_feedback"/>
 
         <LinearLayout
@@ -363,31 +370,31 @@
             <Button
                 android:id="@+id/dev_button_cache_clear"
                 style="@style/SettingsButton"
-                android:backgroundTint="@color/colorAccent"
+                android:backgroundTint="@color/color_accent"
                 android:text="@string/dev_clear_cache"/>
 
             <Button
                 android:id="@+id/dev_button_browse_files"
                 style="@style/SettingsButton"
-                android:backgroundTint="@color/colorAccent"
+                android:backgroundTint="@color/color_accent"
                 android:text="@string/dev_browse_files"/>
 
             <Button
                 android:id="@+id/dev_button_noise_tracking"
                 style="@style/SettingsButton"
-                android:backgroundTint="@color/colorAccent"
+                android:backgroundTint="@color/color_accent"
                 android:text="@string/dev_noise_tracking_test"/>
 
             <Button
                 android:id="@+id/dev_button_activity_recognition"
                 style="@style/SettingsButton"
-                android:backgroundTint="@color/colorAccent"
+                android:backgroundTint="@color/color_accent"
                 android:text="@string/dev_activity_recognition_title"/>
 
             <Button
                 android:id="@+id/dev_button_notification_dummy"
                 style="@style/SettingsButton"
-                android:backgroundTint="@color/colorAccent"
+                android:backgroundTint="@color/color_accent"
                 android:text="@string/dev_notification_dummy"/>
 
         </LinearLayout>

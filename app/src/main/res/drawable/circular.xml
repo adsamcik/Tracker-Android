@@ -5,5 +5,5 @@
     android:shape="ring"
     android:thickness="@dimen/progress_bar_ring_width"
     android:useLevel="true">
-    <solid android:color="@color/colorPrimary"/>
+    <solid android:color="@color/color_primary"/>
 </shape>

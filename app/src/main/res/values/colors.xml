@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#006644</color>
-    <color name="colorPrimaryDark">#005034</color>
-    <color name="colorAccent">#008055</color>
-    <color name="textAccent">#CC28cc90</color>
-    <color name="colorUserAccuracy">#80365fb3</color>
+    <color name="color_primary">#006644</color>
+    <color name="color_primary_dark">#005034</color>
+    <color name="color_accent">#008055</color>
+    <color name="text_accent">#CC28cc90</color>
+    <color name="color_user_accuracy">#80365fb3</color>
     <color name="background_splash">#363636</color>
-    <color name="textPrimary">#FFFFFFFF</color>
-    <color name="textSecondary">#B2FFFFFF</color>
-    <color name="textPrimaryDark">#DF000000</color>
-    <color name="textSecondaryDark">#8A000000</color>
-    <color name="textDisabled">#80FFFFFF</color>
-    <color name="dividerColor">#1FFFFFFF</color>
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#B2FFFFFF</color>
+    <color name="text_primary_dark">#DF000000</color>
+    <color name="text_secondary_dark">#8A000000</color>
+    <color name="text_disabled">#80FFFFFF</color>
+    <color name="divider_color">#1FFFFFFF</color>
     <color name="error">#d32f2f</color>
-    <color name="cardBackground">#424242</color>
-    <color name="inactiveIcon">#61FFFFFF</color>
+    <color name="card_background">#424242</color>
+    <color name="inactive_icon">#61FFFFFF</color>
+
+    <color name="background_success">#AA009966</color>
 </resources>

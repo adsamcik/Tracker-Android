@@ -15,6 +15,7 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -86,8 +87,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
-		if (requestCode == PERMISSION_LOCATION_CODE && success) {
-			FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
+		if (requestCode == PERMISSION_LOCATION_CODE && success && getActivity() != null) {
+			FragmentTransaction fragmentTransaction = getActivity().getSupportFragmentManager().beginTransaction();
 			FragmentMap newFrag = new FragmentMap();
 			fragmentTransaction.replace(R.id.container, newFrag, getString(R.string.menu_map));
 			newFrag.onEnter(activity, fabOne, fabTwo);
@@ -111,8 +112,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return false;
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			return true;
-		else if (request)
-			requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_LOCATION_CODE);
+		else if (request && Build.VERSION.SDK_INT >= 23)
+			getActivity().requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_LOCATION_CODE);
 		return false;
 	}
 
@@ -128,7 +129,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			if (menu != null)
 				menu.hideAndDestroy(activity);
 
-			fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.textPrimary)));
+			fabOne.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.text_primary)));
 		}
 	}
 
@@ -362,7 +363,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		if (userRadius == null) {
 			Context c = getContext();
 			userRadius = map.addCircle(new CircleOptions()
-					.fillColor(ContextCompat.getColor(c, R.color.colorUserAccuracy))
+					.fillColor(ContextCompat.getColor(c, R.color.color_user_accuracy))
 					.center(latlng)
 					.radius(accuracy)
 					.zIndex(100)
@@ -419,9 +420,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			this.followMyPosition = value;
 			if (fab != null && getContext() != null) {
 				if (followMyPosition)
-					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textAccent)));
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_accent)));
 				else
-					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.textPrimary)));
+					fab.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
 			}
 		}
 

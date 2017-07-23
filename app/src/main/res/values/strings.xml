@@ -4,6 +4,7 @@
     <string name="menu_tracker">tracker</string>
     <string name="menu_map">map</string>
     <string name="menu_stats">stats</string>
+    <string name="menu_activities">activities</string>
     <string name="menu_settings">settings</string>
 
     <string name="button_back">back</string>
@@ -49,6 +50,8 @@
 
     <string name="export_title">Data export</string>
     <string name="export_share_button">Share</string>
+
+    <string name="challenge_list_title">Challenges</string>
 
     <string name="dev_title">Debug corner</string>
     <string name="dev_clear_temp_files">Clear temp files</string>

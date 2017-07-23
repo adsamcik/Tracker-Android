@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Random;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -95,7 +96,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private int dummyNotificationIndex = 1972;
 
-	private final IValueCallback<User> userSignedCallback = u -> {
+	public final IValueCallback<User> userSignedCallback = u -> {
 		if (u != null) {
 			final Activity activity = getActivity();
 			if (activity != null) {
@@ -409,16 +410,19 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.dev_button_notification_dummy).setOnClickListener(v -> {
 			String helloWorld = getString(R.string.dev_notification_dummy);
-			int color = getResources().getColor(R.color.colorPrimary);
-			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_upload_id))
+			int color = getResources().getColor(R.color.color_primary);
+			Random rng = new Random(System.currentTimeMillis());
+			String[] facts = getResources().getStringArray(R.array.lorem_ipsum_facts);
+			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_other_id))
 					.setSmallIcon(R.drawable.ic_signals)
 					.setTicker(helloWorld)
 					.setColor(color)
 					.setLights(color, 2000, 5000)
-					.setContentTitle(helloWorld)
-					.setContentText(helloWorld)
+					.setContentTitle(getString(R.string.did_you_know))
+					.setContentText(facts[rng.nextInt(facts.length)])
 					.setWhen(System.currentTimeMillis());
 			NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+			assert notificationManager != null;
 			notificationManager.notify(dummyNotificationIndex++, notiBuilder.build());
 		});
 
@@ -432,10 +436,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if (activity != null) {
 			activity.runOnUiThread(() -> {
 				DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault());
-				TextView wPointsTextView = ((TextView) signedInMenu.getChildAt(0));
+				LinearLayout userInfoLayout = (LinearLayout) signedInMenu.getChildAt(0);
+				userInfoLayout.setVisibility(View.VISIBLE);
+
+				TextView wPointsTextView = (TextView) userInfoLayout.getChildAt(0);
 				wPointsTextView.setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
 
-				LinearLayout mapAccessLayout = (LinearLayout) signedInMenu.getChildAt(1);
+				LinearLayout mapAccessLayout = (LinearLayout) userInfoLayout.getChildAt(1);
 				Switch mapAccessSwitch = (Switch) mapAccessLayout.getChildAt(0);
 				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
 
@@ -491,7 +498,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					mapAccessTimeTextView.setVisibility(View.GONE);
 				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP)));
 
-				LinearLayout userMapAccessLayout = (LinearLayout) signedInMenu.getChildAt(2);
+				LinearLayout userMapAccessLayout = (LinearLayout) userInfoLayout.getChildAt(2);
 				Switch userMapAccessSwitch = (Switch) userMapAccessLayout.getChildAt(0);
 				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
 
