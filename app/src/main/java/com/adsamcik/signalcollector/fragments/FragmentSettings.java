@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Random;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -410,13 +411,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_notification_dummy).setOnClickListener(v -> {
 			String helloWorld = getString(R.string.dev_notification_dummy);
 			int color = getResources().getColor(R.color.color_primary);
-			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_upload_id))
+			Random rng = new Random(System.currentTimeMillis());
+			String[] facts = getResources().getStringArray(R.array.lorem_ipsum_facts);
+			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_other_id))
 					.setSmallIcon(R.drawable.ic_signals)
 					.setTicker(helloWorld)
 					.setColor(color)
 					.setLights(color, 2000, 5000)
-					.setContentTitle(helloWorld)
-					.setContentText(helloWorld)
+					.setContentTitle(getString(R.string.did_you_know))
+					.setContentText(facts[rng.nextInt(facts.length)])
 					.setWhen(System.currentTimeMillis());
 			NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 			assert notificationManager != null;

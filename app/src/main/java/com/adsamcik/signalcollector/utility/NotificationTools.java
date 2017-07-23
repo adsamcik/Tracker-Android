@@ -27,6 +27,7 @@ public class NotificationTools {
 		mChannel.setLightColor(Color.GREEN);
 		mChannel.enableVibration(useVibration);
 		mChannel.setVibrationPattern(new long[]{100, 200, 300, 400, 500, 400, 300, 200, 400});
+		assert mNotificationManager != null;
 		mNotificationManager.createNotificationChannel(mChannel);
 	}
 }
