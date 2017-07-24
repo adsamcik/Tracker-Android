@@ -93,10 +93,14 @@
     <string name="feedback_error_spaces_summary">Too much spacing</string>
     <string name="feedback_error_not_signed_in">You must be signed in</string>
 
+    <!-- Signin strings -->
+    <string name="signin_connecting">Signin in, please wait</string>
+
     <!-- Generic strings -->
     <string name="other">Other</string>
-    <string name="signin_connecting">Connecting!</string>
     <string name="cancel">Cancel</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
     <string name="send">Send</string>
     <string name="enable">Enable</string>
     <string name="your_stats">Your stats</string>

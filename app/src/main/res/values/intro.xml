@@ -1,9 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="intro_notification_enabled_auto_tracking">Auto tracking is set on foot. Can be modified in settings.</string>
+    <string name="intro_notification_no_permission_auto_tracking">Auto tracking is disabled. Can be modified in settings.</string>
+
+    <string name="intro_enable_auto_tracking_title">Automatic tracking on foot</string>
+    <string name="intro_enable_auto_tracking_description">Would you like to automatically track on foot? You can later change this in settings.</string>
+    <string name="intro_enable_auto_tracking_description_23">Would you like to automatically track on foot? Tracking requires location permission. You can later change this in settings.</string>
+
+    <string name="intro_enable_auto_upload_title">Automatic uploading</string>
+    <string name="intro_enable_auto_upload_description">Would you like to enabled automatic uploading of tracked data on wifi?\nYou can later change this in settings.</string>
+
     <string name="intro_auto_track_up_title">Automatic tracking and uploading</string>
-    <string name="intro_auto_track_up">No need to worry.\nSignals can automatically tracks and upload data.\nCan be disabled in settings.</string>
-    <string name="intro_permissions_title">Permissions</string>
-    <string name="intro_permissions">Phone permissions are required for uniquely identifying your phone. No phone calls or sms are made.</string>
-    <string name="intro_permissions_noise_title">Noise permission</string>
-    <string name="intro_permissions_noise">Noise is very cool, but recording audio might be more sensitive permission, it\'s not mandatory but remember only 1 number (noise value) is collected per second.</string>
+    <string name="intro_auto_track_up">Signals can automatically track and upload data.\nTo do so, Signals needs access to your GPS position\nYou can change when to track or upload any time settings.</string>
+
+    <string name="intro_overview_title">Welcome to Signals</string>
+    <string name="intro_overview_description">Signals is a wifi and cell network tracking game with challenges. All data is securely uploaded to the server and then anonymized and stored inside the database.</string>
+
+    <string name="intro_signin_title">Google signin</string>
+    <string name="intro_signing_description">Signals requires google signin for access management and identifying from who the upload comes so personal statistics can be generated. Signals uses only id from Google, nothing else.</string>
 </resources>

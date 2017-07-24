@@ -5,25 +5,30 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
+import android.support.annotation.Nullable;
+import android.util.Log;
 import android.view.Window;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.github.paolorotolo.appintro.AppIntroBaseFragment;
+import com.github.paolorotolo.appintro.ISlidePolicy;
 
-public final class FragmentIntro extends AppIntroBaseFragment {
+public final class FragmentIntro extends AppIntroBaseFragment implements ISlidePolicy {
 	private Window window;
+	private ICallback onLeaveCallback;
 
 	public static FragmentIntro newInstance(CharSequence title, CharSequence description,
 	                                        @DrawableRes int imageDrawable,
 	                                        @ColorInt int bgColor,
-	                                        Window window) {
-		return newInstance(title, description, imageDrawable, bgColor, 0, 0, window);
+	                                        Window window, @Nullable ICallback onLeaveCallback) {
+		return newInstance(title, description, imageDrawable, bgColor, 0, 0, window, onLeaveCallback);
 	}
 
 	public static FragmentIntro newInstance(CharSequence title, CharSequence description,
 	                                        @DrawableRes int imageDrawable, @ColorInt int bgColor,
 	                                        @ColorInt int titleColor, @ColorInt int descColor,
-	                                        Window window) {
+	                                        Window window, @Nullable ICallback onLeaveCallback) {
 		FragmentIntro slide = new FragmentIntro();
 		Bundle args = new Bundle();
 		args.putString(ARG_TITLE, title.toString());
@@ -37,6 +42,7 @@ public final class FragmentIntro extends AppIntroBaseFragment {
 		slide.setArguments(args);
 
 		slide.window = window;
+		slide.onLeaveCallback = onLeaveCallback;
 
 		return slide;
 	}
@@ -45,16 +51,16 @@ public final class FragmentIntro extends AppIntroBaseFragment {
 	                                        CharSequence description, String descTypeface,
 	                                        @DrawableRes int imageDrawable,
 	                                        @ColorInt int bgColor,
-	                                        Window window) {
+	                                        Window window, @Nullable ICallback onLeaveCallback) {
 		return newInstance(title, titleTypeface, description, descTypeface, imageDrawable, bgColor,
-				0, 0, window);
+				0, 0, window, onLeaveCallback);
 	}
 
 	public static FragmentIntro newInstance(CharSequence title, String titleTypeface,
 	                                        CharSequence description, String descTypeface,
 	                                        @DrawableRes int imageDrawable, @ColorInt int bgColor,
 	                                        @ColorInt int titleColor, @ColorInt int descColor,
-	                                        Window window) {
+	                                        Window window, @Nullable ICallback onLeaveCallback) {
 		FragmentIntro slide = new FragmentIntro();
 		Bundle args = new Bundle();
 		args.putString(ARG_TITLE, title.toString());
@@ -68,6 +74,7 @@ public final class FragmentIntro extends AppIntroBaseFragment {
 		slide.setArguments(args);
 
 		slide.window = window;
+		slide.onLeaveCallback = onLeaveCallback;
 
 		return slide;
 	}
@@ -95,5 +102,18 @@ public final class FragmentIntro extends AppIntroBaseFragment {
 	@Override
 	protected int getLayoutId() {
 		return R.layout.fragment_intro2;
+	}
+
+	@Override
+	public boolean isPolicyRespected() {
+		return onLeaveCallback == null;
+	}
+
+	@Override
+	public void onUserIllegallyRequestedNextPage() {
+		if(onLeaveCallback != null) {
+			onLeaveCallback.callback();
+			onLeaveCallback = null;
+		}
 	}
 }
