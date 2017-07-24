@@ -21,6 +21,8 @@
     <string name="settings_playGames">Account</string>
     <string name="settings_clear_data">Clear tracked data</string>
     <string name="settings_feedback">Feedback</string>
+    <string name="settings_reopen_tutorial">Tutorial</string>
+
     <string name="alert_clear_text">Are you sure you want to clear your local collected data?</string>
     <string name="alert_clear_confirm">I\'m sure</string>
     <string name="alert_clear_cancel">Not really</string>

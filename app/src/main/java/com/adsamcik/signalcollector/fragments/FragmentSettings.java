@@ -36,6 +36,7 @@ import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
 import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
+import com.adsamcik.signalcollector.activities.IntroActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
@@ -218,6 +219,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 			alertDialogBuilder.create().show();
 		});
+
+		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> startActivity(new Intent(getActivity(), IntroActivity.class)));
 
 		Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
 		mapOverlayButton.setEnabled(false);

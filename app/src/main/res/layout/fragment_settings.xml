@@ -340,6 +340,12 @@
             android:text="@string/settings_allow_notifications_upload"/>
 
         <Button
+            android:id="@+id/other_reopen_tutorial"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/color_accent"
+            android:text="@string/settings_reopen_tutorial"/>
+
+        <Button
             android:id="@+id/other_clear_data"
             style="@style/SettingsButton"
             android:backgroundTint="@color/color_accent"
