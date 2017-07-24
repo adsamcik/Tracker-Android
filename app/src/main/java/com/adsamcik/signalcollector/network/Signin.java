@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -64,7 +65,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		activityWeakReference = new WeakReference<>(activity);
 	}
 
-	public static Signin signin(@NonNull FragmentActivity fragmentActivity, @Nullable IValueCallback<User> callback) {
+	public static Signin signin(@NonNull FragmentActivity fragmentActivity, boolean silent, @Nullable IValueCallback<User> callback) {
 		if (instance == null)
 			instance = new Signin(fragmentActivity, callback);
 		else if (instance.getActivity() == null) {
@@ -73,6 +74,11 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			instance.setActivity(fragmentActivity);
 			if (instance.status == SigninStatus.SILENT_SIGNIN_FAILED && !instance.resolvingError)
 				fragmentActivity.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(instance.client), RC_SIGN_IN);
+		} else if (instance.status == SigninStatus.SIGNIN_FAILED && !silent) {
+			if (callback != null)
+				instance.onSignedCallbackList.add(callback);
+			instance.setActivity(fragmentActivity);
+			fragmentActivity.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(instance.client), RC_SIGN_IN);
 		} else if (callback != null && instance.user != null)
 			callback.callback(instance.user);
 
@@ -107,7 +113,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			instance.onDataReceivedCallbackList.add(callback);
 	}
 
-	public static @Nullable String getUserID(@NonNull Context context) {
+	public static @Nullable
+	String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
@@ -272,13 +279,13 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		callOnDataCallbacks();
 	}
 
-	private void callOnSigninCallbacks() {
+	private synchronized void callOnSigninCallbacks() {
 		for (IValueCallback<User> c : onSignedCallbackList)
 			c.callback(user);
 		onSignedCallbackList.clear();
 	}
 
-	private void callOnDataCallbacks() {
+	private synchronized void callOnDataCallbacks() {
 		for (IValueCallback<User> c : onDataReceivedCallbackList)
 			c.callback(user);
 		onDataReceivedCallbackList.clear();
@@ -291,7 +298,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	private void showSnackbar(@StringRes int messageResId) {
 		Activity a = getActivity();
-		if (a != null)
+		if (a != null && a instanceof MainActivity)
 			new SnackMaker(a).showSnackbar(a.getString(messageResId));
 	}
 

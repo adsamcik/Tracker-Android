@@ -322,7 +322,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
 
 		if (Assist.hasNetwork(context)) {
-			signin = Signin.signin(getActivity(), null);
+			signin = Signin.signin(getActivity(), true, null);
 			signin.setButtons(signInButton, signedInMenu, context);
 			Signin.getUserDataAsync(context, userSignedCallback);
 		} else

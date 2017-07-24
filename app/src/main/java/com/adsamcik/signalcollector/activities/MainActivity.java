@@ -63,7 +63,7 @@ public class MainActivity extends FragmentActivity {
 				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		}
 
-		Signin.signin(this, null);
+		Signin.signin(this, true, null);
 
 		Failure<String> s = ActivityService.initializeActivityClient(this);
 		if (s.hasFailed())

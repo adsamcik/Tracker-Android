@@ -22,12 +22,16 @@ import android.widget.Toast;
 
 import com.adsamcik.signalcollector.fragments.FragmentActivities;
 import com.adsamcik.signalcollector.fragments.FragmentIntro;
+import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.github.paolorotolo.appintro.AppIntro2;
+import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -91,8 +95,6 @@ public class IntroActivity extends AppIntro2 {
 			if (!_this.openedSigninAlert) {
 				_this.openedSigninAlert = true;
 
-				FragmentActivity activity = this;
-
 				View v = getLayoutInflater().inflate(R.layout.intro_dialog_signin, null);
 				AlertDialog dialog = new AlertDialog.Builder(this)
 						.setTitle(R.string.intro_enable_auto_tracking_title)
@@ -106,7 +108,7 @@ public class IntroActivity extends AppIntro2 {
 				v.findViewById(R.id.sign_in_button).setOnClickListener((x) -> {
 					dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setEnabled(false);
 					dialog.setMessage(getString(R.string.signin_connecting));
-					Signin.signin(activity, (user) -> {
+					Signin.signin(currentFragment.getActivity(), false, (user) -> {
 						if (user == null)
 							new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
 						dialog.dismiss();
@@ -160,7 +162,8 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	public void onDonePressed(Fragment currentFragment) {
 		Preferences.get(this).edit().putBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, true).apply();
-		startActivity(new Intent(this, MainActivity.class));
+		if (isTaskRoot())
+			startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK));
 		finish();
 	}
 
@@ -171,6 +174,28 @@ public class IntroActivity extends AppIntro2 {
 			Toast.makeText(this, isSuccess ? R.string.intro_notification_enabled_auto_tracking : R.string.intro_notification_no_permission_auto_tracking, Toast.LENGTH_SHORT).show();
 			Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, isSuccess ? 1 : 0).apply();
 			autoUploadDialog.show();
+		}
+	}
+
+	@Override
+	public void onActivityResult(int requestCode, int resultCode, Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+
+		if (requestCode == Signin.RC_SIGN_IN) {
+			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
+			if (result.isSuccess()) {
+				if(currentFragment instanceof FragmentSettings) {
+					FragmentSettings fragmentSettings = (FragmentSettings) currentFragment;
+					Signin.getUserDataAsync(this, fragmentSettings.userSignedCallback);
+				}
+
+				GoogleSignInAccount acct = result.getSignInAccount();
+				assert acct != null;
+				Signin.onSignedIn(acct, this);
+			} else {
+				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
+				Signin.onSignedInFailed(this);
+			}
 		}
 	}
 }
