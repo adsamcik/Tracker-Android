@@ -389,7 +389,8 @@
                 android:id="@+id/dev_button_noise_tracking"
                 style="@style/SettingsButton"
                 android:backgroundTint="@color/color_accent"
-                android:text="@string/dev_noise_tracking_test"/>
+                android:text="@string/dev_noise_tracking_test"
+                android:visibility="gone"/>
 
             <Button
                 android:id="@+id/dev_button_activity_recognition"

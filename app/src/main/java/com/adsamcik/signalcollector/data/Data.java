@@ -144,9 +144,8 @@ public class Data implements Serializable {
 	 * //* @param operator current network operator
 	 * //* @param data     nearby cell
 	 *
-	 * @return this
 	 */
-	public Data addCell(@NonNull TelephonyManager telephonyManager, @Nullable List<SubscriptionInfo> subscriptionInfos) {
+	public void addCell(@NonNull TelephonyManager telephonyManager) {
 		List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();
 		String nOp = telephonyManager.getNetworkOperator();
 		if (!nOp.isEmpty()) {
@@ -196,7 +195,6 @@ public class Data implements Serializable {
 				registeredCells.toArray(regCells);
 			}
 		}
-		return this;
 	}
 
 	/**

@@ -188,7 +188,7 @@ public class TrackerService extends Service {
 		}
 
 		if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
-			d.addCell(telephonyManager, null);
+			d.addCell(telephonyManager);
 		}
 
 		if (noiseTracker != null) {
