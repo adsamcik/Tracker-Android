@@ -158,6 +158,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 				.setLights(notiColor, 2000, 5000)
 				.setContentTitle(title)
 				.setContentText(message)
+				.setAutoCancel(true)
 				.setContentIntent(pendingIntent)
 				.setWhen(time)
 				.setStyle(new NotificationCompat.BigTextStyle().bigText(message));
