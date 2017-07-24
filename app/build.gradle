@@ -40,7 +40,7 @@ dependencies {
     compile 'com.android.support.constraint:constraint-layout:1.1.0-beta1'
     compile 'com.squareup.okhttp3:okhttp:3.8.1'
     compile 'com.google.code.gson:gson:2.8.1'
-    compile 'com.github.paolorotolo:appintro:4.1.0'
+    compile 'com.github.apl-devs:appintro:v4.2.2'
     compile 'com.github.PhilJay:MPAndroidChart:v3.0.2'
     compile 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     compile 'com.google.android.gms:play-services-maps:11.0.2'
