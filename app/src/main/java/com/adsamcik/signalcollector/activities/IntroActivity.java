@@ -91,37 +91,35 @@ public class IntroActivity extends AppIntro2 {
 			if (!_this.openedSigninAlert) {
 				_this.openedSigninAlert = true;
 
-				if (!Signin.isSignedIn()) {
-					FragmentActivity activity = this;
+				FragmentActivity activity = this;
 
-					View v = getLayoutInflater().inflate(R.layout.intro_dialog_signin, null);
-					AlertDialog dialog = new AlertDialog.Builder(this)
-							.setTitle(R.string.intro_enable_auto_tracking_title)
-							.setNegativeButton(R.string.cancel, ((dialogInterface, i) -> {
-								Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, 0).apply();
-								autoUploadDialog.show();
-							}))
-							.setCancelable(false)
-							.create();
+				View v = getLayoutInflater().inflate(R.layout.intro_dialog_signin, null);
+				AlertDialog dialog = new AlertDialog.Builder(this)
+						.setTitle(R.string.intro_enable_auto_tracking_title)
+						.setNegativeButton(R.string.cancel, ((dialogInterface, i) -> {
+							Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, 0).apply();
+							autoUploadDialog.show();
+						}))
+						.setCancelable(false)
+						.create();
 
-					v.findViewById(R.id.sign_in_button).setOnClickListener((x) -> {
-						dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setEnabled(false);
-						dialog.setMessage(getString(R.string.signin_connecting));
-						Signin.signin(activity, (user) -> {
-							if (user == null)
-								new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
-							dialog.dismiss();
-						});
-
+				v.findViewById(R.id.sign_in_button).setOnClickListener((x) -> {
+					dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setEnabled(false);
+					dialog.setMessage(getString(R.string.signin_connecting));
+					Signin.signin(activity, (user) -> {
+						if (user == null)
+							new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
+						dialog.dismiss();
 					});
 
-					dialog.setView(v);
-					dialog.show();
-				}
+				});
+
+				dialog.setView(v);
+				dialog.show();
 			}
 		};
 
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_permissions, Color.parseColor("#cc3333"), window, googleSigninSlideCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
 		window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
 		window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
 		window.setStatusBarColor(Color.parseColor("#11A63D"));
