@@ -100,9 +100,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 	public static void getUserAsync(@NonNull Context context, IValueCallback<User> callback) {
-		Signin instance = signin(context, callback);
-		if (instance.user != null)
-			callback.callback(instance.user);
+		signin(context, callback);
 	}
 
 	public static void getUserDataAsync(@NonNull Context context, IValueCallback<User> callback) {
