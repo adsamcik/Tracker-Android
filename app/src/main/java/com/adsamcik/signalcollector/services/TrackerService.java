@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
 
 import java.lang.ref.WeakReference;
 import java.math.RoundingMode;
@@ -210,7 +211,7 @@ public class TrackerService extends Service {
 		data.add(d);
 		dataEcho = d;
 
-		DataStore.incSizeOfData(DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length);
+		DataStore.incSizeOfData(new Gson().toJson(d).getBytes(Charset.defaultCharset()).length);
 
 		prevLocation = location;
 		prevLocation.setTime(d.time);
@@ -251,7 +252,7 @@ public class TrackerService extends Service {
 
 		sp.edit().putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount).putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount).putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
-		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
+		String input = new Gson().toJson(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
 
 		DataStore.SaveStatus result = DataStore.saveData(input);
