@@ -9,12 +9,14 @@ import com.google.gson.annotations.Expose;
 
 public class Challenge {
 	private final ChallengeType type;
-	private String title;
 	public boolean isDone;
+	private String[] descVars;
+
+	@Expose(serialize = false, deserialize = false)
+	private String title;
 
 	@Expose(serialize = false, deserialize = false)
 	private String description;
-	private String[] descVars;
 
 	public Challenge(ChallengeType type, String title, String description, boolean isDone) {
 		this.type = type;

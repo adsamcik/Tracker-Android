@@ -21,7 +21,7 @@ public class ChallengeDeserializer implements JsonDeserializer<Challenge> {
 			descVars[i] = jDescVars.get(i).getAsString();
 
 		return new Challenge(
-				Challenge.ChallengeType.values()[jobject.get("id").getAsInt()],
+				Challenge.ChallengeType.valueOf(jobject.get("type").getAsString()),
 				jobject.get("title").getAsString(),
 				descVars,
 				jobject.get("isDone").getAsBoolean());
