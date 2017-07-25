@@ -11,6 +11,15 @@ android {
         versionCode 189
         versionName "4.1.1"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [
+                        stagAssumeHungarianNotation: 'false',
+                        stagGeneratedPackageName   : 'com.adsamcik.signalcollector.generated',
+                        stagDebug                  : 'true'
+                ]
+            }
+        }
     }
     buildTypes {
         release_nominify {
@@ -41,6 +50,7 @@ dependencies {
     compile 'com.squareup.okhttp3:okhttp:3.8.1'
     compile 'com.google.code.gson:gson:2.8.1'
     compile 'com.github.apl-devs:appintro:v4.2.2'
+    compile 'com.vimeo.stag:stag-library:2.3.2'
     compile 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     compile 'com.google.android.gms:play-services-maps:11.0.2'
     compile 'com.google.android.gms:play-services-location:11.0.2'
@@ -54,6 +64,7 @@ dependencies {
     androidTestCompile 'com.android.support.test.uiautomator:uiautomator-v18:2.1.2'
     androidTestCompile 'org.hamcrest:hamcrest-integration:1.4-atlassian-1'
     implementation 'com.google.firebase:firebase-crash:11.0.2'
+    annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.3.2'
 }
 
 apply plugin: 'com.google.gms.google-services'
