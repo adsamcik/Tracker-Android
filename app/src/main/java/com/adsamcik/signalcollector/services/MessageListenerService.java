@@ -75,28 +75,27 @@ public class MessageListenerService extends FirebaseMessagingService {
 						try {
 							challengeType = Challenge.ChallengeType.valueOf(data.get("challengeType"));
 						} catch (Exception e) {
-							FirebaseCrash.report(new Throwable("Unknown challenge"));
+							sendNotification(MessageType.ChallengeReport, getString(R.string.notification_challenge_unknown_title), getString(R.string.notification_challenge_unknown_description), null, message.getSentTime());
+							return;
 						}
-						if(challengeType != null) {
-							final Challenge.ChallengeType cType = challengeType;
-							ChallengeManager.getChallenges(this, false, (source, challenges) -> {
-								if (source.isSuccess() && challenges != null) {
-									for (Challenge challenge : challenges) {
-										if (challenge.getType() == cType) {
-											challenge.isDone = true;
-											challenge.generateTexts(this);
-											sendNotification(MessageType.ChallengeReport,
-													getString(R.string.notification_challenge_done_title, challenge.getTitle()),
-													getString(R.string.notification_challenge_done_description, challenge.getTitle()),
-													null,
-													message.getSentTime());
-											break;
-										}
+						final Challenge.ChallengeType cType = challengeType;
+						ChallengeManager.getChallenges(this, false, (source, challenges) -> {
+							if (source.isSuccess() && challenges != null) {
+								for (Challenge challenge : challenges) {
+									if (challenge.getType() == cType) {
+										challenge.isDone = true;
+										challenge.generateTexts(this);
+										sendNotification(MessageType.ChallengeReport,
+												getString(R.string.notification_challenge_done_title, challenge.getTitle()),
+												getString(R.string.notification_challenge_done_description, challenge.getTitle()),
+												null,
+												message.getSentTime());
+										break;
 									}
-									ChallengeManager.saveChallenges(challenges);
 								}
-							});
-						}
+								ChallengeManager.saveChallenges(challenges);
+							}
+						});
 					}
 					break;
 			}
