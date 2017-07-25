@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import com.google.gson.Gson;
@@ -70,24 +71,31 @@ public class MessageListenerService extends FirebaseMessagingService {
 				case ChallengeReport:
 					boolean isDone = Boolean.parseBoolean(data.get("isDone"));
 					if (isDone) {
-						Challenge.ChallengeType challengeType = Challenge.ChallengeType.valueOf(data.get("challengeType"));
-						ChallengeManager.getChallenges(this, false, (source, challenges) -> {
-							if (source.isSuccess() && challenges != null) {
-								for (Challenge challenge : challenges) {
-									if (challenge.getType() == challengeType) {
-										challenge.isDone = true;
-										challenge.generateTexts(this);
-										sendNotification(MessageType.ChallengeReport,
-												getString(R.string.notification_challenge_done_title, challenge.getTitle()),
-												getString(R.string.notification_challenge_done_description, challenge.getTitle()),
-												null,
-												message.getSentTime());
-										break;
+						Challenge.ChallengeType challengeType = null;
+						try {
+							challengeType = Challenge.ChallengeType.valueOf(data.get("challengeType"));
+						} catch (Exception e) {
+							FirebaseCrash.report(new Throwable("Unknown challenge"));
+						}
+						if(challengeType != null) {
+							ChallengeManager.getChallenges(this, false, (source, challenges) -> {
+								if (source.isSuccess() && challenges != null) {
+									for (Challenge challenge : challenges) {
+										if (challenge.getType() == challengeType) {
+											challenge.isDone = true;
+											challenge.generateTexts(this);
+											sendNotification(MessageType.ChallengeReport,
+													getString(R.string.notification_challenge_done_title, challenge.getTitle()),
+													getString(R.string.notification_challenge_done_description, challenge.getTitle()),
+													null,
+													message.getSentTime());
+											break;
+										}
 									}
+									ChallengeManager.saveChallenges(challenges);
 								}
-								ChallengeManager.saveChallenges(challenges);
-							}
-						});
+							});
+						}
 					}
 					break;
 			}
