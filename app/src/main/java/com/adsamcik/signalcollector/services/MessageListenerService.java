@@ -71,7 +71,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 				case ChallengeReport:
 					boolean isDone = Boolean.parseBoolean(data.get("isDone"));
 					if (isDone) {
-						Challenge.ChallengeType challengeType = null;
+						Challenge.ChallengeType challengeType;
 						try {
 							challengeType = Challenge.ChallengeType.valueOf(data.get("challengeType"));
 						} catch (Exception e) {

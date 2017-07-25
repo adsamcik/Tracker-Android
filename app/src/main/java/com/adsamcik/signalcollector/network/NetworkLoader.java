@@ -2,11 +2,12 @@ package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.utility.CacheStore;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.crash.FirebaseCrash;
@@ -91,14 +92,15 @@ public class NetworkLoader {
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
-	public static void requestString(@NonNull OkHttpClient client, @NonNull final Request request, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
+	public static void requestString(@NonNull OkHttpClient client, @NonNull final Request request, int updateTimeInMinutes, @NonNull final Context ctx, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
+		final Context context = ctx.getApplicationContext();
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
-		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !DataStore.exists(preferenceString)) {
+		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !CacheStore.exists(context, preferenceString)) {
 			if (!Assist.hasNetwork(context)) {
 				if (lastUpdate == -1)
 					callback.callback(Source.no_data, null);
 				else
-					callback.callback(Source.cache_no_internet, DataStore.loadString(preferenceString));
+					callback.callback(Source.cache_no_internet, CacheStore.loadString(context, preferenceString));
 				return;
 			}
 
@@ -106,7 +108,7 @@ public class NetworkLoader {
 				@Override
 				public void onFailure(@NonNull Call call, @NonNull IOException e) {
 					if (lastUpdate != -1)
-						callback.callback(Source.cache_connection_failed, DataStore.loadString(preferenceString));
+						callback.callback(Source.cache_connection_failed, CacheStore.loadString(context, preferenceString));
 					else
 						callback.callback(Source.no_data, null);
 
@@ -126,16 +128,16 @@ public class NetworkLoader {
 						if (lastUpdate == -1)
 							callback.callback(Source.no_data, null);
 						else
-							callback.callback(Source.cache_invalid_data, DataStore.loadString(preferenceString));
+							callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString));
 					} else {
 						Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
-						DataStore.saveString(preferenceString, json);
+						CacheStore.saveString(context, preferenceString, json);
 						callback.callback(Source.network, json);
 					}
 				}
 			});
 		} else
-			callback.callback(Source.cache, DataStore.loadString(preferenceString));
+			callback.callback(Source.cache, CacheStore.loadString(context, preferenceString));
 	}
 
 	public enum Source {
