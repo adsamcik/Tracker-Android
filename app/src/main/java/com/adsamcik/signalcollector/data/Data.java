@@ -14,17 +14,19 @@ import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 
 import com.google.firebase.crash.FirebaseCrash;
+import com.vimeo.stag.UseStag;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
+@UseStag
 public class Data implements Serializable {
 	/**
 	 * Time of collection in milliseconds since midnight, January 1, 1970 UTC
 	 */
-	public final long time;
+	public long time;
 
 	/**
 	 * Longitude
@@ -74,6 +76,8 @@ public class Data implements Serializable {
 	public int activity;
 
 	public short noise;
+
+	public Data() {}
 
 	/**
 	 * Data constructor
