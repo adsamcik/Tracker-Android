@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.graphics.Color;
 import android.support.annotation.NonNull;
@@ -16,6 +17,7 @@ public class NotificationTools {
 		createChannel(context, R.string.channel_track_id, R.string.channel_track_name, R.string.channel_track_description, true, android.app.NotificationManager.IMPORTANCE_LOW);
 		createChannel(context, R.string.channel_upload_id, R.string.channel_upload_name, R.string.channel_upload_description, false, android.app.NotificationManager.IMPORTANCE_LOW);
 		createChannel(context, R.string.channel_other_id, R.string.channel_other_name, R.string.channel_other_description, true, android.app.NotificationManager.IMPORTANCE_LOW);
+		createChannel(context, R.string.channel_challenges_id, R.string.channel_challenges_name, R.string.channel_challenges_description, true, NotificationManager.IMPORTANCE_HIGH);
 	}
 
 	private static void createChannel(@NonNull Context context, @StringRes int idId, @StringRes int nameId, @StringRes int descriptionId, boolean useVibration, int importance) {

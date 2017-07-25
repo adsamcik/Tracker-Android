@@ -9,4 +9,7 @@
     <string name="channel_other_id">other_channel_id</string>
     <string name="channel_other_name">Other channel</string>
     <string name="channel_other_description">Channel containing various notifications</string>
+    <string name="channel_challenges_id">challenge_channel_id</string>
+    <string name="channel_challenges_name">Challenge_channel_id channel</string>
+    <string name="channel_challenges_description">Channel containing challenge reports and notifications</string>
 </resources>

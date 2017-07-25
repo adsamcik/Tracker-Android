@@ -71,12 +71,17 @@ public class MessageListenerService extends FirebaseMessagingService {
 					boolean isDone = Boolean.parseBoolean(data.get("isDone"));
 					if (isDone) {
 						Challenge.ChallengeType challengeType = Challenge.ChallengeType.values()[Integer.parseInt(data.get("id"))];
-						sendNotification(MessageType.Notification, data.get(TITLE), data.get(MESSAGE), null, message.getSentTime());
 						ChallengeManager.getChallenges(this, false, (source, challenges) -> {
 							if (source.isSuccess() && challenges != null) {
 								for (Challenge challenge : challenges) {
 									if (challenge.getType() == challengeType) {
 										challenge.isDone = true;
+										challenge.generateTexts(this);
+										sendNotification(MessageType.ChallengeReport,
+												getString(R.string.notification_challenge_done_title, challenge.getTitle()),
+												getString(R.string.notification_challenge_done_description, challenge.getTitle()),
+												null,
+												message.getSentTime());
 										break;
 									}
 								}
@@ -147,7 +152,19 @@ public class MessageListenerService extends FirebaseMessagingService {
 		if (pendingIntent == null)
 			pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
 
-		@StringRes int channelId = messageType == MessageType.UploadReport ? R.string.channel_upload_id : R.string.channel_other_id;
+		@StringRes int channelId;
+		switch (messageType) {
+			case UploadReport:
+				channelId = R.string.channel_upload_id;
+				break;
+			case ChallengeReport:
+				channelId = R.string.channel_challenges_id;
+				break;
+			case Notification:
+			default:
+				channelId = R.string.channel_other_id;
+				break;
+		}
 
 		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.color_primary);
 
