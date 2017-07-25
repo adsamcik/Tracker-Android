@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.support.annotation.NonNull;
+import android.util.MalformedJsonException;
 
 import com.google.firebase.crash.FirebaseCrash;
 
@@ -34,15 +35,14 @@ public class FileStore {
 		return new File(parent, fileName);
 	}
 
-
 	/**
 	 * Saves string to file
 	 *
 	 * @param file file
 	 * @param data string data
 	 */
-	public static boolean saveString(@NonNull File file, @NonNull String data) {
-		try (FileOutputStream outputStream = new FileOutputStream(file)) {
+	public static boolean saveString(@NonNull File file, @NonNull String data, boolean append) {
+		try (FileOutputStream outputStream = new FileOutputStream(file, append)) {
 			outputStream.getChannel().lock();
 			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
 			osw.write(data);
@@ -55,18 +55,38 @@ public class FileStore {
 		return true;
 	}
 
-	public static boolean saveStringAppend(@NonNull File parent, @NonNull String fileName, @NonNull String data) {
-		File file = new File(parent, fileName);
-		try (FileOutputStream outputStream = new FileOutputStream(file)) {
-			outputStream.getChannel().lock();
-			OutputStreamWriter osw = new OutputStreamWriter(outputStream);
-			osw.write(data);
-			osw.close();
-		} catch (Exception e) {
-			FirebaseCrash.report(e);
-			return false;
+	/**
+	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
+	 * Allows file overriding and custom empty array detection.
+	 *
+	 * @param file   file
+	 * @param data   Json array to append
+	 * @param append Should existing file be overriden with current data
+	 * @return Failure
+	 * @throws MalformedJsonException Thrown when json array is in incorrect format
+	 */
+	public static boolean saveJsonArray(@NonNull File file, @NonNull String data, boolean append) throws MalformedJsonException {
+		StringBuilder sb = new StringBuilder(data);
+		if (sb.charAt(0) == ',')
+			throw new MalformedJsonException("Json starts with ','. That is not right.");
+		char firstChar = !append || !file.exists() || file.length() == 0 ? '[' : ',';
+		switch (firstChar) {
+			case ',':
+				if (sb.charAt(0) == '[')
+					sb.setCharAt(0, ',');
+				else
+					sb.insert(0, ',');
+				break;
+			case '[':
+				if (sb.charAt(0) == '{')
+					sb.insert(0, '[');
 		}
-		return true;
+
+		if (sb.charAt(sb.length() - 1) == ']')
+			sb.deleteCharAt(sb.length() - 1);
+
+		data = sb.toString();
+		return saveString(file, data, append);
 	}
 
 
@@ -135,8 +155,8 @@ public class FileStore {
 	 * @param file file to delete
 	 * @return true if file was deleted, false otherwise
 	 */
-	public static boolean retryDelete(File file) {
-		return retryDelete(file, 5);
+	public static boolean delete(File file) {
+		return delete(file, 3);
 	}
 
 	/**
@@ -147,7 +167,7 @@ public class FileStore {
 	 * @param maxRetryCount maximum retry count
 	 * @return true if file was deleted, false otherwise
 	 */
-	public static boolean retryDelete(File file, int maxRetryCount) {
+	public static boolean delete(File file, int maxRetryCount) {
 		if (file == null)
 			throw new InvalidParameterException("file is null");
 
@@ -166,5 +186,31 @@ public class FileStore {
 				Thread.currentThread().interrupt();
 			}
 		}
+	}
+
+	/**
+	 * Recursively deletes all files in a directory
+	 *
+	 * @param file File or directory
+	 * @return True if successfull
+	 */
+	public static boolean recursiveDelete(@NonNull File file) {
+		if (file.isDirectory()) {
+			for (File f : file.listFiles())
+				if (!recursiveDelete(f))
+					return false;
+		}
+		return file.delete();
+	}
+
+	/**
+	 * Rename file
+	 *
+	 * @param file        file to rename
+	 * @param newFileName new file name
+	 * @return success
+	 */
+	public static boolean rename(File file, String newFileName) {
+		return file.renameTo(new File(file.getParentFile(), newFileName));
 	}
 }
