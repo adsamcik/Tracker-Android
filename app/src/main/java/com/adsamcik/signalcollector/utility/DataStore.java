@@ -35,6 +35,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.adsamcik.signalcollector.utility.FileStore.file;
+
 public class DataStore {
 	public static final String TAG = "SignalsDatastore";
 
@@ -164,7 +166,7 @@ public class DataStore {
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public static boolean exists(String fileName) {
-		return new File(getContext().getFilesDir().getAbsolutePath() + File.separatorChar + fileName).exists();
+		return file(getContext().getFilesDir(), fileName).exists();
 	}
 
 	/**
