@@ -78,10 +78,11 @@ public class MessageListenerService extends FirebaseMessagingService {
 							FirebaseCrash.report(new Throwable("Unknown challenge"));
 						}
 						if(challengeType != null) {
+							final Challenge.ChallengeType cType = challengeType;
 							ChallengeManager.getChallenges(this, false, (source, challenges) -> {
 								if (source.isSuccess() && challenges != null) {
 									for (Challenge challenge : challenges) {
-										if (challenge.getType() == challengeType) {
+										if (challenge.getType() == cType) {
 											challenge.isDone = true;
 											challenge.generateTexts(this);
 											sendNotification(MessageType.ChallengeReport,
