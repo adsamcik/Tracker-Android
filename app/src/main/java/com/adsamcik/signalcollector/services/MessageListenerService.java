@@ -29,7 +29,7 @@ import com.google.gson.Gson;
 import java.util.Map;
 
 public class MessageListenerService extends FirebaseMessagingService {
-	private static final String TAG = "SignalsMessageListenerService";
+	private static final String TAG = "SignalsMessageService";
 	static int notificationIndex = 1;
 
 	@Override
