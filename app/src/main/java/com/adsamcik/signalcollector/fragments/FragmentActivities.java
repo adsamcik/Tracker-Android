@@ -54,7 +54,7 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 		final Context context = activity.getApplicationContext();
 		ChallengeManager.getChallenges(activity, isRefresh, (source, challenges) -> {
 			if (!source.isSuccess())
-				new SnackMaker(rootView).showSnackbar(R.string.error_connection_failed);
+				new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
 			else {
 				activity.runOnUiThread(() -> listViewChallenges.setAdapter(new ChallengesAdapter(context, challenges)));
 			}
