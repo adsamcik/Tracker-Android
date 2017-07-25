@@ -88,7 +88,7 @@ public class NetworkLoader {
 	 *
 	 * @param request             requestPOST data
 	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
-	 * @param context             Context
+	 * @param ctx             Context
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
