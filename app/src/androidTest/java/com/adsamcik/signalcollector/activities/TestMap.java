@@ -13,17 +13,17 @@ import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
 
-import junit.framework.Assert;
-
 import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.util.Random;
 
-import static junit.framework.Assert.fail;
-import static org.hamcrest.core.IsNull.notNullValue;
+import org.junit.Assert;
+
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 
 @RunWith(AndroidJUnit4.class)
