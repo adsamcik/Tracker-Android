@@ -356,6 +356,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
+						new SnackMaker(getActivity()).showSnackbar(R.string.settings_cleared_all_cache_data);
 						CacheStore.clearAll(context);
 					})
 					.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
