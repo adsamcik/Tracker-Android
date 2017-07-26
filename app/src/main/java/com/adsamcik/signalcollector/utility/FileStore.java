@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.utility;
 
-import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.MalformedJsonException;
 
@@ -96,7 +95,7 @@ public class FileStore {
 	/**
 	 * Load string file as StringBuilder
 	 *
-	 * @param fileName file name
+	 * @param file file to load
 	 * @return content of file as StringBuilder
 	 */
 	public static StringBuilder loadStringAsBuilder(@NonNull File file) {
@@ -124,7 +123,7 @@ public class FileStore {
 	/**
 	 * Converts loadStringAsBuilder to string and handles nulls
 	 *
-	 * @param fileName file name
+	 * @param file file to load
 	 * @return content of file (empty if file has no content or does not exists)
 	 */
 	public static String loadString(@NonNull File file) {
@@ -138,7 +137,7 @@ public class FileStore {
 	/**
 	 * Loads json array that was saved with append method
 	 *
-	 * @param fileName file name
+	 * @param file file to load
 	 * @return proper json array
 	 */
 	public static String loadAppendableJsonArray(@NonNull File file) {
@@ -154,7 +153,7 @@ public class FileStore {
 	/**
 	 * Loads whole json array and than finds last object and converts it to java object
 	 *
-	 * @param fileName file name
+	 * @param file file to load
 	 * @param tClass   class of the resulting object
 	 * @return last object of json array or null
 	 */
@@ -233,7 +232,7 @@ public class FileStore {
 	public static boolean clearFolder(@NonNull File file) {
 		if (file.isDirectory()) {
 			for (File f : file.listFiles())
-				if(!delete(f))
+				if (!delete(f))
 					return false;
 		} else
 			return false;
