@@ -255,7 +255,7 @@ public class TrackerService extends Service {
 		String input = new Gson().toJson(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
 
-		DataStore.SaveStatus result = DataStore.saveData(input);
+		DataStore.SaveStatus result = DataStore.saveData(this, input);
 		if (result == DataStore.SaveStatus.SAVING_FAILED) {
 			saveAttemptsFailed++;
 			if (saveAttemptsFailed >= 5)
@@ -320,7 +320,6 @@ public class TrackerService extends Service {
 	public void onCreate() {
 		service = new WeakReference<>(this);
 		Context appContext = getApplicationContext();
-		DataStore.setContext(appContext);
 		Assist.initialize(appContext);
 		SharedPreferences sp = Preferences.get(appContext);
 
@@ -421,7 +420,7 @@ public class TrackerService extends Service {
 		saveData();
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
-		DataStore.cleanup();
+		DataStore.cleanup(this);
 
 		if (wasWifiEnabled) {
 			if (!powerManager.isInteractive())

@@ -131,7 +131,7 @@ public class NetworkLoader {
 							callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString));
 					} else {
 						Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
-						CacheStore.saveString(context, preferenceString, json);
+						CacheStore.saveString(context, preferenceString, json, false);
 						callback.callback(Source.network, json);
 					}
 				}

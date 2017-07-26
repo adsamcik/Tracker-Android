@@ -15,8 +15,8 @@ public class CacheStore {
 	 * @param data     string data
 	 */
 	@SuppressWarnings("SameParameterValue")
-	public static boolean saveString(@NonNull Context context, String fileName, String data) {
-		return FileStore.saveString(file(context.getCacheDir(), fileName), data);
+	public static boolean saveString(@NonNull Context context, @NonNull String fileName, @NonNull String data, boolean append) {
+		return FileStore.saveString(file(context.getCacheDir(), fileName), data, append);
 	}
 
 

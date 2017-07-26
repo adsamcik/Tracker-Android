@@ -52,7 +52,6 @@ public class MainActivity extends FragmentActivity {
 		super.onCreate(savedInstanceState);
 
 		setContentView(R.layout.activity_main);
-		DataStore.setContext(this);
 		SnackMaker snackMaker = new SnackMaker(this);
 		Assist.initialize(this);
 

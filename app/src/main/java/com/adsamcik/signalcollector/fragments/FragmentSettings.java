@@ -212,7 +212,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
-					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
+					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData(context))
 					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
 					})
 					.setMessage(getResources().getText(R.string.alert_clear_text));
@@ -485,7 +485,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 									} else
 										FirebaseCrash.report(new Throwable("Body is null"));
 								}
-								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+								DataStore.saveString(activity, Preferences.PREF_USER_DATA, new Gson().toJson(u), false);
 							} else {
 								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
 								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);
@@ -541,7 +541,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 									} else
 										FirebaseCrash.report(new Throwable("Body is null"));
 								}
-								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+								DataStore.saveString(activity, Preferences.PREF_USER_DATA, new Gson().toJson(u), false);
 							} else {
 								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
 								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);

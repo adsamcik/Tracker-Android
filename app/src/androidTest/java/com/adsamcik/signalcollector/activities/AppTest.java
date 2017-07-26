@@ -109,8 +109,8 @@ public class AppTest {
 		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
 		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
 
-		DataStore.deleteFile(testFileName);
-		DataStore.deleteFile(DataStore.RECENT_UPLOADS_FILE);
+		DataStore.delete(testFileName);
+		DataStore.delete(DataStore.RECENT_UPLOADS_FILE);
 
 		final String WIFI = "wifi";
 		final String NEW_WIFI = "newWifi";
@@ -134,7 +134,7 @@ public class AppTest {
 
 		MessageListenerService.parseAndSaveUploadReport(context, time, d);
 		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(DataStore.RECENT_UPLOADS_FILE));
-		DataStore.deleteFile(DataStore.RECENT_UPLOADS_FILE);
+		DataStore.delete(DataStore.RECENT_UPLOADS_FILE);
 	}
 
 	@org.junit.Test

@@ -28,7 +28,6 @@ public class LaunchActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		DataStore.setContext(this);
 		SharedPreferences sp = Preferences.get(this);
 		JobScheduler scheduler = ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE));
 		assert scheduler != null;
