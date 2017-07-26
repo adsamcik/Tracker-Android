@@ -36,20 +36,21 @@ public class Parser {
 
 
 	public static ArrayList<String[]> parseTSVFromFile(@NonNull Context context, @NonNull String fileName) {
-		ArrayList<String[]> items = new ArrayList<>();
-		try {
-			FileInputStream fis  = context.openFileInput(fileName);
-			InputStreamReader isr = new InputStreamReader(fis);
-			BufferedReader br = new BufferedReader(isr);
-			String receiveString;
+		if (DataStore.exists(context, fileName)) {
+			ArrayList<String[]> items = new ArrayList<>();
+			try (FileInputStream fis = context.openFileInput(fileName)) {
+				InputStreamReader isr = new InputStreamReader(fis);
+				BufferedReader br = new BufferedReader(isr);
+				String receiveString;
 
-			while ((receiveString = br.readLine()) != null)
-				items.add(parseLine(receiveString));
+				while ((receiveString = br.readLine()) != null)
+					items.add(parseLine(receiveString));
 
-			isr.close();
-			return items;
-		} catch (IOException e) {
-			FirebaseCrash.report(e);
+				isr.close();
+				return items;
+			} catch (IOException e) {
+				FirebaseCrash.report(e);
+			}
 		}
 
 		return null;
