@@ -15,3 +15,10 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+-keep public class com.adsamcik.signalcollector.data.** {
+  public private <fields>;
+}
