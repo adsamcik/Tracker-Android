@@ -93,4 +93,5 @@ app/google-services-----.json
 java_pid12832.hprof
 app/app.iml
 app/release_nominify/*
+app/release/*
 app/src/main/java/com/adsamcik/signalcollector/network/Server.java
