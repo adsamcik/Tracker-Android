@@ -20,6 +20,8 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.data.CellData;
+import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.services.MessageListenerService;
@@ -34,6 +36,7 @@ import org.hamcrest.StringDescription;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.HashMap;
@@ -73,6 +76,7 @@ public class AppTest {
 		context = InstrumentationRegistry.getContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
+		assert intent != null;
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);
 
@@ -81,7 +85,7 @@ public class AppTest {
 		context = InstrumentationRegistry.getTargetContext().getApplicationContext();
 	}
 
-	@org.junit.Test
+	@Test
 	public void NotificationSavingTest() throws MalformedJsonException, InterruptedException {
 		final String testFileName = DataStore.RECENT_UPLOADS_FILE;
 
@@ -138,7 +142,7 @@ public class AppTest {
 		DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
 	}
 
-	@org.junit.Test
+	@Test
 	public void UploadFABTest() throws InterruptedException {
 		Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 
