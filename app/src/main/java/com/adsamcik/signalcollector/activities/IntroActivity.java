@@ -83,7 +83,7 @@ public class IntroActivity extends AppIntro2 {
 				.setPositiveButton(R.string.yes, (dialog, whichButton) -> Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, 1).apply())
 				.setNegativeButton(R.string.no, ((dialogInterface, i) -> Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, 0).apply()));
 
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback));
 		//askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 2);
 
 
@@ -117,7 +117,7 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
 		window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
 		window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
 		window.setStatusBarColor(Color.parseColor("#11A63D"));
