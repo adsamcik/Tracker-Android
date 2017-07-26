@@ -18,6 +18,8 @@ import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import org.intellij.lang.annotations.JdkConstants;
+
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.nio.charset.Charset;
@@ -35,20 +37,10 @@ public class DataStore {
 	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
 	private static final int MAX_FILE_SIZE = 1048576;
 
-	private static WeakReference<Context> contextWeak;
 	private static ICallback onDataChanged;
 	private static INonNullValueCallback<Integer> onUploadProgress;
 
 	private static volatile long approxSize = -1;
-
-	private static Context getContext() {
-		return contextWeak.get();
-	}
-
-	public static void setContext(Context c) {
-		if (c != null)
-			contextWeak = new WeakReference<>(c);
-	}
 
 	private static File getFolder(@NonNull Context context) {
 		return context.getFilesDir();
@@ -112,8 +104,8 @@ public class DataStore {
 	 * @param includeLast Include last file (last file is almost always not complete)
 	 * @return Returns data file names
 	 */
-	public static String[] getDataFileNames(boolean includeLast) {
-		int maxID = Preferences.get(getContext()).getInt(KEY_FILE_ID, -1);
+	public static String[] getDataFileNames(@NonNull Context context, boolean includeLast) {
+		int maxID = Preferences.get(context).getInt(KEY_FILE_ID, -1);
 		if ((!includeLast && --maxID < 0) || maxID < 0)
 			return null;
 		String[] fileNames = new String[maxID + 1];
@@ -141,8 +133,8 @@ public class DataStore {
 	 * @param newFileName new file name
 	 * @return success
 	 */
-	public static boolean rename(String fileName, String newFileName) {
-		return FileStore.rename(file(getContext(), fileName), newFileName);
+	public static boolean rename(@NonNull Context context, String fileName, String newFileName) {
+		return FileStore.rename(file(context, fileName), newFileName);
 	}
 
 	/**
@@ -150,8 +142,8 @@ public class DataStore {
 	 *
 	 * @param fileName file name
 	 */
-	public static void delete(String fileName) {
-		FileStore.delete(file(getContext(), fileName));
+	public static void delete(@NonNull Context context, String fileName) {
+		FileStore.delete(file(context, fileName));
 	}
 
 	/**
@@ -161,16 +153,16 @@ public class DataStore {
 	 * @return existence of file
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
-	public static boolean exists(String fileName) {
-		return file(getContext(), fileName).exists();
+	public static boolean exists(@NonNull Context context, @NonNull String fileName) {
+		return file(context, fileName).exists();
 	}
 
 	/**
 	 * Handles any leftover files that could have been corrupted by some issue and reorders existing files
 	 */
-	public synchronized static void cleanup() {
+	public synchronized static void cleanup(@NonNull Context context) {
 		final String tmpName = "5GeVPiYk6J";
-		File[] files = getContext().getFilesDir().listFiles();
+		File[] files = getFolder(context).listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<String> renamedFiles = new ArrayList<>();
 		for (File file : files) {
@@ -183,7 +175,7 @@ public class DataStore {
 		}
 
 		for (String item : renamedFiles)
-			rename(item, DATA_FILE + item);
+			rename(context, item, DATA_FILE + item);
 
 		Preferences.get().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 	}
@@ -193,13 +185,13 @@ public class DataStore {
 	 *
 	 * @return total size of data
 	 */
-	public static long recountDataSize() {
-		String[] fileNames = getDataFileNames(true);
+	public static long recountDataSize(@NonNull Context context) {
+		String[] fileNames = getDataFileNames(context, true);
 		if (fileNames == null)
 			return 0;
 		long size = 0;
 		for (String fileName : fileNames)
-			size += sizeOf(fileName);
+			size += sizeOf(context, fileName);
 		Preferences.get().edit().putLong(KEY_SIZE, size).apply();
 		if (onDataChanged != null && approxSize != size)
 			onDataChanged();
@@ -239,19 +231,19 @@ public class DataStore {
 	 * @param fileName Name of file
 	 * @return Size of file
 	 */
-	private static long sizeOf(String fileName) {
-		return file(getContext(), fileName).length();
+	private static long sizeOf(@NonNull Context context, String fileName) {
+		return file(context, fileName).length();
 	}
 
 
 	/**
 	 * Clears all data files
 	 */
-	public static void clearAllData() {
+	public static void clearAllData(@NonNull Context context) {
 		SharedPreferences sp = Preferences.get();
 		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
-		File[] files = getFolder(getContext()).listFiles();
+		File[] files = getFolder(context).listFiles();
 
 		for (File file : files) {
 			String name = file.getName();
@@ -262,7 +254,7 @@ public class DataStore {
 
 		Bundle bundle = new Bundle();
 		bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
-		FirebaseAnalytics.getInstance(getContext()).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle);
+		FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle);
 	}
 
 	/**
@@ -292,14 +284,13 @@ public class DataStore {
 	 * @param data json array to be saved, without [ at the beginning
 	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
-	public synchronized static SaveStatus saveData(String data) {
+	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull String data) {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
 		int id = sp.getInt(KEY_FILE_ID, 0);
 		boolean fileHasNoData;
-		long fileSize = sizeOf(DATA_FILE + id);
-		Context context = getContext();
+		long fileSize = sizeOf(context, DATA_FILE + id);
 		if (fileSize > MAX_FILE_SIZE) {
 			FileStore.saveString(file(context, DATA_FILE + id), "]}", true);
 			edit.putInt(KEY_FILE_ID, ++id);
@@ -370,5 +361,34 @@ public class DataStore {
 				}
 			}
 		}
+	}
+
+	public static boolean saveString(@NonNull Context context, @NonNull String fileName, @NonNull String data, boolean append) {
+		return FileStore.saveString(file(context, fileName), data, append);
+	}
+
+	public static <T> boolean saveJsonArrayAppend(@NonNull Context context, @NonNull String fileName, @NonNull T data, boolean append) {
+		return saveJsonArrayAppend(context, fileName, new Gson().toJson(data), append);
+	}
+
+	public static boolean saveJsonArrayAppend(@NonNull Context context, @NonNull String fileName, @NonNull String data, boolean append) {
+		try {
+			return FileStore.saveAppendableJsonArray(file(context, fileName), data, append);
+		} catch (MalformedJsonException e) {
+			FirebaseCrash.report(e);
+			return false;
+		}
+	}
+
+	public static String loadString(@NonNull Context context, @NonNull String fileName) {
+		return FileStore.loadString(file(context, fileName));
+	}
+
+	public static String loadAppendableJsonArray(@NonNull Context context, @NonNull String fileName) {
+		return FileStore.loadAppendableJsonArray(file(context, fileName));
+	}
+
+	public static <T> T loadLastFromAppendableJsonArray(@NonNull Context context, @NonNull String fileName, @NonNull Class<T> tClass) {
+		return FileStore.loadLastFromAppendableJsonArray(file(context, fileName), tClass);
 	}
 }
