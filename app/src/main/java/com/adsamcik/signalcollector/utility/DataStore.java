@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.MalformedJsonException;
+import android.util.Pair;
 
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.enums.CloudStatus;
@@ -164,18 +165,18 @@ public class DataStore {
 		final String tmpName = "5GeVPiYk6J";
 		File[] files = getFolder(context).listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
-		ArrayList<String> renamedFiles = new ArrayList<>();
+		ArrayList<Pair<Integer, String>> renamedFiles = new ArrayList<>();
 		for (File file : files) {
 			String name = file.getName();
 			if (name.startsWith(DATA_FILE)) {
 				String tempFileName = tmpName + Integer.toString(renamedFiles.size());
 				if (FileStore.rename(file, tempFileName))
-					renamedFiles.add(tempFileName);
+					renamedFiles.add(new Pair<>(renamedFiles.size(), tempFileName));
 			}
 		}
 
-		for (String item : renamedFiles)
-			rename(context, item, DATA_FILE + item);
+		for (Pair<Integer, String> item : renamedFiles)
+			rename(context, item.second, DATA_FILE + item.first);
 
 		Preferences.get().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 	}
