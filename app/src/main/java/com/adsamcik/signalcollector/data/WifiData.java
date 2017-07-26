@@ -4,6 +4,8 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 
+import com.vimeo.stag.UseStag;
+
 import java.io.Serializable;
 
 import static android.net.wifi.ScanResult.CHANNEL_WIDTH_160MHZ;
@@ -13,39 +15,40 @@ import static android.net.wifi.ScanResult.CHANNEL_WIDTH_80MHZ;
 import static android.net.wifi.ScanResult.CHANNEL_WIDTH_80MHZ_PLUS_MHZ;
 
 @SuppressWarnings("unused")
+@UseStag
 public class WifiData implements Serializable {
 	private static final int MAX_SIGNAL_BAR = 10;
 
 	/**
 	 * Unique wifi identification
 	 */
-	public final String BSSID;
+	public String BSSID;
 
 	/**
 	 * Wifi name
 	 */
-	public final String SSID;
+	public String SSID;
 
 	/**
 	 * Capabilities of the network
 	 */
-	public final String capabilities;
+	public String capabilities;
 
 	/**
 	 * Primary frequency used to communicate with AP. Channel width is 20MHz.
 	 */
-	public final int frequency;
+	public int frequency;
 
 	/**
 	 * The detected signal level in dBm.
 	 */
-	public final int level;
+	public int level;
 
 	/**
 	 * Calculated signal level
 	 * Has value from 0 to {@value #MAX_SIGNAL_BAR}
 	 */
-	public final int bar;
+	public int bar;
 
 	/**
 	 * Center frequency, not used for 20MHz AP bandwidth
@@ -69,6 +72,8 @@ public class WifiData implements Serializable {
 	 * Is wifi passpoint certified
 	 */
 	public boolean isPasspoint;
+
+	public WifiData() {}
 
 	public WifiData(ScanResult sr) {
 		this.BSSID = sr.BSSID;

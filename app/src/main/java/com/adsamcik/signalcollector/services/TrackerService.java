@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
 
 import java.lang.ref.WeakReference;
 import java.math.RoundingMode;
@@ -72,9 +73,12 @@ public class TrackerService extends Service {
 	private static WeakReference<TrackerService> service;
 	private static long lockedUntil;
 	private static boolean backgroundActivated = false;
+
 	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 	private final ArrayList<Data> data = new ArrayList<>();
+	private final Gson gson = new Gson();
+
 	private long wifiScanTime;
 	private boolean wasWifiEnabled = false;
 	private int saveAttemptsFailed = 0;
@@ -191,7 +195,7 @@ public class TrackerService extends Service {
 			d.addCell(telephonyManager);
 		}
 
-		if (noiseTracker != null) {
+		/*if (noiseTracker != null) {
 			float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
 			if ((ActivityService.lastResolvedActivity == 1 || (noiseActive && ActivityService.lastResolvedActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
 				noiseTracker.start();
@@ -203,14 +207,14 @@ public class TrackerService extends Service {
 				noiseTracker.stop();
 				noiseActive = false;
 			}
-		}
+		}*/
 
 		d.setLocation(location).setActivity(ActivityService.lastResolvedActivity);
 
 		data.add(d);
 		dataEcho = d;
 
-		DataStore.incSizeOfData(DataStore.objectToJSON(d).getBytes(Charset.defaultCharset()).length);
+		DataStore.incSizeOfData(new Gson().toJson(d).getBytes(Charset.defaultCharset()).length);
 
 		prevLocation = location;
 		prevLocation.setTime(d.time);
@@ -251,10 +255,10 @@ public class TrackerService extends Service {
 
 		sp.edit().putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount).putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount).putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
-		String input = DataStore.arrayToJSON(data.toArray(new Data[data.size()]));
+		String input = gson.toJson(data.toArray(new Data[data.size()]));
 		input = input.substring(1, input.length() - 1);
 
-		DataStore.SaveStatus result = DataStore.saveData(input);
+		DataStore.SaveStatus result = DataStore.saveData(this, input);
 		if (result == DataStore.SaveStatus.SAVING_FAILED) {
 			saveAttemptsFailed++;
 			if (saveAttemptsFailed >= 5)
@@ -305,8 +309,8 @@ public class TrackerService extends Service {
 			sb.append(d.wifi.length).append(" wifi ");
 		if (d.cellCount != -1)
 			sb.append(d.cellCount).append(" cell ");
-		if (d.noise > 0)
-			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");
+		/*if (d.noise > 0)
+			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");*/
 		if (sb.length() > 0)
 			sb.setLength(sb.length() - 1);
 		else
@@ -319,7 +323,6 @@ public class TrackerService extends Service {
 	public void onCreate() {
 		service = new WeakReference<>(this);
 		Context appContext = getApplicationContext();
-		DataStore.setContext(appContext);
 		Assist.initialize(appContext);
 		SharedPreferences sp = Preferences.get(appContext);
 
@@ -420,14 +423,14 @@ public class TrackerService extends Service {
 		saveData();
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
-		DataStore.cleanup();
+		DataStore.cleanup(this);
 
 		if (wasWifiEnabled) {
 			if (!powerManager.isInteractive())
 				wifiManager.setWifiEnabled(false);
 		}
 
-		SharedPreferences sp = Preferences.get(getApplicationContext());
+		SharedPreferences sp = Preferences.get(this);
 		sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
 
 		if (android.os.Build.VERSION.SDK_INT >= 25) {

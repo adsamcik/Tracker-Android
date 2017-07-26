@@ -393,12 +393,12 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 
 			layoutOther.setVisibility(View.VISIBLE);
-			if (d.noise > 0) {
+			/*if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
 			} else if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
 				textNoise.setText(res.getString(R.string.main_noise_not_collected));
 			} else
-				textNoise.setText(res.getString(R.string.main_noise_disabled));
+				textNoise.setText(res.getString(R.string.main_noise_disabled));*/
 
 			if (d.activity == -1)
 				textActivity.setVisibility(View.GONE);

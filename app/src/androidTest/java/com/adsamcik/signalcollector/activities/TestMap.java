@@ -13,17 +13,17 @@ import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
 
-import junit.framework.Assert;
-
 import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.util.Random;
 
-import static junit.framework.Assert.fail;
-import static org.hamcrest.core.IsNull.notNullValue;
+import org.junit.Assert;
+
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 
 @RunWith(AndroidJUnit4.class)
@@ -51,6 +51,7 @@ public class TestMap {
 		Context context = InstrumentationRegistry.getContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
+		assert intent != null;
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);
 
@@ -80,6 +81,7 @@ public class TestMap {
 			Context context = InstrumentationRegistry.getContext();
 			Intent intent = context.getPackageManager()
 					.getLaunchIntentForPackage(PACKAGE);
+			assert intent != null;
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // You need this if starting
 			intent.setAction(Intent.ACTION_MAIN);
 			intent.addCategory(Intent.CATEGORY_LAUNCHER);

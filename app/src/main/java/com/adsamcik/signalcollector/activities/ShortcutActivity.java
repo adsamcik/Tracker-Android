@@ -12,6 +12,8 @@ import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType;
 import com.google.firebase.crash.FirebaseCrash;
 
+import java.util.Objects;
+
 public class ShortcutActivity extends Activity {
 
 	@RequiresApi(api = Build.VERSION_CODES.N_MR1)
@@ -19,7 +21,7 @@ public class ShortcutActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		Intent intent = getIntent();
-		if(intent.getAction().equals(Shortcuts.ACTION)) {
+		if(Objects.equals(intent.getAction(), Shortcuts.ACTION)) {
 			int value = intent.getIntExtra(Shortcuts.ACTION_STRING, -1);
 			if (value >= 0 && value < ShortcutType.values().length) {
 				ShortcutType type = ShortcutType.values()[value];

@@ -6,10 +6,12 @@ import android.content.Intent;
 
 import com.adsamcik.signalcollector.utility.Preferences;
 
+import java.util.Objects;
+
 public class ChargingReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		if (intent.getAction().equals(Intent.ACTION_POWER_CONNECTED))
+		if (Objects.equals(intent.getAction(), Intent.ACTION_POWER_CONNECTED))
 			Preferences.get(context).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply();
 	}
 }

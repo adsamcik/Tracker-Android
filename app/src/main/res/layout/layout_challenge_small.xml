@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
-              android:orientation="vertical"
               android:background="@color/card_background"
-    android:padding="@dimen/edge_margin">
+              android:orientation="vertical"
+              android:padding="@dimen/edge_margin"
+              tools:ignore="HardcodedText">
 
     <TextView
         android:id="@+id/challenge_title"
@@ -12,15 +14,15 @@
         android:layout_height="wrap_content"
         android:text="Lorem ipsum dolor sit amet"
         android:textAllCaps="true"
-        android:textSize="@dimen/primary_text_size"
         android:textColor="@color/text_primary"
+        android:textSize="@dimen/primary_text_size"
         android:textStyle="bold"/>
 
     <TextView
         android:id="@+id/challenge_description"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_secondary"
         android:text="Far far away, behind the word mountains, far from the countries Vokalia and Consonantia, there live the blind texts."
+        android:textColor="@color/text_secondary"
         android:textSize="@dimen/secondary_text_size"/>
 </LinearLayout>

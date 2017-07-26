@@ -309,8 +309,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			updateStatus(SigninStatus.NOT_SIGNED, context);
 			Network.clearCookieJar();
 			Preferences.get(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply();
-			DataStore.deleteFile(Preferences.PREF_USER_DATA);
-			DataStore.deleteFile(Preferences.PREF_USER_STATS);
+			DataStore.delete(context, Preferences.PREF_USER_DATA);
+			DataStore.delete(context, Preferences.PREF_USER_STATS);
 			callOnDataCallbacks();
 			callOnSigninCallbacks();
 		}

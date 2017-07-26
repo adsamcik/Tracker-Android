@@ -438,6 +438,7 @@ public class Assist {
 	 */
 	public static void hideSoftKeyboard(Activity activity, View view) {
 		InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+		assert imm != null;
 		imm.hideSoftInputFromWindow(view.getApplicationWindowToken(), 0);
 	}
 

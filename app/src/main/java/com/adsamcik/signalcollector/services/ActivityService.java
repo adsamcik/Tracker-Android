@@ -14,7 +14,6 @@ import android.util.Log;
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
@@ -104,7 +103,6 @@ public class ActivityService extends IntentService {
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		DataStore.setContext(getApplicationContext());
 		powerManager = (PowerManager) getSystemService(POWER_SERVICE);
 	}
 
@@ -121,17 +119,17 @@ public class ActivityService extends IntentService {
 				if (TrackerService.isRunning()) {
 					if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(lastResolvedActivity)) {
 						stopService(new Intent(this, TrackerService.class));
-						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "stopped tracking", this);
+						ActivityRecognitionActivity.addLineIfDebug(this, Assist.getActivityName(detectedActivity.getType()), "stopped tracking");
 					} else {
-						ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), null, this);
+						ActivityRecognitionActivity.addLineIfDebug(this, Assist.getActivityName(detectedActivity.getType()), null);
 					}
 				} else if (canBackgroundTrack(lastResolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("backTrack", true);
 					startService(trackerService);
-					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), "started tracking", this);
+					ActivityRecognitionActivity.addLineIfDebug(this, Assist.getActivityName(detectedActivity.getType()), "started tracking");
 				} else {
-					ActivityRecognitionActivity.addLineIfDebug(Assist.getActivityName(detectedActivity.getType()), null, this);
+					ActivityRecognitionActivity.addLineIfDebug(this, Assist.getActivityName(detectedActivity.getType()), null);
 				}
 			}
 		} else {

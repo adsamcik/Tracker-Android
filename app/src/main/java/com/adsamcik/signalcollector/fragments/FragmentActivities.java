@@ -2,13 +2,13 @@ package com.adsamcik.signalcollector.fragments;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -117,8 +117,8 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			Challenge challenge = mDataSource[i];
 			((TextView) view.findViewById(R.id.challenge_title)).setText(challenge.getTitle());
 			((TextView) view.findViewById(R.id.challenge_description)).setText(challenge.getDescription());
-			Resources resources = getResources();
-			view.setBackgroundColor(challenge.isDone ? resources.getColor(R.color.background_success) : resources.getColor(R.color.card_background));
+
+			view.setBackgroundColor(challenge.isDone ? ContextCompat.getColor(getContext(), R.color.background_success) : ContextCompat.getColor(getContext(), R.color.card_background));
 			return view;
 		}
 	}

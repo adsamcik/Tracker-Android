@@ -17,14 +17,15 @@ import com.google.firebase.crash.FirebaseCrash;
 public class OnAppUpdateReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		if (intent.getAction().equals(Intent.ACTION_MY_PACKAGE_REPLACED)) {
+		String action = intent.getAction();
+		if (action != null && action.equals(Intent.ACTION_MY_PACKAGE_REPLACED)) {
 			SharedPreferences sp = Preferences.get(context);
 			SharedPreferences.Editor editor = sp.edit();
-			DataStore.setContext(context);
 			Assist.initialize(context);
 			if (sp.getInt(Preferences.LAST_VERSION, 0) < 159) {
-				DataStore.clearAllData();
+				DataStore.clearAllData(context);
 				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
+				assert scheduler != null;
 				scheduler.cancelAll();
 			}
 

@@ -35,6 +35,7 @@ public class NoiseTracker implements SensorEventListener {
 	 */
 	public NoiseTracker(@NonNull Context context) {
 		mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+		assert mSensorManager != null;
 		mProximity = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
 	}
 

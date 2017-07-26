@@ -60,10 +60,9 @@ public class RecentUploadsActivity extends DetailActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		DataStore.setContext(this);
 		setTitle(R.string.recent_uploads);
 
-		UploadStats[] recent = new Gson().fromJson(DataStore.loadJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
+		UploadStats[] recent = new Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
 		if (recent != null && recent.length > 0) {
 			Context context = getApplicationContext();
 			LinearLayout parent = createScrollableContentParent(true);

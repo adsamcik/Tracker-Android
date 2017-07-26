@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
@@ -88,7 +87,7 @@ public class NetworkLoader {
 	 *
 	 * @param request             requestPOST data
 	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
-	 * @param context             Context
+	 * @param ctx             Context
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
@@ -131,7 +130,7 @@ public class NetworkLoader {
 							callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString));
 					} else {
 						Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
-						CacheStore.saveString(context, preferenceString, json);
+						CacheStore.saveString(context, preferenceString, json, false);
 						callback.callback(Source.network, json);
 					}
 				}

@@ -3,11 +3,15 @@ package com.adsamcik.signalcollector.data;
 import android.content.res.Resources;
 
 import com.adsamcik.signalcollector.R;
+import com.vimeo.stag.UseStag;
 
+@UseStag
 public class UploadStats {
-	public final long time;
-	public final int newWifi, newCell, cell, wifi, collections, noiseCollections, newLocations, newNoiseLocations;
-	public final long uploadSize;
+	public long time;
+	public int newWifi, newCell, cell, wifi, collections, noiseCollections, newLocations, newNoiseLocations;
+	public long uploadSize;
+
+	public UploadStats() {}
 
 	public UploadStats(long time, int wifi, int newWifi, int cell, int newCell, int collections, int newLocations, int noiseCollections, long uploadSize, int newNoiseLocations) {
 		this.time = time;

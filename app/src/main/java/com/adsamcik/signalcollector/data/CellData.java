@@ -16,11 +16,14 @@ import android.telephony.CellSignalStrengthLte;
 import android.telephony.CellSignalStrengthWcdma;
 import android.telephony.SubscriptionInfo;
 
+import com.vimeo.stag.UseStag;
+
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 
 
+@UseStag
 public class CellData implements Serializable {
 	public static final int GSM = 0;
 	public static final int CDMA = 1;
@@ -34,44 +37,46 @@ public class CellData implements Serializable {
 	 * WCDMA - cid
 	 * LTE - ci
 	 */
-	public final int id;
+	public int id;
 
 	/**
 	 * Network operator name
 	 */
-	public final String operatorName;
+	public String operatorName;
 
 	/**
 	 * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
 	 */
-	public final int type;
+	public int type;
 
 	/**
 	 * Mobile country code
 	 * Replaced with System ID on CDMA
 	 */
-	public final int mcc;
+	public int mcc;
 
 	/**
 	 * Mobile network code
 	 * Replaced with Network ID on CDMA
 	 */
-	public final int mnc;
+	public int mnc;
 
 	/**
 	 * Strength of signal in decibels
 	 */
-	public final int dbm;
+	public int dbm;
 
 	/**
 	 * Strength of signal in asu
 	 */
-	public final int asu;
+	public int asu;
 
 	/**
 	 * Signal strength as int 0...4 calculated by device
 	 */
-	public final int level;
+	public int level;
+
+	public CellData(){}
 
 	/**
 	 * CellData constructor

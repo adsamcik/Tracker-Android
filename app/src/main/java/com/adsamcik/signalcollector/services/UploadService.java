@@ -19,6 +19,7 @@ import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.utility.Failure;
+import com.adsamcik.signalcollector.utility.FileStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.network.Network;
@@ -87,6 +88,7 @@ public class UploadService extends JobService {
 			PersistableBundle pb = new PersistableBundle(1);
 			pb.putInt(KEY_SOURCE, source.ordinal());
 			jb.setExtras(pb);
+			assert scheduler != null;
 			if (scheduler.schedule(jb.build()) <= 0)
 				return new Failure<>(c.getString(R.string.error_during_upload_scheduling));
 			updateUploadScheduleSource(c, source);
@@ -107,7 +109,6 @@ public class UploadService extends JobService {
 
 		DataStore.onUpload(0);
 		final Context c = getApplicationContext();
-		DataStore.setContext(c);
 		if (!Assist.isInitialized())
 			Assist.initialize(c);
 
@@ -148,7 +149,7 @@ public class UploadService extends JobService {
 
 		JobWorker(final String dir, final Context context, @Nullable INonNullValueCallback<Boolean> callback) {
 			this.directory = dir;
-			this.context = new WeakReference<>(context);
+			this.context = new WeakReference<>(context.getApplicationContext());
 			this.callback = callback;
 		}
 
@@ -176,7 +177,7 @@ public class UploadService extends JobService {
 				boolean isSuccessful = response.isSuccessful();
 				response.close();
 				if (isSuccessful) {
-					if (!DataStore.retryDelete(file))
+					if (!FileStore.delete(file))
 						FirebaseCrash.report(new IOException("Failed to delete file " + file.getName() + ". This should never happen."));
 					return true;
 				}
@@ -208,14 +209,14 @@ public class UploadService extends JobService {
 		@Override
 		protected Boolean doInBackground(JobParameters... params) {
 			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
-			String[] files = DataStore.getDataFileNames(source.equals(UploadScheduleSource.USER));
+			String[] files = DataStore.getDataFileNames(context.get(), source.equals(UploadScheduleSource.USER));
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(-1);
 				return false;
 			} else {
 				if (source.equals(UploadScheduleSource.USER))
-					DataStore.closeUploadFile(files[files.length - 1]);
+					DataStore.closeUploadFile(context.get(), files[files.length - 1]);
 				String zipName = "up" + System.currentTimeMillis();
 				tempZipFile = Compress.zip(directory, files, zipName);
 				if (tempZipFile == null)
@@ -249,27 +250,27 @@ public class UploadService extends JobService {
 
 				if (upload(tempZipFile, token.getString(), userID.getString())) {
 					for (String file : files)
-						DataStore.deleteFile(file);
+						DataStore.delete(context.get(), file);
 					tempZipFile = null;
 				} else {
 					return false;
 				}
 			}
 
-			DataStore.recountDataSize();
+			DataStore.recountDataSize(context.get());
 			return true;
 		}
 
 		@Override
 		protected void onPostExecute(Boolean aBoolean) {
 			super.onPostExecute(aBoolean);
-			DataStore.cleanup();
+			DataStore.cleanup(context.get());
 
 			if (!aBoolean) {
 				DataStore.onUpload(-1);
 			}
 
-			if (tempZipFile != null && !DataStore.retryDelete(tempZipFile))
+			if (tempZipFile != null && !FileStore.delete(tempZipFile))
 				FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 
 			if (callback != null)
@@ -278,10 +279,10 @@ public class UploadService extends JobService {
 
 		@Override
 		protected void onCancelled() {
-			DataStore.cleanup();
-			DataStore.recountDataSize();
+			DataStore.cleanup(context.get());
+			DataStore.recountDataSize(context.get());
 			if (tempZipFile != null)
-				DataStore.retryDelete(tempZipFile);
+				FileStore.delete(tempZipFile);
 
 			if (call != null)
 				call.cancel();

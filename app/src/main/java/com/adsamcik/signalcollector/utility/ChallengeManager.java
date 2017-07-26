@@ -28,7 +28,7 @@ public class ChallengeManager {
 		});
 	}
 
-	public static void saveChallenges(Challenge[] challenges) {
-		DataStore.saveString(Preferences.PREF_ACTIVE_CHALLENGE_LIST, new Gson().toJson(challenges));
+	public static void saveChallenges(@NonNull Context context, @NonNull Challenge[] challenges) {
+		DataStore.saveString(context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, new Gson().toJson(challenges), false);
 	}
 }

@@ -13,11 +13,10 @@ public class DebugFileActivity extends DetailActivity {
 		super.onCreate(savedInstanceState);
 		String fileName = getIntent().getStringExtra("fileName");
 		setTitle(fileName);
-		DataStore.setContext(getApplicationContext());
 		TextView tv = new TextView(this);
 		LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 		tv.setLayoutParams(layoutParams);
-		tv.setText(DataStore.loadString(fileName));
+		tv.setText(DataStore.loadString(this, fileName));
 		createScrollableContentParent(true).addView(tv);
 	}
 }

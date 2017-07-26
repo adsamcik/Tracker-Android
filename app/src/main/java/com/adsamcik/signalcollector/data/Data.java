@@ -4,27 +4,27 @@ import android.location.Location;
 import android.net.wifi.ScanResult;
 import android.os.Build;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.telephony.CellInfo;
 import android.telephony.CellInfoCdma;
 import android.telephony.CellInfoGsm;
 import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
-import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 
 import com.google.firebase.crash.FirebaseCrash;
+import com.vimeo.stag.UseStag;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
+@UseStag
 public class Data implements Serializable {
 	/**
 	 * Time of collection in milliseconds since midnight, January 1, 1970 UTC
 	 */
-	public final long time;
+	public long time;
 
 	/**
 	 * Longitude
@@ -56,7 +56,7 @@ public class Data implements Serializable {
 	 * Total cell count
 	 * default (0) if not collected.
 	 */
-	public int cellCount;
+	public Integer cellCount;
 
 	/**
 	 * Array of collected wifi networks
@@ -66,14 +66,16 @@ public class Data implements Serializable {
 	/**
 	 * Time of collection of wifi data
 	 */
-	public long wifiTime;
+	public Long wifiTime;
 
 	/**
 	 * Current resolved activity
 	 */
 	public int activity;
 
-	public short noise;
+	//public short noise;
+
+	public Data() {}
 
 	/**
 	 * Data constructor
@@ -126,17 +128,17 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	/**
+	/*/**
 	 * Sets noise value.
 	 *
 	 * @param noise Noise value. Must be absolute amplitude.
 	 * @return this
 	 */
-	public Data setNoise(short noise) {
+	/*public Data setNoise(short noise) {
 		if (noise > 0)
 			this.noise = noise;
 		return this;
-	}
+	}*/
 
 	/**
 	 * Sets current active cell from nearby cells

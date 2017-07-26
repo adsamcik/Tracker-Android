@@ -50,6 +50,7 @@ public class SaveLoadTest {
 		context = InstrumentationRegistry.getContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
+		assert intent != null;
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);
 
@@ -69,23 +70,23 @@ public class SaveLoadTest {
 
 		Preferences.get().edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
 		Gson gson = new Gson();
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(us), true, true));
-		Assert.assertEquals(true, DataStore.exists(testFileName));
-		Assert.assertEquals('[' + data, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
+		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(us), false));
+		Assert.assertEquals(true, DataStore.exists(context, testFileName));
+		Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 		//DataStore.removeOldRecentUploads();
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(us)));
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
+		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(us), true));
+		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(usOld)));
-		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadJsonArrayAppend(testFileName));
-		DataStore.removeOldRecentUploads();
+		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(usOld), true));
+		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadAppendableJsonArray(context, testFileName));
+		DataStore.removeOldRecentUploads(context);
 		Preferences.checkStatsDay(context);
 
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
+		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 
 		Instrumentation mInstrumentation = InstrumentationRegistry.getInstrumentation();
 

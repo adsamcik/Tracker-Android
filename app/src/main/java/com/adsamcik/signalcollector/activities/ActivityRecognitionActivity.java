@@ -35,7 +35,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 	private boolean usingFilter = false;
 
-	public static void addLineIfDebug(@NonNull String activity, @Nullable String action, @NonNull Context context) {
+	public static void addLineIfDebug(@NonNull Context context, @NonNull String activity, @Nullable String action) {
 		SharedPreferences preferences = Preferences.get(context);
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
 			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 0) {
@@ -45,14 +45,14 @@ public class ActivityRecognitionActivity extends DetailActivity {
 					_this.runOnUiThread(() -> _this.startStopButton.setText(_this.getString(R.string.start)));
 				}
 			}
-			addLine(activity, action);
+			addLine(context, activity, action);
 		}
 	}
 
-	private static void addLine(@NonNull String activity, @Nullable String action) {
+	private static void addLine(@NonNull Context context, @NonNull String activity, @Nullable String action) {
 		String time = getDateTimeInstance().format(System.currentTimeMillis());
 		String line = time + '\t' + activity + '\t' + (action != null ? action + '\n' : '\n');
-		DataStore.saveStringAppend(FILE, line);
+		DataStore.saveString(context, FILE, line, true);
 		if (instance != null && instance.get() != null) {
 			final ActivityRecognitionActivity _this = instance.get();
 			_this.runOnUiThread(() -> {
@@ -122,7 +122,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 		findViewById(R.id.dev_activity_recognition_clear).setOnClickListener(f -> {
 			adapter.clear();
-			DataStore.deleteFile(FILE);
+			DataStore.delete(this, FILE);
 		});
 	}
 }

@@ -286,8 +286,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	}
 
 	private void initializeLocationListener(@NonNull Context context) {
-		if (locationListener == null)
-			locationListener = new UpdateLocationListener((SensorManager) context.getSystemService(Context.SENSOR_SERVICE));
+		if (locationListener == null) {
+			SensorManager sensorManager =  (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+			assert sensorManager != null;
+			locationListener = new UpdateLocationListener(sensorManager);
+		}
 	}
 
 	@Override
@@ -311,6 +314,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			locationListener.setFollowMyPosition(true, c);
 			if (locationManager == null)
 				locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+			assert locationManager != null;
 			Location l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
 			if (l != null) {
 				CameraPosition cp = CameraPosition.builder().target(new LatLng(l.getLatitude(), l.getLongitude())).zoom(16).build();

@@ -14,7 +14,6 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.NotificationCompat;
@@ -44,6 +43,7 @@ import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.CacheStore;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.MapLayer;
@@ -212,7 +212,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
-					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData())
+					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData(context))
 					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
 					})
 					.setMessage(getResources().getText(R.string.alert_clear_text));
@@ -355,27 +355,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
-						SnackMaker snackMaker = new SnackMaker(getActivity());
-						File[] files = getContext().getFilesDir().listFiles();
-						for (File file : files) {
-							String fileName = file.getName();
-							if (!fileName.startsWith(DataStore.DATA_FILE)) {
-								int deleteRetry = 0;
-								while (DataStore.recursiveDelete(file) && deleteRetry < 10) {
-									try {
-										Thread.sleep(50);
-									} catch (InterruptedException e) {
-										FirebaseCrash.report(e);
-									}
-									deleteRetry++;
-								}
-
-								if (deleteRetry >= 10)
-									snackMaker.showSnackbar("Failed to delete " + fileName, Snackbar.LENGTH_SHORT);
-								else
-									snackMaker.showSnackbar("Deleted " + fileName, Snackbar.LENGTH_SHORT);
-							}
-						}
+						new SnackMaker(getActivity()).showSnackbar(R.string.settings_cleared_all_cache_data);
+						CacheStore.clearAll(context);
 					})
 					.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
 					})
@@ -414,7 +395,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.dev_button_notification_dummy).setOnClickListener(v -> {
 			String helloWorld = getString(R.string.dev_notification_dummy);
-			int color = getResources().getColor(R.color.color_primary);
+			int color = ContextCompat.getColor(context, R.color.color_primary);
 			Random rng = new Random(System.currentTimeMillis());
 			String[] facts = getResources().getStringArray(R.array.lorem_ipsum_facts);
 			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_other_id))
@@ -485,7 +466,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 									} else
 										FirebaseCrash.report(new Throwable("Body is null"));
 								}
-								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+								DataStore.saveString(activity, Preferences.PREF_USER_DATA, new Gson().toJson(u), false);
 							} else {
 								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
 								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);
@@ -541,7 +522,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 									} else
 										FirebaseCrash.report(new Throwable("Body is null"));
 								}
-								DataStore.saveString(Preferences.PREF_USER_DATA, new Gson().toJson(u));
+								DataStore.saveString(activity, Preferences.PREF_USER_DATA, new Gson().toJson(u), false);
 							} else {
 								activity.runOnUiThread(() -> compoundButton.setChecked(!b));
 								new SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp);

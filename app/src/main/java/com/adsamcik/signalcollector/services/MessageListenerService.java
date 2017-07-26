@@ -11,7 +11,6 @@ import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
-import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.Challenge;
@@ -21,11 +20,8 @@ import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
-import com.google.firebase.crash.FirebaseCrash;
-import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
-import com.google.gson.Gson;
 
 import java.util.Map;
 
@@ -39,10 +35,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		final String MESSAGE = "message";
 		final String TYPE = "type";
 
-		Context context = getApplicationContext();
-		SharedPreferences sp = Preferences.get(context);
-
-		DataStore.setContext(context);
+		SharedPreferences sp = Preferences.get(this);
 
 		Map<String, String> data = message.getData();
 
@@ -54,7 +47,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		if (MessageType.values().length > typeInt) {
 			switch (MessageType.values()[typeInt]) {
 				case UploadReport:
-					DataStore.removeOldRecentUploads();
+					DataStore.removeOldRecentUploads(this);
 					UploadStats us = parseAndSaveUploadReport(getApplicationContext(), message.getSentTime(), data);
 					if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
 						sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply();
@@ -93,7 +86,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 										break;
 									}
 								}
-								ChallengeManager.saveChallenges(challenges);
+								ChallengeManager.saveChallenges(this, challenges);
 							}
 						});
 					}
@@ -135,11 +128,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			uploadSize = Long.parseLong(data.get(SIZE));
 
 		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations);
-		try {
-			DataStore.saveJsonArrayAppend(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(us));
-		} catch (MalformedJsonException e) {
-			FirebaseCrash.report(e);
-		}
+		DataStore.saveJsonArrayAppend(context, DataStore.RECENT_UPLOADS_FILE, us, true);
 
 		Preferences.checkStatsDay(context);
 		SharedPreferences sp = Preferences.get(context);
