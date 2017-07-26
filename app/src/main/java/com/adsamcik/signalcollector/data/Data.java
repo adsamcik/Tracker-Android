@@ -58,7 +58,7 @@ public class Data implements Serializable {
 	 * Total cell count
 	 * default (0) if not collected.
 	 */
-	public int cellCount;
+	public Integer cellCount;
 
 	/**
 	 * Array of collected wifi networks
@@ -68,7 +68,7 @@ public class Data implements Serializable {
 	/**
 	 * Time of collection of wifi data
 	 */
-	public long wifiTime;
+	public Long wifiTime;
 
 	/**
 	 * Current resolved activity
