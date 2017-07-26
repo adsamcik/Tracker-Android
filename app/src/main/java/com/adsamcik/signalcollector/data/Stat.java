@@ -1,9 +1,5 @@
 package com.adsamcik.signalcollector.data;
 
-import android.util.JsonReader;
-
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 public class Stat {

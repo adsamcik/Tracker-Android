@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.view.Window;
 
 import com.adsamcik.signalcollector.R;

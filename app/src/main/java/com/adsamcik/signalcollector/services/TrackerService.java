@@ -38,9 +38,7 @@ import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
-import com.google.gson.ExclusionStrategy;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import java.lang.ref.WeakReference;
 import java.math.RoundingMode;

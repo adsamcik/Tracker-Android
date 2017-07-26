@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.utility;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
-import java.io.File;
 import static com.adsamcik.signalcollector.utility.FileStore.file;
 
 public class CacheStore {

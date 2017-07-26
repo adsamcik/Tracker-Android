@@ -19,10 +19,7 @@ import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import org.intellij.lang.annotations.JdkConstants;
-
 import java.io.File;
-import java.lang.ref.WeakReference;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;

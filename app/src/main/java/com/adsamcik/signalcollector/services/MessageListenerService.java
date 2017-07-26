@@ -11,7 +11,6 @@ import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
-import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.Challenge;
@@ -21,11 +20,8 @@ import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
-import com.google.firebase.crash.FirebaseCrash;
-import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
-import com.google.gson.Gson;
 
 import java.util.Map;
 

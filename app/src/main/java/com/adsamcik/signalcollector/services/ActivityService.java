@@ -14,7 +14,6 @@ import android.util.Log;
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;

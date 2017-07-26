@@ -20,8 +20,6 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.data.CellData;
-import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.services.MessageListenerService;

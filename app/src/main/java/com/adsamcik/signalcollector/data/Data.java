@@ -4,13 +4,11 @@ import android.location.Location;
 import android.net.wifi.ScanResult;
 import android.os.Build;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.telephony.CellInfo;
 import android.telephony.CellInfoCdma;
 import android.telephony.CellInfoGsm;
 import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
-import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 
 import com.google.firebase.crash.FirebaseCrash;

@@ -13,7 +13,6 @@ import android.os.Bundle;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.DataStore;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.NotificationTools;
 import com.adsamcik.signalcollector.utility.Preferences;
