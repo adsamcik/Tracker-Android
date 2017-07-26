@@ -88,6 +88,7 @@ public class UploadService extends JobService {
 			PersistableBundle pb = new PersistableBundle(1);
 			pb.putInt(KEY_SOURCE, source.ordinal());
 			jb.setExtras(pb);
+			assert scheduler != null;
 			if (scheduler.schedule(jb.build()) <= 0)
 				return new Failure<>(c.getString(R.string.error_during_upload_scheduling));
 			updateUploadScheduleSource(c, source);

@@ -10,12 +10,15 @@ import com.adsamcik.signalcollector.utility.Preferences;
 public class BatteryStateReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		switch(intent.getAction()) {
-			case Intent.ACTION_BATTERY_LOW:
-				Preferences.stopTillRecharge(context);
-				if(TrackerService.isRunning())
-					context.stopService(new Intent(context, TrackerService.class));
-				break;
+		String action = intent.getAction();
+		if(action != null) {
+			switch (action) {
+				case Intent.ACTION_BATTERY_LOW:
+					Preferences.stopTillRecharge(context);
+					if (TrackerService.isRunning())
+						context.stopService(new Intent(context, TrackerService.class));
+					break;
+			}
 		}
 	}
 }

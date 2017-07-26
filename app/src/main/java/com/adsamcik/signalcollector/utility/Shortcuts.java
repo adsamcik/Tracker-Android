@@ -36,6 +36,7 @@ public class Shortcuts {
 		else
 			shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_stop_tracking), context.getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, ShortcutType.STOP_COLLECTION));
 
+		assert shortcutManager != null;
 		shortcutManager.setDynamicShortcuts(shortcuts);
 	}
 
@@ -53,6 +54,7 @@ public class Shortcuts {
 	public static void updateShortcut(@NonNull Context context, @NonNull String id, @NonNull String shortLabel, @Nullable String longLabel, @DrawableRes int iconResource, @NonNull ShortcutType action) {
 		initializeShortcuts(context);
 		ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
+		assert shortcutManager != null;
 		List<ShortcutInfo> shortcuts = shortcutManager.getDynamicShortcuts();
 		for (int i = 0; i < shortcuts.size(); i++) {
 			if (shortcuts.get(i).getId().equals(id)) {

@@ -50,6 +50,7 @@ public class SaveLoadTest {
 		context = InstrumentationRegistry.getContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
+		assert intent != null;
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);
 

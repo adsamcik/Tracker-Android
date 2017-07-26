@@ -51,6 +51,7 @@ public class TestMap {
 		Context context = InstrumentationRegistry.getContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
+		assert intent != null;
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);
 
@@ -80,6 +81,7 @@ public class TestMap {
 			Context context = InstrumentationRegistry.getContext();
 			Intent intent = context.getPackageManager()
 					.getLaunchIntentForPackage(PACKAGE);
+			assert intent != null;
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // You need this if starting
 			intent.setAction(Intent.ACTION_MAIN);
 			intent.addCategory(Intent.CATEGORY_LAUNCHER);
