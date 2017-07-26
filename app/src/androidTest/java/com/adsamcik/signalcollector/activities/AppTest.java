@@ -70,7 +70,7 @@ public class AppTest {
 		}
 
 		// Launch the blueprint app
-		context = InstrumentationRegistry.getContext().getApplicationContext();
+		context = InstrumentationRegistry.getContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
@@ -78,6 +78,7 @@ public class AppTest {
 
 		// Wait for the app to appear
 		mDevice.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), LAUNCH_TIMEOUT);
+		context = InstrumentationRegistry.getTargetContext().getApplicationContext();
 	}
 
 	@org.junit.Test
