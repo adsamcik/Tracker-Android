@@ -65,7 +65,7 @@ public class FileStore {
 	 * @return Failure
 	 * @throws MalformedJsonException Thrown when json array is in incorrect format
 	 */
-	public static boolean saveJsonArray(@NonNull File file, @NonNull String data, boolean append) throws MalformedJsonException {
+	public static boolean saveAppendableJsonArray(@NonNull File file, @NonNull String data, boolean append) throws MalformedJsonException {
 		StringBuilder sb = new StringBuilder(data);
 		if (sb.charAt(0) == ',')
 			throw new MalformedJsonException("Json starts with ','. That is not right.");
@@ -138,7 +138,7 @@ public class FileStore {
 	 * @param fileName file name
 	 * @return proper json array
 	 */
-	public static String loadJsonArrayAppend(@NonNull File file) {
+	public static String loadAppendableJsonArray(@NonNull File file) {
 		StringBuilder sb = loadStringAsBuilder(file);
 		if (sb != null && sb.length() != 0) {
 			if (sb.charAt(sb.length() - 1) != ']')
@@ -200,7 +200,7 @@ public class FileStore {
 				if (!recursiveDelete(f))
 					return false;
 		}
-		return file.delete();
+		return delete(file);
 	}
 
 	/**
