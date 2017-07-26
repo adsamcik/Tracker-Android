@@ -44,6 +44,7 @@ import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.CacheStore;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.MapLayer;
@@ -355,27 +356,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
-						SnackMaker snackMaker = new SnackMaker(getActivity());
-						File[] files = getContext().getFilesDir().listFiles();
-						for (File file : files) {
-							String fileName = file.getName();
-							if (!fileName.startsWith(DataStore.DATA_FILE)) {
-								int deleteRetry = 0;
-								while (DataStore.recursiveDelete(file) && deleteRetry < 10) {
-									try {
-										Thread.sleep(50);
-									} catch (InterruptedException e) {
-										FirebaseCrash.report(e);
-									}
-									deleteRetry++;
-								}
-
-								if (deleteRetry >= 10)
-									snackMaker.showSnackbar("Failed to delete " + fileName, Snackbar.LENGTH_SHORT);
-								else
-									snackMaker.showSnackbar("Deleted " + fileName, Snackbar.LENGTH_SHORT);
-							}
-						}
+						CacheStore.clearAll(context);
 					})
 					.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
 					})

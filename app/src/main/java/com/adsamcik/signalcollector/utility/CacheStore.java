@@ -50,4 +50,8 @@ public class CacheStore {
 	public static boolean exists(@NonNull Context context, @NonNull String fileName) {
 		return file(context.getCacheDir(), fileName).exists();
 	}
+
+	public static void clearAll(@NonNull Context context) {
+		FileStore.clearFolder(context.getCacheDir());
+	}
 }

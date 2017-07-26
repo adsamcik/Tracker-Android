@@ -230,6 +230,16 @@ public class FileStore {
 		return delete(file);
 	}
 
+	public static boolean clearFolder(@NonNull File file) {
+		if (file.isDirectory()) {
+			for (File f : file.listFiles())
+				if(!delete(f))
+					return false;
+		} else
+			return false;
+		return true;
+	}
+
 	/**
 	 * Rename file
 	 *
