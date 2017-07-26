@@ -70,7 +70,7 @@ public class AppTest {
 		}
 
 		// Launch the blueprint app
-		context = InstrumentationRegistry.getContext();
+		context = InstrumentationRegistry.getContext().getApplicationContext();
 		final Intent intent = context.getPackageManager()
 				.getLaunchIntentForPackage(PACKAGE);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
@@ -92,25 +92,25 @@ public class AppTest {
 
 		Preferences.get().edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
 		Gson gson = new Gson();
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(us), true, true));
-		Assert.assertEquals(true, DataStore.exists(testFileName));
-		Assert.assertEquals('[' + data, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
+		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(us), false));
+		Assert.assertEquals(true, DataStore.exists(context, testFileName));
+		Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 		//DataStore.removeOldRecentUploads();
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(us)));
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
+		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, us, true));
+		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(testFileName, gson.toJson(usOld)));
-		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadJsonArrayAppend(testFileName));
-		DataStore.removeOldRecentUploads();
+		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(usOld), true));
+		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadAppendableJsonArray(context, testFileName));
+		DataStore.removeOldRecentUploads(context);
 
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadJsonArrayAppend(testFileName));
+		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 
-		DataStore.delete(testFileName);
-		DataStore.delete(DataStore.RECENT_UPLOADS_FILE);
+		DataStore.delete(context, testFileName);
+		DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
 
 		final String WIFI = "wifi";
 		final String NEW_WIFI = "newWifi";
@@ -130,11 +130,11 @@ public class AppTest {
 		d.put(SIZE, Long.toString(us.uploadSize));
 
 		MessageListenerService.parseAndSaveUploadReport(context, time, d);
-		Assert.assertEquals('[' + data, DataStore.loadString(DataStore.RECENT_UPLOADS_FILE));
+		Assert.assertEquals('[' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE));
 
 		MessageListenerService.parseAndSaveUploadReport(context, time, d);
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(DataStore.RECENT_UPLOADS_FILE));
-		DataStore.delete(DataStore.RECENT_UPLOADS_FILE);
+		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE));
+		DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
 	}
 
 	@org.junit.Test
