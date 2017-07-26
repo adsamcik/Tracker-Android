@@ -1,9 +1,12 @@
 package com.adsamcik.signalcollector.utility;
 
+import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.MalformedJsonException;
 
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -144,6 +147,30 @@ public class FileStore {
 			if (sb.charAt(sb.length() - 1) != ']')
 				sb.append(']');
 			return sb.toString();
+		}
+		return null;
+	}
+
+	/**
+	 * Loads whole json array and than finds last object and converts it to java object
+	 *
+	 * @param fileName file name
+	 * @param tClass   class of the resulting object
+	 * @return last object of json array or null
+	 */
+	public static <T> T loadLastFromAppendableJsonArray(@NonNull File file, @NonNull Class<T> tClass) {
+		StringBuilder sb = loadStringAsBuilder(file);
+		if (sb == null)
+			return null;
+		for (int i = sb.length() - 1; i >= 0; i--) {
+			if (sb.charAt(i) == '{') {
+				try {
+					return new Gson().fromJson(sb.substring(i), tClass);
+				} catch (JsonSyntaxException e) {
+					FirebaseCrash.report(e);
+					return null;
+				}
+			}
 		}
 		return null;
 	}
