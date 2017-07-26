@@ -75,7 +75,7 @@ public class Data implements Serializable {
 	 */
 	public int activity;
 
-	public short noise;
+	//public short noise;
 
 	public Data() {}
 
@@ -130,17 +130,17 @@ public class Data implements Serializable {
 		return this;
 	}
 
-	/**
+	/*/**
 	 * Sets noise value.
 	 *
 	 * @param noise Noise value. Must be absolute amplitude.
 	 * @return this
 	 */
-	public Data setNoise(short noise) {
+	/*public Data setNoise(short noise) {
 		if (noise > 0)
 			this.noise = noise;
 		return this;
-	}
+	}*/
 
 	/**
 	 * Sets current active cell from nearby cells
