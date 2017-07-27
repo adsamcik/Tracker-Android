@@ -5,7 +5,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.file.DataStore;
 
 public class DebugFileActivity extends DetailActivity {
 	@Override

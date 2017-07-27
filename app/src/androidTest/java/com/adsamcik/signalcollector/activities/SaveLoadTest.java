@@ -13,7 +13,7 @@ import android.support.test.uiautomator.Until;
 import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.data.UploadStats;
-import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
 

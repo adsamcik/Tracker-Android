@@ -1,9 +1,11 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.file;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
 
-import static com.adsamcik.signalcollector.utility.FileStore.file;
+import com.adsamcik.signalcollector.file.FileStore;
+
+import static com.adsamcik.signalcollector.file.FileStore.file;
 
 public class CacheStore {
 

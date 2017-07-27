@@ -4,6 +4,7 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.data.Challenge;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;

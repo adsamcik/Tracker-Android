@@ -17,7 +17,7 @@ import com.adsamcik.signalcollector.data.Challenge;
 import com.adsamcik.signalcollector.utility.ChallengeManager;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
-import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
 import com.google.firebase.messaging.FirebaseMessagingService;

@@ -19,7 +19,7 @@ import android.widget.Toast;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
 import com.adsamcik.signalcollector.utility.Compress;
-import com.adsamcik.signalcollector.utility.DataStore;
+import com.adsamcik.signalcollector.file.DataStore;
 
 import java.io.File;
 import java.util.ArrayList;
