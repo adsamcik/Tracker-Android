@@ -33,7 +33,7 @@ public class DataStore {
 
 	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 	public static final String DATA_FILE = "dataStore";
-	private static final String KEY_FILE_ID = "saveFileID";
+	private static final String PREF_DATA_FILE_INDEX = "saveFileID";
 	private static final String KEY_SIZE = "totalSize";
 	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
 	private static final int MAX_FILE_SIZE = 1048576;
@@ -106,7 +106,7 @@ public class DataStore {
 	 * @return Returns data file names
 	 */
 	public static String[] getDataFileNames(@NonNull Context context, boolean includeLast) {
-		int maxID = Preferences.get(context).getInt(KEY_FILE_ID, -1);
+		int maxID = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, -1);
 		if ((!includeLast && --maxID < 0) || maxID < 0)
 			return null;
 		String[] fileNames = new String[maxID + 1];
@@ -178,7 +178,7 @@ public class DataStore {
 		for (Pair<Integer, String> item : renamedFiles)
 			rename(context, item.second, DATA_FILE + item.first);
 
-		Preferences.get().edit().putInt(KEY_FILE_ID, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
+		Preferences.get().edit().putInt(PREF_DATA_FILE_INDEX, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 	}
 
 	/**
@@ -242,7 +242,7 @@ public class DataStore {
 	 */
 	public static void clearAllData(@NonNull Context context) {
 		SharedPreferences sp = Preferences.get();
-		sp.edit().remove(KEY_SIZE).remove(KEY_FILE_ID).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
+		sp.edit().remove(KEY_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
 		File[] files = getFolder(context).listFiles();
 
@@ -289,12 +289,12 @@ public class DataStore {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
-		int id = sp.getInt(KEY_FILE_ID, 0);
+		int id = sp.getInt(PREF_DATA_FILE_INDEX, 0);
 		boolean fileHasNoData;
 		long fileSize = sizeOf(context, DATA_FILE + id);
 		if (fileSize > MAX_FILE_SIZE) {
 			FileStore.saveString(file(context, DATA_FILE + id), "]}", true);
-			edit.putInt(KEY_FILE_ID, ++id);
+			edit.putInt(PREF_DATA_FILE_INDEX, ++id);
 			fileHasNoData = true;
 			onDataChanged();
 		} else
