@@ -164,7 +164,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				fabUp.hide();
 				fabUp.setOnClickListener(null);
 				break;
-			case SYNC_REQUIRED:
+			case SYNC_AVAILABLE:
 				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
 				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
@@ -354,7 +354,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		setCollected(DataStore.sizeOfData());
 
 		if (DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
-			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 			updateUploadButton();
 		}
 

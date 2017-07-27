@@ -56,8 +56,8 @@ public class DataStore {
 	 */
 	private static void onDataChanged() {
 		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
-			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
-		else if (Network.cloudStatus == CloudStatus.SYNC_REQUIRED && sizeOfData() < Constants.MIN_USER_UPLOAD_FILE_SIZE)
+			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
+		else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData() < Constants.MIN_USER_UPLOAD_FILE_SIZE)
 			Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED;
 
 		if (onDataChanged != null)
@@ -71,9 +71,9 @@ public class DataStore {
 	 */
 	public static void onUpload(int progress) {
 		if (progress == 100)
-			Network.cloudStatus = sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.NO_SYNC_REQUIRED : CloudStatus.SYNC_REQUIRED;
+			Network.cloudStatus = sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.NO_SYNC_REQUIRED : CloudStatus.SYNC_AVAILABLE;
 		else if (progress == -1 && sizeOfData() > 0)
-			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 		else
 			Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS;
 

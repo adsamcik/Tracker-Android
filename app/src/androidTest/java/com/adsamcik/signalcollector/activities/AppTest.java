@@ -142,7 +142,7 @@ public class AppTest {
 
 	@Test
 	public void UploadFABTest() throws InterruptedException {
-		Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 
 		Thread.sleep(500);
 
@@ -184,7 +184,7 @@ public class AppTest {
 
 		DataStore.onUpload(100);
 		DataStore.incSizeOfData(500);
-		Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 		Thread.sleep(2500);
 		fabUpload.check(matches(isDisplayed()));
 		progressBar.check(doesNotExist());
