@@ -21,9 +21,8 @@ public final class Compress {
 	public static File zip(String path, final String[] fileNames, final String zipName) {
 		if (!path.endsWith(File.separator))
 			path += File.separatorChar;
-		try {
+		try (FileOutputStream dest = new FileOutputStream(path + zipName)){
 			BufferedInputStream origin;
-			FileOutputStream dest = new FileOutputStream(path + zipName);
 
 			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(dest));
 
