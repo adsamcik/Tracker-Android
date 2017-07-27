@@ -28,6 +28,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -352,7 +353,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		Data d = TrackerService.dataEcho;
 		setCollected(DataStore.sizeOfData());
 
-		if (DataStore.sizeOfData() > 0 && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
+		if (DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
 			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 			updateUploadButton();
 		}

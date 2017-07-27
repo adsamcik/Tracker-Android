@@ -55,9 +55,9 @@ public class DataStore {
 	 * Call to invoke onDataChanged callback
 	 */
 	private static void onDataChanged() {
-		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData() > 0)
+		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
 			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
-		else if (Network.cloudStatus == CloudStatus.SYNC_REQUIRED && sizeOfData() == 0)
+		else if (Network.cloudStatus == CloudStatus.SYNC_REQUIRED && sizeOfData() < Constants.MIN_USER_UPLOAD_FILE_SIZE)
 			Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED;
 
 		if (onDataChanged != null)
@@ -71,7 +71,7 @@ public class DataStore {
 	 */
 	public static void onUpload(int progress) {
 		if (progress == 100)
-			Network.cloudStatus = sizeOfData() == 0 ? CloudStatus.NO_SYNC_REQUIRED : CloudStatus.SYNC_REQUIRED;
+			Network.cloudStatus = sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.NO_SYNC_REQUIRED : CloudStatus.SYNC_REQUIRED;
 		else if (progress == -1 && sizeOfData() > 0)
 			Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
 		else
@@ -336,7 +336,7 @@ public class DataStore {
 			FirebaseCrash.report(e);
 			return SaveStatus.SAVING_FAILED;
 		}
-		
+
 		int dataSize = data.getBytes(Charset.defaultCharset()).length;
 		approxSize = sp.getLong(PREF_COLLECTED_DATA_SIZE, 0) + dataSize;
 		edit.putLong(PREF_COLLECTED_DATA_SIZE, approxSize).apply();
