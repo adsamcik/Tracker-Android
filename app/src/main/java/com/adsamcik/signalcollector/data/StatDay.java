@@ -1,5 +1,8 @@
 package com.adsamcik.signalcollector.data;
 
+import com.vimeo.stag.UseStag;
+
+@UseStag
 public class StatDay {
 	private int age;
 	private int wifi;

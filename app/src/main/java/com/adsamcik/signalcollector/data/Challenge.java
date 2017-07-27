@@ -6,7 +6,9 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.google.gson.annotations.Expose;
+import com.vimeo.stag.UseStag;
 
+@UseStag
 public class Challenge {
 	private final ChallengeType type;
 	public boolean isDone;

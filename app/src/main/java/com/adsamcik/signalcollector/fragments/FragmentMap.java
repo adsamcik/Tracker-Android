@@ -34,7 +34,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
-import com.adsamcik.signalcollector.utility.MapLayer;
+import com.adsamcik.signalcollector.data.MapLayer;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.FabMenu;

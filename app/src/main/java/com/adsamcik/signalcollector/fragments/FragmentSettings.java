@@ -46,7 +46,7 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.CacheStore;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
-import com.adsamcik.signalcollector.utility.MapLayer;
+import com.adsamcik.signalcollector.data.MapLayer;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;

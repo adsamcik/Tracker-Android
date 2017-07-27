@@ -1,7 +1,10 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.data;
+
+import com.vimeo.stag.UseStag;
 
 import java.util.ArrayList;
 
+@UseStag
 public class MapLayer {
 	public String name;
 	public ArrayList<ValueColor> values;
