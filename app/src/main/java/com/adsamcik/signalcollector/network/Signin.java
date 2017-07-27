@@ -111,6 +111,10 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 			instance.onDataReceivedCallbackList.add(callback);
 	}
 
+	public @Nullable User getUser(){
+		return user;
+	}
+
 	public static @Nullable
 	String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
