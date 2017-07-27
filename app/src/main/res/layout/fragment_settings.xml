@@ -304,20 +304,28 @@
             android:text="@string/settings_track_noise"
             android:visibility="gone"/>
 
-        <View
-            style="@style/Divider"/>
-
-        <TextView
-            style="@style/SettingsTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_default_map_overlay"/>
-
-        <Button
-            android:id="@+id/setting_map_overlay_button"
-            style="@style/SettingsButton"
+        <LinearLayout
+            android:id="@+id/settings_map_overlay_layout"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <View
+                style="@style/Divider"/>
+
+            <TextView
+                style="@style/SettingsTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_default_map_overlay"/>
+
+            <Button
+                android:id="@+id/setting_map_overlay_button"
+                style="@style/SettingsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
 
         <View
             style="@style/Divider"/>
