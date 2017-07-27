@@ -89,6 +89,11 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 
+	/**
+	 * Updates collected data text
+	 *
+	 * @param collected amount of collected data
+	 */
 	private void setCollected(long collected) {
 		if (textCollected != null && getResources() != null)
 			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
@@ -169,7 +174,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
 						v -> {
-							if(Signin.isSignedIn()) {
+							if (Signin.isSignedIn()) {
 								final Context context = getContext();
 								Failure<String> failure = UploadService.requestUpload(context, UploadService.UploadScheduleSource.USER);
 								FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, new Bundle());
