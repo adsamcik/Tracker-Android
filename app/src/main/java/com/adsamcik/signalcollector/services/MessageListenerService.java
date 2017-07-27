@@ -76,7 +76,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 							if (source.isSuccess() && challenges != null) {
 								for (Challenge challenge : challenges) {
 									if (challenge.getType() == cType) {
-										challenge.isDone = true;
+										challenge.setDone(true);
 										challenge.generateTexts(this);
 										sendNotification(MessageType.ChallengeReport,
 												getString(R.string.notification_challenge_done_title, challenge.getTitle()),

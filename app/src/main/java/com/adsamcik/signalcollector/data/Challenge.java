@@ -6,12 +6,27 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.google.gson.annotations.Expose;
+import com.google.gson.annotations.SerializedName;
 import com.vimeo.stag.UseStag;
 
-@UseStag
+@UseStag(UseStag.FieldOption.SERIALIZED_NAME)
 public class Challenge {
-	private final ChallengeType type;
-	public boolean isDone;
+	/**
+	 * Type of challenge
+	 */
+	@SerializedName("type")
+	private ChallengeType type;
+
+	/**
+	 * Is challenge done?
+	 */
+	@SerializedName("isDone")
+	private boolean done;
+
+	/**
+	 * Description variables used to format description strings
+	 */
+	@SerializedName("descVars")
 	private String[] descVars;
 
 	@Expose(serialize = false, deserialize = false)
@@ -20,20 +35,20 @@ public class Challenge {
 	@Expose(serialize = false, deserialize = false)
 	private String description;
 
-	public Challenge(ChallengeType type, String title, String description, boolean isDone) {
+	public Challenge(ChallengeType type, String title, String description, boolean done) {
 		this.type = type;
 		this.title = title;
 		this.description = description;
 		this.descVars = null;
-		this.isDone = isDone;
+		this.done = done;
 	}
 
-	public Challenge(ChallengeType type, String title, String[] descVars, boolean isDone) {
+	public Challenge(ChallengeType type, String title, String[] descVars, boolean done) {
 		this.type = type;
 		this.title = title;
 		this.descVars = descVars;
 		this.description = null;
-		this.isDone = isDone;
+		this.done = done;
 	}
 
 	public ChallengeType getType() {
@@ -46,6 +61,14 @@ public class Challenge {
 
 	public String getDescription() {
 		return description;
+	}
+
+	public boolean isDone() {
+		return done;
+	}
+
+	public void setDone(boolean done) {
+		this.done = done;
 	}
 
 	public void generateTexts(@NonNull Context context) {
@@ -109,5 +132,25 @@ public class Challenge {
 		TripDownMemoryLane,
 		AIsForAlphabet,
 		StayInRange
+	}
+
+	//STAG CONSTRUCTOR GETTERS SETTERS//
+
+	Challenge() {}
+
+	String[] getDescVars() {
+		return descVars;
+	}
+
+	boolean getDone() {
+		return done;
+	}
+
+	void setType(ChallengeType type) {
+		this.type = type;
+	}
+
+	void setDescVars(String[] descVars) {
+		this.descVars = descVars;
 	}
 }

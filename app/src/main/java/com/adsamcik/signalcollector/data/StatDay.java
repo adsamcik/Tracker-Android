@@ -11,9 +11,6 @@ public class StatDay {
 	private int minutes;
 	private long upload;
 
-	public StatDay() {
-	}
-
 	public StatDay(int minutes, int locations, int wifi, int cell, int age, long upload) {
 		this.minutes = minutes;
 		this.wifi = wifi;
@@ -77,5 +74,41 @@ public class StatDay {
 
 	public long getUploaded() {
 		return upload;
+	}
+
+	//STAG CONSTRUCTOR AND GETTERS AND SETTERS//
+
+	StatDay() {}
+
+	int getAge() {
+		return age;
+	}
+
+	long getUpload() {
+		return upload;
+	}
+
+	void setAge(int age) {
+		this.age = age;
+	}
+
+	void setWifi(int wifi) {
+		this.wifi = wifi;
+	}
+
+	void setCell(int cell) {
+		this.cell = cell;
+	}
+
+	void setLocations(int locations) {
+		this.locations = locations;
+	}
+
+	void setMinutes(int minutes) {
+		this.minutes = minutes;
+	}
+
+	void setUpload(long upload) {
+		this.upload = upload;
 	}
 }

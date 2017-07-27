@@ -75,7 +75,10 @@ public class Data implements Serializable {
 
 	//public short noise;
 
-	public Data() {}
+	/**
+	 * Stag constructor
+	 */
+	Data() {}
 
 	/**
 	 * Data constructor

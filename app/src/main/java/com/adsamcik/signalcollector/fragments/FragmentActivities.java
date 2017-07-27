@@ -118,7 +118,7 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			((TextView) view.findViewById(R.id.challenge_title)).setText(challenge.getTitle());
 			((TextView) view.findViewById(R.id.challenge_description)).setText(challenge.getDescription());
 
-			view.setBackgroundColor(challenge.isDone ? ContextCompat.getColor(getContext(), R.color.background_success) : ContextCompat.getColor(getContext(), R.color.card_background));
+			view.setBackgroundColor(challenge.isDone() ? ContextCompat.getColor(getContext(), R.color.background_success) : ContextCompat.getColor(getContext(), R.color.card_background));
 			return view;
 		}
 	}
