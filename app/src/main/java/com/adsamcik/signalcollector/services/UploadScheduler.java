@@ -14,7 +14,7 @@ import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 
 public class UploadScheduler extends JobService {
-	private static final int MIN_DELAY = Assist.MINUTE_IN_MILLISECONDS * 30;
+	private static final int MIN_NO_ACTIVITY_DELAY = Assist.MINUTE_IN_MILLISECONDS * 30;
 
 	public static void requestUploadSchedule(@NonNull Context context) {
 		long sizeOfData = DataStore.sizeOfData();
@@ -24,7 +24,7 @@ public class UploadScheduler extends JobService {
 			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_SCHEDULE_JOB, new ComponentName(context, UploadScheduler.class));
 			jb.setPersisted(true);
 			jb.setRequiresDeviceIdle(true);
-			jb.setMinimumLatency(MIN_DELAY);
+			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
 			scheduler.schedule(jb.build());
 		}
 	}
