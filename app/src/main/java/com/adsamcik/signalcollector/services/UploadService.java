@@ -166,7 +166,7 @@ public class UploadService extends JobService {
 				FirebaseCrash.report(new Throwable("Token is null"));
 				return false;
 			}
-			
+
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
 					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
@@ -210,7 +210,7 @@ public class UploadService extends JobService {
 		@Override
 		protected Boolean doInBackground(JobParameters... params) {
 			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
-			String[] files = DataStore.getDataFileNames(context.get(), Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
+			String[] files = DataStore.getDataFileNames(context.get(), source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(-1);
