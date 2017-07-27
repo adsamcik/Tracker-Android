@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
@@ -268,7 +269,7 @@ public class TrackerService extends Service {
 			data.clear();
 			if (result == DataStore.SaveStatus.SAVED_TO_NEW_FILE &&
 					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
-					DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
+					DataStore.sizeOfData() >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}
