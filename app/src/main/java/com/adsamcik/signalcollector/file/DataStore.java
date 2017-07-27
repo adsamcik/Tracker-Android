@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.util.MalformedJsonException;
 import android.util.Pair;
@@ -15,6 +16,7 @@ import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -35,8 +37,6 @@ public class DataStore {
 	public static final String DATA_FILE = "dataStore";
 	private static final String PREF_DATA_FILE_INDEX = "saveFileID";
 	private static final String KEY_SIZE = "totalSize";
-	//1048576B = 1MB, 5242880B = 5MB, 2097152B = 2MB
-	private static final int MAX_FILE_SIZE = 1048576;
 
 	private static ICallback onDataChanged;
 	private static INonNullValueCallback<Integer> onUploadProgress;
@@ -102,13 +102,20 @@ public class DataStore {
 	/**
 	 * Generates array of all data files
 	 *
-	 * @param includeLast Include last file (last file is almost always not complete)
-	 * @return Returns data file names
+	 * @param context               context
+	 * @param lastFileSizeThreshold Include last datafile if it exceeds this size
+	 * @return array of datafile names
 	 */
-	public static String[] getDataFileNames(@NonNull Context context, boolean includeLast) {
+	public static String[] getDataFileNames(@NonNull Context context, @IntRange(from = 0) int lastFileSizeThreshold) {
 		int maxID = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, -1);
-		if ((!includeLast && --maxID < 0) || maxID < 0)
-			return null;
+		if (maxID == -1)
+			return new String[0];
+
+		if (lastFileSizeThreshold > 0) {
+			if (sizeOf(context, DATA_FILE + maxID) < lastFileSizeThreshold)
+				maxID--;
+		}
+
 		String[] fileNames = new String[maxID + 1];
 		for (int i = 0; i <= maxID; i++)
 			fileNames[i] = DATA_FILE + i;
@@ -125,6 +132,10 @@ public class DataStore {
 		StringBuilder sb = FileStore.loadStringAsBuilder(f);
 		if (sb != null && sb.charAt(sb.length() - 2) != ']')
 			FileStore.saveString(f, "]}", true);
+		SharedPreferences preferences = Preferences.get(context);
+		int index = preferences.getInt(PREF_DATA_FILE_INDEX, -1);
+		if (fileName.endsWith(Integer.toString(index)))
+			Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, ++index).apply();
 	}
 
 	/**
@@ -187,7 +198,7 @@ public class DataStore {
 	 * @return total size of data
 	 */
 	public static long recountDataSize(@NonNull Context context) {
-		String[] fileNames = getDataFileNames(context, true);
+		String[] fileNames = getDataFileNames(context, 0);
 		if (fileNames == null)
 			return 0;
 		long size = 0;
@@ -292,7 +303,7 @@ public class DataStore {
 		int id = sp.getInt(PREF_DATA_FILE_INDEX, 0);
 		boolean fileHasNoData;
 		long fileSize = sizeOf(context, DATA_FILE + id);
-		if (fileSize > MAX_FILE_SIZE) {
+		if (fileSize > Constants.MAX_DATA_FILE_SIZE) {
 			FileStore.saveString(file(context, DATA_FILE + id), "]}", true);
 			edit.putInt(PREF_DATA_FILE_INDEX, ++id);
 			fileHasNoData = true;
@@ -315,12 +326,12 @@ public class DataStore {
 
 		try {
 			if (!FileStore.saveAppendableJsonArray(file(context, DATA_FILE + id), data, true)) {
-				if (fileSize > MAX_FILE_SIZE)
+				if (fileSize > Constants.MAX_DATA_FILE_SIZE)
 					edit.apply();
 				return SaveStatus.SAVING_FAILED;
 			}
 		} catch (MalformedJsonException e) {
-			if (fileSize > MAX_FILE_SIZE)
+			if (fileSize > Constants.MAX_DATA_FILE_SIZE)
 				edit.apply();
 			FirebaseCrash.report(e);
 			return SaveStatus.SAVING_FAILED;
