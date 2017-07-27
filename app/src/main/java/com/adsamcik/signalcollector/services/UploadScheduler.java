@@ -18,7 +18,7 @@ public class UploadScheduler extends JobService {
 
 	public static void requestUploadSchedule(@NonNull Context context) {
 		long sizeOfData = DataStore.sizeOfData();
-		if(sizeOfData > Constants.MIN_UPLOAD_FILE_SIZE) {
+		if(sizeOfData > Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE) {
 			JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 			assert scheduler != null;
 			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_SCHEDULE_JOB, new ComponentName(context, UploadScheduler.class));
@@ -32,7 +32,7 @@ public class UploadScheduler extends JobService {
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
 		long sizeOfData = DataStore.sizeOfData();
-		if(sizeOfData > Constants.MIN_UPLOAD_FILE_SIZE)
+		if(sizeOfData > Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE)
 			UploadService.requestUpload(getApplicationContext(), UploadService.UploadScheduleSource.BACKGROUND);
 		return false;
 	}

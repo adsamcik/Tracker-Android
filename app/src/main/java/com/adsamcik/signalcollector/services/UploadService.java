@@ -18,6 +18,7 @@ import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Compress;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.file.FileStore;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -209,7 +210,7 @@ public class UploadService extends JobService {
 		@Override
 		protected Boolean doInBackground(JobParameters... params) {
 			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
-			String[] files = DataStore.getDataFileNames(context.get(), source.equals(UploadScheduleSource.USER));
+			String[] files = DataStore.getDataFileNames(context.get(), Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(-1);
