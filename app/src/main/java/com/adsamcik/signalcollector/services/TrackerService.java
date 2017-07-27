@@ -46,6 +46,7 @@ import java.nio.charset.Charset;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PropertyResourceBundle;
 
 public class TrackerService extends Service {
 	//Constants
@@ -266,6 +267,7 @@ public class TrackerService extends Service {
 		} else {
 			data.clear();
 			if (result == DataStore.SaveStatus.SAVED_TO_NEW_FILE &&
+					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
 					DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
@@ -437,6 +439,9 @@ public class TrackerService extends Service {
 			Shortcuts.initializeShortcuts(this);
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION);
 		}
+
+		if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
+			UploadScheduler.requestUploadSchedule(this);
 	}
 
 	@Nullable
