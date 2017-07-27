@@ -158,6 +158,11 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
+        <service
+            android:name=".services.UploadScheduler"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/GEO_API"/>
