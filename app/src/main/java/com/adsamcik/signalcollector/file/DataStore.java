@@ -36,7 +36,7 @@ public class DataStore {
 	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 	public static final String DATA_FILE = "dataStore";
 	private static final String PREF_DATA_FILE_INDEX = "saveFileID";
-	private static final String KEY_SIZE = "totalSize";
+	private static final String PREF_COLLECTED_DATA_SIZE = "totalSize";
 
 	private static ICallback onDataChanged;
 	private static INonNullValueCallback<Integer> onUploadProgress;
@@ -204,7 +204,7 @@ public class DataStore {
 		long size = 0;
 		for (String fileName : fileNames)
 			size += sizeOf(context, fileName);
-		Preferences.get().edit().putLong(KEY_SIZE, size).apply();
+		Preferences.get().edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply();
 		if (onDataChanged != null && approxSize != size)
 			onDataChanged();
 		approxSize = size;
@@ -216,7 +216,7 @@ public class DataStore {
 	 */
 	private static void initSizeOfData() {
 		if (approxSize == -1)
-			approxSize = Preferences.get().getLong(KEY_SIZE, 0);
+			approxSize = Preferences.get().getLong(PREF_COLLECTED_DATA_SIZE, 0);
 	}
 
 	/**
@@ -253,7 +253,7 @@ public class DataStore {
 	 */
 	public static void clearAllData(@NonNull Context context) {
 		SharedPreferences sp = Preferences.get();
-		sp.edit().remove(KEY_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
+		sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
 		File[] files = getFolder(context).listFiles();
 
@@ -336,10 +336,10 @@ public class DataStore {
 			FirebaseCrash.report(e);
 			return SaveStatus.SAVING_FAILED;
 		}
-
+		
 		int dataSize = data.getBytes(Charset.defaultCharset()).length;
-		approxSize = sp.getLong(KEY_SIZE, 0) + dataSize;
-		edit.putLong(KEY_SIZE, approxSize).apply();
+		approxSize = sp.getLong(PREF_COLLECTED_DATA_SIZE, 0) + dataSize;
+		edit.putLong(PREF_COLLECTED_DATA_SIZE, approxSize).apply();
 
 		return fileHasNoData && id > 0 ? SaveStatus.SAVED_TO_NEW_FILE : SaveStatus.SAVING_SUCCESSFULL;
 	}
