@@ -19,6 +19,7 @@ import java.util.Set;
 public class Preferences {
 	private static final String TAG = "SignalsSetting";
 	public static final int UPLOAD_JOB = 513;
+	public static final int UPLOAD_SCHEDULE_JOB = 514;
 
 	public static final String LAST_VERSION = "lastVersion";
 
@@ -34,6 +35,9 @@ public class Preferences {
 
 	public static final String PREF_AUTO_UPLOAD_AT_MB = "autoUpAtMB";
 	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 3;
+
+	public static final String PREF_AUTO_UPLOAD_SMART = "smartAutoUpload";
+	public static final boolean DEFAULT_AUTO_UPLOAD_SMART = true;
 
 	//Local tracking stats
 	public static final String PREF_STATS_WIFI_FOUND = "statsWifiFound";
