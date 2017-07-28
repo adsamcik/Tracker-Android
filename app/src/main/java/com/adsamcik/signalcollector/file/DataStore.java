@@ -325,7 +325,7 @@ public class DataStore {
 		}
 
 		try {
-			if (!FileStore.saveAppendableJsonArray(file(context, DATA_FILE + id), data, true)) {
+			if (!FileStore.saveAppendableJsonArray(file(context, DATA_FILE + id), data, true, fileHasNoData)) {
 				if (fileSize > Constants.MAX_DATA_FILE_SIZE)
 					edit.apply();
 				return SaveStatus.SAVING_FAILED;

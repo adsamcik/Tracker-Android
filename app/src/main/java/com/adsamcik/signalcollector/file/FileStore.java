@@ -68,10 +68,24 @@ public class FileStore {
 	 * @throws MalformedJsonException Thrown when json array is in incorrect format
 	 */
 	public static boolean saveAppendableJsonArray(@NonNull File file, @NonNull String data, boolean append) throws MalformedJsonException {
+		return saveAppendableJsonArray(file, data, append, false);
+	}
+
+	/**
+	 * Appends string to file. If file does not exists, one is created. Should not be combined with other methods.
+	 * Allows file overriding and custom empty array detection.
+	 *
+	 * @param file   file
+	 * @param data   Json array to append
+	 * @param append Should existing file be overriden with current data
+	 * @return Failure
+	 * @throws MalformedJsonException Thrown when json array is in incorrect format
+	 */
+	public static boolean saveAppendableJsonArray(@NonNull File file, @NonNull String data, boolean append, boolean firstArrayItem) throws MalformedJsonException {
 		StringBuilder sb = new StringBuilder(data);
 		if (sb.charAt(0) == ',')
 			throw new MalformedJsonException("Json starts with ','. That is not right.");
-		char firstChar = !append || !file.exists() || file.length() == 0 ? '[' : ',';
+		char firstChar = !append || firstArrayItem || !file.exists() || file.length() == 0 ? '[' : ',';
 		switch (firstChar) {
 			case ',':
 				if (sb.charAt(0) == '[')
