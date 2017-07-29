@@ -40,7 +40,7 @@ public class Preferences {
 	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 3;
 
 	public static final String PREF_AUTO_UPLOAD_SMART = "smartAutoUpload";
-	public static final boolean DEFAULT_AUTO_UPLOAD_SMART = false;
+	public static final boolean DEFAULT_AUTO_UPLOAD_SMART = true;
 
 	//Local tracking stats
 	public static final String PREF_STATS_WIFI_FOUND = "statsWifiFound";
