@@ -191,7 +191,7 @@ public class Assist {
 				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION);
 
 			//if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
-				//permissions.add(android.Manifest.permission.READ_PHONE_STATE);
+			//permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
 			if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				permissions.add(android.Manifest.permission.RECORD_AUDIO);
@@ -270,6 +270,26 @@ public class Assist {
 	}
 
 	/**
+	 * Returns resolved activity as string
+	 *
+	 * @param type type of activity (ENUM)
+	 * @return name of the activity
+	 */
+	public static String getResolvedActivityName(@NonNull Context context, int type) {
+		switch (type) {
+			case 0:
+				return context.getString(R.string.activity_idle);
+			case 1:
+				return context.getString(R.string.activity_on_foot);
+			case 2:
+				return context.getString(R.string.activity_in_vehicle);
+			case 3:
+			default:
+				return context.getString(R.string.activity_unknown);
+		}
+	}
+
+	/**
 	 * Converts coordinate to string
 	 *
 	 * @param coordinate coordinate
@@ -314,7 +334,7 @@ public class Assist {
 	 * @return true if connected or connecting
 	 */
 	public static boolean hasNetwork(@NonNull Context context) {
-		if(connectivityManager == null)
+		if (connectivityManager == null)
 			initialize(context);
 		NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
 		return activeNetwork != null && activeNetwork.isConnectedOrConnecting();

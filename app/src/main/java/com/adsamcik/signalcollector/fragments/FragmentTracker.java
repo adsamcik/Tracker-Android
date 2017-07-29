@@ -410,7 +410,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			if (d.activity == -1)
 				textActivity.setVisibility(View.GONE);
 			else {
-				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getActivityName(d.activity)));
+				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getResolvedActivityName(context, d.activity)));
 				textActivity.setVisibility(View.VISIBLE);
 			}
 		}

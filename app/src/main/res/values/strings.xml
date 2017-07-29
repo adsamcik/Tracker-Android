@@ -96,6 +96,12 @@
     <!-- Signin strings -->
     <string name="signin_connecting">Signin in, please wait</string>
 
+    <!-- Activity strings -->
+    <string name="activity_idle">Idle</string>
+    <string name="activity_on_foot">On foot</string>
+    <string name="activity_in_vehicle">In vehicle</string>
+    <string name="activity_unknown">Unknown</string>
+
     <!-- Generic strings -->
     <string name="other">Other</string>
     <string name="cancel">Cancel</string>
