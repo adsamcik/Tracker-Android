@@ -45,7 +45,7 @@ public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
 	private static final String KEY_SOURCE = "source";
 	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
-	private static final int MIN_NO_ACTIVITY_DELAY = Assist.MINUTE_IN_MILLISECONDS * 30;
+	private static final int MIN_NO_ACTIVITY_DELAY = Assist.MINUTE_IN_MILLISECONDS * 20;
 
 	private static boolean isUploading = false;
 	private JobWorker worker;
