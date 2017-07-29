@@ -27,4 +27,10 @@ public class BottomBarBehavior extends CoordinatorLayout.Behavior<LinearLayout> 
 		}
 		return true;
 	}
+
+	@Override
+	public void onDependentViewRemoved(CoordinatorLayout parent, LinearLayout child, View dependency) {
+		onDependentViewChanged(parent, child, dependency);
+		super.onDependentViewRemoved(parent, child, dependency);
+	}
 }
