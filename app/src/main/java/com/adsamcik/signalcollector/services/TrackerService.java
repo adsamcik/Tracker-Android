@@ -442,7 +442,7 @@ public class TrackerService extends Service {
 		}
 
 		if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
-			UploadScheduler.requestUploadSchedule(this);
+			UploadService.requestUploadSchedule(this);
 	}
 
 	@Nullable
