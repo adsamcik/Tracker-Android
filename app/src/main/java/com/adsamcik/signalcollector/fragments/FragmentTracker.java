@@ -321,8 +321,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		if (layoutWifi != null)
 			updateData(activity);
 
-		//if (Assist.isEmulator())
-		//	fabUp.hide();
+		if (Assist.isEmulator())
+			fabUp.hide();
 		return new Failure<>();
 	}
 
