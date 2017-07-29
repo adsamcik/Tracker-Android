@@ -62,8 +62,8 @@ public class UploadService extends JobService {
 	 * Requests upload
 	 * Call this when you want to auto-upload
 	 *
-	 * @param context      Non-null context
-	 * @param source Source that started the upload
+	 * @param context Non-null context
+	 * @param source  Source that started the upload
 	 */
 	public static Failure<String> requestUpload(@NonNull Context context, UploadScheduleSource source) {
 		if (source.equals(UploadScheduleSource.NONE))
@@ -71,7 +71,7 @@ public class UploadService extends JobService {
 		else if (isUploading)
 			return new Failure<>(context.getString(R.string.error_upload_in_progress));
 
-		if(hasEnoughData(source)) {
+		if (hasEnoughData(source)) {
 			SharedPreferences sp = Preferences.get(context);
 			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
@@ -97,11 +97,12 @@ public class UploadService extends JobService {
 
 	/**
 	 * Requests scheduling of upload
+	 *
 	 * @param context context
 	 * @return failure if
 	 */
 	public static Failure<String> requestUploadSchedule(@NonNull Context context) {
-		if(hasEnoughData(UploadScheduleSource.BACKGROUND)) {
+		if (hasEnoughData(UploadScheduleSource.BACKGROUND)) {
 			JobInfo.Builder jb = prepareBuilder(context);
 			jb.setRequiresDeviceIdle(true);
 			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
@@ -160,7 +161,7 @@ public class UploadService extends JobService {
 		UploadScheduleSource scheduleSource = UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)];
 		if (scheduleSource == UploadScheduleSource.NONE)
 			throw new InvalidParameterException("Upload source can't be NONE.");
-		else if(!hasEnoughData(scheduleSource))
+		else if (!hasEnoughData(scheduleSource))
 			return false;
 
 		DataStore.onUpload(0);
@@ -237,7 +238,8 @@ public class UploadService extends JobService {
 						FirebaseCrash.report(new IOException("Failed to delete file " + file.getName() + ". This should never happen."));
 					return true;
 				}
-				FirebaseCrash.report(new Throwable("Upload failed " + code));
+				if (code >= 500 || code == 403)
+					FirebaseCrash.report(new Throwable("Upload failed " + code));
 				return false;
 			} catch (IOException e) {
 				FirebaseCrash.report(e);
