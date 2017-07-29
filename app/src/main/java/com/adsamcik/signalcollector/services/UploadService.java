@@ -45,6 +45,8 @@ public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
 	private static final String KEY_SOURCE = "source";
 	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
+	private static final int MIN_NO_ACTIVITY_DELAY = Assist.MINUTE_IN_MILLISECONDS * 30;
+
 	private static boolean isUploading = false;
 	private JobWorker worker;
 
@@ -52,50 +54,100 @@ public class UploadService extends JobService {
 		return isUploading;
 	}
 
-	public static UploadScheduleSource getUploadScheduled(@NonNull Context c) {
-		return UploadScheduleSource.values()[Preferences.get(c).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)];
+	public static UploadScheduleSource getUploadScheduled(@NonNull Context context) {
+		return UploadScheduleSource.values()[Preferences.get(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)];
 	}
 
 	/**
 	 * Requests upload
 	 * Call this when you want to auto-upload
 	 *
-	 * @param c      Non-null context
+	 * @param context      Non-null context
 	 * @param source Source that started the upload
 	 */
-	public static Failure<String> requestUpload(@NonNull Context c, UploadScheduleSource source) {
+	public static Failure<String> requestUpload(@NonNull Context context, UploadScheduleSource source) {
 		if (source.equals(UploadScheduleSource.NONE))
 			throw new InvalidParameterException("Upload source can't be NONE.");
 		else if (isUploading)
-			return new Failure<>(c.getString(R.string.error_upload_in_progress));
+			return new Failure<>(context.getString(R.string.error_upload_in_progress));
 
-		SharedPreferences sp = Preferences.get(c);
-		int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, 1);
-		if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
-			JobScheduler scheduler = ((JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE));
-			JobInfo.Builder jb = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(c, UploadService.class));
-			jb.setPersisted(true);
-			if (source.equals(UploadScheduleSource.USER)) {
-				jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-			} else {
-				if (autoUpload == 2) {
-					if (Build.VERSION.SDK_INT >= 24)
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
-					else
-						jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-				} else
-					jb.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+		if(hasEnoughData(source)) {
+			SharedPreferences sp = Preferences.get(context);
+			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
+			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
+				JobInfo.Builder jb = prepareBuilder(context);
+				addNetworkTypeRequest(context, source, jb);
+				PersistableBundle pb = new PersistableBundle(1);
+				pb.putInt(KEY_SOURCE, source.ordinal());
+				jb.setExtras(pb);
+
+				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
+				assert scheduler != null;
+				if (scheduler.schedule(jb.build()) <= 0)
+					return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
+				updateUploadScheduleSource(context, source);
+				Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+
+				return new Failure<>();
 			}
-			PersistableBundle pb = new PersistableBundle(1);
-			pb.putInt(KEY_SOURCE, source.ordinal());
-			jb.setExtras(pb);
+			return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
+		}
+		return new Failure<>(context.getString(R.string.error_not_enough_data));
+	}
+
+	/**
+	 * Requests scheduling of upload
+	 * @param context context
+	 * @return failure if
+	 */
+	public static Failure<String> requestUploadSchedule(@NonNull Context context) {
+		if(hasEnoughData(UploadScheduleSource.BACKGROUND)) {
+			JobInfo.Builder jb = prepareBuilder(context);
+			jb.setRequiresDeviceIdle(true);
+			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
+			addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
+			updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND);
+
+			JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 			assert scheduler != null;
 			if (scheduler.schedule(jb.build()) <= 0)
-				return new Failure<>(c.getString(R.string.error_during_upload_scheduling));
-			updateUploadScheduleSource(c, source);
-			Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+				return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
+
+			return new Failure<>();
 		}
-		return new Failure<>();
+		return new Failure<>(context.getString(R.string.error_not_enough_data));
+	}
+
+	private static JobInfo.Builder prepareBuilder(@NonNull Context context) {
+		JobInfo.Builder jobBuilder = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(context, UploadService.class));
+		jobBuilder.setPersisted(true);
+		return jobBuilder;
+	}
+
+	private static void addNetworkTypeRequest(@NonNull Context context, @NonNull UploadScheduleSource source, @NonNull JobInfo.Builder jobBuilder) {
+		if (source.equals(UploadScheduleSource.USER)) {
+			jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+		} else {
+			if (Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD) == 2) {
+				//todo improve roaming handling
+				if (Build.VERSION.SDK_INT >= 24)
+					jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING);
+				else
+					jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+			} else
+				jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);
+		}
+	}
+
+	private static boolean hasEnoughData(@NonNull UploadScheduleSource source) {
+		switch (source) {
+			case BACKGROUND:
+				return DataStore.sizeOfData() >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE;
+			case USER:
+				return DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE;
+			default:
+				return false;
+		}
 	}
 
 	private static void updateUploadScheduleSource(@NonNull Context context, UploadScheduleSource uss) {
@@ -105,8 +157,11 @@ public class UploadService extends JobService {
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
 		Preferences.get(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
-		if (UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)] == UploadScheduleSource.NONE)
+		UploadScheduleSource scheduleSource = UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)];
+		if (scheduleSource == UploadScheduleSource.NONE)
 			throw new InvalidParameterException("Upload source can't be NONE.");
+		else if(!hasEnoughData(scheduleSource))
+			return false;
 
 		DataStore.onUpload(0);
 		final Context c = getApplicationContext();
