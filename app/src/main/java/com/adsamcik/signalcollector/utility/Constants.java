@@ -31,7 +31,7 @@ public class Constants {
 	public static final int U_MEBIBYTE = U_KIBIBYTE * U_BINARY;
 
 	//File sizes
-	public static final int MIN_BACKGROUND_UPLOAD_FILE_SIZE = U_KIBIBYTE * (U_QUARTER_BINARY / 2) * 5;
+	public static final int MIN_BACKGROUND_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_BINARY * 2;
 	public static final int MIN_USER_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_BINARY;
 	public static final int MAX_DATA_FILE_SIZE = U_MEBIBYTE;
 }
