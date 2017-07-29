@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 
+import com.adsamcik.signalcollector.enums.AppendPosition;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.network.NetworkLoader;
@@ -108,43 +109,36 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	private void updateStats() {
 		Activity activity = getActivity();
+		final Context appContext = activity.getApplicationContext();
 		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
-		refreshingCount++;
+		refreshingCount = 3;
+		assert refreshLayout != null;
 		refreshLayout.setRefreshing(true);
-		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) -> {
-			refreshDone();
-			final int initialIndex = ((ViewGroup) view).getChildCount();
 
-			if (state.isSuccess())
-				generateStats(value, publicStats, initialIndex, activity);
-			else {
-				generateStats(value, publicStats, initialIndex, activity);
-				new SnackMaker(activity).showSnackbar(state.toString(activity));
-			}
+		NetworkLoader.request(Network.URL_GENERAL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) ->
+				handleResponse(activity, state, value, new AppendPosition(1)));
+
+		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_STATS, Stat[].class, (state, value) ->
+				handleResponse(activity, state, value, new AppendPosition(AppendPosition.AppendBehavior.Last)));
+
+		NetworkLoader.requestSigned(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
+			if (value != null && value.length == 1 && value[0].name.isEmpty())
+				value[0] = new Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
+			handleResponse(activity, state, value, new AppendPosition(AppendPosition.AppendBehavior.First));
 		});
-		refreshingCount++;
-		Signin.getUserAsync(activity, user -> {
-			Context thisContext = getContext();
-			if(user != null && thisContext != null) {
-				final Context appContext = thisContext.getApplicationContext();
-				NetworkLoader.request(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
-					refreshDone();
-					if (value != null) {
-						final int initialIndex = 1 + (lastUpload == null ? 0 : 1);
-						if (state.isSuccess()) {
-							Resources r = appContext.getResources();
-							if (value.length == 1 && value[0].name.isEmpty())
-								value[0] = new Stat(r.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
-							generateStats(value, userStats, initialIndex, activity);
-						} else {
-							generateStats(value, userStats, initialIndex, activity);
-							new SnackMaker(activity).showSnackbar(state.toString(activity));
-						}
-					}
-				});
-			} else
-				refreshDone();
-		});
+	}
+
+	private void handleResponse(@NonNull Activity activity, @NonNull NetworkLoader.Source state, @Nullable Stat[] value, @NonNull AppendPosition appendPosition) {
+		refreshDone();
+		final int initialIndex = ((ViewGroup) view).getChildCount();
+
+		if (state.isSuccess())
+			generateStats(value, publicStats, initialIndex, activity);
+		else {
+			if (state.isDataAvailable())
+				generateStats(value, publicStats, initialIndex, activity);
+			new SnackMaker(activity).showSnackbar(state.toString(activity));
+		}
 	}
 
 	private int refreshingCount = 0;

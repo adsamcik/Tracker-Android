@@ -54,6 +54,7 @@ public class Preferences {
 	public static final String PREF_OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
 
 	public static final String PREF_GENERAL_STATS = "generalStats";
+	public static final String PREF_STATS = "stats";
 	public static final String PREF_USER_STATS = "userStats";
 	public static final String PREF_AVAILABLE_MAPS = "availableMaps";
 
