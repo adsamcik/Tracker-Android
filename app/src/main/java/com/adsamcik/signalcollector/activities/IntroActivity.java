@@ -63,12 +63,12 @@ public class IntroActivity extends AppIntro2 {
 							if (Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
 							} else {
-								Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, 1).apply();
+								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 1).apply();
 								autoUploadDialog.show();
 							}
 						})
 						.setNegativeButton(R.string.no, ((dialogInterface, i) -> {
-							Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, 0).apply();
+							Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply();
 							autoUploadDialog.show();
 						}))
 						.setCancelable(false)
@@ -95,7 +95,7 @@ public class IntroActivity extends AppIntro2 {
 				AlertDialog dialog = new AlertDialog.Builder(this)
 						.setTitle(R.string.intro_enable_auto_tracking_title)
 						.setNegativeButton(R.string.cancel, ((dialogInterface, i) -> {
-							Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, 0).apply();
+							Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply();
 							autoUploadDialog.show();
 						}))
 						.setCancelable(false)
@@ -168,7 +168,7 @@ public class IntroActivity extends AppIntro2 {
 		if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
 			boolean isSuccess = grantResults[0] == PackageManager.PERMISSION_GRANTED;
 			Toast.makeText(this, isSuccess ? R.string.intro_notification_enabled_auto_tracking : R.string.intro_notification_no_permission_auto_tracking, Toast.LENGTH_SHORT).show();
-			Preferences.get(this).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, isSuccess ? 1 : 0).apply();
+			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, isSuccess ? 1 : 0).apply();
 			autoUploadDialog.show();
 		}
 	}

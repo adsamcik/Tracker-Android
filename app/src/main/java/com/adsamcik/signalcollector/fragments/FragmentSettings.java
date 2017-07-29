@@ -6,10 +6,8 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -118,7 +116,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private void updateTracking(int select) {
 		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, select).apply();
+		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -204,8 +202,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		autoupAlways = rootView.findViewById(R.id.autoupload_always);
 		autoupAlways.setOnClickListener(v -> updateAutoup(2));
 
-		updateTracking(sharedPreferences.getInt(Preferences.PREF_BACKGROUND_TRACKING, 1));
-		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, 1));
+		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
+		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
 
 		signInButton = rootView.findViewById(R.id.sign_in_button);
 		signedInMenu = rootView.findViewById(R.id.signed_in_menu);

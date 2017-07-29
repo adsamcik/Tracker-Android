@@ -26,8 +26,12 @@ public class Preferences {
 	public static final String PREF_SCHEDULED_UPLOAD = "uploadSCHEDULED";
 	public static final String PREF_SENT_TOKEN_TO_SERVER = "sentTokenToServer";
 	public static final String PREF_REGISTERED_USER = "playUserRegistered";
-	public static final String PREF_BACKGROUND_TRACKING = "backgroundTracking";
+
+	public static final String PREF_AUTO_TRACKING = "backgroundTracking";
+	public static final int DEFAULT_AUTO_TRACKING = 1;
 	public static final String PREF_AUTO_UPLOAD = "autoUpload";
+	public static final int DEFAULT_AUTO_UPLOAD = 1;
+
 	public static final String PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge";
 
