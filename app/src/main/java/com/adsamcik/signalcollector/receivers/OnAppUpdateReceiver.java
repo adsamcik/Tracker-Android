@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.receivers;
 
-import android.app.job.JobScheduler;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -34,6 +33,10 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 				}
 			}
 
+			int currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1);
+			if(currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile))
+				editor.putInt(DataStore.PREF_DATA_FILE_INDEX, ++currentDataFile);
+
 			try {
 				editor.putInt(Preferences.LAST_VERSION, context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode);
 			} catch (PackageManager.NameNotFoundException e) {
@@ -41,8 +44,5 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			}
 			editor.apply();
 		}
-
-		if(Build.VERSION.SDK_INT >= 26)
-			NotificationTools.prepareChannels(context);
 	}
 }

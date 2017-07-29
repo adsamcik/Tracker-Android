@@ -35,7 +35,7 @@ public class DataStore {
 
 	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 	public static final String DATA_FILE = "dataStore";
-	private static final String PREF_DATA_FILE_INDEX = "saveFileID";
+	public static final String PREF_DATA_FILE_INDEX = "saveFileID";
 	private static final String PREF_COLLECTED_DATA_SIZE = "totalSize";
 
 	private static ICallback onDataChanged;
