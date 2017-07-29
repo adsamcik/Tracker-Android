@@ -35,6 +35,7 @@ public final class Network {
 	public static final String URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES;
 	public static final String URL_USER_STATS = Server.URL_USER_STATS;
 	public static final String URL_STATS = Server.URL_STATS;
+	public static final String URL_GENERAL_STATS = Server.URL_GENERAL_STATS;
 	public static final String URL_MAPS_AVAILABLE = Server.URL_MAPS_AVAILABLE;
 	public static final String URL_FEEDBACK = Server.URL_FEEDBACK;
 	public static final String URL_USER_INFO = Server.URL_USER_INFO;

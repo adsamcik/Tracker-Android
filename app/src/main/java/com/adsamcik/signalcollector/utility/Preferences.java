@@ -25,8 +25,12 @@ public class Preferences {
 	public static final String PREF_SCHEDULED_UPLOAD = "uploadSCHEDULED";
 	public static final String PREF_SENT_TOKEN_TO_SERVER = "sentTokenToServer";
 	public static final String PREF_REGISTERED_USER = "playUserRegistered";
-	public static final String PREF_BACKGROUND_TRACKING = "backgroundTracking";
+
+	public static final String PREF_AUTO_TRACKING = "backgroundTracking";
+	public static final int DEFAULT_AUTO_TRACKING = 1;
 	public static final String PREF_AUTO_UPLOAD = "autoUpload";
+	public static final int DEFAULT_AUTO_UPLOAD = 1;
+
 	public static final String PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched";
 	public static final String PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge";
 
@@ -34,6 +38,9 @@ public class Preferences {
 
 	public static final String PREF_AUTO_UPLOAD_AT_MB = "autoUpAtMB";
 	public static final int DEFAULT_AUTO_UPLOAD_AT_MB = 3;
+
+	public static final String PREF_AUTO_UPLOAD_SMART = "smartAutoUpload";
+	public static final boolean DEFAULT_AUTO_UPLOAD_SMART = false;
 
 	//Local tracking stats
 	public static final String PREF_STATS_WIFI_FOUND = "statsWifiFound";
@@ -47,6 +54,7 @@ public class Preferences {
 	public static final String PREF_OLDEST_RECENT_UPLOAD = "oldestRecentUpload";
 
 	public static final String PREF_GENERAL_STATS = "generalStats";
+	public static final String PREF_STATS = "stats";
 	public static final String PREF_USER_STATS = "userStats";
 	public static final String PREF_AVAILABLE_MAPS = "availableMaps";
 

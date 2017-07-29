@@ -6,10 +6,8 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -94,6 +92,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ColorStateList mSelectedState;
 	private ColorStateList mDefaultState;
 
+	private View rootView;
+
 
 	private int dummyNotificationIndex = 1972;
 
@@ -116,7 +116,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private void updateTracking(int select) {
 		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.PREF_BACKGROUND_TRACKING, select).apply();
+		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -167,7 +167,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-		final View rootView = inflater.inflate(R.layout.fragment_settings, container, false);
+		rootView = inflater.inflate(R.layout.fragment_settings, container, false);
 		final Context context = getContext();
 		final Resources resources = getResources();
 		final SharedPreferences sharedPreferences = Preferences.get(getContext());
@@ -202,12 +202,20 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		autoupAlways = rootView.findViewById(R.id.autoupload_always);
 		autoupAlways.setOnClickListener(v -> updateAutoup(2));
 
-		updateTracking(sharedPreferences.getInt(Preferences.PREF_BACKGROUND_TRACKING, 1));
-		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, 1));
+		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
+		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
 
 		signInButton = rootView.findViewById(R.id.sign_in_button);
 		signedInMenu = rootView.findViewById(R.id.signed_in_menu);
 		signInNoConnection = rootView.findViewById(R.id.sign_in_message);
+
+		if (Assist.hasNetwork(context)) {
+			signin = Signin.signin(getActivity(), true, null);
+			signin.setButtons(signInButton, signedInMenu, context);
+			Signin.getUserDataAsync(context, userSignedCallback);
+		} else
+			signInNoConnection.setVisibility(View.VISIBLE);
+
 
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
@@ -222,64 +230,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> startActivity(new Intent(getActivity(), IntroActivity.class)));
 
-		Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
-		mapOverlayButton.setEnabled(false);
-
-		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, context, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
-			Activity activity = getActivity();
-			if (activity != null) {
-				if (layerArray != null && layerArray.length > 0) {
-					SharedPreferences sp = Preferences.get(context);
-					String defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
-					int index = MapLayer.indexOf(layerArray, defaultOverlay);
-					final int selectIndex = index == -1 ? 0 : index;
-					if (index == -1)
-						sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
-
-					CharSequence[] items = new CharSequence[layerArray.length];
-					for (int i = 0; i < layerArray.length; i++)
-						items[i] = layerArray[i].name;
-					activity.runOnUiThread(() -> {
-						final ArrayAdapter<String> adapter = new ArrayAdapter<>(context, R.layout.spinner_item, MapLayer.toStringArray(layerArray));
-						adapter.setDropDownViewResource(R.layout.spinner_item);
-						mapOverlayButton.setEnabled(true);
-						mapOverlayButton.setText(items[selectIndex]);
-						mapOverlayButton.setOnClickListener(v -> {
-							String ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
-							int in = MapLayer.indexOf(layerArray, ov);
-							int selectIn = in == -1 ? 0 : in;
-
-							AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
-							alertDialogBuilder
-									.setTitle(getString(R.string.settings_default_map_overlay))
-									.setSingleChoiceItems(items, selectIn, (dialog, which) -> {
-										Preferences.get(context).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply();
-										mapOverlayButton.setText(items[which]);
-										dialog.dismiss();
-									})
-									.setNegativeButton(R.string.cancel, (dialog, which) -> {
-									});
-
-							alertDialogBuilder.create().show();
-						});
-					});
-				} else {
-					activity.runOnUiThread(() -> mapOverlayButton.setEnabled(false));
-				}
-			}
-		});
-
+		//getUser should not produce null exception if isSigned in is true
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), true, null);
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), true, null);
 
-		switchNoise = rootView.findViewById(R.id.switchTrackNoise);
+		/*switchNoise = rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));
 		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
 			else
 				Preferences.get(context).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply();
-		});
+		});*/
 
 		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
 		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
@@ -321,12 +283,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 		valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
 
-		if (Assist.hasNetwork(context)) {
-			signin = Signin.signin(getActivity(), true, null);
-			signin.setButtons(signInButton, signedInMenu, context);
-			Signin.getUserDataAsync(context, userSignedCallback);
-		} else
-			signInNoConnection.setVisibility(View.VISIBLE);
+		setSwitchChangeListener(context, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, value -> {
+			((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(value ? View.GONE : View.VISIBLE);
+		});
+
+		if (sharedPreferences.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
+			((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(View.GONE);
+		}
 
 		rootView.findViewById(R.id.export_share_button).setOnClickListener(v -> startActivity(new Intent(getActivity(), FileSharingActivity.class)));
 
@@ -539,6 +502,51 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					personalMapAccessTimeTextView.setVisibility(View.GONE);
 				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP)));
 			});
+
+			if (u.networkInfo.hasMapAccess())
+				NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+					if (layerArray != null && layerArray.length > 0) {
+						SharedPreferences sp = Preferences.get(activity);
+						String defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+						int index = MapLayer.indexOf(layerArray, defaultOverlay);
+						final int selectIndex = index == -1 ? 0 : index;
+						if (index == -1)
+							sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
+
+						CharSequence[] items = new CharSequence[layerArray.length];
+						for (int i = 0; i < layerArray.length; i++)
+							items[i] = layerArray[i].name;
+
+						activity.runOnUiThread(() -> {
+							final Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
+
+							final ArrayAdapter<String> adapter = new ArrayAdapter<>(activity, R.layout.spinner_item, MapLayer.toStringArray(layerArray));
+							adapter.setDropDownViewResource(R.layout.spinner_item);
+							mapOverlayButton.setText(items[selectIndex]);
+							mapOverlayButton.setOnClickListener(v -> {
+								String ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+								int in = MapLayer.indexOf(layerArray, ov);
+								int selectIn = in == -1 ? 0 : in;
+
+								AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(activity, R.style.AlertDialog);
+								alertDialogBuilder
+										.setTitle(getString(R.string.settings_default_map_overlay))
+										.setSingleChoiceItems(items, selectIn, (dialog, which) -> {
+											Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply();
+											mapOverlayButton.setText(items[which]);
+											dialog.dismiss();
+										})
+										.setNegativeButton(R.string.cancel, (dialog, which) -> {
+										});
+
+								alertDialogBuilder.create().show();
+							});
+
+							final LinearLayout mDOLayout = rootView.findViewById(R.id.settings_map_overlay_layout);
+							mDOLayout.setVisibility(View.VISIBLE);
+						});
+					}
+				});
 		}
 	}
 

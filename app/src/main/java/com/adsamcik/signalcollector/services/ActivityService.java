@@ -146,7 +146,7 @@ public class ActivityService extends IntentService {
 	private boolean canBackgroundTrack(int evalActivity) {
 		if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning() || Preferences.get(this).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
 			return false;
-		int val = Preferences.get(this).getInt(Preferences.PREF_BACKGROUND_TRACKING, 1);
+		int val = Preferences.get(this).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING);
 		return val != 0 && (val == evalActivity || val > evalActivity);
 	}
 
@@ -159,7 +159,7 @@ public class ActivityService extends IntentService {
 	private boolean canContinueBackgroundTracking(int evalActivity) {
 		if (evalActivity == 0)
 			return false;
-		int val = Preferences.get(this).getInt(Preferences.PREF_BACKGROUND_TRACKING, 1);
+		int val = Preferences.get(this).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING);
 		return val == 2 || (val == 1 && (evalActivity == 1 || evalActivity == 3));
 	}
 }

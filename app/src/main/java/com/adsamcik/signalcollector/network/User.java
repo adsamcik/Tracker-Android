@@ -18,6 +18,15 @@ public class User {
 		public long personalMapAccessUntil;
 		public boolean feedbackAccess;
 		public boolean uploadAccess;
+
+
+		public boolean hasMapAccess() {
+			return System.currentTimeMillis() < mapAccessUntil;
+		}
+
+		public boolean hasPersonalMapAccess() {
+			return System.currentTimeMillis() < personalMapAccessUntil;
+		}
 	}
 
 	public class NetworkPreferences {

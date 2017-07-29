@@ -23,6 +23,7 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.fragments.FragmentTracker;
@@ -56,10 +57,16 @@ public class MainActivity extends FragmentActivity {
 		Assist.initialize(this);
 
 		if (Network.cloudStatus == null) {
-			if (UploadService.getUploadScheduled(this).equals(UploadService.UploadScheduleSource.NONE))
-				Network.cloudStatus = DataStore.sizeOfData() > 0 ? CloudStatus.SYNC_REQUIRED : CloudStatus.NO_SYNC_REQUIRED;
-			else
-				Network.cloudStatus = CloudStatus.SYNC_REQUIRED;
+			UploadService.UploadScheduleSource scheduleSource = UploadService.getUploadScheduled(this);
+			switch (scheduleSource) {
+				case NONE:
+					Network.cloudStatus = DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED;
+					break;
+				case BACKGROUND:
+				case USER:
+					Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+					break;
+			}
 		}
 
 		Signin.signin(this, true, null);
@@ -164,7 +171,7 @@ public class MainActivity extends FragmentActivity {
 			Failure<String> state = currentFragment.onEnter(this, fabOne, fabTwo);
 			fragmentTransaction.commit();
 
-			if(state.hasFailed())
+			if (state.hasFailed())
 				new SnackMaker(this).showSnackbar(state.value);
 		}
 	}
@@ -192,11 +199,11 @@ public class MainActivity extends FragmentActivity {
 		if (requestCode == Signin.RC_SIGN_IN) {
 			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
 			if (result.isSuccess()) {
-				if(currentFragment instanceof FragmentSettings) {
+				if (currentFragment instanceof FragmentSettings) {
 					FragmentSettings fragmentSettings = (FragmentSettings) currentFragment;
 					Signin.getUserDataAsync(this, fragmentSettings.userSignedCallback);
 				}
-				
+
 				GoogleSignInAccount acct = result.getSignInAccount();
 				assert acct != null;
 				Signin.onSignedIn(acct, this);

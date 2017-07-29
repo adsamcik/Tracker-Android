@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
@@ -46,6 +47,7 @@ import java.nio.charset.Charset;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PropertyResourceBundle;
 
 public class TrackerService extends Service {
 	//Constants
@@ -266,7 +268,8 @@ public class TrackerService extends Service {
 		} else {
 			data.clear();
 			if (result == DataStore.SaveStatus.SAVED_TO_NEW_FILE &&
-					DataStore.sizeOfData() > Assist.MB_IN_BYTES * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
+					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
+					DataStore.sizeOfData() >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}
@@ -437,6 +440,9 @@ public class TrackerService extends Service {
 			Shortcuts.initializeShortcuts(this);
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION);
 		}
+
+		if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
+			UploadService.requestUploadSchedule(this);
 	}
 
 	@Nullable

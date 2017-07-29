@@ -9,6 +9,7 @@
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
+                  android:animateLayoutChanges="true"
                   android:orientation="vertical"
                   android:paddingTop="@dimen/status_bar_height">
 
@@ -231,6 +232,15 @@
                 android:tint="@color/text_disabled"/>
         </RelativeLayout>
 
+        <Switch
+            android:id="@+id/switchAutoUploadSmart"
+            style="@style/SettingsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:text="@string/settings_autoupload_smart"/>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -291,22 +301,31 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:enabled="false"
-            android:text="@string/settings_track_noise"/>
+            android:text="@string/settings_track_noise"
+            android:visibility="gone"/>
 
-        <View
-            style="@style/Divider"/>
-
-        <TextView
-            style="@style/SettingsTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_default_map_overlay"/>
-
-        <Button
-            android:id="@+id/setting_map_overlay_button"
-            style="@style/SettingsButton"
+        <LinearLayout
+            android:id="@+id/settings_map_overlay_layout"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <View
+                style="@style/Divider"/>
+
+            <TextView
+                style="@style/SettingsTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_default_map_overlay"/>
+
+            <Button
+                android:id="@+id/setting_map_overlay_button"
+                style="@style/SettingsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
 
         <View
             style="@style/Divider"/>
