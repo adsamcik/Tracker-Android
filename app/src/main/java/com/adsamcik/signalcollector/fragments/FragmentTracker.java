@@ -321,6 +321,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		if (layoutWifi != null)
 			updateData(activity);
 
+		//todo move this check to upload scheduling
 		if (Assist.isEmulator())
 			fabUp.hide();
 		return new Failure<>();
