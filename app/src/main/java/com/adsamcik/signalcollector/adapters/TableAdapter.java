@@ -12,6 +12,7 @@ import android.widget.TableLayout;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.enums.AppendBehavior;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Table;
 
 import java.util.ArrayList;
@@ -21,9 +22,12 @@ public class TableAdapter extends BaseAdapter {
 	private final ArrayList<Table> tables;
 	private final Context context;
 
-	public TableAdapter(@NonNull Context context) {
+	private final int itemMarginPx;
+
+	public TableAdapter(@NonNull Context context, int itemMarginDp) {
 		tables = new ArrayList<>();
 		this.context = context.getApplicationContext();
+		itemMarginPx = itemMarginDp == 0 ? 0 : Assist.dpToPx(context, itemMarginDp);
 	}
 
 	public void add(Table table) {
@@ -72,6 +76,11 @@ public class TableAdapter extends BaseAdapter {
 
 	@Override
 	public View getView(int i, View view, ViewGroup viewGroup) {
-		return tables.get(i).getView(context, i, getCount());
+		ViewGroup v = (ViewGroup) tables.get(i).getView(context, true);
+
+		FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getChildAt(0).getLayoutParams();
+		lp.setMargins(lp.leftMargin, i > 0 ? itemMarginPx / 2 : itemMarginPx, lp.rightMargin, i < getCount() - 1 ? itemMarginPx / 2 : itemMarginPx);
+		v.setLayoutParams(lp);
+		return v;
 	}
 }

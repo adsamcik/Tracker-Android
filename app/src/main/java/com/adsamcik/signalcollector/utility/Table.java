@@ -176,26 +176,7 @@ public class Table {
 		return row;
 	}
 
-	public View getView(@NonNull Context context, int index, int count) {
-		if (view != null)
-			return view;
-
-		getView(context);
-
-		if (marginDp == 0) {
-			FrameLayout frameLayout = new FrameLayout(context);
-			frameLayout.addView(view);
-			view = frameLayout;
-		}
-
-		FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) view.getChildAt(0).getLayoutParams();
-		lp.setMargins(lp.leftMargin, index > 0 ? lp.topMargin / 2 : lp.topMargin, lp.rightMargin, index < count - 1 ? lp.bottomMargin / 2 : lp.bottomMargin);
-		view.setLayoutParams(lp);
-
-		return view;
-	}
-
-	public View getView(@NonNull Context context) {
+	public View getView(@NonNull Context context, boolean requireWrapper) {
 		if (view != null)
 			return view;
 
@@ -229,13 +210,15 @@ public class Table {
 
 		cardView.addView(layout);
 
-		if (marginDp != 0) {
+		if (marginDp != 0 || requireWrapper) {
 			FrameLayout frameLayout = new FrameLayout(context);
 
-			FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-			int margin = Assist.dpToPx(context, this.marginDp);
-			layoutParams.setMargins(margin, margin, margin, margin);
-			cardView.setLayoutParams(layoutParams);
+			if(marginDp != 0) {
+				FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+				int margin = Assist.dpToPx(context, this.marginDp);
+				layoutParams.setMargins(margin, margin, margin, margin);
+				cardView.setLayoutParams(layoutParams);
+			}
 			frameLayout.addView(cardView);
 			return view = frameLayout;
 		}

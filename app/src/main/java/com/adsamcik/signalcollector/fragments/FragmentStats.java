@@ -151,7 +151,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@NonNull
 	@Override
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
-		adapter = new TableAdapter(activity);
+		adapter = new TableAdapter(activity, 16);
 		return new Failure<>();
 	}
 
