@@ -8,6 +8,8 @@
         android:id="@+id/stats_list_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:divider="@null"
         android:dividerHeight="0dp"
-        android:divider="@null"/>
+        android:paddingTop="@dimen/status_bar_height"/>
 </android.support.v4.widget.SwipeRefreshLayout>
