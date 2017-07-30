@@ -13,7 +13,7 @@ import android.widget.ListView;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.utility.FilterableAdapter;
+import com.adsamcik.signalcollector.adapters.FilterableAdapter;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
 
