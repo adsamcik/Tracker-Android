@@ -25,6 +25,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -81,9 +82,15 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		layoutOther.setVisibility(View.GONE);
 
 		long dataSize = DataStore.sizeOfData();
-		setCollected(dataSize);
 
-		updateData(getContext());
+		Context context = getContext();
+
+		if(BuildConfig.DEBUG && context == null)
+			throw new RuntimeException();
+
+		setCollected(context, dataSize);
+
+		updateData(context);
 
 		return view;
 	}
@@ -94,9 +101,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	 *
 	 * @param collected amount of collected data
 	 */
-	private void setCollected(long collected) {
-		if (textCollected != null && getResources() != null)
-			textCollected.setText(String.format(getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
+	private void setCollected(@NonNull Context context, long collected) {
+		if (textCollected != null)
+			textCollected.setText(String.format(context.getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
 	}
 
 	/**
@@ -311,7 +318,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						toggleCollecting(activity, !TrackerService.isRunning());
 				}
 		);
-		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(DataStore.sizeOfData())));
+		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(activity, DataStore.sizeOfData())));
 		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateUploadProgress(progress)));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
@@ -357,7 +364,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private void updateData(@NonNull Context context) {
 		Resources res = context.getResources();
 		Data d = TrackerService.dataEcho;
-		setCollected(DataStore.sizeOfData());
+		setCollected(context, DataStore.sizeOfData());
 
 		if (DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
 			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
