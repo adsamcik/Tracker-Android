@@ -37,6 +37,8 @@ import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 
+import java.util.List;
+
 public class FragmentStats extends Fragment implements ITabFragment {
 	private View view;
 
@@ -101,7 +103,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		refreshingCount = 2;
 		new Handler().postDelayed(() -> {
-			if (refreshingCount > 0)
+			if(refreshingCount > 0)
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(true));
 		}, 100);
 
@@ -177,8 +179,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 	@Override
 	public void onHomeAction() {
-		if (view != null)
-			((ListView) view.findViewById(R.id.stats_list_view)).setSelection(0);
+		if (view != null) {
+			((ListView)view.findViewById(R.id.stats_list_view)).smoothScrollToPosition(0);
+		}
 	}
 
 }
