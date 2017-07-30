@@ -148,7 +148,8 @@
                 android:id="@+id/textNoise"
                 style="@style/PrimaryText"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
+                android:layout_height="wrap_content"
+                android:visibility="gone"/>
 
             <TextView
                 android:id="@+id/textActivity"
