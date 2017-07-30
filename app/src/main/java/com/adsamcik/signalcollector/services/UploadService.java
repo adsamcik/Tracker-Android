@@ -80,7 +80,7 @@ public class UploadService extends JobService {
 
 				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 				assert scheduler != null;
-				if (scheduler.schedule(jb.build()) <= 0)
+				if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
 					return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
 				updateUploadScheduleSource(context, source);
 				Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
@@ -101,14 +101,13 @@ public class UploadService extends JobService {
 	public static Failure<String> requestUploadSchedule(@NonNull Context context) {
 		if (hasEnoughData(UploadScheduleSource.BACKGROUND)) {
 			JobInfo.Builder jb = prepareBuilder(context, UploadScheduleSource.BACKGROUND);
-			jb.setRequiresDeviceIdle(true);
 			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
 			addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
 			updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND);
 
 			JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 			assert scheduler != null;
-			if (scheduler.schedule(jb.build()) <= 0)
+			if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
 				return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
 
 			return new Failure<>();
