@@ -27,13 +27,12 @@ import com.adsamcik.signalcollector.utility.SnackMaker;
 
 public class FragmentActivities extends Fragment implements ITabFragment {
 	private ListView listViewChallenges;
-	private View rootView;
 	private SwipeRefreshLayout refreshLayout;
 
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		rootView = inflater.inflate(R.layout.fragment_activities, container, false);
+		View rootView = inflater.inflate(R.layout.fragment_activities, container, false);
 		final Activity activity = getActivity();
 
 		listViewChallenges = rootView.findViewById(R.id.listview_challenges);

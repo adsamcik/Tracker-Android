@@ -29,13 +29,12 @@ public class SaveLoadTest {
 	private static final String TAG = "SignalsSaveLoadTest";
 	private static final String PACKAGE = "com.adsamcik.signalcollector";
 	private static final int LAUNCH_TIMEOUT = 5000;
-	private UiDevice mDevice;
 	private Context context;
 
 	@Before
 	public void before() {
 		// Initialize UiDevice instance
-		mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+		UiDevice mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
 
 		final String launcherPackage = getLauncherPackageName();
 		assertThat(launcherPackage, notNullValue());

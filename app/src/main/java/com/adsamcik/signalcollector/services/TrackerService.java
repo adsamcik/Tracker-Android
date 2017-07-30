@@ -54,7 +54,6 @@ public class TrackerService extends Service {
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
 	private static final int NOTIFICATION_ID_SERVICE = 7643;
-	private final int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
 	private final float MIN_DISTANCE_M = 5;
 	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
@@ -359,6 +358,7 @@ public class TrackerService extends Service {
 			}
 		};
 
+		int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 		else {

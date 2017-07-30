@@ -21,12 +21,11 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @RunWith(AndroidJUnit4.class)
 public class ServiceTests {
-	private UiDevice mDevice;
 	private Context context;
 
 	@Before
 	public void before() {
-		mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+		UiDevice mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
 		context = InstrumentationRegistry.getTargetContext();
 	}
 
