@@ -101,7 +101,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		refreshingCount = 2;
 		new Handler().postDelayed(() -> {
-			if(refreshingCount > 0)
+			if (refreshingCount > 0)
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(true));
 		}, 100);
 
@@ -178,7 +178,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onHomeAction() {
 		if (view != null)
-			Assist.verticalSmoothScrollTo(view.findViewById(R.id.stats_list_view), 0, 500);
+			((ListView) view.findViewById(R.id.stats_list_view)).setSelection(0);
 	}
 
 }
