@@ -96,9 +96,8 @@ public class UploadService extends JobService {
 	 * Requests scheduling of upload
 	 *
 	 * @param context context
-	 * @return failure if
 	 */
-	public static Failure<String> requestUploadSchedule(@NonNull Context context) {
+	public static void requestUploadSchedule(@NonNull Context context) {
 		if (hasEnoughData(UploadScheduleSource.BACKGROUND)) {
 			JobInfo.Builder jb = prepareBuilder(context, UploadScheduleSource.BACKGROUND);
 			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
@@ -107,12 +106,8 @@ public class UploadService extends JobService {
 
 			JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 			assert scheduler != null;
-			if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
-				return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
-
-			return new Failure<>();
+			scheduler.schedule(jb.build());
 		}
-		return new Failure<>(context.getString(R.string.error_not_enough_data));
 	}
 
 	private static JobInfo.Builder prepareBuilder(@NonNull Context context, UploadScheduleSource source) {
