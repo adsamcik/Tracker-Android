@@ -84,12 +84,12 @@ public class NetworkLoader {
 	}
 
 	private static void callbackNoData(@NonNull Context context, @NonNull String preferenceString, @NonNull final IStateValueCallback<Source, String> callback, final long lastUpdate, final int returnCode) {
-		if (lastUpdate == -1)
+		if(returnCode == 403)
+			callback.callback(Source.no_data_sign_in_failed, null);
+		else if (lastUpdate == -1)
 			callback.callback(Source.no_data, null);
 		else if (returnCode < 0)
 			callback.callback(Source.cache_no_internet, CacheStore.loadString(context, preferenceString));
-		else if(returnCode == 403)
-			callback.callback(Source.no_data_sign_in_failed, null);
 		else
 			callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString));
 	}
@@ -108,14 +108,14 @@ public class NetworkLoader {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
 		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !CacheStore.exists(context, preferenceString)) {
 			if (!Assist.hasNetwork(context)) {
-				callbackNoData(context, preferenceString, callback, lastUpdate, false);
+				callbackNoData(context, preferenceString, callback, lastUpdate, -1);
 				return;
 			}
 
 			client.newCall(request).enqueue(new Callback() {
 				@Override
 				public void onFailure(@NonNull Call call, @NonNull IOException e) {
-					callbackNoData(context, preferenceString, callback, lastUpdate, true);
+					callbackNoData(context, preferenceString, callback, lastUpdate, -1);
 
 					FirebaseCrash.log("Load " + preferenceString);
 					FirebaseCrash.report(e);
@@ -123,21 +123,22 @@ public class NetworkLoader {
 
 				@Override
 				public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+					int returnCode = response.code();
 					if (!response.isSuccessful()) {
-						callbackNoData(context, preferenceString, callback, lastUpdate, true);
+						callbackNoData(context, preferenceString, callback, lastUpdate, returnCode);
 						return;
 					}
 
 					ResponseBody body = response.body();
 					if (body == null) {
-						callbackNoData(context, preferenceString, callback, lastUpdate, true);
+						callbackNoData(context, preferenceString, callback, lastUpdate, returnCode);
 						return;
 					}
 
 					String json = body.string();
 
 					if (json.isEmpty()) {
-						callbackNoData(context, preferenceString, callback, lastUpdate, true);
+						callbackNoData(context, preferenceString, callback, lastUpdate, returnCode);
 					} else {
 						Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 						CacheStore.saveString(context, preferenceString, json, false);
