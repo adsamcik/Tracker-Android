@@ -8,9 +8,9 @@
         android:id="@+id/stats_list_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:clickable="false"
         android:clipToPadding="false"
         android:divider="@null"
         android:dividerHeight="0dp"
+        android:listSelector="@android:color/transparent"
         android:paddingTop="@dimen/status_bar_height"/>
 </android.support.v4.widget.SwipeRefreshLayout>
