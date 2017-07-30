@@ -134,6 +134,7 @@ public class Table {
 		button.setPadding(Assist.dpToPx(displayMetrics, 16), 0, Assist.dpToPx(displayMetrics, 16), 0);
 		button.setHeight(Assist.dpToPx(displayMetrics, 48));
 		button.setText(buttons.get(index).first.toUpperCase());
+		button.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
 		button.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
 		button.setOnClickListener(buttons.get(index).second);
 		button.setTextSize(16);
