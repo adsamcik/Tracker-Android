@@ -13,6 +13,7 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
@@ -75,7 +76,7 @@ public class UploadService extends JobService {
 			SharedPreferences sp = Preferences.get(context);
 			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
-				JobInfo.Builder jb = prepareBuilder(context);
+				JobInfo.Builder jb = prepareBuilder(context, source);
 				addNetworkTypeRequest(context, source, jb);
 
 				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
@@ -100,7 +101,7 @@ public class UploadService extends JobService {
 	 */
 	public static Failure<String> requestUploadSchedule(@NonNull Context context) {
 		if (hasEnoughData(UploadScheduleSource.BACKGROUND)) {
-			JobInfo.Builder jb = prepareBuilder(context);
+			JobInfo.Builder jb = prepareBuilder(context, UploadScheduleSource.BACKGROUND);
 			jb.setRequiresDeviceIdle(true);
 			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
 			addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
@@ -159,9 +160,10 @@ public class UploadService extends JobService {
 	public boolean onStartJob(JobParameters jobParameters) {
 		Preferences.get(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 		UploadScheduleSource scheduleSource = UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)];
-		if (scheduleSource == UploadScheduleSource.NONE)
-			throw new InvalidParameterException("Upload source can't be NONE.");
-		else if (!hasEnoughData(scheduleSource))
+		if(scheduleSource != UploadScheduleSource.NONE)
+			throw new RuntimeException("Source cannot be null");
+
+		if (!hasEnoughData(scheduleSource))
 			return false;
 
 		DataStore.onUpload(0);
@@ -202,7 +204,7 @@ public class UploadService extends JobService {
 		private Response response = null;
 		private Call call = null;
 
-		private INonNullValueCallback<Boolean> callback;
+		private final INonNullValueCallback<Boolean> callback;
 
 		JobWorker(final String dir, final Context context, @Nullable INonNullValueCallback<Boolean> callback) {
 			this.directory = dir;
