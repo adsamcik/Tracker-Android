@@ -95,6 +95,8 @@ public class Table {
 	 * @return this table
 	 */
 	public Table addButton(String text, View.OnClickListener callback) {
+		if(buttons == null)
+			buttons = new ArrayList<>(2);
 		buttons.add(new Pair<>(text, callback));
 		return this;
 	}
