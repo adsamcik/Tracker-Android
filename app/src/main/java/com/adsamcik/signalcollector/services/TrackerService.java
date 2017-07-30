@@ -47,7 +47,6 @@ import java.nio.charset.Charset;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.PropertyResourceBundle;
 
 public class TrackerService extends Service {
 	//Constants

@@ -5,7 +5,6 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.CacheStore;
 import com.adsamcik.signalcollector.utility.Parser;
