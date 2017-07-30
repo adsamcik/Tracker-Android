@@ -153,7 +153,7 @@ public class UploadService extends JobService {
 	public boolean onStartJob(JobParameters jobParameters) {
 		Preferences.get(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal()).apply();
 		UploadScheduleSource scheduleSource = UploadScheduleSource.values()[jobParameters.getExtras().getInt(KEY_SOURCE)];
-		if(scheduleSource == UploadScheduleSource.NONE)
+		if (scheduleSource == UploadScheduleSource.NONE)
 			throw new RuntimeException("Source cannot be null");
 
 		if (!hasEnoughData(scheduleSource))
@@ -268,8 +268,7 @@ public class UploadService extends JobService {
 				DataStore.onUpload(-1);
 				return false;
 			} else {
-				if (source.equals(UploadScheduleSource.USER))
-					DataStore.closeUploadFile(context.get(), files[files.length - 1]);
+				DataStore.closeUploadFile(context.get(), files[files.length - 1]);
 				String zipName = "up" + System.currentTimeMillis();
 				tempZipFile = Compress.zip(directory, files, zipName);
 				if (tempZipFile == null)
