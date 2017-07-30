@@ -309,7 +309,7 @@ public class TrackerService extends Service {
 		df.setRoundingMode(RoundingMode.HALF_UP);
 		if (d.wifi != null)
 			sb.append(d.wifi.length).append(" wifi ");
-		if (d.cellCount != -1)
+		if (d.cellCount != null)
 			sb.append(d.cellCount).append(" cell ");
 		/*if (d.noise > 0)
 			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");*/
