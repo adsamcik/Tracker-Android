@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.adapters;
 
 import android.content.Context;
 import android.os.Build;
