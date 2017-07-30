@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
@@ -19,6 +20,7 @@ import android.widget.ListView;
 
 import com.adsamcik.signalcollector.adapters.TableAdapter;
 import com.adsamcik.signalcollector.enums.AppendBehavior;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.network.NetworkLoader;
@@ -70,10 +72,8 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	private void updateStats() {
 		Activity activity = getActivity();
 		final Context appContext = activity.getApplicationContext();
-		final boolean isRefresh = refreshLayout != null && refreshLayout.isRefreshing();
-		refreshingCount = 3;
 		assert refreshLayout != null;
-		refreshLayout.setRefreshing(true);
+		final boolean isRefresh = refreshLayout.isRefreshing();
 
 		adapter.clear();
 
@@ -99,17 +99,26 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
 		adapter.add(weeklyStats);
 
+		refreshingCount = 2;
+		new Handler().postDelayed(() -> {
+			if(refreshingCount > 0)
+				activity.runOnUiThread(() -> refreshLayout.setRefreshing(true));
+		}, 100);
+
 		NetworkLoader.request(Network.URL_GENERAL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) ->
 				handleResponse(activity, state, value, AppendBehavior.FirstLast));
 
 		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_STATS, Stat[].class, (state, value) ->
 				handleResponse(activity, state, value, AppendBehavior.Any));
 
-		NetworkLoader.requestSigned(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
-			if (value != null && value.length == 1 && value[0].name.isEmpty())
-				value[0] = new Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
-			handleResponse(activity, state, value, AppendBehavior.First);
-		});
+		if (Signin.getUserID(appContext) != null) {
+			refreshingCount++;
+			NetworkLoader.requestSigned(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
+				if (value != null && value.length == 1 && value[0].name.isEmpty())
+					value[0] = new Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
+				handleResponse(activity, state, value, AppendBehavior.First);
+			});
+		}
 	}
 
 	private void handleResponse(@NonNull Activity activity, @NonNull NetworkLoader.Source state, @Nullable Stat[] value, @NonNull AppendBehavior appendBehavior) {
