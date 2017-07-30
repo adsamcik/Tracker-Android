@@ -5,6 +5,7 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.CacheStore;
 import com.adsamcik.signalcollector.utility.Parser;
@@ -82,12 +83,23 @@ public class NetworkLoader {
 		});
 	}
 
+	private static void callbackNoData(@NonNull Context context, @NonNull String preferenceString, @NonNull final IStateValueCallback<Source, String> callback, final long lastUpdate, final int returnCode) {
+		if (lastUpdate == -1)
+			callback.callback(Source.no_data, null);
+		else if (returnCode < 0)
+			callback.callback(Source.cache_no_internet, CacheStore.loadString(context, preferenceString));
+		else if(returnCode == 403)
+			callback.callback(Source.no_data_sign_in_failed, null);
+		else
+			callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString));
+	}
+
 	/**
 	 * Method to requestPOST string from server.
 	 *
 	 * @param request             requestPOST data
 	 * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
-	 * @param ctx             Context
+	 * @param ctx                 Context
 	 * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
 	 * @param callback            Callback which is called when the result is ready
 	 */
@@ -96,20 +108,14 @@ public class NetworkLoader {
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
 		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !CacheStore.exists(context, preferenceString)) {
 			if (!Assist.hasNetwork(context)) {
-				if (lastUpdate == -1)
-					callback.callback(Source.no_data, null);
-				else
-					callback.callback(Source.cache_no_internet, CacheStore.loadString(context, preferenceString));
+				callbackNoData(context, preferenceString, callback, lastUpdate, false);
 				return;
 			}
 
 			client.newCall(request).enqueue(new Callback() {
 				@Override
 				public void onFailure(@NonNull Call call, @NonNull IOException e) {
-					if (lastUpdate != -1)
-						callback.callback(Source.cache_connection_failed, CacheStore.loadString(context, preferenceString));
-					else
-						callback.callback(Source.no_data, null);
+					callbackNoData(context, preferenceString, callback, lastUpdate, true);
 
 					FirebaseCrash.log("Load " + preferenceString);
 					FirebaseCrash.report(e);
@@ -117,17 +123,21 @@ public class NetworkLoader {
 
 				@Override
 				public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-					ResponseBody body = response.body();
-					if (body == null)
+					if (!response.isSuccessful()) {
+						callbackNoData(context, preferenceString, callback, lastUpdate, true);
 						return;
+					}
+
+					ResponseBody body = response.body();
+					if (body == null) {
+						callbackNoData(context, preferenceString, callback, lastUpdate, true);
+						return;
+					}
 
 					String json = body.string();
 
 					if (json.isEmpty()) {
-						if (lastUpdate == -1)
-							callback.callback(Source.no_data, null);
-						else
-							callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString));
+						callbackNoData(context, preferenceString, callback, lastUpdate, true);
 					} else {
 						Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply();
 						CacheStore.saveString(context, preferenceString, json, false);
