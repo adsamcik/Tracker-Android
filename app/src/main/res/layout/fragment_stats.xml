@@ -4,21 +4,10 @@
                                               android:layout_width="match_parent"
                                               android:layout_height="match_parent">
 
-    <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-                android:layout_width="fill_parent"
-                android:layout_height="fill_parent"
-                android:scrollbars="none">
-
-        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                      xmlns:tools="http://schemas.android.com/tools"
-                      android:id="@+id/statsLayout"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:orientation="vertical"
-                      android:paddingBottom="@dimen/edge_margin"
-                      android:paddingEnd="@dimen/edge_margin"
-                      android:paddingStart="@dimen/edge_margin"
-                      android:paddingTop="@dimen/status_bar_height"
-                      tools:context=".fragments.FragmentStats"/>
-    </ScrollView>
+    <ListView
+        android:id="@+id/stats_list_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:dividerHeight="0dp"
+        android:divider="@null"/>
 </android.support.v4.widget.SwipeRefreshLayout>

@@ -15,10 +15,10 @@ import android.support.v4.widget.SwipeRefreshLayout;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
+import android.widget.ListView;
 
-import com.adsamcik.signalcollector.enums.AppendPosition;
+import com.adsamcik.signalcollector.adapters.TableAdapter;
+import com.adsamcik.signalcollector.enums.AppendBehavior;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.network.NetworkLoader;
@@ -27,7 +27,6 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
@@ -36,73 +35,36 @@ import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 
-import java.util.ArrayList;
-
 public class FragmentStats extends Fragment implements ITabFragment {
-	private Table weeklyStats;
-	private Table lastUpload;
-	private final ArrayList<Table> publicStats = new ArrayList<>();
-	private final ArrayList<Table> userStats = new ArrayList<>();
 	private View view;
+
+	private ListView listView;
+
+	private TableAdapter adapter;
 
 	private SwipeRefreshLayout refreshLayout;
 
-	@Override
-	public void onCreate(@Nullable Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		Context context = getContext();
-		weeklyStats = new Table(context, 4, false, ContextCompat.getColor(context, R.color.text_primary));
-	}
-
-	@Override
-	public void onDestroyView() {
-		((LinearLayout) view.findViewById(R.id.statsLayout)).removeAllViews();
-		publicStats.clear();
-		userStats.clear();
-		super.onDestroyView();
-	}
+	private final int CARD_LIST_MARGIN = 16;
 
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
-		Resources r = getResources();
-
-		boolean hasRecentUpload = false;
-
 		Activity activity = getActivity();
-
-		UploadStats us = DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
-		if (us != null && Assist.getAgeInDays(us.time) < 30) {
-			lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, view.findViewById(R.id.statsLayout), getContext(), getResources().getString(R.string.most_recent_upload));
-			lastUpload.addButton(getString(R.string.more_uploads), v -> {
-				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
-				startActivity(intent);
-			});
-			hasRecentUpload = true;
-		} else {
-			if (lastUpload != null)
-				lastUpload.destroy(activity);
-		}
 
 		new Thread(() -> DataStore.removeOldRecentUploads(activity)).start();
 
 		Preferences.checkStatsDay(activity);
 
-		weeklyStats.clear();
-		weeklyStats.addTitle(r.getString(R.string.stats_weekly_title));
-		StatDay weekStats = Preferences.countStats(activity);
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.getUploaded(), true));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
-		weeklyStats.addRow().addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
-		weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
+		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
 		refreshLayout = view.findViewById(R.id.statsSwipeRefresh);
 		refreshLayout.setOnRefreshListener(this::updateStats);
 		refreshLayout.setColorSchemeResources(R.color.color_primary);
 		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
+
+		listView = view.findViewById(R.id.stats_list_view);
+		listView.setAdapter(adapter);
 		updateStats();
 		return view;
 	}
@@ -115,88 +77,82 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		assert refreshLayout != null;
 		refreshLayout.setRefreshing(true);
 
+		adapter.clear();
+
+		Resources r = activity.getResources();
+
+		UploadStats us = DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
+		if (us != null && Assist.getAgeInDays(us.time) < 30) {
+			Table lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, getContext(), getResources().getString(R.string.most_recent_upload), AppendBehavior.FirstFirst);
+			lastUpload.addButton(getString(R.string.more_uploads), v -> {
+				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
+				startActivity(intent);
+			});
+			adapter.add(lastUpload);
+		}
+
+		Table weeklyStats = new Table(4, false, ContextCompat.getColor(activity, R.color.text_primary), CARD_LIST_MARGIN, AppendBehavior.FirstFirst);
+		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
+		StatDay weekStats = Preferences.countStats(activity);
+		weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
+		weeklyStats.addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.getUploaded(), true));
+		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), String.valueOf(weekStats.getLocations()));
+		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_wifi), String.valueOf(weekStats.getWifi()));
+		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_cell), String.valueOf(weekStats.getCell()));
+		adapter.add(weeklyStats);
+
 		NetworkLoader.request(Network.URL_GENERAL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) ->
-				handleResponse(activity, state, value, new AppendPosition(1)));
+				handleResponse(activity, state, value, AppendBehavior.FirstLast));
 
 		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_STATS, Stat[].class, (state, value) ->
-				handleResponse(activity, state, value, new AppendPosition(AppendPosition.AppendBehavior.Last)));
+				handleResponse(activity, state, value, AppendBehavior.Any));
 
 		NetworkLoader.requestSigned(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
 			if (value != null && value.length == 1 && value[0].name.isEmpty())
 				value[0] = new Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
-			handleResponse(activity, state, value, new AppendPosition(AppendPosition.AppendBehavior.First));
+			handleResponse(activity, state, value, AppendBehavior.First);
 		});
 	}
 
-	private void handleResponse(@NonNull Activity activity, @NonNull NetworkLoader.Source state, @Nullable Stat[] value, @NonNull AppendPosition appendPosition) {
-		refreshDone();
-		final int initialIndex = ((ViewGroup) view).getChildCount();
-
-		if (state.isSuccess())
-			generateStats(value, publicStats, initialIndex, activity);
-		else {
-			if (state.isDataAvailable())
-				generateStats(value, publicStats, initialIndex, activity);
+	private void handleResponse(@NonNull Activity activity, @NonNull NetworkLoader.Source state, @Nullable Stat[] value, @NonNull AppendBehavior appendBehavior) {
+		if (!state.isSuccess())
 			new SnackMaker(activity).showSnackbar(state.toString(activity));
-		}
+		refreshingCount--;
+		if (state.isDataAvailable())
+			activity.runOnUiThread(() -> {
+				addStatsTable(activity, value, appendBehavior);
+				adapter.sort();
+				if (refreshingCount == 0 && refreshLayout != null)
+					refreshLayout.setRefreshing(false);
+			});
 	}
 
 	private int refreshingCount = 0;
-
-	private void refreshDone() {
-		if (--refreshingCount == 0)
-			if (refreshLayout != null && refreshLayout.isRefreshing()) {
-				Activity activity = getActivity();
-				if (activity != null)
-					activity.runOnUiThread(() -> refreshLayout.setRefreshing(false));
-			}
-	}
-
-	private void generateStats(Stat[] stats, ArrayList<Table> items, int insertAt, Activity activity) {
-		if (stats == null)
-			return;
-
-		if (items != null) {
-			for (Table t : items) {
-				t.destroy(activity);
-			}
-		}
-		activity.runOnUiThread(() -> generateStatsTable(stats, insertAt, items, activity));
-	}
 
 	/**
 	 * Generates tables from list of stats
 	 *
 	 * @param stats stats
-	 * @param items array to which items will be added
-	 * @return returns passed items array
 	 */
-	private ArrayList<Table> generateStatsTable(Stat[] stats, int insertAt, ArrayList<Table> items, Context context) {
-		if (context == null)
-			return null;
-
-		LinearLayout ll = view.findViewById(R.id.statsLayout);
+	private void addStatsTable(@NonNull Context context, @NonNull Stat[] stats, @NonNull AppendBehavior appendBehavior) {
 		int color = ContextCompat.getColor(context, R.color.text_primary);
-		for (int i = 0; i < stats.length; i++) {
-			Stat s = stats[i];
+		for (Stat s : stats) {
 			if (s.data != null) {
-				Table table = new Table(context, s.data.size(), s.showPosition, color);
-				table.addTitle(s.name);
+				Table table = new Table(s.data.size(), s.showPosition, color, CARD_LIST_MARGIN, appendBehavior);
+				table.setTitle(s.name);
 				for (int y = 0; y < s.data.size(); y++) {
 					StatData sd = s.data.get(y);
-					table.addRow().addData(sd.id, sd.value);
+					table.addData(sd.id, sd.value);
 				}
-				table.addToViewGroup(ll, insertAt + i, true, (i + 1) * 150);
-				items.add(table);
+				adapter.add(table);
 			}
 		}
-		return items;
 	}
 
 	@NonNull
 	@Override
 	public Failure<String> onEnter(@NonNull FragmentActivity activity, @NonNull FloatingActionButton fabOne, @NonNull FloatingActionButton fabTwo) {
-		//todo check if up to date
+		adapter = new TableAdapter(activity);
 		return new Failure<>();
 	}
 
@@ -214,7 +170,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public void onHomeAction() {
 		if (view != null)
-			Assist.verticalSmoothScrollTo((ScrollView) view.findViewById(R.id.statsLayout).getParent(), 0, 500);
+			Assist.verticalSmoothScrollTo(view.findViewById(R.id.stats_list_view), 0, 500);
 	}
 
 }
