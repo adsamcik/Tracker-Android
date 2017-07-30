@@ -60,7 +60,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	@Nullable
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-		View view = inflater.inflate(R.layout.fragment_main, container, false);
+		View view = inflater.inflate(R.layout.fragment_tracker, container, false);
 
 		textAccuracy = view.findViewById(R.id.textAccuracy);
 		textPosition = view.findViewById(R.id.textPosition);
