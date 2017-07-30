@@ -283,9 +283,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 		valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
 
-		setSwitchChangeListener(context, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, value -> {
-			((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(value ? View.GONE : View.VISIBLE);
-		});
+		setSwitchChangeListener(context, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, value -> ((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(value ? View.GONE : View.VISIBLE));
 
 		if (sharedPreferences.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
 			((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(View.GONE);
