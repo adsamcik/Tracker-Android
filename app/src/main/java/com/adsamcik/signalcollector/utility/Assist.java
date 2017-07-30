@@ -23,8 +23,10 @@ import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ListView;
 import android.widget.ScrollView;
 
 import com.adsamcik.signalcollector.R;
@@ -416,12 +418,12 @@ public class Assist {
 	/**
 	 * Animate smooth scroll to y coordinate
 	 *
-	 * @param scrollView Scroll view
-	 * @param y          target y coordinate
-	 * @param millis     duration of animation
+	 * @param viewGroup View group
+	 * @param y         target y coordinate
+	 * @param millis    duration of animation
 	 */
-	public static void verticalSmoothScrollTo(final ScrollView scrollView, final int y, final int millis) {
-		ObjectAnimator.ofInt(scrollView, "scrollY", scrollView.getScrollY(), y).setDuration(millis).start();
+	public static void verticalSmoothScrollTo(final ViewGroup viewGroup, final int y, final int millis) {
+		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.getScrollY(), y).setDuration(millis).start();
 	}
 
 	/**
