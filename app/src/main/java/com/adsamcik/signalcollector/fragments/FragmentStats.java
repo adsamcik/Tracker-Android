@@ -38,8 +38,6 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment;
 public class FragmentStats extends Fragment implements ITabFragment {
 	private View view;
 
-	private ListView listView;
-
 	private TableAdapter adapter;
 
 	private SwipeRefreshLayout refreshLayout;
@@ -63,7 +61,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		refreshLayout.setColorSchemeResources(R.color.color_primary);
 		refreshLayout.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40));
 
-		listView = view.findViewById(R.id.stats_list_view);
+		ListView listView = view.findViewById(R.id.stats_list_view);
 		listView.setAdapter(adapter);
 		updateStats();
 		return view;
@@ -120,6 +118,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		refreshingCount--;
 		if (state.isDataAvailable())
 			activity.runOnUiThread(() -> {
+				//noinspection ConstantConditions
 				addStatsTable(activity, value, appendBehavior);
 				adapter.sort();
 				if (refreshingCount == 0 && refreshLayout != null)
