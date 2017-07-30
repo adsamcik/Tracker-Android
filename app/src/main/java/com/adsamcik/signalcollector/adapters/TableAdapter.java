@@ -7,6 +7,8 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.FrameLayout;
+import android.widget.TableLayout;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.enums.AppendBehavior;
@@ -70,6 +72,6 @@ public class TableAdapter extends BaseAdapter {
 
 	@Override
 	public View getView(int i, View view, ViewGroup viewGroup) {
-		return tables.get(i).getView(context);
+		return tables.get(i).getView(context, i, getCount());
 	}
 }
