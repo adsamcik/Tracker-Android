@@ -77,9 +77,6 @@ public class UploadService extends JobService {
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
 				JobInfo.Builder jb = prepareBuilder(context);
 				addNetworkTypeRequest(context, source, jb);
-				PersistableBundle pb = new PersistableBundle(1);
-				pb.putInt(KEY_SOURCE, source.ordinal());
-				jb.setExtras(pb);
 
 				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 				assert scheduler != null;
@@ -119,9 +116,12 @@ public class UploadService extends JobService {
 		return new Failure<>(context.getString(R.string.error_not_enough_data));
 	}
 
-	private static JobInfo.Builder prepareBuilder(@NonNull Context context) {
+	private static JobInfo.Builder prepareBuilder(@NonNull Context context, UploadScheduleSource source) {
 		JobInfo.Builder jobBuilder = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(context, UploadService.class));
 		jobBuilder.setPersisted(true);
+		PersistableBundle pb = new PersistableBundle(1);
+		pb.putInt(KEY_SOURCE, source.ordinal());
+		jobBuilder.setExtras(pb);
 		return jobBuilder;
 	}
 
