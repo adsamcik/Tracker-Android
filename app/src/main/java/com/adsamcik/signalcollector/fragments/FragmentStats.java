@@ -37,8 +37,6 @@ import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 
-import java.util.List;
-
 public class FragmentStats extends Fragment implements ITabFragment {
 	private View view;
 
