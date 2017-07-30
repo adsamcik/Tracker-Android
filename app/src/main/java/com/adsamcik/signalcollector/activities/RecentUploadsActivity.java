@@ -7,8 +7,10 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TableLayout;
 
+import com.adsamcik.signalcollector.adapters.TableAdapter;
 import com.adsamcik.signalcollector.enums.AppendBehavior;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
@@ -20,6 +22,7 @@ import com.google.gson.Gson;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class RecentUploadsActivity extends DetailActivity {
 
@@ -64,11 +67,18 @@ public class RecentUploadsActivity extends DetailActivity {
 		UploadStats[] recent = new Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
 		if (recent != null && recent.length > 0) {
 			Context context = getApplicationContext();
-			LinearLayout parent = createScrollableContentParent(true);
-			ArrayList<Table> list = new ArrayList<>();
+			LinearLayout parent = createContentParent(false);
+			ListView listView = new ListView(this);
+			listView.setDivider(null);
+			listView.setDividerHeight(0);
+			listView.setSelector(android.R.color.transparent);
+			TableAdapter adapter = new TableAdapter(context, 16);
+
 			for (UploadStats s : recent)
-				list.add(GenerateTableForUploadStat(s, context, null, AppendBehavior.Any));
-			parent.getChildAt(0).setLayoutParams(new TableLayout.LayoutParams());
+				adapter.add(GenerateTableForUploadStat(s, context, null, AppendBehavior.Any));
+
+			listView.setAdapter(adapter);
+			parent.addView(listView);
 		}
 
 
