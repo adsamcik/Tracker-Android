@@ -92,6 +92,8 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		else if (callback != null) {
 			if (instance.user != null)
 				callback.callback(instance.user);
+			else if(instance.status == SigninStatus.SIGNIN_FAILED || instance.status == SigninStatus.SILENT_SIGNIN_FAILED)
+				callback.callback(null);
 			else
 				instance.onSignedCallbackList.add(callback);
 		}
@@ -115,8 +117,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		return user;
 	}
 
-	public static @Nullable
-	String getUserID(@NonNull Context context) {
+	public static @Nullable String getUserID(@NonNull Context context) {
 		return Preferences.get(context).getString(Preferences.PREF_USER_ID, null);
 	}
 
