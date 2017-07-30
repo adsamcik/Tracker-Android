@@ -8,7 +8,6 @@ import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.TableLayout;
 
 import com.adsamcik.signalcollector.adapters.TableAdapter;
 import com.adsamcik.signalcollector.enums.AppendBehavior;
@@ -20,9 +19,7 @@ import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
 
 import java.text.DateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 public class RecentUploadsActivity extends DetailActivity {
 

@@ -8,8 +8,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
-import android.widget.TableLayout;
-import android.widget.TextView;
 
 import com.adsamcik.signalcollector.enums.AppendBehavior;
 import com.adsamcik.signalcollector.utility.Assist;

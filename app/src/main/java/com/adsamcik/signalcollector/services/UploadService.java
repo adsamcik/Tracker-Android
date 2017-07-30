@@ -13,7 +13,6 @@ import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
