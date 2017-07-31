@@ -50,7 +50,11 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		view = inflater.inflate(R.layout.fragment_stats, container, false);
+
 		Activity activity = getActivity();
+
+		if(adapter == null)
+			adapter = new TableAdapter(activity, CARD_LIST_MARGIN);
 
 		new Thread(() -> DataStore.removeOldRecentUploads(activity)).start();
 
