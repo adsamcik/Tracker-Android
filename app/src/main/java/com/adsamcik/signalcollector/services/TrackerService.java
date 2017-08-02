@@ -249,7 +249,7 @@ public class TrackerService extends Service {
 		for (Data d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
-			if (d.cellCount != -1)
+			if (d.cellCount != null)
 				cellCount += d.cellCount;
 		}
 
