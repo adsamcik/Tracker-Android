@@ -54,7 +54,7 @@ public class Data implements Serializable {
 
 	/**
 	 * Total cell count
-	 * default (0) if not collected.
+	 * default null if not collected.
 	 */
 	public Integer cellCount;
 
