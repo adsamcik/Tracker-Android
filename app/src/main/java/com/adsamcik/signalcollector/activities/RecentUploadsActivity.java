@@ -72,7 +72,8 @@ public class RecentUploadsActivity extends DetailActivity {
 			TableAdapter adapter = new TableAdapter(context, 16);
 
 			for (UploadStats s : recent)
-				adapter.add(GenerateTableForUploadStat(s, context, null, AppendBehavior.Any));
+				if (s != null)
+					adapter.add(GenerateTableForUploadStat(s, context, null, AppendBehavior.Any));
 
 			listView.setAdapter(adapter);
 			parent.addView(listView);
