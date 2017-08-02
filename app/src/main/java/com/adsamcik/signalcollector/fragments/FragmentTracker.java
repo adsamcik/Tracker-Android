@@ -228,7 +228,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 	void updateUploadProgress(final int percentage) {
-		final Context context = getActivity();
+		final Context context = getActivity().getApplicationContext();
 		progressBar.setVisibility(View.VISIBLE);
 		fabUp.setElevation(0);
 		if (handler == null)
@@ -254,6 +254,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			animation.setDuration(400);
 			if (percentage == 100) {
 				handler.postDelayed(() -> {
+					if(fabUp == null)
+						return;
 					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
 					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
 					fabUp.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp));
