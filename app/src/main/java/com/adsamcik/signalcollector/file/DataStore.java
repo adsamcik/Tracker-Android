@@ -71,7 +71,7 @@ public class DataStore {
 	 */
 	public static void onUpload(int progress) {
 		if (progress == 100)
-			Network.cloudStatus = sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.NO_SYNC_REQUIRED : CloudStatus.SYNC_AVAILABLE;
+			Network.cloudStatus = sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED;
 		else if (progress == -1 && sizeOfData() > 0)
 			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 		else
