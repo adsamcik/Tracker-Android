@@ -191,14 +191,16 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 				final String defaultOverlay = savedOverlay;
 				activity.runOnUiThread(() -> {
-					if (menu.getItemCount() == 0)
-						changeMapOverlay(defaultOverlay);
+					if(menu != null) {
+						if (menu.getItemCount() == 0)
+							changeMapOverlay(defaultOverlay);
 
-					if (layerArray.length > 0) {
-						for (MapLayer layer : layerArray)
-							menu.addItem(layer.name, activity);
+						if (layerArray.length > 0) {
+							for (MapLayer layer : layerArray)
+								menu.addItem(layer.name, activity);
+						}
+						fabTwo.show();
 					}
-					fabTwo.show();
 				});
 			}
 		});
