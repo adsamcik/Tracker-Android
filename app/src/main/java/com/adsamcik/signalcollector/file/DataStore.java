@@ -137,12 +137,13 @@ public class DataStore {
 		try {
 			String last2 = FileStore.loadLastAscii(f, 2);
 			assert last2 != null;
-			if (!last2.equals("]}"))
+			if (!last2.equals("]}")) {
 				FileStore.saveString(f, "]}", true);
-			SharedPreferences preferences = Preferences.get(context);
-			int index = preferences.getInt(PREF_DATA_FILE_INDEX, -1);
-			if (fileName.endsWith(Integer.toString(index)))
-				Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, ++index).apply();
+				SharedPreferences preferences = Preferences.get(context);
+				int index = preferences.getInt(PREF_DATA_FILE_INDEX, -1);
+				if (fileName.endsWith(Integer.toString(index)))
+					Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, ++index).apply();
+			}
 		} catch (FileNotFoundException e) {
 			FirebaseCrash.report(e);
 		}
