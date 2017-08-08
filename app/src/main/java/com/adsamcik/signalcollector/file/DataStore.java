@@ -37,6 +37,7 @@ public class DataStore {
 
 	public static final String RECENT_UPLOADS_FILE = "recentUploads";
 	public static final String DATA_FILE = "dataStore";
+	public static final String DATA_CACHE_FILE = "dataCacheFile";
 	public static final String PREF_DATA_FILE_INDEX = "saveFileID";
 	private static final String PREF_COLLECTED_DATA_SIZE = "totalSize";
 
@@ -298,14 +299,14 @@ public class DataStore {
 	 * @param rawData json array to be saved, without [ at the beginning
 	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
-	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull RawData rawData) {
+	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
 		if (UploadService.isUploading()) {
-			FileStore.save
+			return saveJsonArrayAppend(context, DATA_CACHE_FILE, rawData, true) ? SaveStatus.SAVING_SUCCESSFULL : SaveStatus.SAVING_FAILED;
 		} else
-			saveDataNoUploadCheck(context, rawData);
+			return saveDataNoUploadCheck(context, rawData);
 	}
 
-	private static synchronized void saveDataNoUploadCheck(@NonNull Context context, @NonNull String data) {
+	private static synchronized SaveStatus saveDataNoUploadCheck(@NonNull Context context, @NonNull RawData[] data) {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
