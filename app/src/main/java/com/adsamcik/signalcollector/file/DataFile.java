@@ -5,6 +5,7 @@ import android.os.Build;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
 import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.BuildConfig;
@@ -28,6 +29,8 @@ public class DataFile {
 	private final Gson gson = new Gson();
 	private boolean writeable;
 
+	private boolean empty;
+
 	@FileType
 	private int type;
 
@@ -43,7 +46,9 @@ public class DataFile {
 						"\",\"api\":" + Build.VERSION.SDK_INT +
 						",\"version\":" + BuildConfig.VERSION_CODE + "," +
 						"\"data\":", false);
+			empty = true;
 			writeable = true;
+
 		} else {
 			String ascii = null;
 			try {
@@ -52,7 +57,8 @@ public class DataFile {
 				FirebaseCrash.report(e);
 			}
 
-			writeable = ascii == null || ascii.equals("]}");
+			writeable = ascii == null || !ascii.equals("]}");
+			empty = ascii == null || ascii.endsWith(":");
 		}
 	}
 
@@ -62,19 +68,21 @@ public class DataFile {
 	}
 
 	public boolean addData(@NonNull RawData[] data) {
-		if(!writeable) {
+		if (!writeable) {
 			try {
-				FileChannel outChan = new FileOutputStream(file, true).getChannel();
-				outChan.truncate(file.length() - 2);
-				outChan.close();
-			}catch (IOException e) {
+				new FileOutputStream(file, true).getChannel().truncate(file.length() - 2).close();
+			} catch (IOException e) {
 				FirebaseCrash.report(e);
 			}
+			writeable = true;
 		}
 
 		String jsonArray = gson.toJson(data);
 		try {
-			return FileStore.saveAppendableJsonArray(file, jsonArray, true, file.length() > 0);
+			boolean status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty);
+			if(status)
+				empty = false;
+			return status;
 		} catch (MalformedJsonException e) {
 			//Should never happen, but w/e
 			FirebaseCrash.report(e);
@@ -82,16 +90,15 @@ public class DataFile {
 		}
 	}
 
-	public boolean close(@NonNull Context context) {
+	public boolean close() {
 		try {
 			String last2 = FileStore.loadLastAscii(file, 2);
 			assert last2 != null;
-			if (!last2.equals("]}"))
-				FileStore.saveString(file, "]}", true);
 			writeable = false;
-			return true;
+			return last2.equals("]}") || FileStore.saveString(file, "]}", true);
 		} catch (FileNotFoundException e) {
 			FirebaseCrash.report(e);
+			writeable = true;
 			return false;
 		}
 	}

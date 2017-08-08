@@ -319,9 +319,8 @@ public class DataStore {
 			editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + sizeOfNewData);
 
 			if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
-				currentDataFile.close(context);
-				editor.putInt(preference, Preferences.get(context).getInt(preference, 0) + 1).apply();
-				editor.apply();
+				currentDataFile.close();
+				//editor.putInt(preference, Preferences.get(context).getInt(preference, 0) + 1).apply();
 				currentDataFile = null;
 				return SaveStatus.SAVE_SUCCESS_FILE_DONE;
 			}
