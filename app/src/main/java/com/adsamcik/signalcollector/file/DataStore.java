@@ -2,21 +2,20 @@ package com.adsamcik.signalcollector.file;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
-import android.support.v4.content.ContextCompat;
+import android.support.annotation.Nullable;
 import android.util.MalformedJsonException;
 import android.util.Pair;
 
-import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
@@ -28,8 +27,6 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,6 +38,7 @@ public class DataStore {
 	public static final String DATA_FILE = "dataStore";
 	public static final String DATA_CACHE_FILE = "dataCacheFile";
 	public static final String PREF_DATA_FILE_INDEX = "saveFileID";
+	public static final String PREF_CACHE_FILE_INDEX = "saveCacheID";
 	private static final String PREF_COLLECTED_DATA_SIZE = "totalSize";
 
 	private static ICallback onDataChanged;
@@ -48,11 +46,13 @@ public class DataStore {
 
 	private static volatile long approxSize = -1;
 
+	private static DataFile currentDataFile = null;
+
 	private static File getFolder(@NonNull Context context) {
 		return context.getFilesDir();
 	}
 
-	private static File file(@NonNull Context context, @NonNull String fileName) {
+	public static File file(@NonNull Context context, @NonNull String fileName) {
 		return FileStore.file(getFolder(context), fileName);
 	}
 
@@ -125,28 +125,6 @@ public class DataStore {
 		for (int i = 0; i <= maxID; i++)
 			fileNames[i] = DATA_FILE + i;
 		return fileNames;
-	}
-
-	/**
-	 * Closes file if not closed already
-	 *
-	 * @param fileName filename
-	 */
-	public static synchronized void closeDataFile(@NonNull Context context, @NonNull String fileName) {
-		File f = file(context, fileName);
-		try {
-			String last2 = FileStore.loadLastAscii(f, 2);
-			assert last2 != null;
-			if (!last2.equals("]}")) {
-				FileStore.saveString(f, "]}", true);
-				SharedPreferences preferences = Preferences.get(context);
-				int index = preferences.getInt(PREF_DATA_FILE_INDEX, -1);
-				if (fileName.endsWith(Integer.toString(index)))
-					Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, ++index).apply();
-			}
-		} catch (FileNotFoundException e) {
-			FirebaseCrash.report(e);
-		}
 	}
 
 	/**
@@ -296,9 +274,9 @@ public class DataStore {
 	}
 
 	public enum SaveStatus {
-		SAVING_FAILED,
-		SAVING_SUCCESSFULL,
-		SAVED_TO_NEW_FILE
+		SAVE_FAILED,
+		SAVE_SUCCESS,
+		SAVE_SUCCESS_FILE_DONE
 	}
 
 	/**
@@ -307,67 +285,39 @@ public class DataStore {
 	 * @param rawData json array to be saved, without [ at the beginning
 	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
-	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
-		if (UploadService.isUploading()) {
-			return saveAppendableJsonArray(context, DATA_CACHE_FILE, rawData, true) ? SaveStatus.SAVING_SUCCESSFULL : SaveStatus.SAVING_FAILED;
-		} else
-			return saveDataNoUploadCheck(context, rawData);
+	public static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
+		String userID = Signin.getUserID(context);
+		if (UploadService.isUploading() || userID == null)
+			return saveData(context, DATA_CACHE_FILE, PREF_CACHE_FILE_INDEX, DataFile.CACHE, null, rawData);
+		else
+			return saveData(context, DATA_FILE, PREF_DATA_FILE_INDEX, DataFile.STANDARD, userID, rawData);
 	}
 
-	private static synchronized SaveStatus saveDataNoUploadCheck(@NonNull Context context, @NonNull RawData[] data) {
-		SharedPreferences sp = Preferences.get();
-		SharedPreferences.Editor edit = sp.edit();
+	private synchronized static SaveStatus saveData(@NonNull Context context, @NonNull String fileName, String preference, @DataFile.FileType int type, @Nullable String userID, @NonNull RawData[] rawData) {
+		if (currentDataFile == null || currentDataFile.getType() == type)
+			currentDataFile = new DataFile(file(context, fileName + Preferences.get(context).getInt(preference, 0)), userID, DataFile.STANDARD);
 
-		long fileSize = sizeOf(context, DATA_FILE + id);
+		long prevSize = currentDataFile.size();
+		boolean success = currentDataFile.addData(rawData);
+		if (success) {
+			long currentSize = currentDataFile.size();
+			long sizeOfNewData = currentSize - prevSize;
+			approxSize += sizeOfNewData;
+			SharedPreferences.Editor editor = Preferences.get(context).edit();
+			editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + sizeOfNewData);
 
-		File cacheFile = file(context, DATA_CACHE_FILE);
-		if (cacheFile.exists()) {
-			if (cacheFile.length()
-		}
-
-		String jsonArray = new Gson().toJson(data);
-
-		int id = sp.getInt(PREF_DATA_FILE_INDEX, 0);
-		boolean fileHasNoData;
-		if (fileSize > Constants.MAX_DATA_FILE_SIZE) {
-			FileStore.saveString(file(context, DATA_FILE + id), "]}", true);
-			edit.putInt(PREF_DATA_FILE_INDEX, ++id);
-			fileHasNoData = true;
-			onDataChanged();
-		} else
-			fileHasNoData = fileSize == 0;
-
-
-		if (fileHasNoData) {
-			String userID = sp.getString(Preferences.PREF_USER_ID, null);
-			if (userID == null || !FileStore.saveString(file(context, DATA_FILE + id), "{\"userID\":\"" + userID + "\"," +
-					"\"model\":\"" + Build.MODEL +
-					"\",\"manufacturer\":\"" + Build.MANUFACTURER +
-					"\",\"api\":" + Build.VERSION.SDK_INT +
-					",\"version\":" + BuildConfig.VERSION_CODE + "," +
-					"\"data\":", false)) {
-				return SaveStatus.SAVING_FAILED;
+			if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
+				currentDataFile.close(context);
+				editor.putInt(preference, Preferences.get(context).getInt(preference, 0) + 1).apply();
+				editor.apply();
+				currentDataFile = null;
+				return SaveStatus.SAVE_SUCCESS_FILE_DONE;
 			}
+
+			editor.apply();
+			return SaveStatus.SAVE_SUCCESS;
 		}
-
-		try {
-			if (!FileStore.saveAppendableJsonArray(file(context, DATA_FILE + id), jsonArray, true, fileHasNoData)) {
-				if (fileSize > Constants.MAX_DATA_FILE_SIZE)
-					edit.apply();
-				return SaveStatus.SAVING_FAILED;
-			}
-		} catch (MalformedJsonException e) {
-			if (fileSize > Constants.MAX_DATA_FILE_SIZE)
-				edit.apply();
-			FirebaseCrash.report(e);
-			return SaveStatus.SAVING_FAILED;
-		}
-
-		int dataSize = data.getBytes(Charset.defaultCharset()).length;
-		approxSize = sp.getLong(PREF_COLLECTED_DATA_SIZE, 0) + dataSize;
-		edit.putLong(PREF_COLLECTED_DATA_SIZE, approxSize).apply();
-
-		return fileHasNoData && id > 0 ? SaveStatus.SAVED_TO_NEW_FILE : SaveStatus.SAVING_SUCCESSFULL;
+		return SaveStatus.SAVE_FAILED;
 	}
 
 	/**

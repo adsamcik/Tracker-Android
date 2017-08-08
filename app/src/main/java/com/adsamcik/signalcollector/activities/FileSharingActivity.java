@@ -17,11 +17,16 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.file.CacheStore;
+import com.adsamcik.signalcollector.file.DataFile;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
 import com.adsamcik.signalcollector.utility.Compress;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 
 public class FileSharingActivity extends DetailActivity {
@@ -64,8 +69,24 @@ public class FileSharingActivity extends DetailActivity {
 				else {
 					String[] arr = new String[temp.size()];
 					temp.toArray(arr);
-					File c = Compress.zip(files[0].getParent(), arr, "export_" + System.currentTimeMillis());
-					assert c != null;
+					Compress compress;
+					try {
+						compress = new Compress(CacheStore.file(this, String.valueOf(System.currentTimeMillis())));
+					} catch (FileNotFoundException e) {
+						FirebaseCrash.report(e);
+						return;
+					}
+
+					for (String fileName : temp)
+						compress.add(DataStore.file(this, fileName));
+
+					File c;
+					try {
+						c = compress.finish();
+					} catch (IOException e) {
+						FirebaseCrash.report(e);
+						return;
+					}
 					File target = new File(c.getParent() + File.separatorChar + SHAREABLE_DIR_NAME + File.separatorChar + c.getName() + ".zip");
 					shareableDir = new File(c.getParent() + File.separatorChar + SHAREABLE_DIR_NAME);
 					if (shareableDir.exists() || shareableDir.mkdir()) {

@@ -255,17 +255,14 @@ public class TrackerService extends Service {
 
 		sp.edit().putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount).putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount).putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
-		String input = gson.toJson(data.toArray(new RawData[data.size()]));
-		input = input.substring(1, input.length() - 1);
-
-		DataStore.SaveStatus result = DataStore.saveData(this, input);
-		if (result == DataStore.SaveStatus.SAVING_FAILED) {
+		DataStore.SaveStatus result = DataStore.saveData(this, data.toArray(new RawData[data.size()]));
+		if (result == DataStore.SaveStatus.SAVE_FAILED) {
 			saveAttemptsFailed++;
 			if (saveAttemptsFailed >= 5)
 				stopSelf();
 		} else {
 			data.clear();
-			if (result == DataStore.SaveStatus.SAVED_TO_NEW_FILE &&
+			if (result == DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
 					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
 					DataStore.sizeOfData() >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
