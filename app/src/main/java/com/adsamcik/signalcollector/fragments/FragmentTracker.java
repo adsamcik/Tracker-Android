@@ -26,6 +26,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -37,7 +38,6 @@ import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.CellData;
-import com.adsamcik.signalcollector.data.Data;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
@@ -325,7 +325,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
 
-		//TrackerService.dataEcho = new Data(200).setActivity(1).addCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
+		//TrackerService.rawDataEcho = new RawData(200).setActivity(1).addCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 
 		if (layoutWifi != null)
 			updateData(activity);
@@ -365,7 +365,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	private void updateData(@NonNull Context context) {
 		Resources res = context.getResources();
-		Data d = TrackerService.dataEcho;
+		RawData d = TrackerService.rawDataEcho;
 		setCollected(context, DataStore.sizeOfData());
 
 		if (DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {

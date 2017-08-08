@@ -20,7 +20,7 @@ import java.util.List;
 
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
 @UseStag
-public class Data implements Serializable {
+public class RawData implements Serializable {
 	/**
 	 * Time of collection in milliseconds since midnight, January 1, 1970 UTC
 	 */
@@ -78,14 +78,14 @@ public class Data implements Serializable {
 	/**
 	 * Stag constructor
 	 */
-	Data() {}
+	RawData() {}
 
 	/**
-	 * Data constructor
+	 * RawData constructor
 	 *
 	 * @param time collection time
 	 */
-	public Data(long time) {
+	public RawData(long time) {
 		this.time = time;
 	}
 
@@ -95,7 +95,7 @@ public class Data implements Serializable {
 	 * @param location location
 	 * @return this
 	 */
-	public Data setLocation(@NonNull Location location) {
+	public RawData setLocation(@NonNull Location location) {
 		this.longitude = location.getLongitude();
 		this.latitude = location.getLatitude();
 		this.altitude = location.getAltitude();
@@ -110,7 +110,7 @@ public class Data implements Serializable {
 	 * @param time time of collection
 	 * @return this
 	 */
-	public Data setWifi(ScanResult[] data, long time) {
+	public RawData setWifi(ScanResult[] data, long time) {
 		if (data != null && time > 0) {
 			wifi = new WifiData[data.length];
 			for (int i = 0; i < data.length; i++)
@@ -126,7 +126,7 @@ public class Data implements Serializable {
 	 * @param activity activity
 	 * @return this
 	 */
-	public Data setActivity(int activity) {
+	public RawData setActivity(int activity) {
 		this.activity = activity;
 		return this;
 	}
@@ -137,7 +137,7 @@ public class Data implements Serializable {
 	 * @param noise Noise value. Must be absolute amplitude.
 	 * @return this
 	 */
-	/*public Data setNoise(short noise) {
+	/*public RawData setNoise(short noise) {
 		if (noise > 0)
 			this.noise = noise;
 		return this;

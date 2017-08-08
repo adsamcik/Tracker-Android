@@ -30,7 +30,7 @@ import android.telephony.TelephonyManager;
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
-import com.adsamcik.signalcollector.data.Data;
+import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -59,9 +59,9 @@ public class TrackerService extends Service {
 	public static ICallback onNewDataFound;
 
 	/**
-	 * Data from previous collection
+	 * RawData from previous collection
 	 */
-	public static Data dataEcho;
+	public static RawData rawDataEcho;
 	/**
 	 * Extra information about distance for tracker
 	 */
@@ -76,7 +76,7 @@ public class TrackerService extends Service {
 
 	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
-	private final ArrayList<Data> data = new ArrayList<>();
+	private final ArrayList<RawData> data = new ArrayList<>();
 	private final Gson gson = new Gson();
 
 	private long wifiScanTime;
@@ -164,7 +164,7 @@ public class TrackerService extends Service {
 		}
 
 		wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/);
-		Data d = new Data(System.currentTimeMillis());
+		RawData d = new RawData(System.currentTimeMillis());
 
 		if (wifiManager != null) {
 			if (prevLocation != null) {
@@ -212,7 +212,7 @@ public class TrackerService extends Service {
 		d.setLocation(location).setActivity(ActivityService.lastResolvedActivity);
 
 		data.add(d);
-		dataEcho = d;
+		rawDataEcho = d;
 
 		DataStore.incSizeOfData(new Gson().toJson(d).getBytes(Charset.defaultCharset()).length);
 
@@ -246,7 +246,7 @@ public class TrackerService extends Service {
 		wifiCount = sp.getInt(Preferences.PREF_STATS_WIFI_FOUND, 0);
 		cellCount = sp.getInt(Preferences.PREF_STATS_CELL_FOUND, 0);
 		locations = sp.getInt(Preferences.PREF_STATS_LOCATIONS_FOUND, 0);
-		for (Data d : data) {
+		for (RawData d : data) {
 			if (d.wifi != null)
 				wifiCount += d.wifi.length;
 			if (d.cellCount != null)
@@ -255,7 +255,7 @@ public class TrackerService extends Service {
 
 		sp.edit().putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount).putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount).putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size()).apply();
 
-		String input = gson.toJson(data.toArray(new Data[data.size()]));
+		String input = gson.toJson(data.toArray(new RawData[data.size()]));
 		input = input.substring(1, input.length() - 1);
 
 		DataStore.SaveStatus result = DataStore.saveData(this, input);
@@ -274,7 +274,7 @@ public class TrackerService extends Service {
 		}
 	}
 
-	private Notification generateNotification(boolean gpsAvailable, Data d) {
+	private Notification generateNotification(boolean gpsAvailable, RawData d) {
 		Intent intent = new Intent(this, MainActivity.class);
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(this, getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -302,7 +302,7 @@ public class TrackerService extends Service {
 		return builder.build();
 	}
 
-	private String buildNotificationText(final Data d) {
+	private String buildNotificationText(final RawData d) {
 		StringBuilder sb = new StringBuilder();
 		DecimalFormat df = new DecimalFormat("#.#");
 		df.setRoundingMode(RoundingMode.HALF_UP);

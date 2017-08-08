@@ -10,11 +10,13 @@ import android.util.MalformedJsonException;
 import android.util.Pair;
 
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
@@ -291,12 +293,19 @@ public class DataStore {
 	}
 
 	/**
-	 * Saves data to file. File is determined automatically.
+	 * Saves rawData to file. File is determined automatically.
 	 *
-	 * @param data json array to be saved, without [ at the beginning
+	 * @param rawData json array to be saved, without [ at the beginning
 	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
-	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull String data) {
+	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull RawData rawData) {
+		if (UploadService.isUploading()) {
+			FileStore.save
+		} else
+			saveDataNoUploadCheck(context, rawData);
+	}
+
+	private static synchronized void saveDataNoUploadCheck(@NonNull Context context, @NonNull String data) {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
