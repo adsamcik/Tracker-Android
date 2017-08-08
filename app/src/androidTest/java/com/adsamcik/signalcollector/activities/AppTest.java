@@ -95,16 +95,16 @@ public class AppTest {
 
 		Preferences.get().edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
 		Gson gson = new Gson();
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(us), false));
+		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
 		Assert.assertEquals(true, DataStore.exists(context, testFileName));
 		Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName));
 		Assert.assertEquals('[' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 		//DataStore.removeOldRecentUploads();
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, us, true));
+		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, us, true));
 		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
 		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 
-		Assert.assertEquals(true, DataStore.saveJsonArrayAppend(context, testFileName, gson.toJson(usOld), true));
+		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(usOld), true));
 		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(context, testFileName));
 		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadAppendableJsonArray(context, testFileName));
 		DataStore.removeOldRecentUploads(context);

@@ -268,7 +268,7 @@ public class UploadService extends JobService {
 				DataStore.onUpload(-1);
 				return false;
 			} else {
-				DataStore.closeUploadFile(context.get(), files[files.length - 1]);
+				DataStore.closeDataFile(context.get(), files[files.length - 1]);
 				String zipName = "up" + System.currentTimeMillis();
 				tempZipFile = Compress.zip(directory, files, zipName);
 				if (tempZipFile == null)

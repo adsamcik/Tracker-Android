@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
+import android.support.v4.content.ContextCompat;
 import android.util.MalformedJsonException;
 import android.util.Pair;
 
@@ -27,6 +28,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -130,15 +132,20 @@ public class DataStore {
 	 *
 	 * @param fileName filename
 	 */
-	public static void closeUploadFile(@NonNull Context context, @NonNull String fileName) {
+	public static synchronized void closeDataFile(@NonNull Context context, @NonNull String fileName) {
 		File f = file(context, fileName);
-		StringBuilder sb = FileStore.loadStringAsBuilder(f);
-		if (sb != null && sb.charAt(sb.length() - 2) != ']')
-			FileStore.saveString(f, "]}", true);
-		SharedPreferences preferences = Preferences.get(context);
-		int index = preferences.getInt(PREF_DATA_FILE_INDEX, -1);
-		if (fileName.endsWith(Integer.toString(index)))
-			Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, ++index).apply();
+		try {
+			String last2 = FileStore.loadLastAscii(f, 2);
+			assert last2 != null;
+			if (!last2.equals("]}"))
+				FileStore.saveString(f, "]}", true);
+			SharedPreferences preferences = Preferences.get(context);
+			int index = preferences.getInt(PREF_DATA_FILE_INDEX, -1);
+			if (fileName.endsWith(Integer.toString(index)))
+				Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, ++index).apply();
+		} catch (FileNotFoundException e) {
+			FirebaseCrash.report(e);
+		}
 	}
 
 	/**
@@ -301,7 +308,7 @@ public class DataStore {
 	 */
 	public synchronized static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
 		if (UploadService.isUploading()) {
-			return saveJsonArrayAppend(context, DATA_CACHE_FILE, rawData, true) ? SaveStatus.SAVING_SUCCESSFULL : SaveStatus.SAVING_FAILED;
+			return saveAppendableJsonArray(context, DATA_CACHE_FILE, rawData, true) ? SaveStatus.SAVING_SUCCESSFULL : SaveStatus.SAVING_FAILED;
 		} else
 			return saveDataNoUploadCheck(context, rawData);
 	}
@@ -310,9 +317,17 @@ public class DataStore {
 		SharedPreferences sp = Preferences.get();
 		SharedPreferences.Editor edit = sp.edit();
 
+		long fileSize = sizeOf(context, DATA_FILE + id);
+
+		File cacheFile = file(context, DATA_CACHE_FILE);
+		if (cacheFile.exists()) {
+			if (cacheFile.length()
+		}
+
+		String jsonArray = new Gson().toJson(data);
+
 		int id = sp.getInt(PREF_DATA_FILE_INDEX, 0);
 		boolean fileHasNoData;
-		long fileSize = sizeOf(context, DATA_FILE + id);
 		if (fileSize > Constants.MAX_DATA_FILE_SIZE) {
 			FileStore.saveString(file(context, DATA_FILE + id), "]}", true);
 			edit.putInt(PREF_DATA_FILE_INDEX, ++id);
@@ -335,7 +350,7 @@ public class DataStore {
 		}
 
 		try {
-			if (!FileStore.saveAppendableJsonArray(file(context, DATA_FILE + id), data, true, fileHasNoData)) {
+			if (!FileStore.saveAppendableJsonArray(file(context, DATA_FILE + id), jsonArray, true, fileHasNoData)) {
 				if (fileSize > Constants.MAX_DATA_FILE_SIZE)
 					edit.apply();
 				return SaveStatus.SAVING_FAILED;
@@ -389,11 +404,11 @@ public class DataStore {
 		return FileStore.saveString(file(context, fileName), data, append);
 	}
 
-	public static <T> boolean saveJsonArrayAppend(@NonNull Context context, @NonNull String fileName, @NonNull T data, boolean append) {
-		return saveJsonArrayAppend(context, fileName, new Gson().toJson(data), append);
+	public static <T> boolean saveAppendableJsonArray(@NonNull Context context, @NonNull String fileName, @NonNull T data, boolean append) {
+		return saveAppendableJsonArray(context, fileName, new Gson().toJson(data), append);
 	}
 
-	public static boolean saveJsonArrayAppend(@NonNull Context context, @NonNull String fileName, @NonNull String data, boolean append) {
+	public static boolean saveAppendableJsonArray(@NonNull Context context, @NonNull String fileName, @NonNull String data, boolean append) {
 		try {
 			return FileStore.saveAppendableJsonArray(file(context, fileName), data, append);
 		} catch (MalformedJsonException e) {

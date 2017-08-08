@@ -128,7 +128,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			uploadSize = Long.parseLong(data.get(SIZE));
 
 		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations);
-		DataStore.saveJsonArrayAppend(context, DataStore.RECENT_UPLOADS_FILE, us, true);
+		DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true);
 
 		Preferences.checkStatsDay(context);
 		SharedPreferences sp = Preferences.get(context);

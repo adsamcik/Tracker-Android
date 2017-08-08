@@ -10,9 +10,12 @@ import com.google.gson.JsonSyntaxException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.security.InvalidParameterException;
 
 public class FileStore {
@@ -186,6 +189,26 @@ public class FileStore {
 			}
 		}
 		return null;
+	}
+
+	public static String loadLastAscii(@NonNull File file, int n) throws InvalidParameterException, FileNotFoundException{
+		byte[] bytes = loadLastBytes(file, n);
+		return bytes != null ? new String(bytes) : null;
+	}
+
+	public static byte[] loadLastBytes(@NonNull File file, int n) throws InvalidParameterException, FileNotFoundException {
+		if(n > file.length())
+			throw new InvalidParameterException();
+
+		try(RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+			raf.seek(file.length() - n);
+			byte[] arr = new byte[n];
+			raf.read(arr, 0, n);
+			return arr;
+		} catch (IOException e) {
+			FirebaseCrash.report(e);
+			return null;
+		}
 	}
 
 	/**
