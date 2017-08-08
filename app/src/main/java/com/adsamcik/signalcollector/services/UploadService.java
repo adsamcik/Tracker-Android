@@ -228,11 +228,9 @@ public class UploadService extends JobService {
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();
 				response.close();
-				if (isSuccessful) {
-					if (!FileStore.delete(file))
-						FirebaseCrash.report(new IOException("Failed to delete file " + file.getName() + ". This should never happen."));
+				if (isSuccessful)
 					return true;
-				}
+
 				if (code >= 500 || code == 403)
 					FirebaseCrash.report(new Throwable("Upload failed " + code));
 				return false;
@@ -262,24 +260,31 @@ public class UploadService extends JobService {
 		@Override
 		protected Boolean doInBackground(JobParameters... params) {
 			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
-			String[] files = DataStore.getDataFileNames(context.get(), source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
+			Context context = this.context.get();
+			String[] files = DataStore.getDataFileNames(context, source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(-1);
 				return false;
 			} else {
-				DataStore.closeDataFile(context.get(), files[files.length - 1]);
+				DataStore.getCurrentDataFile(context).close(context);
 				String zipName = "up" + System.currentTimeMillis();
-				tempZipFile = Compress.zip(directory, files, zipName);
-				if (tempZipFile == null)
+				try {
+					Compress compress = new Compress(DataStore.file(context, zipName));
+					for (String f: files)
+						compress.add(DataStore.file(context, f));
+					tempZipFile = compress.finish();
+				} catch (IOException e) {
+					FirebaseCrash.report(e);
 					return false;
+				}
 
 				final Lock lock = new ReentrantLock();
 				final Condition callbackReceived = lock.newCondition();
 				final StringWrapper token = new StringWrapper();
 				final StringWrapper userID = new StringWrapper();
 
-				Signin.getUserAsync(context.get(), value -> {
+				Signin.getUserAsync(context, value -> {
 					lock.lock();
 					if (value != null) {
 						token.setString(value.token);
@@ -302,14 +307,15 @@ public class UploadService extends JobService {
 
 				if (upload(tempZipFile, token.getString(), userID.getString())) {
 					for (String file : files)
-						DataStore.delete(context.get(), file);
-					tempZipFile = null;
+						DataStore.delete(context, file);
+					if(!tempZipFile.delete())
+						tempZipFile.deleteOnExit();
 				} else {
 					return false;
 				}
 			}
 
-			DataStore.recountDataSize(context.get());
+			DataStore.recountDataSize(context);
 			return true;
 		}
 

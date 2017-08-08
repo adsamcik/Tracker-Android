@@ -279,6 +279,18 @@ public class DataStore {
 		SAVE_SUCCESS_FILE_DONE
 	}
 
+	public static DataFile getCurrentDataFile(@NonNull Context context) {
+		if(currentDataFile != null)
+			return currentDataFile;
+		else {
+			String userID = Signin.getUserID(context);
+			if(userID == null)
+				return currentDataFile = new DataFile(file(context, DATA_FILE + Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)), null, DataFile.CACHE);
+			else
+				return currentDataFile = new DataFile(file(context, DATA_FILE + Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)), userID, DataFile.STANDARD);
+		}
+	}
+
 	/**
 	 * Saves rawData to file. File is determined automatically.
 	 *
