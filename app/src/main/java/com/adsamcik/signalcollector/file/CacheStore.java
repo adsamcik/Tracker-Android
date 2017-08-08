@@ -35,7 +35,7 @@ public class CacheStore {
 	 * @return content of file as StringBuilder
 	 */
 	public static StringBuilder loadStringAsBuilder(@NonNull Context context, @NonNull String fileName) {
-		return FileStore.loadStringAsBuilder(file(context.getCacheDir(), fileName));
+		return FileStore.loadStringAsBuilder(file(context, fileName));
 	}
 
 	/**
@@ -45,7 +45,7 @@ public class CacheStore {
 	 * @return content of file (empty if file has no content or does not exists)
 	 */
 	public static String loadString(@NonNull Context context, @NonNull String fileName) {
-		return FileStore.loadString(file(context.getCacheDir(), fileName));
+		return FileStore.loadString(file(context, fileName));
 	}
 
 	/**
@@ -56,7 +56,7 @@ public class CacheStore {
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 	public static boolean exists(@NonNull Context context, @NonNull String fileName) {
-		return file(context.getCacheDir(), fileName).exists();
+		return file(context, fileName).exists();
 	}
 
 	public static void clearAll(@NonNull Context context) {
