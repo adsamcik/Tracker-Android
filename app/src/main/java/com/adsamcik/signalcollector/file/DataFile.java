@@ -14,8 +14,11 @@ import com.google.gson.Gson;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.nio.channels.FileChannel;
 
 public class DataFile {
 	public static final int STANDARD = 0;
@@ -59,6 +62,16 @@ public class DataFile {
 	}
 
 	public boolean addData(@NonNull RawData[] data) {
+		if(!writeable) {
+			try {
+				FileChannel outChan = new FileOutputStream(file, true).getChannel();
+				outChan.truncate(file.length() - 2);
+				outChan.close();
+			}catch (IOException e) {
+				FirebaseCrash.report(e);
+			}
+		}
+
 		String jsonArray = gson.toJson(data);
 		try {
 			return FileStore.saveAppendableJsonArray(file, jsonArray, true, file.length() > 0);
@@ -75,6 +88,7 @@ public class DataFile {
 			assert last2 != null;
 			if (!last2.equals("]}"))
 				FileStore.saveString(file, "]}", true);
+			writeable = false;
 			return true;
 		} catch (FileNotFoundException e) {
 			FirebaseCrash.report(e);
