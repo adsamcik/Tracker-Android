@@ -18,9 +18,8 @@ import android.widget.Toast;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.CacheStore;
-import com.adsamcik.signalcollector.file.DataFile;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
-import com.adsamcik.signalcollector.utility.Compress;
+import com.adsamcik.signalcollector.file.Compress;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.google.firebase.crash.FirebaseCrash;
 

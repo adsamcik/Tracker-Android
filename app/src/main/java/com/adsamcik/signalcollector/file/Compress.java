@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.file;
 
 
 import com.google.firebase.crash.FirebaseCrash;

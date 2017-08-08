@@ -3,9 +3,6 @@ package com.adsamcik.signalcollector.file;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
-import com.adsamcik.signalcollector.file.FileStore;
-import com.adsamcik.signalcollector.utility.Compress;
-
 import java.io.File;
 
 import static com.adsamcik.signalcollector.file.FileStore.file;
