@@ -27,6 +27,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.net.NoRouteToHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -328,8 +329,50 @@ public class DataStore {
 		return saveData(context, currentDataFile, rawData);
 	}
 
+	private synchronized static void writeTempData(@NonNull Context context) {
+		String userId = Signin.getUserID(context);
+		if (currentDataFile.getType() != DataFile.STANDARD || userId == null)
+			return;
+
+		File[] files = getFolder(context).listFiles((file, s) -> s.startsWith(DATA_CACHE_FILE));
+		if (files.length >= 1) {
+			int newFileCount = files.length;
+			int i = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0);
+
+			if (files[0].length() + currentDataFile.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
+				String data = FileStore.loadString(files[0]);
+				assert data != null;
+				currentDataFile.addData(data);
+				newFileCount--;
+				i++;
+				if (currentDataFile.isFull())
+					currentDataFile.close();
+			} else {
+				currentDataFile.close();
+			}
+
+			if (files.length > 1) {
+				Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, i + newFileCount).putInt(PREF_CACHE_FILE_INDEX, 0).apply();
+				DataFile dataFile;
+				for (; i < files.length; i++) {
+					String data = FileStore.loadString(files[0]);
+					assert data != null;
+					dataFile = new DataFile(file(context, DATA_FILE + i), userId, DataFile.STANDARD);
+					dataFile.addData(data);
+
+					if (i < files.length - 1)
+						dataFile.close();
+				}
+			}
+		}
+	}
+
 	private synchronized static SaveStatus saveData(@NonNull Context context, DataFile file, @NonNull RawData[] rawData) {
 		long prevSize = file.size();
+
+		if (file.getType() == DataFile.STANDARD)
+			writeTempData(context);
+
 		boolean success = file.addData(rawData);
 		if (success) {
 			long currentSize = file.size();

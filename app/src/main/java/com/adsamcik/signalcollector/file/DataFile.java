@@ -70,20 +70,29 @@ public class DataFile {
 	public @interface FileType {
 	}
 
+	public boolean addData(@NonNull String jsonArray) {
+		if (jsonArray.charAt(0) != '[')
+			throw new IllegalArgumentException("Given string is not json array!");
+		return saveData(jsonArray);
+	}
+
 	public boolean addData(@NonNull RawData[] data) {
 		if (!writeable) {
 			try {
 				new FileOutputStream(file, true).getChannel().truncate(file.length() - 2).close();
 			} catch (IOException e) {
 				FirebaseCrash.report(e);
+				return false;
 			}
 			writeable = true;
 		}
+		return saveData(gson.toJson(data));
+	}
 
-		String jsonArray = gson.toJson(data);
+	private boolean saveData(@NonNull String jsonArray) {
 		try {
 			boolean status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty);
-			if(status)
+			if (status)
 				empty = false;
 			return status;
 		} catch (MalformedJsonException e) {
