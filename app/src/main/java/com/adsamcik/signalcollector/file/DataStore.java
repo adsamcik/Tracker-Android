@@ -27,6 +27,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
+import java.net.NoRouteToHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -280,15 +281,36 @@ public class DataStore {
 	}
 
 	public static DataFile getCurrentDataFile(@NonNull Context context) {
-		if(currentDataFile != null)
+		if (currentDataFile != null)
 			return currentDataFile;
 		else {
 			String userID = Signin.getUserID(context);
-			if(userID == null)
+			if (userID == null)
 				return currentDataFile = new DataFile(file(context, DATA_FILE + Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)), null, DataFile.CACHE);
 			else
 				return currentDataFile = new DataFile(file(context, DATA_FILE + Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)), userID, DataFile.STANDARD);
 		}
+	}
+
+	private static void updateCurrentData(@NonNull Context context, @DataFile.FileType int type, @Nullable String userID) {
+		String dataFile;
+		String preference;
+		switch (type) {
+			case DataFile.CACHE:
+				dataFile = DATA_CACHE_FILE;
+				preference = PREF_CACHE_FILE_INDEX;
+				break;
+			case DataFile.STANDARD:
+				dataFile = DATA_FILE;
+				preference = PREF_DATA_FILE_INDEX;
+				break;
+			default:
+				FirebaseCrash.report(new Throwable("Unknown type " + type));
+				return;
+		}
+
+		if (currentDataFile == null || currentDataFile.getType() == type)
+			currentDataFile = new DataFile(file(context, dataFile + Preferences.get(context).getInt(preference, 0)), userID, DataFile.STANDARD);
 	}
 
 	/**
@@ -299,28 +321,26 @@ public class DataStore {
 	 */
 	public static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
 		String userID = Signin.getUserID(context);
-		if (UploadService.isUploading() || userID == null)
-			return saveData(context, DATA_CACHE_FILE, PREF_CACHE_FILE_INDEX, DataFile.CACHE, null, rawData);
-		else
-			return saveData(context, DATA_FILE, PREF_DATA_FILE_INDEX, DataFile.STANDARD, userID, rawData);
+		if (UploadService.isUploading() || userID == null) {
+			updateCurrentData(context, DataFile.CACHE, userID);
+			return saveData(context, currentDataFile, PREF_CACHE_FILE_INDEX, rawData);
+		} else {
+			updateCurrentData(context, DataFile.STANDARD, userID);
+			return saveData(context, currentDataFile, PREF_DATA_FILE_INDEX, rawData);
+		}
 	}
 
-	private synchronized static SaveStatus saveData(@NonNull Context context, @NonNull String fileName, String preference, @DataFile.FileType int type, @Nullable String userID, @NonNull RawData[] rawData) {
-		if (currentDataFile == null || currentDataFile.getType() == type)
-			currentDataFile = new DataFile(file(context, fileName + Preferences.get(context).getInt(preference, 0)), userID, DataFile.STANDARD);
-
+	private synchronized static SaveStatus saveData(@NonNull Context context, DataFile file, String preference, @NonNull RawData[] rawData) {
 		long prevSize = currentDataFile.size();
 		boolean success = currentDataFile.addData(rawData);
 		if (success) {
 			long currentSize = currentDataFile.size();
-			long sizeOfNewData = currentSize - prevSize;
-			approxSize += sizeOfNewData;
 			SharedPreferences.Editor editor = Preferences.get(context).edit();
-			editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + sizeOfNewData);
+			editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + currentSize - prevSize);
 
 			if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
 				currentDataFile.close();
-				//editor.putInt(preference, Preferences.get(context).getInt(preference, 0) + 1).apply();
+				editor.putInt(preference, Preferences.get(context).getInt(preference, 0) + 1).apply();
 				currentDataFile = null;
 				return SaveStatus.SAVE_SUCCESS_FILE_DONE;
 			}
