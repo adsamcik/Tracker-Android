@@ -10,6 +10,7 @@ import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 
@@ -19,7 +20,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.nio.channels.FileChannel;
+
+import static com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX;
+import static com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX;
+import static com.adsamcik.signalcollector.file.DataStore.delete;
 
 public class DataFile {
 	public static final int STANDARD = 0;
@@ -37,7 +41,6 @@ public class DataFile {
 	public DataFile(@NonNull File file, @Nullable String userID, @FileType int type) {
 		this.file = file;
 		this.type = userID == null ? CACHE : type;
-
 		if (!file.exists() || file.length() == 0) {
 			if (this.type == STANDARD)
 				FileStore.saveString(file, "{\"userID\":\"" + userID + "\"," +
@@ -114,5 +117,20 @@ public class DataFile {
 	public @FileType
 	int getType() {
 		return type;
+	}
+
+	public String getPreference() {
+		switch (type) {
+			case CACHE:
+				return PREF_CACHE_FILE_INDEX;
+			case STANDARD:
+				return PREF_DATA_FILE_INDEX;
+			default:
+				return null;
+		}
+	}
+
+	public boolean isFull() {
+		return file.length() > Constants.MAX_DATA_FILE_SIZE;
 	}
 }

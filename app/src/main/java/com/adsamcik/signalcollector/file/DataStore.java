@@ -309,8 +309,8 @@ public class DataStore {
 				return;
 		}
 
-		if (currentDataFile == null || currentDataFile.getType() == type)
-			currentDataFile = new DataFile(file(context, dataFile + Preferences.get(context).getInt(preference, 0)), userID, DataFile.STANDARD);
+		if (currentDataFile == null || currentDataFile.getType() == type || currentDataFile.isFull())
+			currentDataFile = new DataFile(file(context, dataFile + Preferences.get(context).getInt(preference, 0)), userID, type);
 	}
 
 	/**
@@ -321,27 +321,24 @@ public class DataStore {
 	 */
 	public static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
 		String userID = Signin.getUserID(context);
-		if (UploadService.isUploading() || userID == null) {
+		if (UploadService.isUploading() || userID == null)
 			updateCurrentData(context, DataFile.CACHE, userID);
-			return saveData(context, currentDataFile, PREF_CACHE_FILE_INDEX, rawData);
-		} else {
+		else
 			updateCurrentData(context, DataFile.STANDARD, userID);
-			return saveData(context, currentDataFile, PREF_DATA_FILE_INDEX, rawData);
-		}
+		return saveData(context, currentDataFile, rawData);
 	}
 
-	private synchronized static SaveStatus saveData(@NonNull Context context, DataFile file, String preference, @NonNull RawData[] rawData) {
-		long prevSize = currentDataFile.size();
-		boolean success = currentDataFile.addData(rawData);
+	private synchronized static SaveStatus saveData(@NonNull Context context, DataFile file, @NonNull RawData[] rawData) {
+		long prevSize = file.size();
+		boolean success = file.addData(rawData);
 		if (success) {
-			long currentSize = currentDataFile.size();
+			long currentSize = file.size();
 			SharedPreferences.Editor editor = Preferences.get(context).edit();
 			editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + currentSize - prevSize);
 
 			if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
-				currentDataFile.close();
-				editor.putInt(preference, Preferences.get(context).getInt(preference, 0) + 1).apply();
-				currentDataFile = null;
+				file.close();
+				editor.putInt(file.getPreference(), Preferences.get(context).getInt(file.getPreference(), 0) + 1).apply();
 				return SaveStatus.SAVE_SUCCESS_FILE_DONE;
 			}
 
