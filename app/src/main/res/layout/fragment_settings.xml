@@ -405,6 +405,12 @@
                 android:text="@string/dev_browse_files"/>
 
             <Button
+                android:id="@+id/dev_button_browse_cache_files"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/color_accent"
+                android:text="@string/dev_browse_cache_files"/>
+
+            <Button
                 android:id="@+id/dev_button_noise_tracking"
                 style="@style/SettingsButton"
                 android:backgroundTint="@color/color_accent"

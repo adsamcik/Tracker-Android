@@ -57,6 +57,7 @@
     <string name="dev_clear_temp_files">Clear temp files</string>
     <string name="dev_clear_cache">Clear cache</string>
     <string name="dev_browse_files">Browse files</string>
+    <string name="dev_browse_cache_files">Browse cache files</string>
     <string name="dev_noise_average">Average noise</string>
     <string name="dev_noise_pocket">Pocket noise</string>
     <string name="dev_noise_tracking_test">Noise tester</string>

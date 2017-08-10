@@ -37,6 +37,7 @@ import com.adsamcik.signalcollector.activities.IntroActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.interfaces.IVerify;
 import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
 import com.adsamcik.signalcollector.services.TrackerService;
@@ -327,30 +328,16 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> {
-			File[] files = getContext().getFilesDir().listFiles();
-			ArrayList<String> temp = new ArrayList<>();
-			for (File file : files) {
+			createFileAlertDialog(context, context.getFilesDir(), (file) -> {
 				String name = file.getName();
-				if (!name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data"))
-					temp.add(name);
-			}
-
-			Collections.sort(temp, String::compareTo);
-
-			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
-			String[] fileNames = new String[temp.size()];
-			alertDialogBuilder
-					.setTitle(getString(R.string.dev_browse_files))
-					.setItems(temp.toArray(fileNames), (dialog, which) -> {
-						Intent intent = new Intent(getActivity(), DebugFileActivity.class);
-						intent.putExtra("fileName", fileNames[which]);
-						startActivity(intent);
-					})
-					.setNegativeButton(R.string.cancel, (dialog, which) -> {
-					});
-
-			alertDialogBuilder.create().show();
+				return !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data");
+			});
 		});
+
+		rootView.findViewById(R.id.dev_button_browse_cache_files).setOnClickListener(v -> {
+			createFileAlertDialog(context, context.getCacheDir(), (file) -> !file.getName().startsWith("com.") && !file.isDirectory());
+		});
+
 
 		rootView.findViewById(R.id.dev_button_noise_tracking).setOnClickListener(v -> startActivity(new Intent(getActivity(), NoiseTestingActivity.class)));
 
@@ -375,6 +362,32 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_activity_recognition).setOnClickListener(v -> startActivity(new Intent(getActivity(), ActivityRecognitionActivity.class)));
 
 		return rootView;
+	}
+
+	private void createFileAlertDialog(@NonNull Context context, @NonNull File folder, @Nullable IVerify<File> verifyFunction) {
+		File[] files = folder.listFiles();
+		ArrayList<String> temp = new ArrayList<>();
+		for (File file : files) {
+			if (verifyFunction == null || verifyFunction.verify(file))
+				temp.add(file.getName());
+		}
+
+		Collections.sort(temp, String::compareTo);
+
+		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+		String[] fileNames = new String[temp.size()];
+		alertDialogBuilder
+				.setTitle(getString(R.string.dev_browse_files))
+				.setItems(temp.toArray(fileNames), (dialog, which) -> {
+					Intent intent = new Intent(getActivity(), DebugFileActivity.class);
+					intent.putExtra("folder", folder.getPath());
+					intent.putExtra("fileName", fileNames[which]);
+					startActivity(intent);
+				})
+				.setNegativeButton(R.string.cancel, (dialog, which) -> {
+				});
+
+		alertDialogBuilder.create().show();
 	}
 
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
