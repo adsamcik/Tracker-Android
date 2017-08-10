@@ -235,9 +235,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> startActivity(new Intent(getActivity(), IntroActivity.class)));
 
 		//getUser should not produce null exception if isSigned in is true
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), true, null);
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), true, null);
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_LOCATION_ENABLED, rootView.findViewById(R.id.switchTrackLocation), true, (s) -> {
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), Preferences.DEFAULT_TRACKING_WIFI_ENABLED, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), Preferences.DEFAULT_TRACKING_CELL_ENABLED, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_LOCATION_ENABLED, rootView.findViewById(R.id.switchTrackLocation), Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, (s) -> {
 			if(!s) {
 				AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 				alertDialogBuilder
