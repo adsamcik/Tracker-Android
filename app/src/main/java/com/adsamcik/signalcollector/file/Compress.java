@@ -16,7 +16,6 @@ import java.util.zip.ZipOutputStream;
 public final class Compress {
 	private static final int BUFFER = 2048;
 
-	private final FileOutputStream outputStream;
 	private final ZipOutputStream zipStream;
 	private final File file;
 
@@ -28,8 +27,7 @@ public final class Compress {
 	 * @throws FileNotFoundException throws exception if there is issue with writting to zip file
 	 */
 	public Compress(File file) throws FileNotFoundException {
-		outputStream = new FileOutputStream(file);
-		zipStream = new ZipOutputStream(new BufferedOutputStream(outputStream));
+		zipStream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(file)));
 		this.file = file;
 	}
 
@@ -45,7 +43,7 @@ public final class Compress {
 		byte[] buffer = data.getBytes();
 		try {
 			zipStream.putNextEntry(entry);
-			outputStream.write(buffer, 0, buffer.length);
+			zipStream.write(buffer, 0, buffer.length);
 			return true;
 		} catch (IOException e) {
 			FirebaseCrash.report(e);
@@ -75,11 +73,12 @@ public final class Compress {
 			zipStream.putNextEntry(entry);
 			int count;
 			while ((count = origin.read(data, 0, BUFFER)) != -1)
-				outputStream.write(data, 0, count);
+				zipStream.write(data, 0, count);
 
 			origin.close();
 			return true;
 		} catch (IOException e) {
+			e.printStackTrace();
 			FirebaseCrash.report(e);
 			return false;
 		}
@@ -92,7 +91,7 @@ public final class Compress {
 	 * @throws IOException Exception is thrown if error occurred during stream closing
 	 */
 	public File finish() throws IOException {
-		outputStream.close();
+		zipStream.close();
 		return file;
 	}
 }
