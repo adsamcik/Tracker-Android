@@ -41,7 +41,7 @@ public class FileSharingActivity extends DetailActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		files = DataStore.getDir(this).listFiles((dir1, name) -> name.startsWith(DataStore.DATA_FILE));
+		files = DataStore.getDir(this).listFiles((dir1, name) -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE));
 		if (files.length == 0) {
 			TextView tv = new TextView(this);
 			tv.setText(R.string.share_nothing_to_share);
@@ -83,7 +83,7 @@ public class FileSharingActivity extends DetailActivity {
 					}
 
 					for (String fileName : temp)
-						if(!compress.add(DataStore.file(this, fileName))) {
+						if (!compress.add(DataStore.file(this, fileName))) {
 							new SnackMaker(v).showSnackbar(R.string.error_general);
 							return;
 						}
