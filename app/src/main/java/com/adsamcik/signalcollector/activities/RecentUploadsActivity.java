@@ -14,11 +14,17 @@ import com.adsamcik.signalcollector.enums.AppendBehavior;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.Constants;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
 
+import java.lang.reflect.Array;
 import java.text.DateFormat;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Date;
 
 public class RecentUploadsActivity extends DetailActivity {
@@ -62,7 +68,8 @@ public class RecentUploadsActivity extends DetailActivity {
 		setTitle(R.string.recent_uploads);
 
 		UploadStats[] recent = new Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
-		if (recent != null && recent.length > 0) {
+		Arrays.sort(recent, (uploadStats, t1) -> (int) ((uploadStats.time - t1.time) / Assist.MINUTE_IN_MILLISECONDS));
+		if (recent.length > 0) {
 			Context context = getApplicationContext();
 			LinearLayout parent = createContentParent(false);
 			ListView listView = new ListView(this);
