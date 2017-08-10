@@ -16,6 +16,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.widget.CardView;
 import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -46,7 +47,7 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentTracker extends Fragment implements ITabFragment {
-	private LinearLayout layoutCell, layoutWifi, layoutOther;
+	private CardView layoutCell, layoutWifi, layoutOther;
 	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiCollection, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
 	private ProgressBar progressBar;
 
@@ -85,7 +86,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 		Context context = getContext();
 
-		if(BuildConfig.DEBUG && context == null)
+		if (BuildConfig.DEBUG && context == null)
 			throw new RuntimeException();
 
 		setCollected(context, dataSize);
@@ -228,9 +229,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	}
 
 	void updateUploadProgress(final int percentage) {
-		if(getActivity() == null)
+		if (getActivity() == null)
 			return;
-		
+
 		final Context context = getActivity().getApplicationContext();
 		progressBar.setVisibility(View.VISIBLE);
 		fabUp.setElevation(0);
@@ -257,7 +258,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			animation.setDuration(400);
 			if (percentage == 100) {
 				handler.postDelayed(() -> {
-					if(fabUp == null)
+					if (fabUp == null)
 						return;
 					fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
 					fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
@@ -377,14 +378,23 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		}
 
 		if (d != null) {
+			textTime.setVisibility(View.VISIBLE);
 			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
 
-			textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), (int) d.accuracy));
+			if (d.accuracy != null) {
+				textAccuracy.setVisibility(View.VISIBLE);
+				textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), d.accuracy.intValue()));
+			} else
+				textAccuracy.setVisibility(View.GONE);
 
-			textPosition.setText(String.format(res.getString(R.string.main_position),
-					Assist.coordsToString(d.latitude),
-					Assist.coordsToString(d.longitude),
-					(int) d.altitude));
+			if (d.latitude != null && d.longitude != null) {
+				textPosition.setVisibility(View.VISIBLE);
+				textPosition.setText(String.format(res.getString(R.string.main_position),
+						Assist.coordsToString(d.latitude),
+						Assist.coordsToString(d.longitude),
+						d.altitude.intValue()));
+			} else
+				textPosition.setVisibility(View.GONE);
 
 			if (d.wifi != null) {
 				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
@@ -398,8 +408,6 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			}
 
 			if (d.cellCount != null) {
-				layoutCell.setVisibility(View.GONE);
-			} else {
 				CellData[] active = d.getRegisteredCells();
 				if (active != null && active.length > 0) {
 					textCurrentCell.setVisibility(View.VISIBLE);
@@ -408,10 +416,11 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 					textCurrentCell.setVisibility(View.GONE);
 				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
 				layoutCell.setVisibility(View.VISIBLE);
+			} else {
+				layoutCell.setVisibility(View.GONE);
 			}
 
 
-			layoutOther.setVisibility(View.VISIBLE);
 			/*if (d.noise > 0) {
 				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
 			} else if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
@@ -419,11 +428,13 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			} else
 				textNoise.setText(res.getString(R.string.main_noise_disabled));*/
 
-			if (d.activity == -1)
-				textActivity.setVisibility(View.GONE);
-			else {
+			if (d.activity != null) {
+				layoutOther.setVisibility(View.VISIBLE);
 				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getResolvedActivityName(context, d.activity)));
 				textActivity.setVisibility(View.VISIBLE);
+			} else {
+				textActivity.setVisibility(View.GONE);
+				layoutOther.setVisibility(View.GONE);
 			}
 		}
 	}

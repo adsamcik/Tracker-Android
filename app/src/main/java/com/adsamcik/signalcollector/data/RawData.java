@@ -29,22 +29,22 @@ public class RawData implements Serializable {
 	/**
 	 * Longitude
 	 */
-	public double longitude;
+	public Double longitude;
 
 	/**
 	 * Latitude
 	 */
-	public double latitude;
+	public Double latitude;
 
 	/**
 	 * Altitude
 	 */
-	public double altitude;
+	public Double altitude;
 
 	/**
 	 * Accuracy in meters
 	 */
-	public float accuracy;
+	public Float accuracy;
 
 	/**
 	 * List of registered cells
@@ -71,7 +71,7 @@ public class RawData implements Serializable {
 	/**
 	 * Current resolved activity
 	 */
-	public int activity;
+	public Integer activity;
 
 	//public short noise;
 
