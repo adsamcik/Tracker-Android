@@ -27,7 +27,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 
-public class RecentUploadsActivity extends DetailActivity {
+public class UploadReportsActivity extends DetailActivity {
 
 	/**
 	 * Function for generating table for upload stats

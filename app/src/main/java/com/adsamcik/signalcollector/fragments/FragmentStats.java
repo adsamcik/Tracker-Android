@@ -26,7 +26,7 @@ import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
+import com.adsamcik.signalcollector.activities.UploadReportsActivity;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.utility.SnackMaker;
@@ -85,9 +85,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 
 		UploadStats us = DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats.class);
 		if (us != null && Assist.getAgeInDays(us.time) < 30) {
-			Table lastUpload = RecentUploadsActivity.GenerateTableForUploadStat(us, getContext(), getResources().getString(R.string.most_recent_upload), AppendBehavior.FirstFirst);
+			Table lastUpload = UploadReportsActivity.GenerateTableForUploadStat(us, getContext(), getResources().getString(R.string.most_recent_upload), AppendBehavior.FirstFirst);
 			lastUpload.addButton(getString(R.string.more_uploads), v -> {
-				Intent intent = new Intent(getContext(), RecentUploadsActivity.class);
+				Intent intent = new Intent(getContext(), UploadReportsActivity.class);
 				startActivity(intent);
 			});
 			adapter.add(lastUpload);

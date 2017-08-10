@@ -16,7 +16,7 @@ import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.Challenge;
 import com.adsamcik.signalcollector.utility.ChallengeManager;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.activities.RecentUploadsActivity;
+import com.adsamcik.signalcollector.activities.UploadReportsActivity;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.R;
@@ -51,7 +51,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 					UploadStats us = parseAndSaveUploadReport(getApplicationContext(), message.getSentTime(), data);
 					if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
 						sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply();
-					Intent resultIntent = new Intent(this, RecentUploadsActivity.class);
+					Intent resultIntent = new Intent(this, UploadReportsActivity.class);
 
 					if (Preferences.get(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
 						Resources r = getResources();

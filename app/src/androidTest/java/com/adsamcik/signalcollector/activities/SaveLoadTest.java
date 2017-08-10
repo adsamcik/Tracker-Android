@@ -91,7 +91,7 @@ public class SaveLoadTest {
 
 		Intent intent = new Intent(Intent.ACTION_MAIN);
 		intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-		intent.setClassName(mInstrumentation.getTargetContext(), RecentUploadsActivity.class.getName());
+		intent.setClassName(mInstrumentation.getTargetContext(), UploadReportsActivity.class.getName());
 		mInstrumentation.startActivitySync(intent);
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);

@@ -67,7 +67,7 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar"/>
         <activity
-            android:name=".activities.RecentUploadsActivity"
+            android:name=".activities.UploadReportsActivity"
             android:parentActivityName=".activities.MainActivity"
             android:screenOrientation="portrait"/>
         <activity
