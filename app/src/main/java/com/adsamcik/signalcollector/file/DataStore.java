@@ -342,7 +342,8 @@ public class DataStore {
 			if (files[0].length() + currentDataFile.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
 				String data = FileStore.loadString(files[0]);
 				assert data != null;
-				currentDataFile.addData(data);
+				if(!currentDataFile.addData(data))
+					return;
 				newFileCount--;
 				i++;
 				if (currentDataFile.isFull())
@@ -358,7 +359,8 @@ public class DataStore {
 					String data = FileStore.loadString(files[0]);
 					assert data != null;
 					dataFile = new DataFile(file(context, DATA_FILE + i), userId, DataFile.STANDARD);
-					dataFile.addData(data);
+					if(!dataFile.addData(data))
+						throw new RuntimeException();
 
 					if (i < files.length - 1)
 						dataFile.close();
