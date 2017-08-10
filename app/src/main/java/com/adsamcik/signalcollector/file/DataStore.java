@@ -180,6 +180,7 @@ public class DataStore {
 			rename(context, item.second, DATA_FILE + item.first);
 
 		Preferences.get().edit().putInt(PREF_DATA_FILE_INDEX, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
+		currentDataFile = null;
 	}
 
 	/**
@@ -242,6 +243,7 @@ public class DataStore {
 	 * Clears all data files
 	 */
 	public static void clearAllData(@NonNull Context context) {
+		currentDataFile = null;
 		SharedPreferences sp = Preferences.get();
 		sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
@@ -261,6 +263,7 @@ public class DataStore {
 	}
 
 	public static void clearAll(@NonNull Context context) {
+		currentDataFile = null;
 		FileStore.clearFolder(getDir(context));
 		Preferences.get(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
