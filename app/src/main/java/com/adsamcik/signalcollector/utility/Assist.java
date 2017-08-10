@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.utility;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -349,6 +350,19 @@ public class Assist {
 	 */
 	public static boolean isGNSSEnabled(@NonNull Context context) {
 		return ((LocationManager) context.getSystemService(Context.LOCATION_SERVICE)).isProviderEnabled(LocationManager.GPS_PROVIDER);
+	}
+
+	/**
+	 * Checks if there is anything to track
+	 *
+	 * @param context context
+	 * @return true if at least one fo location, cell and wifi tracking is enabled
+	 */
+	public static boolean canTrack(@NonNull Context context) {
+		SharedPreferences preferences = Preferences.get(context);
+		return preferences.getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED) ||
+				preferences.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, Preferences.DEFAULT_TRACKING_CELL_ENABLED) ||
+				preferences.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED);
 	}
 
 	/**

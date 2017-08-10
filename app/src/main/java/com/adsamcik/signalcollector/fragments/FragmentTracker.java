@@ -149,6 +149,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						Intent gpsOptionsIntent = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
 						startActivity(gpsOptionsIntent);
 					});
+				} else if (!Assist.canTrack(activity)) {
+					new SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track);
 				} else {
 					Preferences.get(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply();
 					Intent trackerService = new Intent(activity, TrackerService.class);

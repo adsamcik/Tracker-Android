@@ -14,4 +14,6 @@
     <string name="error_gnss_not_enabled">Satellite location not enabled</string>
 
     <string name="error_general">Error occurred</string>
+
+    <string name="error_nothing_to_track">You need to track more than time</string>
 </resources>

@@ -123,7 +123,7 @@ public class ActivityService extends IntentService {
 					} else {
 						ActivityRecognitionActivity.addLineIfDebug(this, Assist.getActivityName(detectedActivity.getType()), null);
 					}
-				} else if (canBackgroundTrack(lastResolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode()) {
+				} else if (canBackgroundTrack(lastResolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode() && Assist.canTrack(this)) {
 					Intent trackerService = new Intent(this, TrackerService.class);
 					trackerService.putExtra("backTrack", true);
 					startService(trackerService);
