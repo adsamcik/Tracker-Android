@@ -77,7 +77,6 @@ public class TrackerService extends Service {
 	private final float MAX_NOISE_TRACKING_SPEED_KM = 18;
 	private final long TRACKING_ACTIVE_SINCE = System.currentTimeMillis();
 	private final ArrayList<RawData> data = new ArrayList<>();
-	private final Gson gson = new Gson();
 
 	private long wifiScanTime;
 	private boolean wasWifiEnabled = false;
