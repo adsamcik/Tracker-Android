@@ -20,6 +20,8 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
+import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;
+
 public class NetworkLoader {
 	/**
 	 * Loads json from the web and converts it to java object
@@ -105,7 +107,7 @@ public class NetworkLoader {
 	public static void requestString(@NonNull OkHttpClient client, @NonNull final Request request, int updateTimeInMinutes, @NonNull final Context ctx, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		final Context context = ctx.getApplicationContext();
 		final long lastUpdate = Preferences.get(context).getLong(preferenceString, -1);
-		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * Assist.MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !CacheStore.exists(context, preferenceString)) {
+		if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * MINUTE_IN_MILLISECONDS || lastUpdate == -1 || !CacheStore.exists(context, preferenceString)) {
 			if (!Assist.hasNetwork(context)) {
 				callbackNoData(context, preferenceString, callback, lastUpdate, -1);
 				return;

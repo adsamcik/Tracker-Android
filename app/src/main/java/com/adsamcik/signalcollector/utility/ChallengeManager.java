@@ -11,10 +11,12 @@ import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
+
 public class ChallengeManager {
 	public static void getChallenges(@NonNull Context ctx, boolean force, @NonNull final IStateValueCallback<NetworkLoader.Source, Challenge[]> callback) {
 		Context context = ctx.getApplicationContext();
-		NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, force ? 0 : Assist.DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, (source, jsonChallenges) -> {
+		NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, force ? 0 : DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, (source, jsonChallenges) -> {
 			if (!source.isSuccess())
 				callback.callback(source, null);
 			else {

@@ -34,4 +34,12 @@ public class Constants {
 	public static final int MIN_BACKGROUND_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_BINARY * 2;
 	public static final int MIN_USER_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_BINARY;
 	public static final int MAX_DATA_FILE_SIZE = U_MEBIBYTE;
+
+
+	//Time constats
+	public static final int SECOND_IN_MILLISECONDS = 1000;
+	public static final int MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
+	public static final int HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS;
+	public static final int DAY_IN_MILLISECONDS = 24 * HOUR_IN_MILLISECONDS;
+	public static final int DAY_IN_MINUTES = DAY_IN_MILLISECONDS / MINUTE_IN_MILLISECONDS;
 }

@@ -27,6 +27,8 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 
+import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;
+
 public class UploadReportsActivity extends DetailActivity {
 
 	/**
@@ -68,7 +70,7 @@ public class UploadReportsActivity extends DetailActivity {
 		setTitle(R.string.recent_uploads);
 
 		UploadStats[] recent = new Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
-		Arrays.sort(recent, (uploadStats, t1) -> (int) ((uploadStats.time - t1.time) / Assist.MINUTE_IN_MILLISECONDS));
+		Arrays.sort(recent, (uploadStats, t1) -> (int) ((uploadStats.time - t1.time) / MINUTE_IN_MILLISECONDS));
 		if (recent.length > 0) {
 			Context context = getApplicationContext();
 			LinearLayout parent = createContentParent(false);

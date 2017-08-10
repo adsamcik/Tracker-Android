@@ -75,6 +75,8 @@ import okhttp3.MultipartBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
+
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
 	private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
@@ -103,7 +105,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if (u != null) {
 			final Activity activity = getActivity();
 			if (activity != null) {
-				NetworkLoader.request(Network.URL_USER_PRICES, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
+				NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
 					if (s.isSuccess()) {
 						if (p == null)
 							new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
@@ -531,7 +533,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			});
 
 			if (u.networkInfo.hasMapAccess())
-				NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+				NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 					if (layerArray != null && layerArray.length > 0) {
 						SharedPreferences sp = Preferences.get(activity);
 						String defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);

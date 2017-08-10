@@ -62,6 +62,8 @@ import com.google.android.gms.maps.model.TileOverlayOptions;
 import java.io.IOException;
 import java.util.List;
 
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
+
 public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
 	private static final int PERMISSION_LOCATION_CODE = 200;
@@ -181,7 +183,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
 		menu.setCallback(this::changeMapOverlay);
 
-		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, Assist.DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 			if (fabTwo != null && layerArray != null) {
 				String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
 				if (!MapLayer.contains(layerArray, savedOverlay)) {

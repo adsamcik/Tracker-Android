@@ -39,13 +39,9 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
-public class Assist {
-	public static final int SECOND_IN_MILLISECONDS = 1000;
-	public static final int MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
-	public static final int HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS;
-	public static final int DAY_IN_MILLISECONDS = 24 * HOUR_IN_MILLISECONDS;
-	public static final int DAY_IN_MINUTES = DAY_IN_MILLISECONDS / MINUTE_IN_MILLISECONDS;
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS;
 
+public class Assist {
 	private static TelephonyManager telephonyManager;
 	private static ConnectivityManager connectivityManager;
 

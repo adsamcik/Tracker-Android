@@ -37,6 +37,8 @@ import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
+
 public class FragmentStats extends Fragment implements ITabFragment {
 	private View view;
 
@@ -109,15 +111,15 @@ public class FragmentStats extends Fragment implements ITabFragment {
 				activity.runOnUiThread(() -> refreshLayout.setRefreshing(true));
 		}, 100);
 
-		NetworkLoader.request(Network.URL_GENERAL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) ->
+		NetworkLoader.request(Network.URL_GENERAL_STATS, isRefresh ? 0 : DAY_IN_MINUTES, getContext(), Preferences.PREF_GENERAL_STATS, Stat[].class, (state, value) ->
 				handleResponse(activity, state, value, AppendBehavior.FirstLast));
 
-		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, getContext(), Preferences.PREF_STATS, Stat[].class, (state, value) ->
+		NetworkLoader.request(Network.URL_STATS, isRefresh ? 0 : DAY_IN_MINUTES, getContext(), Preferences.PREF_STATS, Stat[].class, (state, value) ->
 				handleResponse(activity, state, value, AppendBehavior.Any));
 
 		if (Signin.getUserID(appContext) != null) {
 			refreshingCount++;
-			NetworkLoader.requestSigned(Network.URL_USER_STATS, isRefresh ? 0 : Assist.DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
+			NetworkLoader.requestSigned(Network.URL_USER_STATS, isRefresh ? 0 : DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Stat[].class, (state, value) -> {
 				if (value != null && value.length == 1 && value[0].name.isEmpty())
 					value[0] = new Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data);
 				handleResponse(activity, state, value, AppendBehavior.First);

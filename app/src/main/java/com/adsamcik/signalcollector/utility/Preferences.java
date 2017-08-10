@@ -16,6 +16,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS;
+
 public class Preferences {
 	private static final String TAG = "SignalsSetting";
 	public static final int UPLOAD_JOB = 513;
@@ -134,7 +136,7 @@ public class Preferences {
 				sharedPreferences = get(context);
 		}
 		long todayUTC = Assist.getDayInUTC();
-		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)) / Assist.DAY_IN_MILLISECONDS;
+		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)) / DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
 			Set<String> stringStats = sharedPreferences.getStringSet(PREF_STATS_LAST_7_DAYS, null);
 			List<StatDay> stats = fromJson(stringStats, dayDiff);

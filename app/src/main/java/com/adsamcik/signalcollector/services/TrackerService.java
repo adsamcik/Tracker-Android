@@ -49,11 +49,14 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;
+import static com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS;
+
 public class TrackerService extends Service {
 	//Constants
 	private static final String TAG = "SignalsTracker";
 	private final static int LOCK_TIME_IN_MINUTES = 30;
-	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * Assist.MINUTE_IN_MILLISECONDS;
+	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS;
 	private static final int NOTIFICATION_ID_SERVICE = 7643;
 	private final float MIN_DISTANCE_M = 5;
 	public static ICallback onServiceStateChange;
@@ -354,7 +357,7 @@ public class TrackerService extends Service {
 			}
 		};
 
-		int UPDATE_TIME_MILLISEC = 2 * Assist.SECOND_IN_MILLISECONDS;
+		int UPDATE_TIME_MILLISEC = 2 * SECOND_IN_MILLISECONDS;
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 		else {
@@ -429,7 +432,7 @@ public class TrackerService extends Service {
 		}
 
 		SharedPreferences sp = Preferences.get(this);
-		sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / Assist.MINUTE_IN_MILLISECONDS)).apply();
+		sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + (int) ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS)).apply();
 
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.initializeShortcuts(this);

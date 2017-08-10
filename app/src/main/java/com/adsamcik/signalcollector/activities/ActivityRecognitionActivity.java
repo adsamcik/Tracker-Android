@@ -20,6 +20,7 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
+import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS;
 import static java.text.DateFormat.getDateTimeInstance;
 
 public class ActivityRecognitionActivity extends DetailActivity {
@@ -38,7 +39,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	public static void addLineIfDebug(@NonNull Context context, @NonNull String activity, @Nullable String action) {
 		SharedPreferences preferences = Preferences.get(context);
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
-			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / Assist.DAY_IN_MILLISECONDS > 0) {
+			if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / DAY_IN_MILLISECONDS > 0) {
 				preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply();
 				if (instance != null && instance.get() != null) {
 					final ActivityRecognitionActivity _this = instance.get();
