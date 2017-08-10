@@ -21,6 +21,7 @@ import com.adsamcik.signalcollector.file.CacheStore;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
 import com.adsamcik.signalcollector.file.Compress;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
@@ -70,14 +71,18 @@ public class FileSharingActivity extends DetailActivity {
 					temp.toArray(arr);
 					Compress compress;
 					try {
-						compress = new Compress(CacheStore.file(this, String.valueOf(System.currentTimeMillis())));
+						compress = new Compress(DataStore.file(this, String.valueOf(System.currentTimeMillis())));
 					} catch (FileNotFoundException e) {
 						FirebaseCrash.report(e);
+						new SnackMaker(v).showSnackbar(R.string.error_general);
 						return;
 					}
 
 					for (String fileName : temp)
-						compress.add(DataStore.file(this, fileName));
+						if(!compress.add(DataStore.file(this, fileName))) {
+							new SnackMaker(v).showSnackbar(R.string.error_general);
+							return;
+						}
 
 					File c;
 					try {
