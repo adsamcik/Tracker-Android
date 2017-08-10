@@ -237,16 +237,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		//getUser should not produce null exception if isSigned in is true
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), Preferences.DEFAULT_TRACKING_WIFI_ENABLED, null);
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), Preferences.DEFAULT_TRACKING_CELL_ENABLED, null);
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_LOCATION_ENABLED, rootView.findViewById(R.id.switchTrackLocation), Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, (s) -> {
-			if(!s) {
+		final Switch switchTrackLocation = rootView.findViewById(R.id.switchTrackLocation);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_LOCATION_ENABLED, switchTrackLocation, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, (s) -> {
+			if (!s) {
 				AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 				alertDialogBuilder
-						.setPositiveButton(getText(R.string.yes), (dialog, which) -> {
-
-						})
-						.setNegativeButton(getText(R.string.cancel), (dialog, which) -> {
-						})
-						.setMessage(getText(R.string.alert_confirm_generic));
+						.setPositiveButton(getText(R.string.yes), null)
+						.setNegativeButton(getText(R.string.cancel), (dialog, which) -> switchTrackLocation.setChecked(true))
+						.setMessage(getText(R.string.alert_disable_location_tracking_description))
+						.setTitle(R.string.alert_disable_location_tracking_title);
 
 				alertDialogBuilder.create().show();
 			}

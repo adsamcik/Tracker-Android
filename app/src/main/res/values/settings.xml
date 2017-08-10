@@ -31,7 +31,7 @@
     <string name="alert_clear_text">Are you sure you want to clear your locally collected data?</string>
     <string name="alert_confirm_generic">Are you sure?</string>
     <string name="alert_disable_location_tracking_title">Disable location tracking</string>
-    <string name="alert_disable_location_tracking_description">Disabling location tracking will only disable saving of the location to data files (your location will be only used locally). Signals still needs accurate GPS location for proper tracking.</string>
+    <string name="alert_disable_location_tracking_description">Disabling location tracking only disables saving of your location to data files. Signals still needs your accurate location to track properly.</string>
     <string name="settings_track">Tracking options</string>
     <string name="wifi">Wifi</string>
     <string name="cell">Cell</string>
