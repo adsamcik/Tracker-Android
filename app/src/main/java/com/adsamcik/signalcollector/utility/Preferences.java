@@ -62,8 +62,15 @@ public class Preferences {
 	public static final String PREF_USER_PRICES = "userPRICES";
 
 	public static final String PREF_TRACKING_WIFI_ENABLED = "trackingWifiEnabled";
+	public static final boolean DEFAULT_TRACKING_WIFI_ENABLED = true;
 	public static final String PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled";
+	public static final boolean DEFAULT_TRACKING_CELL_ENABLED = true;
 	public static final String PREF_TRACKING_NOISE_ENABLED = "trackingNoiseEnabled";
+	public static final boolean DEFAULT_TRACKING_NOISE_ENABLED = false;
+	public static final String PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled";
+	public static final boolean DEFAULT_TRACKING_LOCATION_ENABLED = true;
+
+
 	public static final String PREF_DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
 
 	public static final String PREF_UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled";

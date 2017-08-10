@@ -235,6 +235,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		//getUser should not produce null exception if isSigned in is true
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), true, null);
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), true, null);
+		setSwitchChangeListener(context, Preferences.PREF_TRACKING_LOCATION_ENABLED, rootView.findViewById(R.id.switchTrackLocation), true, null);
 
 		/*switchNoise = rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));

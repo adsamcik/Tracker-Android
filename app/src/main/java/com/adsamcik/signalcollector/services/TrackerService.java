@@ -21,6 +21,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
@@ -95,7 +96,6 @@ public class TrackerService extends Service {
 
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
-
 	/**
 	 * True if previous collection was mocked
 	 */
@@ -208,7 +208,8 @@ public class TrackerService extends Service {
 			}
 		}*/
 
-		d.setLocation(location).setActivity(ActivityService.lastResolvedActivity);
+		if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
+			d.setLocation(location).setActivity(ActivityService.lastResolvedActivity);
 
 		data.add(d);
 		rawDataEcho = d;
@@ -237,8 +238,8 @@ public class TrackerService extends Service {
 	private void saveData() {
 		if (data.size() == 0) return;
 
-		SharedPreferences sp = Preferences.get(getApplicationContext());
-		Preferences.checkStatsDay(getApplicationContext());
+		SharedPreferences sp = Preferences.get(this);
+		Preferences.checkStatsDay(this);
 
 		int wifiCount, cellCount, locations;
 
@@ -278,7 +279,7 @@ public class TrackerService extends Service {
 				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
-				.setColor(ContextCompat.getColor(getApplicationContext(), R.color.color_primary));
+				.setColor(ContextCompat.getColor(this, R.color.color_primary));
 
 		Intent stopIntent = new Intent(this, NotificationReceiver.class);
 		stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);
@@ -319,11 +320,10 @@ public class TrackerService extends Service {
 	@Override
 	public void onCreate() {
 		service = new WeakReference<>(this);
-		Context appContext = getApplicationContext();
-		Assist.initialize(appContext);
-		SharedPreferences sp = Preferences.get(appContext);
+		Assist.initialize(this);
+		SharedPreferences sp = Preferences.get(this);
 
-		ActivityService.initializeActivityClient(appContext);
+		ActivityService.initializeActivityClient(this);
 
 		//Get managers
 		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
@@ -365,7 +365,7 @@ public class TrackerService extends Service {
 
 		//Wifi tracking setup
 		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
-			wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+			wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
 			assert wifiManager != null;
 			wasWifiEnabled = !(wifiManager.isScanAlwaysAvailable() || wifiManager.isWifiEnabled());
 			if (wasWifiEnabled)

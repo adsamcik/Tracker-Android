@@ -35,7 +35,7 @@ public class NoiseTestingActivity extends DetailActivity {
 		View v = getLayoutInflater().inflate(R.layout.layout_noise_testing, createContentParent(false));
 		startStopButton = findViewById(R.id.noiseTestStartStopButton);
 
-		setTitle(R.string.settings_track_noise);
+		setTitle(R.string.noise);
 
 		TextView sampleIntervalTV = v.findViewById(R.id.dev_text_noise_sample_size);
 

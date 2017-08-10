@@ -282,18 +282,26 @@
             android:text="@string/settings_track"/>
 
         <Switch
+            android:id="@+id/switchTrackLocation"
+            style="@style/SettingsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/location"/>
+
+
+        <Switch
             android:id="@+id/switchTrackWifi"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_track_wifi"/>
+            android:text="@string/wifi"/>
 
         <Switch
             android:id="@+id/switchTrackCell"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_track_cell"/>
+            android:text="@string/cell"/>
 
         <Switch
             android:id="@+id/switchTrackNoise"
@@ -301,7 +309,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:enabled="false"
-            android:text="@string/settings_track_noise"
+            android:text="@string/noise"
             android:visibility="gone"/>
 
         <LinearLayout
