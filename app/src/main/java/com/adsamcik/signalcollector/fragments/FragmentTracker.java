@@ -397,7 +397,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				layoutWifi.setVisibility(View.GONE);
 			}
 
-			if (d.cellCount == -1) {
+			if (d.cellCount != null) {
 				layoutCell.setVisibility(View.GONE);
 			} else {
 				CellData[] active = d.getRegisteredCells();
