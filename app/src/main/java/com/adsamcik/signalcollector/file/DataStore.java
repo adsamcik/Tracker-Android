@@ -310,7 +310,7 @@ public class DataStore {
 				return;
 		}
 
-		if (currentDataFile == null || currentDataFile.getType() == type || currentDataFile.isFull())
+		if (currentDataFile == null || currentDataFile.getType() != type || currentDataFile.isFull())
 			currentDataFile = new DataFile(file(context, dataFile + Preferences.get(context).getInt(preference, 0)), userID, type);
 	}
 
