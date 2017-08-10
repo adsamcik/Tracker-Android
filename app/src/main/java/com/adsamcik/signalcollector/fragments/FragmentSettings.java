@@ -222,8 +222,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
 			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 			alertDialogBuilder
-					.setPositiveButton(getResources().getText(R.string.alert_clear_confirm), (dialog, which) -> DataStore.clearAllData(context))
-					.setNegativeButton(getResources().getText(R.string.alert_clear_cancel), (dialog, which) -> {
+					.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> DataStore.clearAllData(context))
+					.setNegativeButton(getResources().getText(R.string.no), (dialog, which) -> {
 					})
 					.setMessage(getResources().getText(R.string.alert_clear_text));
 
@@ -354,11 +354,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private void createClearDialog(@NonNull Context context, IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
 		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
 		alertDialogBuilder
-				.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
+				.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> {
 					new SnackMaker(getActivity()).showSnackbar(snackBarString);
 					clearFunction.callback(context);
 				})
-				.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
+				.setNegativeButton(getResources().getText(R.string.no), (dialog, which) -> {
 				})
 				.setMessage(getResources().getText(R.string.alert_confirm_generic));
 

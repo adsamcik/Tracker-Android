@@ -28,12 +28,8 @@
     <string name="settings_cleared_all_data_files">Removed all data files</string>
     <string name="settings_cleared_all_upload_reports">Removed all upload reports</string>
 
-    <string name="alert_clear_text">Are you sure you want to clear your local collected data?</string>
-    <string name="alert_clear_confirm">I\'m sure</string>
-    <string name="alert_clear_cancel">Not really</string>
+    <string name="alert_clear_text">Are you sure you want to clear your locally collected data?</string>
     <string name="alert_confirm_generic">Are you sure?</string>
-    <string name="alert_confirm_generic_confirm">Yes</string>
-    <string name="alert_confirm_generic_cancel">No</string>
     <string name="settings_track">Tracking options</string>
     <string name="settings_track_wifi">Wifi</string>
     <string name="settings_track_cell">Cell</string>
