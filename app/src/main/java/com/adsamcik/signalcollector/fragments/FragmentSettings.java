@@ -318,16 +318,12 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_data_clear).setOnClickListener((v) -> createClearDialog(context, DataStore::clearAll, R.string.settings_cleared_all_data_files));
 		rootView.findViewById(R.id.dev_button_upload_reports_clear).setOnClickListener((v) -> createClearDialog(context, c -> DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE), R.string.settings_cleared_all_upload_reports));
 
-		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> {
-			createFileAlertDialog(context, context.getFilesDir(), (file) -> {
-				String name = file.getName();
-				return !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data");
-			});
-		});
+		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> createFileAlertDialog(context, context.getFilesDir(), (file) -> {
+			String name = file.getName();
+			return !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data");
+		}));
 
-		rootView.findViewById(R.id.dev_button_browse_cache_files).setOnClickListener(v -> {
-			createFileAlertDialog(context, context.getCacheDir(), (file) -> !file.getName().startsWith("com.") && !file.isDirectory());
-		});
+		rootView.findViewById(R.id.dev_button_browse_cache_files).setOnClickListener(v -> createFileAlertDialog(context, context.getCacheDir(), (file) -> !file.getName().startsWith("com.") && !file.isDirectory()));
 
 
 		rootView.findViewById(R.id.dev_button_noise_tracking).setOnClickListener(v -> startActivity(new Intent(getActivity(), NoiseTestingActivity.class)));
@@ -360,7 +356,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		alertDialogBuilder
 				.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
 					new SnackMaker(getActivity()).showSnackbar(snackBarString);
-					CacheStore.clearAll(context);
+					clearFunction.callback(context);
 				})
 				.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
 				})
