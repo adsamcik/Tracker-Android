@@ -225,6 +225,7 @@ public class FileStore {
 	/**
 	 * Tries to delete file multiple times based on {@code maxRetryCount}.
 	 * After every unsuccessfull try there is 50ms sleep so you should ensure that this function does not run on UI thread.
+	 * If it is unsuccessfull after all tries it will attempt to mark the file for deletion but will return false at this time because it the deletation can't be guranteed
 	 *
 	 * @param file          file to delete
 	 * @param maxRetryCount maximum retry count
@@ -240,7 +241,7 @@ public class FileStore {
 				return true;
 
 			if (++retryCount < maxRetryCount)
-				return false;
+				break;
 
 			try {
 				Thread.sleep(50);
@@ -249,6 +250,9 @@ public class FileStore {
 				Thread.currentThread().interrupt();
 			}
 		}
+
+		file.deleteOnExit();
+		return false;
 	}
 
 	/**
