@@ -146,7 +146,8 @@ public class DataStore {
 	 * @param fileName file name
 	 */
 	public static void delete(@NonNull Context context, String fileName) {
-		FileStore.delete(file(context, fileName));
+		if(!FileStore.delete(file(context, fileName)))
+			FirebaseCrash.report(new RuntimeException("Failed to delete " + fileName));
 	}
 
 	/**
@@ -251,7 +252,8 @@ public class DataStore {
 		for (File file : files) {
 			String name = file.getName();
 			if (name.startsWith(DATA_FILE))
-				FileStore.delete(file);
+				if(!FileStore.delete(file))
+					FirebaseCrash.report(new RuntimeException("Failed to delete " + file.getName()));
 		}
 		onDataChanged();
 
@@ -366,6 +368,10 @@ public class DataStore {
 						dataFile.close();
 				}
 			}
+
+			for (File f: files)
+				if(!FileStore.delete(f))
+					FirebaseCrash.report(new RuntimeException("Failed to delete " + f.getName()));
 		}
 	}
 
