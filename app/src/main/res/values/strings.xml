@@ -56,6 +56,8 @@
     <string name="dev_title">Debug corner</string>
     <string name="dev_clear_temp_files">Clear temp files</string>
     <string name="dev_clear_cache">Clear cache</string>
+    <string name="dev_clear_upload_reports">Clear upload reports</string>
+    <string name="dev_clear_data">Clear data</string>
     <string name="dev_browse_files">Browse files</string>
     <string name="dev_browse_cache_files">Browse cache files</string>
     <string name="dev_noise_average">Average noise</string>

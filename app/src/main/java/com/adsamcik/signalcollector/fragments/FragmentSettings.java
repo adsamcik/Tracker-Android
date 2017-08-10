@@ -11,6 +11,7 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.StringRes;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
@@ -313,19 +314,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		boolean isDevEnabled = sharedPreferences.getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false);
 		devView.setVisibility(isDevEnabled ? View.VISIBLE : View.GONE);
 
-		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> {
-			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
-			alertDialogBuilder
-					.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
-						new SnackMaker(getActivity()).showSnackbar(R.string.settings_cleared_all_cache_data);
-						CacheStore.clearAll(context);
-					})
-					.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
-					})
-					.setMessage(getResources().getText(R.string.alert_confirm_generic));
-
-			alertDialogBuilder.create().show();
-		});
+		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> createClearDialog(context, CacheStore::clearAll, R.string.settings_cleared_all_cache_files));
+		rootView.findViewById(R.id.dev_button_data_clear).setOnClickListener((v) -> createClearDialog(context, DataStore::clearAll, R.string.settings_cleared_all_data_files));
+		rootView.findViewById(R.id.dev_button_upload_reports_clear).setOnClickListener((v) -> createClearDialog(context, c -> DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE), R.string.settings_cleared_all_upload_reports));
 
 		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> {
 			createFileAlertDialog(context, context.getFilesDir(), (file) -> {
@@ -362,6 +353,20 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_activity_recognition).setOnClickListener(v -> startActivity(new Intent(getActivity(), ActivityRecognitionActivity.class)));
 
 		return rootView;
+	}
+
+	private void createClearDialog(@NonNull Context context, IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
+		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+		alertDialogBuilder
+				.setPositiveButton(getResources().getText(R.string.alert_confirm_generic_confirm), (dialog, which) -> {
+					new SnackMaker(getActivity()).showSnackbar(snackBarString);
+					CacheStore.clearAll(context);
+				})
+				.setNegativeButton(getResources().getText(R.string.alert_confirm_generic_cancel), (dialog, which) -> {
+				})
+				.setMessage(getResources().getText(R.string.alert_confirm_generic));
+
+		alertDialogBuilder.create().show();
 	}
 
 	private void createFileAlertDialog(@NonNull Context context, @NonNull File folder, @Nullable IVerify<File> verifyFunction) {

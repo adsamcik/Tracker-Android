@@ -393,6 +393,18 @@
                 android:text="@string/dev_title"/>
 
             <Button
+                android:id="@+id/dev_button_data_clear"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/color_accent"
+                android:text="@string/dev_clear_data"/>
+
+            <Button
+                android:id="@+id/dev_button_upload_reports_clear"
+                style="@style/SettingsButton"
+                android:backgroundTint="@color/color_accent"
+                android:text="@string/dev_clear_upload_reports"/>
+
+            <Button
                 android:id="@+id/dev_button_cache_clear"
                 style="@style/SettingsButton"
                 android:backgroundTint="@color/color_accent"

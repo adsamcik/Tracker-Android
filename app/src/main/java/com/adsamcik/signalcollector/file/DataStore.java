@@ -262,6 +262,10 @@ public class DataStore {
 		FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle);
 	}
 
+	public static void clearAll(@NonNull Context context) {
+		FileStore.clearFolder(getFolder(context));
+	}
+
 	/**
 	 * Recursively deletes all files in a directory
 	 *
