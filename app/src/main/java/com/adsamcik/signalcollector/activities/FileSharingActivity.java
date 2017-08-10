@@ -18,6 +18,8 @@ import android.widget.Toast;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.CacheStore;
+import com.adsamcik.signalcollector.file.DataFile;
+import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
 import com.adsamcik.signalcollector.file.Compress;
 import com.adsamcik.signalcollector.file.DataStore;
@@ -39,7 +41,7 @@ public class FileSharingActivity extends DetailActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		files = getFilesDir().listFiles((dir1, name) -> name.startsWith(DataStore.DATA_FILE));
+		files = DataStore.getDir(this).listFiles((dir1, name) -> name.startsWith(DataStore.DATA_FILE));
 		if (files.length == 0) {
 			TextView tv = new TextView(this);
 			tv.setText(R.string.share_nothing_to_share);
@@ -61,8 +63,10 @@ public class FileSharingActivity extends DetailActivity {
 				SparseBooleanArray sba = listView.getCheckedItemPositions();
 				ArrayList<String> temp = new ArrayList<>();
 				for (int i = 0; i < fileNames.length; i++)
-					if (sba.get(i))
+					if (sba.get(i)) {
 						temp.add(fileNames[i]);
+						new DataFile(DataStore.file(this, fileNames[i]), Signin.getUserID(this), DataFile.STANDARD).close();
+					}
 
 				if (temp.size() == 0)
 					Toast.makeText(this, R.string.share_nothing_to_share, Toast.LENGTH_SHORT).show();

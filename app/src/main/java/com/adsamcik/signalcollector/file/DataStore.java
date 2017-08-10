@@ -27,8 +27,6 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
-import java.io.FilenameFilter;
-import java.net.NoRouteToHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -50,12 +48,12 @@ public class DataStore {
 
 	private static DataFile currentDataFile = null;
 
-	private static File getFolder(@NonNull Context context) {
+	public static File getDir(@NonNull Context context) {
 		return context.getFilesDir();
 	}
 
 	public static File file(@NonNull Context context, @NonNull String fileName) {
-		return FileStore.file(getFolder(context), fileName);
+		return FileStore.file(getDir(context), fileName);
 	}
 
 	/**
@@ -166,7 +164,7 @@ public class DataStore {
 	 */
 	public synchronized static void cleanup(@NonNull Context context) {
 		final String tmpName = "5GeVPiYk6J";
-		File[] files = getFolder(context).listFiles();
+		File[] files = getDir(context).listFiles();
 		Arrays.sort(files, (File a, File b) -> a.getName().compareTo(b.getName()));
 		ArrayList<Pair<Integer, String>> renamedFiles = new ArrayList<>();
 		for (File file : files) {
@@ -247,7 +245,7 @@ public class DataStore {
 		SharedPreferences sp = Preferences.get();
 		sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
-		File[] files = getFolder(context).listFiles();
+		File[] files = getDir(context).listFiles();
 
 		for (File file : files) {
 			String name = file.getName();
@@ -263,7 +261,7 @@ public class DataStore {
 	}
 
 	public static void clearAll(@NonNull Context context) {
-		FileStore.clearFolder(getFolder(context));
+		FileStore.clearFolder(getDir(context));
 		Preferences.get(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
 		approxSize = 0;
 
@@ -344,7 +342,7 @@ public class DataStore {
 		if (currentDataFile.getType() != DataFile.STANDARD || userId == null)
 			return;
 
-		File[] files = getFolder(context).listFiles((file, s) -> s.startsWith(DATA_CACHE_FILE));
+		File[] files = getDir(context).listFiles((file, s) -> s.startsWith(DATA_CACHE_FILE));
 		if (files.length >= 1) {
 			int newFileCount = files.length;
 			int i = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0);
