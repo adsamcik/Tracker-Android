@@ -264,6 +264,10 @@ public class DataStore {
 
 	public static void clearAll(@NonNull Context context) {
 		FileStore.clearFolder(getFolder(context));
+		Preferences.get(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
+		approxSize = 0;
+
+		onDataChanged();
 	}
 
 	/**
