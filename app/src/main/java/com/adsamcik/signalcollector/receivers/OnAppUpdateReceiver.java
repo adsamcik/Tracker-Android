@@ -22,14 +22,6 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			SharedPreferences sp = Preferences.get(context);
 			SharedPreferences.Editor editor = sp.edit();
 			Assist.initialize(context);
-			if (sp.getInt(Preferences.LAST_VERSION, 0) < 193) {
-				File[] files = context.getFilesDir().listFiles();
-				for (File file : files) {
-					String fileName = file.getName();
-					if (!fileName.startsWith(DataStore.DATA_FILE) && !fileName.equals(DataStore.RECENT_UPLOADS_FILE))
-						FileStore.delete(file);
-				}
-			}
 
 			int currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1);
 			if(currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile))
