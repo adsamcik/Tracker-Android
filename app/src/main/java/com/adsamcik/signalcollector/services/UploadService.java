@@ -26,6 +26,8 @@ import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.Signin;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.perf.FirebasePerformance;
+import com.google.firebase.perf.metrics.Trace;
 
 import java.io.File;
 import java.io.IOException;
@@ -269,6 +271,8 @@ public class UploadService extends JobService {
 				DataStore.onUpload(-1);
 				return false;
 			} else {
+				Trace uploadTrace = FirebasePerformance.getInstance().newTrace("upload");
+				uploadTrace.start();
 				DataStore.getCurrentDataFile(context).close();
 				String zipName = "up" + System.currentTimeMillis();
 				try {
@@ -278,6 +282,8 @@ public class UploadService extends JobService {
 					tempZipFile = compress.finish();
 				} catch (IOException e) {
 					FirebaseCrash.report(e);
+					uploadTrace.incrementCounter("fail", 1);
+					uploadTrace.stop();
 					return false;
 				}
 
@@ -302,6 +308,8 @@ public class UploadService extends JobService {
 						callbackReceived.await();
 				} catch (InterruptedException e) {
 					FirebaseCrash.report(e);
+					uploadTrace.incrementCounter("fail", 2);
+					uploadTrace.stop();
 					return false;
 				} finally {
 					lock.unlock();
@@ -313,8 +321,11 @@ public class UploadService extends JobService {
 					if(!tempZipFile.delete())
 						tempZipFile.deleteOnExit();
 				} else {
+					uploadTrace.incrementCounter("fail", 3);
+					uploadTrace.stop();
 					return false;
 				}
+				uploadTrace.stop();
 			}
 
 			DataStore.recountDataSize(context);
