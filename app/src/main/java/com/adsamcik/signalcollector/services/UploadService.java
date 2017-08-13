@@ -43,13 +43,14 @@ import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import static com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS;
 import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;
 
 public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
 	private static final String KEY_SOURCE = "source";
 	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
-	private static final int MIN_NO_ACTIVITY_DELAY = MINUTE_IN_MILLISECONDS * 20;
+	private static final int MIN_NO_ACTIVITY_DELAY = HOUR_IN_MILLISECONDS;
 
 	private static final int SCHEDULE_UPLOAD_JOB_ID = 1921109;
 	private static final int UPLOAD_JOB_ID = 2110;
