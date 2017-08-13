@@ -51,6 +51,9 @@ public class UploadService extends JobService {
 	private static final MediaType MEDIA_TYPE_ZIP = MediaType.parse("application/zip");
 	private static final int MIN_NO_ACTIVITY_DELAY = MINUTE_IN_MILLISECONDS * 20;
 
+	private static final int SCHEDULE_UPLOAD_JOB_ID = 1921109;
+	private static final int UPLOAD_JOB_ID = 2110;
+
 	private static boolean isUploading = false;
 	private JobWorker worker;
 
@@ -60,6 +63,12 @@ public class UploadService extends JobService {
 
 	public static UploadScheduleSource getUploadScheduled(@NonNull Context context) {
 		return UploadScheduleSource.values()[Preferences.get(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)];
+	}
+
+	private static @NonNull JobScheduler scheduler(@NonNull Context context) {
+		JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
+		assert scheduler != null;
+		return scheduler;
 	}
 
 	/**
@@ -79,15 +88,16 @@ public class UploadService extends JobService {
 			SharedPreferences sp = Preferences.get(context);
 			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
-				JobInfo.Builder jb = prepareBuilder(context, source);
+				JobInfo.Builder jb = prepareBuilder(UPLOAD_JOB_ID, context, source);
 				addNetworkTypeRequest(context, source, jb);
 
-				JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
-				assert scheduler != null;
+				JobScheduler scheduler = scheduler(context);
 				if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
 					return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
 				updateUploadScheduleSource(context, source);
 				Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+
+				scheduler.cancel(SCHEDULE_UPLOAD_JOB_ID);
 
 				return new Failure<>();
 			}
@@ -103,19 +113,31 @@ public class UploadService extends JobService {
 	 */
 	public static void requestUploadSchedule(@NonNull Context context) {
 		if (hasEnoughData(UploadScheduleSource.BACKGROUND)) {
-			JobInfo.Builder jb = prepareBuilder(context, UploadScheduleSource.BACKGROUND);
-			jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
-			addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
-			updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND);
+			JobScheduler scheduler = scheduler(context);
+			if(hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
+				JobInfo.Builder jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND);
+				jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
+				addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
+				updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND);
 
-			JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
-			assert scheduler != null;
-			scheduler.schedule(jb.build());
+				scheduler.schedule(jb.build());
+			}
 		}
 	}
 
-	private static JobInfo.Builder prepareBuilder(@NonNull Context context, UploadScheduleSource source) {
-		JobInfo.Builder jobBuilder = new JobInfo.Builder(Preferences.UPLOAD_JOB, new ComponentName(context, UploadService.class));
+	private static boolean hasJobWithID(JobScheduler jobScheduler, int id) {
+		if(Build.VERSION.SDK_INT >= 24)
+			return jobScheduler.getPendingJob(id) != null;
+		else {
+			for (JobInfo jobInfo : jobScheduler.getAllPendingJobs())
+				if(jobInfo.getId() == id)
+					return true;
+			return false;
+		}
+	}
+
+	private static JobInfo.Builder prepareBuilder(int id, @NonNull Context context, UploadScheduleSource source) {
+		JobInfo.Builder jobBuilder = new JobInfo.Builder(id, new ComponentName(context, UploadService.class));
 		jobBuilder.setPersisted(true);
 		PersistableBundle pb = new PersistableBundle(1);
 		pb.putInt(KEY_SOURCE, source.ordinal());

@@ -20,7 +20,6 @@ import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 
 public class Preferences {
 	private static final String TAG = "SignalsSetting";
-	public static final int UPLOAD_JOB = 513;
 
 	public static final String LAST_VERSION = "lastVersion";
 
