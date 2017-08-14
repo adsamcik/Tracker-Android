@@ -95,6 +95,7 @@ public class TrackerService extends Service {
 	private TelephonyManager telephonyManager;
 	private SubscriptionManager subscriptionManager;
 	private WifiManager wifiManager;
+	private final Gson gson = new Gson();
 
 	private NoiseTracker noiseTracker;
 	private boolean noiseActive = false;
@@ -216,7 +217,7 @@ public class TrackerService extends Service {
 		data.add(d);
 		rawDataEcho = d;
 
-		DataStore.incData(new Gson().toJson(d).getBytes(Charset.defaultCharset()).length, 1);
+		DataStore.incData(gson.toJson(d).getBytes(Charset.defaultCharset()).length, 1);
 
 		prevLocation = location;
 		prevLocation.setTime(d.time);
@@ -339,7 +340,6 @@ public class TrackerService extends Service {
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock");
 
 		//Enable location update
-
 		locationListener = new LocationListener() {
 			public void onLocationChanged(Location location) {
 				updateData(location);
@@ -395,6 +395,8 @@ public class TrackerService extends Service {
 			Shortcuts.initializeShortcuts(this);
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION);
 		}
+
+		UploadService.cancelUploadSchedule(this);
 	}
 
 	@Override

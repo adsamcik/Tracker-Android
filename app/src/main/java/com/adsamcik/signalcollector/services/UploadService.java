@@ -211,6 +211,10 @@ public class UploadService extends JobService {
 		return true;
 	}
 
+	public static void cancelUploadSchedule(@NonNull Context context) {
+		scheduler(context).cancel(SCHEDULE_UPLOAD_JOB_ID);
+	}
+
 	@Override
 	public boolean onStopJob(JobParameters jobParameters) {
 		if (worker != null)
