@@ -51,7 +51,7 @@ public class SignalsTileProvider implements TileProvider {
 	}
 
 	private boolean canTileExist(int z) {
-		return  !(z < 10 || z > maxZoom);
+		return  !(z > maxZoom);
 	}
 
 	private byte[] getTileImage(int x, int y, int z) {
