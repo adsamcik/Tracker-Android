@@ -183,7 +183,7 @@ public class AppTest {
 		Thread.sleep(500);
 
 		DataStore.onUpload(100);
-		DataStore.incSizeOfData(500);
+		DataStore.incData(500);
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 		Thread.sleep(2500);
 		fabUpload.check(matches(isDisplayed()));

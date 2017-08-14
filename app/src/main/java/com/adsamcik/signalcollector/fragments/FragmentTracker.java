@@ -48,7 +48,7 @@ import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentTracker extends Fragment implements ITabFragment {
 	private CardView layoutCell, layoutWifi, layoutOther;
-	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiCollection, textCurrentCell, textCellCount, textActivity, textCollected, textNoise;
+	private TextView textTime, textPosition, textAccuracy, textWifiCount, textWifiCollection, textCurrentCell, textCellCount, textActivity, textCollected, textNoise, textCollections;
 	private ProgressBar progressBar;
 
 	private AnimatedVectorDrawable pauseToPlay, playToPause;
@@ -73,6 +73,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		textNoise = view.findViewById(R.id.textNoise);
 		textActivity = view.findViewById(R.id.textActivity);
 		textCollected = view.findViewById(R.id.textCollected);
+		textCollections = view.findViewById(R.id.textCollections);
 
 		layoutWifi = view.findViewById(R.id.layout_wifi);
 		layoutCell = view.findViewById(R.id.layout_cells);
@@ -82,14 +83,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 		layoutCell.setVisibility(View.GONE);
 		layoutOther.setVisibility(View.GONE);
 
-		long dataSize = DataStore.sizeOfData();
-
 		Context context = getContext();
 
 		if (BuildConfig.DEBUG && context == null)
 			throw new RuntimeException();
-
-		setCollected(context, dataSize);
 
 		updateData(context);
 
@@ -102,9 +99,12 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	 *
 	 * @param collected amount of collected data
 	 */
-	private void setCollected(@NonNull Context context, long collected) {
-		if (textCollected != null)
-			textCollected.setText(String.format(context.getResources().getString(R.string.main_collected), Assist.humanReadableByteCount(collected, true)));
+	private void setCollected(@NonNull Context context, long collected, int count) {
+		if (textCollected != null) {
+			Resources resources = context.getResources();
+			textCollected.setText(resources.getString(R.string.main_collected, Assist.humanReadableByteCount(collected, true)));
+			textCollections.setText(resources.getQuantityString(R.plurals.main_collections, count, count));
+		}
 	}
 
 	/**
@@ -326,7 +326,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						toggleCollecting(activity, !TrackerService.isRunning());
 				}
 		);
-		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(activity, DataStore.sizeOfData())));
+		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(activity, DataStore.sizeOfData(), DataStore.collectionCount())));
 		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateUploadProgress(progress)));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
@@ -372,7 +372,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private void updateData(@NonNull Context context) {
 		Resources res = context.getResources();
 		RawData d = TrackerService.rawDataEcho;
-		setCollected(context, DataStore.sizeOfData());
+		setCollected(context, DataStore.sizeOfData(), DataStore.collectionCount());
 
 		if (DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
 			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
@@ -381,11 +381,11 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 		if (d != null) {
 			textTime.setVisibility(View.VISIBLE);
-			textTime.setText(String.format(res.getString(R.string.main_last_update), DateFormat.format("HH:mm:ss", d.time)));
+			textTime.setText(res.getString(R.string.main_last_update, DateFormat.format("HH:mm:ss", d.time)));
 
 			if (d.accuracy != null) {
 				textAccuracy.setVisibility(View.VISIBLE);
-				textAccuracy.setText(String.format(res.getString(R.string.main_accuracy), d.accuracy.intValue()));
+				textAccuracy.setText(res.getString(R.string.main_accuracy, d.accuracy.intValue()));
 			} else
 				textAccuracy.setVisibility(View.GONE);
 
@@ -399,12 +399,12 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				textPosition.setVisibility(View.GONE);
 
 			if (d.wifi != null) {
-				textWifiCount.setText(String.format(res.getString(R.string.main_wifi_count), d.wifi.length));
-				textWifiCollection.setText(String.format(res.getString(R.string.main_wifi_updated), TrackerService.distanceToWifi));
+				textWifiCount.setText(res.getString(R.string.main_wifi_count, d.wifi.length));
+				textWifiCollection.setText(res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi));
 				lastWifiTime = d.time;
 				layoutWifi.setVisibility(View.VISIBLE);
 			} else if (lastWifiTime - d.time < 10000) {
-				textWifiCollection.setText(String.format(res.getString(R.string.main_wifi_updated), TrackerService.distanceToWifi));
+				textWifiCollection.setText(res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi));
 			} else {
 				layoutWifi.setVisibility(View.GONE);
 			}
@@ -413,10 +413,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				CellData[] active = d.getRegisteredCells();
 				if (active != null && active.length > 0) {
 					textCurrentCell.setVisibility(View.VISIBLE);
-					textCurrentCell.setText(String.format(res.getString(R.string.main_cell_current), active[0].getType(), active[0].dbm, active[0].asu));
+					textCurrentCell.setText(res.getString(R.string.main_cell_current, active[0].getType(), active[0].dbm, active[0].asu));
 				} else
 					textCurrentCell.setVisibility(View.GONE);
-				textCellCount.setText(String.format(res.getString(R.string.main_cell_count), d.cellCount));
+				textCellCount.setText(res.getString(R.string.main_cell_count, d.cellCount));
 				layoutCell.setVisibility(View.VISIBLE);
 			} else {
 				layoutCell.setVisibility(View.GONE);
@@ -431,12 +431,10 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				textNoise.setText(res.getString(R.string.main_noise_disabled));*/
 
 			if (d.activity != null) {
-				layoutOther.setVisibility(View.VISIBLE);
 				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getResolvedActivityName(context, d.activity)));
 				textActivity.setVisibility(View.VISIBLE);
 			} else {
 				textActivity.setVisibility(View.GONE);
-				layoutOther.setVisibility(View.GONE);
 			}
 		}
 	}

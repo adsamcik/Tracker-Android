@@ -44,7 +44,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import static com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS;
-import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;
+import static com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD;
 
 public class UploadService extends JobService {
 	private static final String TAG = "SignalsUploadService";
@@ -85,8 +85,8 @@ public class UploadService extends JobService {
 		else if (isUploading)
 			return new Failure<>(context.getString(R.string.error_upload_in_progress));
 
-		if (hasEnoughData(source)) {
-			SharedPreferences sp = Preferences.get(context);
+		SharedPreferences sp = Preferences.get(context);
+		if (hasEnoughData(source) && sp.getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
 			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
 				JobInfo.Builder jb = prepareBuilder(UPLOAD_JOB_ID, context, source);
@@ -187,14 +187,23 @@ public class UploadService extends JobService {
 			return false;
 
 		DataStore.onUpload(0);
-		final Context c = getApplicationContext();
+		final Context context = getApplicationContext();
 		if (!Assist.isInitialized())
-			Assist.initialize(c);
+			Assist.initialize(context);
 
 		isUploading = true;
-		worker = new JobWorker(getFilesDir().getAbsolutePath(), c, success -> {
-			if (success)
+		final int collectionsToUpload = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
+		worker = new JobWorker(context, success -> {
+			if (success) {
+				int collections = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
+				if(collections < collectionsToUpload) {
+					collections = 0;
+					FirebaseCrash.report(new Throwable("There are less collections than thought"));
+				} else
+					collections -= collectionsToUpload;
+				Preferences.get(this).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, collections).apply();
 				DataStore.onUpload(100);
+			}
 			isUploading = false;
 			jobFinished(jobParameters, !success);
 		});
@@ -217,7 +226,6 @@ public class UploadService extends JobService {
 	}
 
 	private static class JobWorker extends AsyncTask<JobParameters, Void, Boolean> {
-		private final String directory;
 		private final WeakReference<Context> context;
 
 		private File tempZipFile = null;
@@ -226,8 +234,7 @@ public class UploadService extends JobService {
 
 		private final INonNullValueCallback<Boolean> callback;
 
-		JobWorker(final String dir, final Context context, @Nullable INonNullValueCallback<Boolean> callback) {
-			this.directory = dir;
+		JobWorker(final Context context, @Nullable INonNullValueCallback<Boolean> callback) {
 			this.context = new WeakReference<>(context.getApplicationContext());
 			this.callback = callback;
 		}

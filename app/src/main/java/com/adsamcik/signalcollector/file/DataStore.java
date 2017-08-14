@@ -45,6 +45,7 @@ public class DataStore {
 	private static INonNullValueCallback<Integer> onUploadProgress;
 
 	private static volatile long approxSize = -1;
+	private static volatile int collectionsOnDevice = -1;
 
 	private static DataFile currentDataFile = null;
 
@@ -206,8 +207,10 @@ public class DataStore {
 	 * Initializes approximate data size variable
 	 */
 	private static void initSizeOfData() {
-		if (approxSize == -1)
+		if (approxSize == -1) {
 			approxSize = Preferences.get().getLong(PREF_COLLECTED_DATA_SIZE, 0);
+			collectionsOnDevice = Preferences.get().getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
+		}
 	}
 
 	/**
@@ -221,13 +224,24 @@ public class DataStore {
 	}
 
 	/**
+	 * Gets saved size of data.
+	 *
+	 * @return returns saved data size from shared preferences.
+	 */
+	public static int collectionCount() {
+		initSizeOfData();
+		return collectionsOnDevice;
+	}
+
+	/**
 	 * Increments approx size by value
 	 *
 	 * @param value value
 	 */
-	public static void incSizeOfData(long value) {
+	public static void incData(long value, int count) {
 		initSizeOfData();
 		approxSize += value;
+		collectionsOnDevice += count;
 	}
 
 	/**
@@ -245,8 +259,9 @@ public class DataStore {
 	public static void clearAllData(@NonNull Context context) {
 		currentDataFile = null;
 		SharedPreferences sp = Preferences.get();
-		sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
+		sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply();
 		approxSize = 0;
+		collectionsOnDevice = 0;
 		File[] files = getDir(context).listFiles();
 
 		for (File file : files) {
@@ -265,8 +280,9 @@ public class DataStore {
 	public static void clearAll(@NonNull Context context) {
 		currentDataFile = null;
 		FileStore.clearFolder(getDir(context));
-		Preferences.get(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).apply();
+		Preferences.get(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply();
 		approxSize = 0;
+		collectionsOnDevice = 0;
 
 		onDataChanged();
 	}

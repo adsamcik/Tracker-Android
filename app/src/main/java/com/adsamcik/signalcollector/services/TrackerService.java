@@ -21,7 +21,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
@@ -217,7 +216,7 @@ public class TrackerService extends Service {
 		data.add(d);
 		rawDataEcho = d;
 
-		DataStore.incSizeOfData(new Gson().toJson(d).getBytes(Charset.defaultCharset()).length);
+		DataStore.incData(new Gson().toJson(d).getBytes(Charset.defaultCharset()).length, 1);
 
 		prevLocation = location;
 		prevLocation.setTime(d.time);
@@ -256,14 +255,18 @@ public class TrackerService extends Service {
 				cellCount += d.cellCount;
 		}
 
-		sp.edit().putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount).putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount).putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size()).apply();
-
 		DataStore.SaveStatus result = DataStore.saveData(this, data.toArray(new RawData[data.size()]));
 		if (result == DataStore.SaveStatus.SAVE_FAILED) {
 			saveAttemptsFailed++;
 			if (saveAttemptsFailed >= 5)
 				stopSelf();
 		} else {
+			sp.edit()
+					.putInt(Preferences.PREF_STATS_WIFI_FOUND, wifiCount)
+					.putInt(Preferences.PREF_STATS_CELL_FOUND, cellCount)
+					.putInt(Preferences.PREF_STATS_LOCATIONS_FOUND, locations + data.size())
+					.putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, sp.getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) + data.size())
+					.apply();
 			data.clear();
 			if (result == DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
 					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&

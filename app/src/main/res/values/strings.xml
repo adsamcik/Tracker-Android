@@ -9,9 +9,14 @@
 
     <string name="button_back">back</string>
 
-    <string name="main_collected">Collected %1$s</string>
+    <string name="main_collected">%1$s collected</string>
+    <plurals name="main_collections">
+        <item quantity="one">1 collection</item>
+        <item quantity="other">%d collections</item>
+    </plurals>
+
     <string name="main_last_update">%1$s</string>
-    <string name="main_position">N %1$s\nW %2$s\nAlt: %3$d m</string>
+    <string name="main_position">N %1$s\nW %2$s\nAltitude %3$d m</string>
     <string name="main_wifi_title">Wifi</string>
     <string name="main_wifi_updated">found %1$dm before collection</string>
     <string name="main_wifi_not_updated">not updated this collection</string>

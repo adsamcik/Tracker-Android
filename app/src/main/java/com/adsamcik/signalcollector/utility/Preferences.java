@@ -71,6 +71,8 @@ public class Preferences {
 	public static final String PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled";
 	public static final boolean DEFAULT_TRACKING_LOCATION_ENABLED = true;
 
+	public static final String PREF_COLLECTIONS_SINCE_LAST_UPLOAD = "collectionsSinceLastUpload";
+	public static final String PREF_COLLECTIONS_IN_STORAGE = "collectionsInStorage";
 
 	public static final String PREF_DEFAULT_MAP_OVERLAY = "defaultMapOverlay";
 
