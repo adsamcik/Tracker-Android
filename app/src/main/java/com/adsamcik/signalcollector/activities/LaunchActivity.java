@@ -9,7 +9,9 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -18,6 +20,7 @@ import com.adsamcik.signalcollector.utility.NotificationTools;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 import java.util.List;
 
@@ -76,6 +79,10 @@ public class LaunchActivity extends Activity {
 
 		if(Build.VERSION.SDK_INT >= 26)
 			NotificationTools.prepareChannels(this);
+
+		if (BuildConfig.DEBUG) {
+			Log.d("Signals", FirebaseInstanceId.getInstance().getToken());
+		}
 
 		overridePendingTransition(0, 0);
 		finish();
