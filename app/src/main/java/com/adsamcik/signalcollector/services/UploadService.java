@@ -196,13 +196,13 @@ public class UploadService extends JobService {
 		final int collectionsToUpload = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
 		worker = new JobWorker(context, success -> {
 			if (success) {
-				int collections = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
-				if (collections < collectionsToUpload) {
-					collections = 0;
+				int collectionCount = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
+				if (collectionCount < collectionsToUpload) {
+					collectionCount = 0;
 					FirebaseCrash.report(new Throwable("There are less collections than thought"));
 				} else
-					collections -= collectionsToUpload;
-				Preferences.get(this).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, collections).apply();
+					collectionCount -= collectionsToUpload;
+				DataStore.setCollections(this, collectionCount);
 				DataStore.onUpload(this, 100);
 			}
 			isUploading = false;

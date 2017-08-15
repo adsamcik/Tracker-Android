@@ -215,14 +215,15 @@ public class DataStore {
 
 	/**
 	 * Sets collection count
+	 * This method needs to be called with caution. Incorrect calling can cause smart uploader to malfunction.
+	 * Since issues would not affect tracking, it is public, because there needs to be some way to update collection count from upload function.
 	 *
 	 * @param context context
 	 * @param count   count of collections
 	 */
-	private static void setCollections(@NonNull final Context context, final int count) {
+	public static void setCollections(@NonNull final Context context, final int count) {
 		Preferences.get(context).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, count).apply();
 		collectionsOnDevice = count;
-
 	}
 
 	/**
