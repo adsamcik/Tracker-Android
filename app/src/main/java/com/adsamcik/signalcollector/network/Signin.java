@@ -252,7 +252,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
-			Network.register(user.token, token, context);
+			Network.register(context, user.token, token);
 		else
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}

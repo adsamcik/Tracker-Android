@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 
-import com.adsamcik.signalcollector.network.Network;
 import com.google.android.gms.maps.model.Tile;
 import com.google.android.gms.maps.model.TileProvider;
 import com.google.firebase.crash.FirebaseCrash;
@@ -29,7 +28,7 @@ public class SignalsTileProvider implements TileProvider {
 	private final int maxZoom;
 
 	public SignalsTileProvider(Context context, int maxZoom) {
-		client = Network.client(null, context);
+		client = Network.client(context, null);
 		this.maxZoom = maxZoom;
 	}
 

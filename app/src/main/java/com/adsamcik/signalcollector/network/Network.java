@@ -67,7 +67,7 @@ public final class Network {
 		cookieJar.clear();
 	}
 
-	public static OkHttpClient client(@Nullable final String userToken, final Context context) {
+	public static OkHttpClient client(@NonNull final Context context, @Nullable final String userToken) {
 		return userToken == null ? client(context) : new OkHttpClient.Builder()
 				.connectionSpecs(Collections.singletonList(getSpec()))
 				.cookieJar(getCookieJar(context))
@@ -82,18 +82,18 @@ public final class Network {
 				.build();
 	}
 
-	private static OkHttpClient client(final Context context) {
+	private static OkHttpClient client(@NonNull final Context context) {
 		return new OkHttpClient.Builder()
 				.connectionSpecs(Collections.singletonList(getSpec()))
 				.cookieJar(getCookieJar(context))
 				.build();
 	}
 
-	public static Request requestGET(final String url) {
+	public static Request requestGET(@NonNull final String url) {
 		return new Request.Builder().url(url).build();
 	}
 
-	public static Request requestPOST(final String url, final RequestBody body) {
+	public static Request requestPOST(@NonNull final String url, @NonNull final RequestBody body) {
 		return new Request.Builder().url(url).post(body).build();
 	}
 
@@ -105,17 +105,17 @@ public final class Network {
 				.addFormDataPart("model", Build.MODEL);
 	}
 
-	public static void register(final String userToken, final String token, @NonNull final Context context) {
-		if (userToken != null && token != null && !Assist.isEmulator())
-			register(userToken, "token", token, Preferences.PREF_SENT_TOKEN_TO_SERVER, Server.URL_TOKEN_REGISTRATION, context);
+	public static void register(@NonNull final Context context, @NonNull final String userToken, @NonNull final String token) {
+		if (!Assist.isEmulator())
+			register(context, userToken, "token", token, Preferences.PREF_SENT_TOKEN_TO_SERVER, Server.URL_TOKEN_REGISTRATION);
 	}
 
-	private static void register(@NonNull final String userToken, @NonNull final String valueName, @NonNull final String value, @NonNull final String preferencesName, @NonNull final String url, @NonNull Context context) {
+	private static void register(@NonNull Context context, @NonNull final String userToken, @NonNull final String valueName, @NonNull final String value, @NonNull final String preferencesName, @NonNull final String url) {
 		RequestBody formBody = generateAuthBody(userToken)
 				.addFormDataPart(valueName, value)
 				.build();
 		Request request = requestPOST(url, formBody);
-		client(userToken, context).newCall(request).enqueue(new Callback() {
+		client(context, userToken).newCall(request).enqueue(new Callback() {
 			@Override
 			public void onFailure(@NonNull Call call, @NonNull IOException e) {
 				FirebaseCrash.log("Register " + preferencesName);

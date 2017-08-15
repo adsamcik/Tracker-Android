@@ -19,10 +19,11 @@ public class InstanceIDListenerService extends FirebaseInstanceIdService {
 	@Override
 	public void onTokenRefresh() {
 		String refreshedToken = FirebaseInstanceId.getInstance().getToken();
+		assert refreshedToken != null;
 		if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-			Signin.getUserAsync(this, value -> {
-				if (value != null)
-					Network.register(value.token, refreshedToken, this);
+			Signin.getUserAsync(this, user -> {
+				if (user != null)
+					Network.register(this, user.token, refreshedToken);
 			});
 		}
 	}

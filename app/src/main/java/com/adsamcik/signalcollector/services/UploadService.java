@@ -262,7 +262,7 @@ public class UploadService extends JobService {
 					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			try {
-				call = Network.client(null, context.get()).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody));
+				call = Network.client(context.get(), null).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody));
 				response = call.execute();
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();

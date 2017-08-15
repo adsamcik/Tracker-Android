@@ -35,7 +35,7 @@ public class NetworkLoader {
 	 * @param <T>                 Value type
 	 */
 	public static <T> void request(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
-		requestString(Network.client(null, context),
+		requestString(Network.client(context, null),
 				new Request.Builder().url(url).build(),
 				updateTimeInMinutes,
 				context,
@@ -56,7 +56,7 @@ public class NetworkLoader {
 	public static <T> void requestSigned(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull Class<T> tClass, @NonNull final IStateValueCallback<Source, T> callback) {
 		Signin.getUserAsync(context, user -> {
 			if (user != null)
-				requestString(Network.client(user.token, context),
+				requestString(Network.client(context, user.token),
 						new Request.Builder().url(url).build(),
 						updateTimeInMinutes,
 						context,
@@ -78,7 +78,7 @@ public class NetworkLoader {
 	public static void requestStringSigned(@NonNull final String url, int updateTimeInMinutes, @NonNull final Context context, @NonNull final String preferenceString, @NonNull final IStateValueCallback<Source, String> callback) {
 		Signin.getUserAsync(context, user -> {
 			if (user != null)
-				requestString(Network.client(user.token, context), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
+				requestString(Network.client(context, user.token), new Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback);
 			else
 				callback.callback(Source.no_data_sign_in_failed, null);
 		});

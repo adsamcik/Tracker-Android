@@ -427,7 +427,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				mapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 					compoundButton.setEnabled(false);
 					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
-					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(new Callback() {
+					Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(new Callback() {
 						@Override
 						public void onFailure(@NonNull Call call, @NonNull IOException e) {
 							activity.runOnUiThread(() -> {
@@ -483,7 +483,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				userMapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 					compoundButton.setEnabled(false);
 					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
-					Network.client(u.token, activity).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(new Callback() {
+					Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(new Callback() {
 						@Override
 						public void onFailure(@NonNull Call call, @NonNull IOException e) {
 							activity.runOnUiThread(() -> {
