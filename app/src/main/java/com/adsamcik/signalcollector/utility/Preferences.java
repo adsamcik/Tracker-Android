@@ -113,19 +113,6 @@ public class Preferences {
 	}
 
 	/**
-	 * Get shared preferences
-	 * This function will crash if shared preferences were never initialized
-	 * Always prefer to send context if possible.
-	 *
-	 * @return Shared preferences
-	 */
-	public static SharedPreferences get() {
-		if (sharedPreferences == null)
-			throw new RuntimeException("Shared preferences are null and no context was provided");
-		return sharedPreferences;
-	}
-
-	/**
 	 * Checks if current day should be archived and clears up old StatDays
 	 * @param context context
 	 */

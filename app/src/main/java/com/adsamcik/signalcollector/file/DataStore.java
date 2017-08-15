@@ -60,10 +60,10 @@ public class DataStore {
 	/**
 	 * Call to invoke onDataChanged callback
 	 */
-	private static void onDataChanged() {
-		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
+	private static void onDataChanged(@NonNull final Context context) {
+		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
 			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
-		else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData() < Constants.MIN_USER_UPLOAD_FILE_SIZE)
+		else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
 			Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED;
 
 		if (onDataChanged != null)
@@ -75,10 +75,10 @@ public class DataStore {
 	 *
 	 * @param progress progress as int (0-100)
 	 */
-	public static void onUpload(int progress) {
+	public static void onUpload(@NonNull final Context context, final int progress) {
 		if (progress == 100)
-			Network.cloudStatus = sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED;
-		else if (progress == -1 && sizeOfData() > 0)
+			Network.cloudStatus = sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED;
+		else if (progress == -1 && sizeOfData(context) > 0)
 			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 		else
 			Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS;
@@ -145,7 +145,7 @@ public class DataStore {
 	 * @param fileName file name
 	 */
 	public static void delete(@NonNull Context context, String fileName) {
-		if(!FileStore.delete(file(context, fileName)))
+		if (!FileStore.delete(file(context, fileName)))
 			FirebaseCrash.report(new RuntimeException("Failed to delete " + fileName));
 	}
 
@@ -180,7 +180,7 @@ public class DataStore {
 		for (Pair<Integer, String> item : renamedFiles)
 			rename(context, item.second, DATA_FILE + item.first);
 
-		Preferences.get().edit().putInt(PREF_DATA_FILE_INDEX, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
+		Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 		currentDataFile = null;
 	}
 
@@ -196,9 +196,9 @@ public class DataStore {
 		long size = 0;
 		for (String fileName : fileNames)
 			size += sizeOf(context, fileName);
-		Preferences.get().edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply();
+		Preferences.get(context).edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply();
 		if (onDataChanged != null && approxSize != size)
-			onDataChanged();
+			onDataChanged(context);
 		approxSize = size;
 		return size;
 	}
@@ -206,11 +206,23 @@ public class DataStore {
 	/**
 	 * Initializes approximate data size variable
 	 */
-	private static void initSizeOfData() {
+	private static void initSizeOfData(@NonNull final Context context) {
 		if (approxSize == -1) {
-			approxSize = Preferences.get().getLong(PREF_COLLECTED_DATA_SIZE, 0);
-			collectionsOnDevice = Preferences.get().getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
+			approxSize = Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0);
+			collectionsOnDevice = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
 		}
+	}
+
+	/**
+	 * Sets collection count
+	 *
+	 * @param context context
+	 * @param count   count of collections
+	 */
+	private static void setCollections(@NonNull final Context context, final int count) {
+		Preferences.get(context).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, count).apply();
+		collectionsOnDevice = count;
+
 	}
 
 	/**
@@ -218,8 +230,8 @@ public class DataStore {
 	 *
 	 * @return returns saved data size from shared preferences.
 	 */
-	public static long sizeOfData() {
-		initSizeOfData();
+	public static long sizeOfData(@NonNull final Context context) {
+		initSizeOfData(context);
 		return approxSize;
 	}
 
@@ -228,8 +240,8 @@ public class DataStore {
 	 *
 	 * @return returns saved data size from shared preferences.
 	 */
-	public static int collectionCount() {
-		initSizeOfData();
+	public static int collectionCount(@NonNull final Context context) {
+		initSizeOfData(context);
 		return collectionsOnDevice;
 	}
 
@@ -238,8 +250,8 @@ public class DataStore {
 	 *
 	 * @param value value
 	 */
-	public static void incData(long value, int count) {
-		initSizeOfData();
+	public static void incData(@NonNull final Context context, final long value, final int count) {
+		initSizeOfData(context);
 		approxSize += value;
 		collectionsOnDevice += count;
 	}
@@ -258,7 +270,7 @@ public class DataStore {
 	 */
 	public static void clearAllData(@NonNull Context context) {
 		currentDataFile = null;
-		SharedPreferences sp = Preferences.get();
+		SharedPreferences sp = Preferences.get(context);
 		sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply();
 		approxSize = 0;
 		collectionsOnDevice = 0;
@@ -267,10 +279,10 @@ public class DataStore {
 		for (File file : files) {
 			String name = file.getName();
 			if (name.startsWith(DATA_FILE))
-				if(!FileStore.delete(file))
+				if (!FileStore.delete(file))
 					FirebaseCrash.report(new RuntimeException("Failed to delete " + file.getName()));
 		}
-		onDataChanged();
+		onDataChanged(context);
 
 		Bundle bundle = new Bundle();
 		bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
@@ -284,7 +296,7 @@ public class DataStore {
 		approxSize = 0;
 		collectionsOnDevice = 0;
 
-		onDataChanged();
+		onDataChanged(context);
 	}
 
 	/**
@@ -369,7 +381,7 @@ public class DataStore {
 			if (files[0].length() + currentDataFile.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
 				String data = FileStore.loadString(files[0]);
 				assert data != null;
-				if(!currentDataFile.addData(data))
+				if (!currentDataFile.addData(data))
 					return;
 				newFileCount--;
 				i++;
@@ -386,7 +398,7 @@ public class DataStore {
 					String data = FileStore.loadString(files[0]);
 					assert data != null;
 					dataFile = new DataFile(file(context, DATA_FILE + i), userId, DataFile.STANDARD);
-					if(!dataFile.addData(data))
+					if (!dataFile.addData(data))
 						throw new RuntimeException();
 
 					if (i < files.length - 1)
@@ -394,8 +406,8 @@ public class DataStore {
 				}
 			}
 
-			for (File f: files)
-				if(!FileStore.delete(f))
+			for (File f : files)
+				if (!FileStore.delete(f))
 					FirebaseCrash.report(new RuntimeException("Failed to delete " + f.getName()));
 		}
 	}

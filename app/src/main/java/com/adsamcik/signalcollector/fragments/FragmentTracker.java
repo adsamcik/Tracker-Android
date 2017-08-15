@@ -270,7 +270,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 					handler.postDelayed(() -> {
 						progressBar.setVisibility(View.GONE);
-						if (DataStore.sizeOfData() > 0) {
+						if (DataStore.sizeOfData(context) > 0) {
 							fabUp.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary)));
 							fabUp.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent)));
 							resetFabElevation(fabUp, getResources());
@@ -326,7 +326,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 						toggleCollecting(activity, !TrackerService.isRunning());
 				}
 		);
-		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(activity, DataStore.sizeOfData(), DataStore.collectionCount())));
+		DataStore.setOnDataChanged(() -> activity.runOnUiThread(() -> setCollected(activity, DataStore.sizeOfData(activity), DataStore.collectionCount(activity))));
 		DataStore.setOnUploadProgress((progress) -> activity.runOnUiThread(() -> updateUploadProgress(progress)));
 		TrackerService.onNewDataFound = () -> activity.runOnUiThread(this::updateData);
 		TrackerService.onServiceStateChange = () -> activity.runOnUiThread(() -> changeTrackerButton(TrackerService.isRunning() ? 1 : 0, true));
@@ -372,9 +372,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private void updateData(@NonNull Context context) {
 		Resources res = context.getResources();
 		RawData d = TrackerService.rawDataEcho;
-		setCollected(context, DataStore.sizeOfData(), DataStore.collectionCount());
+		setCollected(context, DataStore.sizeOfData(context), DataStore.collectionCount(context));
 
-		if (DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
+		if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
 			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 			updateUploadButton();
 		}

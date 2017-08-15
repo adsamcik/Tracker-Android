@@ -93,7 +93,7 @@ public class AppTest {
 		final String data = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":" + time + ",\"uploadSize\":10654465,\"wifi\":2500}";
 		final String dataOld = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":20,\"uploadSize\":10654465,\"wifi\":2500}";
 
-		Preferences.get().edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
+		Preferences.get(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
 		Gson gson = new Gson();
 		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
 		Assert.assertEquals(true, DataStore.exists(context, testFileName));
@@ -164,7 +164,7 @@ public class AppTest {
 
 		fabUpload.check(matches(isDisplayed()));
 
-		DataStore.onUpload(25);
+		DataStore.onUpload(context, 25);
 		Thread.sleep(500);
 
 		ViewInteraction progressBar = onView(
@@ -179,11 +179,11 @@ public class AppTest {
 						isDisplayed()));
 		progressBar.check(matches(isDisplayed()));
 
-		DataStore.onUpload(50);
+		DataStore.onUpload(context, 50);
 		Thread.sleep(500);
 
-		DataStore.onUpload(100);
-		DataStore.incData(500);
+		DataStore.onUpload(context, 100);
+		DataStore.incData(context, 500, 25);
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 		Thread.sleep(2500);
 		fabUpload.check(matches(isDisplayed()));

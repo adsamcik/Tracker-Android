@@ -124,7 +124,7 @@ public final class Network {
 
 			@Override
 			public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-				Preferences.get().edit().putBoolean(preferencesName, true).apply();
+				Preferences.get(context).edit().putBoolean(preferencesName, true).apply();
 				response.close();
 			}
 		});

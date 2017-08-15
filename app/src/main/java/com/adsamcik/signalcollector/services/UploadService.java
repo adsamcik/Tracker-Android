@@ -66,7 +66,8 @@ public class UploadService extends JobService {
 		return UploadScheduleSource.values()[Preferences.get(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)];
 	}
 
-	private static @NonNull JobScheduler scheduler(@NonNull Context context) {
+	private static @NonNull
+	JobScheduler scheduler(@NonNull Context context) {
 		JobScheduler scheduler = ((JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE));
 		assert scheduler != null;
 		return scheduler;
@@ -86,7 +87,7 @@ public class UploadService extends JobService {
 			return new Failure<>(context.getString(R.string.error_upload_in_progress));
 
 		SharedPreferences sp = Preferences.get(context);
-		if (hasEnoughData(source) && sp.getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
+		if (hasEnoughData(context, source) && sp.getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
 			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
 				JobInfo.Builder jb = prepareBuilder(UPLOAD_JOB_ID, context, source);
@@ -113,9 +114,9 @@ public class UploadService extends JobService {
 	 * @param context context
 	 */
 	public static void requestUploadSchedule(@NonNull Context context) {
-		if (hasEnoughData(UploadScheduleSource.BACKGROUND)) {
+		if (hasEnoughData(context, UploadScheduleSource.BACKGROUND)) {
 			JobScheduler scheduler = scheduler(context);
-			if(hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
+			if (hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
 				JobInfo.Builder jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND);
 				jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
 				addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
@@ -127,11 +128,11 @@ public class UploadService extends JobService {
 	}
 
 	private static boolean hasJobWithID(JobScheduler jobScheduler, int id) {
-		if(Build.VERSION.SDK_INT >= 24)
+		if (Build.VERSION.SDK_INT >= 24)
 			return jobScheduler.getPendingJob(id) != null;
 		else {
 			for (JobInfo jobInfo : jobScheduler.getAllPendingJobs())
-				if(jobInfo.getId() == id)
+				if (jobInfo.getId() == id)
 					return true;
 			return false;
 		}
@@ -161,12 +162,12 @@ public class UploadService extends JobService {
 		}
 	}
 
-	private static boolean hasEnoughData(@NonNull UploadScheduleSource source) {
+	private static boolean hasEnoughData(@NonNull final Context context, @NonNull final UploadScheduleSource source) {
 		switch (source) {
 			case BACKGROUND:
-				return DataStore.sizeOfData() >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE;
+				return DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE;
 			case USER:
-				return DataStore.sizeOfData() >= Constants.MIN_USER_UPLOAD_FILE_SIZE;
+				return DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE;
 			default:
 				return false;
 		}
@@ -183,10 +184,10 @@ public class UploadService extends JobService {
 		if (scheduleSource == UploadScheduleSource.NONE)
 			throw new RuntimeException("Source cannot be null");
 
-		if (!hasEnoughData(scheduleSource))
+		if (!hasEnoughData(this, scheduleSource))
 			return false;
 
-		DataStore.onUpload(0);
+		DataStore.onUpload(this, 0);
 		final Context context = getApplicationContext();
 		if (!Assist.isInitialized())
 			Assist.initialize(context);
@@ -196,13 +197,13 @@ public class UploadService extends JobService {
 		worker = new JobWorker(context, success -> {
 			if (success) {
 				int collections = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
-				if(collections < collectionsToUpload) {
+				if (collections < collectionsToUpload) {
 					collections = 0;
 					FirebaseCrash.report(new Throwable("There are less collections than thought"));
 				} else
 					collections -= collectionsToUpload;
 				Preferences.get(this).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, collections).apply();
-				DataStore.onUpload(100);
+				DataStore.onUpload(this, 100);
 			}
 			isUploading = false;
 			jobFinished(jobParameters, !success);
@@ -302,7 +303,7 @@ public class UploadService extends JobService {
 			String[] files = DataStore.getDataFileNames(context, source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
-				DataStore.onUpload(-1);
+				DataStore.onUpload(context, -1);
 				return false;
 			} else {
 				Trace uploadTrace = FirebasePerformance.getInstance().newTrace("upload");
@@ -311,7 +312,7 @@ public class UploadService extends JobService {
 				String zipName = "up" + System.currentTimeMillis();
 				try {
 					Compress compress = new Compress(DataStore.file(context, zipName));
-					for (String f: files)
+					for (String f : files)
 						compress.add(DataStore.file(context, f));
 					tempZipFile = compress.finish();
 				} catch (IOException e) {
@@ -352,7 +353,7 @@ public class UploadService extends JobService {
 				if (upload(tempZipFile, token.getString(), userID.getString())) {
 					for (String file : files)
 						DataStore.delete(context, file);
-					if(!tempZipFile.delete())
+					if (!tempZipFile.delete())
 						tempZipFile.deleteOnExit();
 				} else {
 					uploadTrace.incrementCounter("fail", 3);
@@ -369,10 +370,11 @@ public class UploadService extends JobService {
 		@Override
 		protected void onPostExecute(final Boolean result) {
 			super.onPostExecute(result);
-			DataStore.cleanup(context.get());
+			Context ctx = context.get();
+			DataStore.cleanup(ctx);
 
 			if (!result) {
-				DataStore.onUpload(-1);
+				DataStore.onUpload(ctx, -1);
 			}
 
 			if (tempZipFile != null && !FileStore.delete(tempZipFile))
@@ -391,6 +393,9 @@ public class UploadService extends JobService {
 
 			if (call != null)
 				call.cancel();
+
+			if (callback != null)
+				callback.callback(call != null && call.isExecuted() && !call.isCanceled());
 
 			super.onCancelled();
 		}

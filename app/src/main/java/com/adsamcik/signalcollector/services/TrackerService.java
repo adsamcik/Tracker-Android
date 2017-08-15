@@ -217,7 +217,7 @@ public class TrackerService extends Service {
 		data.add(d);
 		rawDataEcho = d;
 
-		DataStore.incData(gson.toJson(d).getBytes(Charset.defaultCharset()).length, 1);
+		DataStore.incData(this, gson.toJson(d).getBytes(Charset.defaultCharset()).length, 1);
 
 		prevLocation = location;
 		prevLocation.setTime(d.time);
@@ -271,7 +271,7 @@ public class TrackerService extends Service {
 			data.clear();
 			if (result == DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
 					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
-					DataStore.sizeOfData() >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
+					DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}
