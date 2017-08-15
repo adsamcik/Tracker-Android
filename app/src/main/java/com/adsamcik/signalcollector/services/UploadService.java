@@ -367,11 +367,11 @@ public class UploadService extends JobService {
 		}
 
 		@Override
-		protected void onPostExecute(Boolean aBoolean) {
-			super.onPostExecute(aBoolean);
+		protected void onPostExecute(final Boolean result) {
+			super.onPostExecute(result);
 			DataStore.cleanup(context.get());
 
-			if (!aBoolean) {
+			if (!result) {
 				DataStore.onUpload(-1);
 			}
 
@@ -379,7 +379,7 @@ public class UploadService extends JobService {
 				FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 
 			if (callback != null)
-				callback.callback(aBoolean);
+				callback.callback(result);
 		}
 
 		@Override
