@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.PersistableBundle;
+import android.preference.Preference;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -87,7 +88,7 @@ public class UploadService extends JobService {
 			return new Failure<>(context.getString(R.string.error_upload_in_progress));
 
 		SharedPreferences sp = Preferences.get(context);
-		if (hasEnoughData(context, source) && sp.getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
+		if (hasEnoughData(context, source)) {
 			int autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD);
 			if (autoUpload != 0 || source.equals(UploadScheduleSource.USER)) {
 				JobInfo.Builder jb = prepareBuilder(UPLOAD_JOB_ID, context, source);
@@ -114,9 +115,9 @@ public class UploadService extends JobService {
 	 * @param context context
 	 */
 	public static void requestUploadSchedule(@NonNull Context context) {
-		if (hasEnoughData(context, UploadScheduleSource.BACKGROUND)) {
+		if (hasEnoughData(context, UploadScheduleSource.BACKGROUND) && Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
 			JobScheduler scheduler = scheduler(context);
-			if (hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
+			if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
 				JobInfo.Builder jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND);
 				jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY);
 				addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb);
