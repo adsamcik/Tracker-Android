@@ -24,8 +24,10 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			Assist.initialize(context);
 
 			int currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1);
-			if(currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile))
+			if(currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile)) {
+				DataStore.getCurrentDataFile(context).close();
 				editor.putInt(DataStore.PREF_DATA_FILE_INDEX, ++currentDataFile);
+			}
 
 			try {
 				editor.putInt(Preferences.LAST_VERSION, context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode);
