@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Build;
 
 import com.adsamcik.signalcollector.file.FileStore;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -22,6 +23,10 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			SharedPreferences sp = Preferences.get(context);
 			SharedPreferences.Editor editor = sp.edit();
 			Assist.initialize(context);
+
+			if(sp.getInt(Preferences.LAST_VERSION, 0) < 207) {
+				DataStore.setCollections(context, 0);
+			}
 
 			int currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1);
 			if(currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile)) {
