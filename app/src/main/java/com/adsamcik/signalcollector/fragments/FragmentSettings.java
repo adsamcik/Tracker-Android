@@ -385,8 +385,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		File[] files = folder.listFiles();
 		ArrayList<String> temp = new ArrayList<>();
 		for (File file : files) {
-			if (verifyFunction == null || verifyFunction.verify(file))
-				temp.add(file.getName());
+			if (verifyFunction == null || verifyFunction.verify(file)) {
+				temp.add(file.getName() + "|  " + Assist.humanReadableByteCount(file.length(), true));
+			}
 		}
 
 		Collections.sort(temp, String::compareTo);
