@@ -10,12 +10,12 @@ import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.PersistableBundle;
-import android.preference.Preference;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.file.DataFile;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.Compress;
@@ -313,8 +313,10 @@ public class UploadService extends JobService {
 				String zipName = "up" + System.currentTimeMillis();
 				try {
 					Compress compress = new Compress(DataStore.file(context, zipName));
-					for (String f : files)
-						compress.add(DataStore.file(context, f));
+					for (String f : files) {
+						File file = DataStore.file(context, f);
+						compress.add(file);
+					}
 					tempZipFile = compress.finish();
 				} catch (IOException e) {
 					FirebaseCrash.report(e);
@@ -364,7 +366,7 @@ public class UploadService extends JobService {
 				uploadTrace.stop();
 			}
 
-			DataStore.recountDataSize(context);
+			DataStore.recountData(context);
 			return true;
 		}
 
@@ -388,7 +390,7 @@ public class UploadService extends JobService {
 		@Override
 		protected void onCancelled() {
 			DataStore.cleanup(context.get());
-			DataStore.recountDataSize(context.get());
+			DataStore.recountData(context.get());
 			if (tempZipFile != null)
 				FileStore.delete(tempZipFile);
 

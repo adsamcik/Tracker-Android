@@ -27,6 +27,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -48,6 +49,7 @@ public class DataStore {
 	private static volatile int collectionsOnDevice = -1;
 
 	private static DataFile currentDataFile = null;
+	private static int collectionInDataFile = 0;
 
 	public static File getDir(@NonNull Context context) {
 		return context.getFilesDir();
@@ -171,14 +173,14 @@ public class DataStore {
 		for (File file : files) {
 			String name = file.getName();
 			if (name.startsWith(DATA_FILE)) {
-				String tempFileName = tmpName + Integer.toString(renamedFiles.size());
+				String tempFileName = tmpName + DataFile.getCollectionCount(file);
 				if (FileStore.rename(file, tempFileName))
 					renamedFiles.add(new Pair<>(renamedFiles.size(), tempFileName));
 			}
 		}
 
 		for (Pair<Integer, String> item : renamedFiles)
-			rename(context, item.second, DATA_FILE + item.first);
+			rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(tmpName.length()));
 
 		Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, renamedFiles.size() == 0 ? 0 : renamedFiles.size() - 1).apply();
 		currentDataFile = null;
@@ -189,13 +191,18 @@ public class DataStore {
 	 *
 	 * @return total size of data
 	 */
-	public static long recountDataSize(@NonNull Context context) {
+	public static long recountData(@NonNull Context context) {
 		String[] fileNames = getDataFileNames(context, 0);
 		if (fileNames == null)
 			return 0;
 		long size = 0;
-		for (String fileName : fileNames)
-			size += sizeOf(context, fileName);
+		collectionsOnDevice = 0;
+		for (String fileName : fileNames) {
+			File file = file(context, fileName);
+			size += file.length();
+			collectionsOnDevice += DataFile.getCollectionCount(file);
+		}
+		
 		Preferences.get(context).edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply();
 		if (onDataChanged != null && approxSize != size)
 			onDataChanged(context);
@@ -322,20 +329,22 @@ public class DataStore {
 	}
 
 	public static DataFile getCurrentDataFile(@NonNull Context context) {
-		if (currentDataFile != null)
-			return currentDataFile;
-		else {
+		if (currentDataFile == null) {
 			String userID = Signin.getUserID(context);
-			if (userID == null)
-				return currentDataFile = new DataFile(file(context, DATA_FILE + Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)), null, DataFile.CACHE);
-			else
-				return currentDataFile = new DataFile(file(context, DATA_FILE + Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)), userID, DataFile.STANDARD);
+			updateCurrentData(context, userID == null ? DataFile.CACHE : DataFile.STANDARD, userID);
 		}
+		return currentDataFile;
 	}
 
 	private static void updateCurrentData(@NonNull Context context, @DataFile.FileType int type, @Nullable String userID) {
 		String dataFile;
 		String preference;
+
+		if (type == DataFile.STANDARD && userID == null) {
+			type = DataFile.CACHE;
+			FirebaseCrash.report(new Throwable("Wrong data file type"));
+		}
+
 		switch (type) {
 			case DataFile.CACHE:
 				dataFile = DATA_CACHE_FILE;
@@ -350,8 +359,10 @@ public class DataStore {
 				return;
 		}
 
-		if (currentDataFile == null || currentDataFile.getType() != type || currentDataFile.isFull())
-			currentDataFile = new DataFile(file(context, dataFile + Preferences.get(context).getInt(preference, 0)), userID, type);
+		if (currentDataFile == null || currentDataFile.getType() != type || currentDataFile.isFull()) {
+			String template = dataFile + Preferences.get(context).getInt(preference, 0);
+			currentDataFile = new DataFile(FileStore.dataFile(getDir(context), template), template, userID, type);
+		}
 	}
 
 	/**
@@ -380,10 +391,18 @@ public class DataStore {
 			int i = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0);
 
 			if (files[0].length() + currentDataFile.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
+				String tempFileName = files[0].getName();
+				int indexOf = tempFileName.indexOf(" - ");
+				int collectionCount = 0;
+				if (indexOf > 0) {
+					collectionCount = Integer.parseInt(tempFileName.substring(indexOf + 3));
+				}
+
 				String data = FileStore.loadString(files[0]);
 				assert data != null;
-				if (!currentDataFile.addData(data))
+				if (!currentDataFile.addData(data, collectionCount))
 					return;
+
 				newFileCount--;
 				i++;
 				if (currentDataFile.isFull())
@@ -393,13 +412,15 @@ public class DataStore {
 			}
 
 			if (files.length > 1) {
+				int currentDataIndex = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0);
 				Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, i + newFileCount).putInt(PREF_CACHE_FILE_INDEX, 0).apply();
 				DataFile dataFile;
 				for (; i < files.length; i++) {
 					String data = FileStore.loadString(files[0]);
 					assert data != null;
-					dataFile = new DataFile(file(context, DATA_FILE + i), userId, DataFile.STANDARD);
-					if (!dataFile.addData(data))
+					String nameTemplate = DATA_FILE + (currentDataIndex + i);
+					dataFile = new DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD);
+					if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
 						throw new RuntimeException();
 
 					if (i < files.length - 1)
@@ -419,8 +440,7 @@ public class DataStore {
 		if (file.getType() == DataFile.STANDARD)
 			writeTempData(context);
 
-		boolean success = file.addData(rawData);
-		if (success) {
+		if (file.addData(rawData)) {
 			long currentSize = file.size();
 			SharedPreferences.Editor editor = Preferences.get(context).edit();
 			editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + currentSize - prevSize);

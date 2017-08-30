@@ -65,7 +65,7 @@ public class FileSharingActivity extends DetailActivity {
 				for (int i = 0; i < fileNames.length; i++)
 					if (sba.get(i)) {
 						temp.add(fileNames[i]);
-						new DataFile(DataStore.file(this, fileNames[i]), Signin.getUserID(this), DataFile.STANDARD).close();
+						new DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD).close();
 					}
 
 				if (temp.size() == 0)

@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.file;
 
+import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.MalformedJsonException;
 
@@ -26,7 +27,7 @@ public class FileStore {
 	 * @param fileName file name
 	 * @return existence of file
 	 */
-	public static File file(@NonNull String parent, @NonNull String fileName) {
+	public static @NonNull File file(@NonNull String parent, @NonNull String fileName) {
 		return new File(parent, fileName);
 	}
 
@@ -36,8 +37,16 @@ public class FileStore {
 	 * @param fileName file name
 	 * @return existence of file
 	 */
-	public static File file(@NonNull File parent, @NonNull String fileName) {
+	public static @NonNull File file(@NonNull File parent, @NonNull String fileName) {
 		return new File(parent, fileName);
+	}
+
+	public static @NonNull File dataFile(@NonNull File parent, @NonNull String dataFileName) {
+		if(!parent.isDirectory())
+			throw new InvalidParameterException("Parent must be directory");
+
+		File[] files = parent.listFiles((file, s) -> s.startsWith(dataFileName));
+		return files.length == 1 ? files[0] : new File(parent, dataFileName);
 	}
 
 	/**

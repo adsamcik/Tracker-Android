@@ -29,8 +29,12 @@ public class DataFile {
 	public static final int STANDARD = 0;
 	public static final int CACHE = 1;
 
-	private final File file;
+	public static final String SEPARATOR = " ";
+
+	private File file;
+	private final String fileNameTemplate;
 	private final Gson gson = new Gson();
+	private int collectionCount;
 	private boolean writeable;
 
 	private boolean empty;
@@ -38,8 +42,9 @@ public class DataFile {
 	@FileType
 	private int type;
 
-	public DataFile(@NonNull File file, @Nullable String userID, @FileType int type) {
+	public DataFile(@NonNull File file, @Nullable String fileNameTemplate, @Nullable String userID, @FileType int type) {
 		this.file = file;
+		this.fileNameTemplate = fileNameTemplate;
 		this.type = userID == null ? CACHE : type;
 		if (!file.exists() || file.length() == 0) {
 			if (this.type == STANDARD)
@@ -51,7 +56,7 @@ public class DataFile {
 						"\"data\":", false);
 			empty = true;
 			writeable = true;
-
+			collectionCount = 0;
 		} else {
 			String ascii = null;
 			try {
@@ -62,7 +67,40 @@ public class DataFile {
 
 			writeable = ascii == null || !ascii.equals("]}");
 			empty = ascii == null || ascii.endsWith(":");
+			collectionCount = getCollectionCount(file);
 		}
+	}
+
+	public static int getCollectionCount(@NonNull File file) {
+		String fileName = file.getName();
+		int indexOf = fileName.indexOf(SEPARATOR) + SEPARATOR.length();
+		if (indexOf > 2)
+			return Integer.parseInt(fileName.substring(indexOf));
+		else
+			return 0;
+	}
+
+	public static String getTemplate(@NonNull File file) {
+		String fileName = file.getName();
+		int indexOf = fileName.indexOf(SEPARATOR);
+		if (indexOf > 2)
+			return fileName.substring(0, indexOf);
+		else
+			return fileName;
+	}
+
+	private void updateCollectionCount(int collectionCount) {
+		this.collectionCount += collectionCount;
+		File newFile;
+		if(fileNameTemplate != null)
+			newFile = new File(file.getParentFile(), fileNameTemplate + SEPARATOR + this.collectionCount);
+		else
+			newFile = new File(file.getParentFile(), getTemplate(file) + SEPARATOR + this.collectionCount);
+
+		if(!file.renameTo(newFile))
+			FirebaseCrash.report(new Throwable("Failed to rename file"));
+		else
+			file = newFile;
 	}
 
 	@IntDef({STANDARD, CACHE})
@@ -70,10 +108,14 @@ public class DataFile {
 	public @interface FileType {
 	}
 
-	public boolean addData(@NonNull String jsonArray) {
+	public boolean addData(@NonNull String jsonArray, int collectionCount) {
 		if (jsonArray.charAt(0) != '[')
 			throw new IllegalArgumentException("Given string is not json array!");
-		return saveData(jsonArray);
+		if(saveData(jsonArray)) {
+			updateCollectionCount(collectionCount);
+			return true;
+		} else
+			return false;
 	}
 
 	public boolean addData(@NonNull RawData[] data) {
@@ -86,7 +128,12 @@ public class DataFile {
 			}
 			writeable = true;
 		}
-		return saveData(gson.toJson(data));
+
+		if(saveData(gson.toJson(data))) {
+			updateCollectionCount(data.length);
+			return true;
+		} else
+			return false;
 	}
 
 	private boolean saveData(@NonNull String jsonArray) {
