@@ -301,7 +301,7 @@ public class UploadService extends JobService {
 		protected Boolean doInBackground(JobParameters... params) {
 			UploadScheduleSource source = UploadScheduleSource.values()[params[0].getExtras().getInt(KEY_SOURCE)];
 			Context context = this.context.get();
-			String[] files = DataStore.getDataFileNames(context, source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
+			File[] files = DataStore.getDataFiles(context, source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
 			if (files == null) {
 				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(context, -1);
@@ -313,8 +313,7 @@ public class UploadService extends JobService {
 				String zipName = "up" + System.currentTimeMillis();
 				try {
 					Compress compress = new Compress(DataStore.file(context, zipName));
-					for (String f : files) {
-						File file = DataStore.file(context, f);
+					for (File file : files) {
 						compress.add(file);
 					}
 					tempZipFile = compress.finish();
@@ -354,8 +353,8 @@ public class UploadService extends JobService {
 				}
 
 				if (upload(tempZipFile, token.getString(), userID.getString())) {
-					for (String file : files)
-						DataStore.delete(context, file);
+					for (File file : files)
+						FileStore.delete(file);
 					if (!tempZipFile.delete())
 						tempZipFile.deleteOnExit();
 				} else {

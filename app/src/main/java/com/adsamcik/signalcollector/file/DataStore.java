@@ -114,20 +114,8 @@ public class DataStore {
 	 * @param lastFileSizeThreshold Include last datafile if it exceeds this size
 	 * @return array of datafile names
 	 */
-	public static String[] getDataFileNames(@NonNull Context context, @IntRange(from = 0) int lastFileSizeThreshold) {
-		int maxID = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, -1);
-		if (maxID == -1)
-			return new String[0];
-
-		if (lastFileSizeThreshold > 0) {
-			if (sizeOf(context, DATA_FILE + maxID) < lastFileSizeThreshold)
-				maxID--;
-		}
-
-		String[] fileNames = new String[maxID + 1];
-		for (int i = 0; i <= maxID; i++)
-			fileNames[i] = DATA_FILE + i;
-		return fileNames;
+	public static File[] getDataFiles(@NonNull Context context, @IntRange(from = 0) int lastFileSizeThreshold) {
+		return getDir(context).listFiles((file, s) -> s.startsWith(DATA_FILE));
 	}
 
 	/**
@@ -192,13 +180,12 @@ public class DataStore {
 	 * @return total size of data
 	 */
 	public static long recountData(@NonNull Context context) {
-		String[] fileNames = getDataFileNames(context, 0);
-		if (fileNames == null)
+		File[] files = getDataFiles(context, 0);
+		if (files == null)
 			return 0;
 		long size = 0;
 		collectionsOnDevice = 0;
-		for (String fileName : fileNames) {
-			File file = file(context, fileName);
+		for (File file : files) {
 			size += file.length();
 			collectionsOnDevice += DataFile.getCollectionCount(file);
 		}
