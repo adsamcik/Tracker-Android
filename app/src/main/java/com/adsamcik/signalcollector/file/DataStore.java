@@ -469,6 +469,8 @@ public class DataStore {
 				Gson gson = new Gson();
 				ArrayList<UploadStats> stats = gson.fromJson(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE)), new TypeToken<List<UploadStats>>() {
 				}.getType());
+				if(stats == null)
+					 return;
 				for (int i = 0; i < stats.size(); i++) {
 					if (Assist.getAgeInDays(stats.get(i).time) > 30)
 						stats.remove(i--);

@@ -332,7 +332,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> createClearDialog(context, CacheStore::clearAll, R.string.settings_cleared_all_cache_files));
 		rootView.findViewById(R.id.dev_button_data_clear).setOnClickListener((v) -> createClearDialog(context, DataStore::clearAll, R.string.settings_cleared_all_data_files));
-		rootView.findViewById(R.id.dev_button_upload_reports_clear).setOnClickListener((v) -> createClearDialog(context, c -> DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE), R.string.settings_cleared_all_upload_reports));
+		rootView.findViewById(R.id.dev_button_upload_reports_clear).setOnClickListener((v) -> createClearDialog(context, c -> {
+			DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
+			Preferences.get(context).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply();
+		}, R.string.settings_cleared_all_upload_reports));
 
 		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> createFileAlertDialog(context, context.getFilesDir(), (file) -> {
 			String name = file.getName();
