@@ -410,8 +410,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		alertDialogBuilder.create().show();
 	}
 
-	private void createFileAlertDialog(@NonNull Context context, @NonNull File folder, @Nullable IVerify<File> verifyFunction) {
-		File[] files = folder.listFiles();
+	private void createFileAlertDialog(@NonNull Context context, @NonNull File directory, @Nullable IVerify<File> verifyFunction) {
+		File[] files = directory.listFiles();
 		ArrayList<String> temp = new ArrayList<>();
 		for (File file : files) {
 			if (verifyFunction == null || verifyFunction.verify(file)) {
@@ -427,8 +427,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				.setTitle(getString(R.string.dev_browse_files))
 				.setItems(temp.toArray(fileNames), (dialog, which) -> {
 					Intent intent = new Intent(getActivity(), DebugFileActivity.class);
-					intent.putExtra("folder", folder.getPath());
-					intent.putExtra("fileName", fileNames[which]);
+					intent.putExtra("directory", directory.getPath());
+					intent.putExtra("fileName", fileNames[which].substring(0, fileNames[which].lastIndexOf('|')));
 					startActivity(intent);
 				})
 				.setNegativeButton(R.string.cancel, (dialog, which) -> {
