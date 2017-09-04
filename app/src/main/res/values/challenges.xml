@@ -30,11 +30,11 @@
     <string name="challenge_cross_country_description">Climb %1$s meters while on foot</string>
 
     <string name="challenge_memory_lane_title">Trip down memory lane</string>
-    <string name="challenge_memory_lane_description">Revisit %1$s already collected locations</string>
+    <string name="challenge_memory_lane_description">Revisit %1$s already collected locations on foot</string>
 
     <string name="challenge_alphabet_title">A is for alphabet</string>
     <string name="challenge_alphabet_description">Find %1$s wifi networks containing the symbol %2$s</string>
 
     <string name="challenge_cell_range_title">Stay in range</string>
-    <string name="challenge_cell_range_description">Collect %1$s locations without losing cell signal</string>
+    <string name="challenge_cell_range_description">Make %1$s collections without losing cell signal</string>
 </resources>
