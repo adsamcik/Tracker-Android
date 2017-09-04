@@ -95,7 +95,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 			adapter.add(lastUpload);
 		}
 
-		Table weeklyStats = new Table(4, false, ContextCompat.getColor(activity, R.color.text_primary), CARD_LIST_MARGIN, AppendBehavior.FirstFirst);
+		Table weeklyStats = new Table(4, false, CARD_LIST_MARGIN, AppendBehavior.FirstFirst);
 		weeklyStats.setTitle(r.getString(R.string.stats_weekly_title));
 		StatDay weekStats = Preferences.countStats(activity);
 		weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), String.valueOf(weekStats.getMinutes()));
@@ -149,10 +149,9 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 * @param stats stats
 	 */
 	private void addStatsTable(@NonNull Context context, @NonNull Stat[] stats, @NonNull AppendBehavior appendBehavior) {
-		int color = ContextCompat.getColor(context, R.color.text_primary);
 		for (Stat s : stats) {
 			if (s.data != null) {
-				Table table = new Table(s.data.size(), s.showPosition, color, CARD_LIST_MARGIN, appendBehavior);
+				Table table = new Table(s.data.size(), s.showPosition, CARD_LIST_MARGIN, appendBehavior);
 				table.setTitle(s.name);
 				for (int y = 0; y < s.data.size(); y++) {
 					StatData sd = s.data.get(y);

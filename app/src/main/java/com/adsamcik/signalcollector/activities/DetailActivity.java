@@ -9,11 +9,13 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.utility.Preferences;
 
 public abstract class DetailActivity extends Activity {
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
+		setTheme(Preferences.getTheme(this));
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_content_detail);
 		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));

@@ -10,7 +10,7 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="80dp"
-        android:background="@color/color_primary"
+        android:background="?colorPrimary"
         android:elevation="4dp"
         android:paddingTop="@dimen/status_bar_height"
         tools:ignore="UselessParent">
@@ -23,7 +23,7 @@
             android:contentDescription="@string/button_back"
             android:padding="16dp"
             android:src="@drawable/ic_arrow_back_black_24dp"
-            android:tint="@color/text_primary"/>
+            android:tint="?titleColor"/>
 
         <TextView
             android:id="@+id/content_detail_title"
@@ -35,7 +35,7 @@
             android:maxLines="1"
             android:paddingTop="14dp"
             android:text="Lorem ipsum"
-            android:textColor="@color/text_primary"
+            android:textColor="?titleColor"
             android:textSize="@dimen/primary_text_size"
             android:textStyle="bold"
             tools:ignore="HardcodedText"/>

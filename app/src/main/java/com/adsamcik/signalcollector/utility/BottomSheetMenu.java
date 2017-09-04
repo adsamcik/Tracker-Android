@@ -1,8 +1,10 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.os.Handler;
 import android.os.Looper;
+import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
 import android.support.design.widget.BottomSheetBehavior;
@@ -24,6 +26,8 @@ public class BottomSheetMenu {
 	private final ArrayList<Button> menuItems;
 	private final BottomSheetBehavior bottomSheetBehavior;
 
+	private final @ColorInt int textColor;
+
 	public BottomSheetMenu(@NonNull CoordinatorLayout root) {
 		Context context = root.getContext();
 		/*menuRoot = new LinearLayout(context);
@@ -43,6 +47,10 @@ public class BottomSheetMenu {
 		bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
 
 		menuItems = new ArrayList<>();
+		TypedValue typedValue = new TypedValue();
+		//inverse text color returned weird values
+		context.getTheme().resolveAttribute(R.attr.titleColor, typedValue, true);
+		textColor = typedValue.data;
 	}
 
 	public void addItem(@StringRes int title, View.OnClickListener onClickListener) {
@@ -53,6 +61,7 @@ public class BottomSheetMenu {
 		button.setBackgroundResource(typedValue.resourceId);
 		button.setOnClickListener(onClickListener);
 		button.setText(title);
+		button.setTextColor(textColor);
 		menuItems.add(button);
 
 		menuRoot.addView(button);

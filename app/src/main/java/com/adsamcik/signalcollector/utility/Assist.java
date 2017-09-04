@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.RippleDrawable;
@@ -16,12 +17,15 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.provider.Settings;
+import android.support.annotation.ColorInt;
+import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.res.ResourcesCompat;
 import android.telephony.TelephonyManager;
 import android.util.DisplayMetrics;
+import android.util.TypedValue;
 import android.view.Display;
 import android.view.View;
 import android.view.ViewGroup;
@@ -423,6 +427,10 @@ public class Assist {
 		return new ColorDrawable(color);
 	}
 
+	public static int invertColor(@ColorInt int color) {
+		return Color.argb(Color.alpha(color), 255 - Color.red(color), 255 - Color.green(color), 255 - Color.blue(color));
+	}
+
 	/**
 	 * Animate smooth scroll to y coordinate
 	 *
@@ -476,7 +484,7 @@ public class Assist {
 	 */
 	public static ColorStateList[] getSelectionStateLists(@NonNull Resources resources, @NonNull Resources.Theme theme) {
 		return new ColorStateList[]{
-				ResourcesCompat.getColorStateList(resources, R.color.default_value, theme),
+				ResourcesCompat.getColorStateList(resources, R.color.default_value, theme).withAlpha(resources.getInteger(R.integer.inactive_alpha)),
 				ResourcesCompat.getColorStateList(resources, R.color.selected_value, theme)
 		};
 	}

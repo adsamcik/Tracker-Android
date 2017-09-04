@@ -41,7 +41,7 @@ public class UploadReportsActivity extends DetailActivity {
 	 */
 	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, @NonNull Context context, @Nullable String title, @NonNull AppendBehavior appendBehavior) {
 		Resources resources = context.getResources();
-		Table t = new Table(9, false, ContextCompat.getColor(context, R.color.text_primary), 16, appendBehavior);
+		Table t = new Table(9, false, 16, appendBehavior);
 
 
 		if (title == null) {

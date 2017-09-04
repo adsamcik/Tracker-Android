@@ -18,6 +18,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.Signin;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 
 import java.io.IOException;

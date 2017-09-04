@@ -2,12 +2,15 @@ package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.content.res.TypedArray;
 import android.graphics.Typeface;
+import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.CardView;
 import android.util.DisplayMetrics;
 import android.util.Pair;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,8 +40,6 @@ public class Table {
 
 	private final boolean showNumber;
 
-	private final int textColor;
-
 	private final int marginDp;
 
 	/**
@@ -47,10 +48,9 @@ public class Table {
 	 * @param rowCount   number of data (used to initialize array holding data)
 	 * @param showNumber show number of row (starts at 1)
 	 */
-	public Table(int rowCount, boolean showNumber, int textColor, int marginDp, @NonNull AppendBehavior appendBehavior) {
+	public Table(int rowCount, boolean showNumber, int marginDp, @NonNull AppendBehavior appendBehavior) {
 		this.data = new ArrayList<>(rowCount);
 		this.showNumber = showNumber;
-		this.textColor = textColor;
 		this.appendBehavior = appendBehavior;
 		this.marginDp = marginDp;
 	}
@@ -150,13 +150,11 @@ public class Table {
 			rowNum.setText(String.format(Locale.UK, "%d", index + 1));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			rowNum.setTextSize(16);
-			rowNum.setTextColor(textColor);
 			row.addView(rowNum);
 		}
 
 		TextView textId = new TextView(context);
 		textId.setText(data.get(index).first);
-		textId.setTextColor(textColor);
 		textId.setTextSize(15);
 		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 3f));
 		row.addView(textId);
@@ -169,7 +167,6 @@ public class Table {
 			textValue.setText(value);
 		}
 		textValue.setTextSize(15);
-		textValue.setTextColor(textColor);
 		textValue.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f));
 		textValue.setGravity(Gravity.END);
 		row.addView(textValue);
@@ -184,7 +181,6 @@ public class Table {
 		Resources r = context.getResources();
 
 		CardView cardView = new CardView(context);
-		cardView.setCardBackgroundColor(ContextCompat.getColor(context, R.color.cardview_dark_background));
 
 		TableLayout layout = new TableLayout(context);
 
@@ -195,7 +191,6 @@ public class Table {
 			TextView label = new TextView(context);
 			label.setTextSize(18);
 			label.setText(title);
-			label.setTextColor(textColor);
 			label.setTypeface(null, Typeface.BOLD);
 			label.setGravity(Gravity.CENTER);
 			label.setPadding(0, 0, 0, 30);

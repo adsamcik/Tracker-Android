@@ -7,6 +7,7 @@ import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.StatDay;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.gson.Gson;
@@ -20,6 +21,9 @@ import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 
 public class Preferences {
 	private static final String TAG = "SignalsSetting";
+
+	public static final String PREF_THEME = "theme";
+	public static final int DEFAULT_THEME = R.style.AppThemeDark;
 
 	public static final String LAST_VERSION = "lastVersion";
 
@@ -110,6 +114,10 @@ public class Preferences {
 		if (sharedPreferences == null)
 			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.getApplicationContext());
 		return sharedPreferences;
+	}
+
+	public static int getTheme(@NonNull Context context) {
+		return get(context).getInt(Preferences.PREF_THEME, DEFAULT_THEME);
 	}
 
 	/**

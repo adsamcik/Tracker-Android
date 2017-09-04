@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.utility.Preferences;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public class NoiseTestingActivity extends DetailActivity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
+		setTheme(Preferences.getTheme(this));
 		super.onCreate(savedInstanceState);
 
 		View v = getLayoutInflater().inflate(R.layout.layout_noise_testing, createContentParent(false));

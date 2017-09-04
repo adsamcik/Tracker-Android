@@ -10,6 +10,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -117,7 +118,17 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			((TextView) view.findViewById(R.id.challenge_title)).setText(challenge.getTitle());
 			((TextView) view.findViewById(R.id.challenge_description)).setText(challenge.getDescription());
 
-			view.setBackgroundColor(challenge.isDone() ? ContextCompat.getColor(getContext(), R.color.background_success) : ContextCompat.getColor(getContext(), R.color.card_background));
+			Context context = getContext();
+
+			int color;
+			if(challenge.isDone()) {
+				color = ContextCompat.getColor(getContext(), R.color.background_success);
+			} else {
+				TypedValue typedValue = new TypedValue();
+				context.getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+				color = typedValue.data;
+			}
+			view.setBackgroundColor(color);
 			return view;
 		}
 	}

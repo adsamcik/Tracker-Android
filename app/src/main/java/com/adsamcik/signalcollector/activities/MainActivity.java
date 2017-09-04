@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.utility.Constants;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.fragments.FragmentTracker;
@@ -50,6 +51,7 @@ public class MainActivity extends FragmentActivity {
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
+		setTheme(Preferences.getTheme(this));
 		super.onCreate(savedInstanceState);
 
 		setContentView(R.layout.activity_main);

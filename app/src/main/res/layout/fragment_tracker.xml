@@ -19,7 +19,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:padding="@dimen/main_data_padding">
+            android:padding="@dimen/main_data_padding"
+            android:baselineAligned="false">
 
             <LinearLayout
                 android:layout_width="0dp"

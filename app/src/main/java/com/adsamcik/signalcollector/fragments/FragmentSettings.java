@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -119,8 +120,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	};
 
 	private void updateTracking(int select) {
-		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_TRACKING, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -135,17 +134,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			default:
 				return;
 		}
-		FirebaseAssist.updateValue(context, FirebaseAssist.autoUploadString, trackingString[select]);
+		FirebaseAssist.updateValue(getContext(), FirebaseAssist.autoUploadString, trackingString[select]);
 		trackDesc.setText(trackingString[select]);
-		if (mTrackingSelected != null)
-			mTrackingSelected.setImageTintList(mDefaultState);
-		selected.setImageTintList(mSelectedState);
+		updateState(mTrackingSelected, selected, select);
 		mTrackingSelected = selected;
 	}
 
 	private void updateAutoup(int select) {
-		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_UPLOAD, select).apply();
 		ImageView selected;
 		switch (select) {
 			case 0:
@@ -160,13 +155,26 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			default:
 				return;
 		}
-		FirebaseAssist.updateValue(context, FirebaseAssist.autoUploadString, autoupString[select]);
+		FirebaseAssist.updateValue(getContext(), FirebaseAssist.autoUploadString, autoupString[select]);
 
 		autoupDesc.setText(autoupString[select]);
-		if (mAutoupSelected != null)
-			mAutoupSelected.setImageTintList(mDefaultState);
-		selected.setImageTintList(mSelectedState);
+		updateState(mAutoupSelected, selected, select);
 		mAutoupSelected = selected;
+	}
+
+	private void updateState(@Nullable ImageView selected, @NonNull ImageView select, int index) {
+		Context context = getContext();
+		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_TRACKING, index).apply();
+
+		if (selected != null)
+			setInactive(selected);
+		select.setImageTintList(mSelectedState);
+		select.setImageAlpha(Color.alpha(mSelectedState.getDefaultColor()));
+	}
+
+	private void setInactive(@NonNull ImageView item) {
+		item.setImageTintList(mDefaultState);
+		item.setImageAlpha(Color.alpha(mDefaultState.getDefaultColor()));
 	}
 
 	@Override
@@ -194,17 +202,23 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		trackingNone = rootView.findViewById(R.id.tracking_none);
 		trackingNone.setOnClickListener(v -> updateTracking(0));
+		setInactive(trackingNone);
 		trackingOnFoot = rootView.findViewById(R.id.tracking_onfoot);
 		trackingOnFoot.setOnClickListener(v -> updateTracking(1));
+		setInactive(trackingOnFoot);
 		trackingAlways = rootView.findViewById(R.id.tracking_always);
 		trackingAlways.setOnClickListener(v -> updateTracking(2));
+		setInactive(trackingAlways);
 
 		autoupDisabled = rootView.findViewById(R.id.autoupload_disabled);
 		autoupDisabled.setOnClickListener(v -> updateAutoup(0));
+		setInactive(autoupDisabled);
 		autoupWifi = rootView.findViewById(R.id.autoupload_wifi);
 		autoupWifi.setOnClickListener(v -> updateAutoup(1));
+		setInactive(autoupWifi);
 		autoupAlways = rootView.findViewById(R.id.autoupload_always);
 		autoupAlways.setOnClickListener(v -> updateAutoup(2));
+		setInactive(autoupAlways);
 
 		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
 		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
@@ -262,6 +276,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});*/
 
 		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
+
+		Switch darkThemeSwitch = rootView.findViewById(R.id.switchDarkTheme);
+		darkThemeSwitch.setChecked(Preferences.getTheme(context) == R.style.AppThemeDark);
+		darkThemeSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			int theme = b ? R.style.AppThemeDark : R.style.AppTheme;
+			Preferences.get(context).edit().putInt(Preferences.PREF_THEME, theme).apply();
+			context.getApplicationContext().setTheme(theme);
+			Activity activity = getActivity();
+			activity.finish();
+			startActivity(activity.getIntent());
+		});
+
 		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
 			if (b) {
 				Bundle bundle = new Bundle();

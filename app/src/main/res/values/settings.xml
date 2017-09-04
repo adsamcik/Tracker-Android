@@ -38,6 +38,7 @@
     <string name="noise">Noise β</string>
     <string name="location">Location</string>
     <string name="settings_allow_notifications_upload">Allow upload notifications</string>
+    <string name="settings_use_dark_theme">Dark theme</string>
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="settings_autoupload_at">Autoupload at</string>
     <string name="settings_autoupload_at_value">%1$d MB</string>

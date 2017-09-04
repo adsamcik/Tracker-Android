@@ -3,7 +3,7 @@
               xmlns:tools="http://schemas.android.com/tools"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
-              android:background="@color/card_background"
+              android:background="?android:colorBackground"
               android:orientation="vertical"
               android:padding="@dimen/edge_margin"
               tools:ignore="HardcodedText">
@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:text="Lorem ipsum dolor sit amet"
         android:textAllCaps="true"
-        android:textColor="@color/text_primary"
+        android:textColor="?android:textColorPrimary"
         android:textSize="@dimen/primary_text_size"
         android:textStyle="bold"/>
 
@@ -23,6 +23,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Far far away, behind the word mountains, far from the countries Vokalia and Consonantia, there live the blind texts."
-        android:textColor="@color/text_secondary"
+        android:textColor="?android:textColorSecondary"
         android:textSize="@dimen/secondary_text_size"/>
 </LinearLayout>
