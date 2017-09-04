@@ -23,7 +23,7 @@ public class Preferences {
 	private static final String TAG = "SignalsSetting";
 
 	public static final String PREF_THEME = "theme";
-	public static final int DEFAULT_THEME = R.style.AppThemeDark;
+	public static final int DEFAULT_THEME = R.style.AppTheme;
 
 	public static final String LAST_VERSION = "lastVersion";
 
