@@ -1,11 +1,9 @@
 package com.adsamcik.signalcollector.file;
 
-import android.content.Context;
 import android.os.Build;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.util.MalformedJsonException;
 
 import com.adsamcik.signalcollector.BuildConfig;
@@ -23,7 +21,6 @@ import java.lang.annotation.RetentionPolicy;
 
 import static com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX;
 import static com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX;
-import static com.adsamcik.signalcollector.file.DataStore.delete;
 
 public class DataFile {
 	public static final int STANDARD = 0;

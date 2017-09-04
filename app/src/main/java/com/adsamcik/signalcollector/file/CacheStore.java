@@ -5,8 +5,6 @@ import android.support.annotation.NonNull;
 
 import java.io.File;
 
-import static com.adsamcik.signalcollector.file.FileStore.file;
-
 public class CacheStore {
 
 	public static File file(@NonNull Context context, @NonNull String fileName) {

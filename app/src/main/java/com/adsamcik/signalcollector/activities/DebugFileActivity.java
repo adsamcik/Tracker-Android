@@ -1,13 +1,10 @@
 package com.adsamcik.signalcollector.activities;
 
 import android.os.Bundle;
-import android.util.TypedValue;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.file.FileStore;
 
 public class DebugFileActivity extends DetailActivity {

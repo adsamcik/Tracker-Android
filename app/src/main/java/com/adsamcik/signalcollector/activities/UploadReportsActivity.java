@@ -5,7 +5,6 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.content.ContextCompat;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 
@@ -14,17 +13,12 @@ import com.adsamcik.signalcollector.enums.AppendBehavior;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.utility.Constants;
-import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
 
-import java.lang.reflect.Array;
 import java.text.DateFormat;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.Date;
 
 import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;

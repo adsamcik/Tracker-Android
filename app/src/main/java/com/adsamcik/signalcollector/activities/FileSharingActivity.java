@@ -17,7 +17,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.file.CacheStore;
 import com.adsamcik.signalcollector.file.DataFile;
 import com.adsamcik.signalcollector.network.Signin;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;

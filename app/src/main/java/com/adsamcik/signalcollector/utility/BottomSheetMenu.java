@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.ColorInt;
