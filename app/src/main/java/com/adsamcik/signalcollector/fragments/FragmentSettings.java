@@ -421,7 +421,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		Collections.sort(temp, String::compareTo);
 
-		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
 		String[] fileNames = new String[temp.size()];
 		alertDialogBuilder
 				.setTitle(getString(R.string.dev_browse_files))
