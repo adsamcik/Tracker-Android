@@ -118,6 +118,13 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			((TextView) view.findViewById(R.id.challenge_title)).setText(challenge.getTitle());
 			((TextView) view.findViewById(R.id.challenge_description)).setText(challenge.getDescription());
 
+			TextView textViewDifficulty = view.findViewById(R.id.challenge_difficulty);
+			if(challenge.getDifficultyString() == null)
+				textViewDifficulty.setVisibility(View.GONE);
+			else
+				textViewDifficulty.setText(challenge.getDifficultyString());
+
+
 			Context context = getContext();
 
 			int color;
