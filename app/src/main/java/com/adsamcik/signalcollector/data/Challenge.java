@@ -35,7 +35,7 @@ public class Challenge {
 	 */
 	@SerializedName("difficulty")
 	private @ChallengeDifficulty
-	int difficulty;
+	int difficulty = ChallengeDifficulty.UNKNOWN;
 
 	@Expose(serialize = false, deserialize = false)
 	private String title;
