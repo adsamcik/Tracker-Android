@@ -70,7 +70,7 @@ public class TableAdapter extends BaseAdapter {
 
 	@Override
 	public View getView(int i, View view, ViewGroup viewGroup) {
-		if(view != null && view instanceof FrameLayout)
+		if(view != null)
 			return view;
 		ViewGroup v = (ViewGroup) tables.get(i).getView(context, true);
 
