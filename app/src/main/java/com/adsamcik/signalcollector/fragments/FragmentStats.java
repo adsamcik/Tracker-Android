@@ -133,7 +133,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		if (state.isDataAvailable())
 			activity.runOnUiThread(() -> {
 				//noinspection ConstantConditions
-				addStatsTable(activity, value, appendBehavior);
+				addStatsTable(value, appendBehavior);
 				adapter.sort();
 				if (refreshingCount == 0 && refreshLayout != null)
 					refreshLayout.setRefreshing(false);
@@ -147,7 +147,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 *
 	 * @param stats stats
 	 */
-	private void addStatsTable(@NonNull Context context, @NonNull Stat[] stats, @NonNull AppendBehavior appendBehavior) {
+	private void addStatsTable(@NonNull Stat[] stats, @NonNull AppendBehavior appendBehavior) {
 		for (Stat s : stats) {
 			if (s.data != null) {
 				Table table = new Table(s.data.size(), s.showPosition, CARD_LIST_MARGIN, appendBehavior);
