@@ -93,8 +93,7 @@
             android:layout_alignParentEnd="true"
             android:text="@string/send"
             android:textAlignment="center"
-            android:textAllCaps="true"
-            android:textColor="@color/text_primary"/>
+            android:textAllCaps="true"/>
 
         <Button
             android:id="@+id/feedback_cancel_button"
@@ -104,7 +103,6 @@
             android:layout_toStartOf="@id/feedback_send_button"
             android:text="@string/cancel"
             android:textAlignment="center"
-            android:textAllCaps="true"
-            android:textColor="@color/text_primary"/>
+            android:textAllCaps="true"/>
     </RelativeLayout>
 </LinearLayout>
