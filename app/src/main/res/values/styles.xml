@@ -83,7 +83,9 @@
     <style name="Divider">
         <item name="android:layout_height">1dp</item>
         <item name="android:layout_width">match_parent</item>
-        <item name="android:background">@color/divider_color</item>
+        <item name="android:background">@drawable/rectangle</item>
+        <item name="android:backgroundTint">?android:textColorPrimary</item>
+        <item name="android:alpha">0.12</item>
     </style>
 
     <style name="ErrorTextAppearance" parent="@android:style/TextAppearance">

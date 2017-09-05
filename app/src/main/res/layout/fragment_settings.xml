@@ -345,9 +345,7 @@
             android:text="@string/export_share_button"/>
 
         <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height"
-            android:background="@color/divider_color"/>
+            style="@style/Divider"/>
 
         <TextView
             style="@style/SettingsTitle"

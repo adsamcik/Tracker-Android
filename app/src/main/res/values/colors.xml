@@ -11,7 +11,6 @@
     <color name="text_primary_dark">#df000000</color>
     <color name="text_secondary_dark">#8A000000</color>
     <color name="text_disabled">#80FFFFFF</color>
-    <color name="divider_color">#1FFFFFFF</color>
     <color name="error">#d32f2f</color>
     <color name="card_background">#424242</color>
     <color name="inactive_icon">#61FFFFFF</color>
