@@ -174,11 +174,19 @@ public class Challenge {
 		return done;
 	}
 
+	public int getDifficulty() {
+		return difficulty;
+	}
+
 	void setType(ChallengeType type) {
 		this.type = type;
 	}
 
 	void setDescVars(String[] descVars) {
 		this.descVars = descVars;
+	}
+
+	public void setDifficulty(int difficulty) {
+		this.difficulty = difficulty;
 	}
 }
