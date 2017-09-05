@@ -34,7 +34,8 @@ public class Challenge {
 	 * Difficulty of the challenge
 	 */
 	@SerializedName("difficulty")
-	private @ChallengeDifficulty int difficulty;
+	private @ChallengeDifficulty
+	int difficulty;
 
 	@Expose(serialize = false, deserialize = false)
 	private String title;
@@ -71,6 +72,10 @@ public class Challenge {
 
 	public String getDescription() {
 		return description;
+	}
+
+	public String getDifficultyString() {
+		return difficultyString;
 	}
 
 	public boolean isDone() {
@@ -167,7 +172,8 @@ public class Challenge {
 
 	//STAG CONSTRUCTOR GETTERS SETTERS//
 
-	Challenge() {}
+	Challenge() {
+	}
 
 	String[] getDescVars() {
 		return descVars;
@@ -177,7 +183,9 @@ public class Challenge {
 		return done;
 	}
 
-	int getDifficulty() {return difficulty;}
+	int getDifficulty() {
+		return difficulty;
+	}
 
 	void setType(ChallengeType type) {
 		this.type = type;
@@ -187,5 +195,7 @@ public class Challenge {
 		this.descVars = descVars;
 	}
 
-	void setDifficulty(int difficulty) {this.difficulty = difficulty;}
+	void setDifficulty(int difficulty) {
+		this.difficulty = difficulty;
+	}
 }
