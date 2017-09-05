@@ -146,6 +146,9 @@ public class Challenge {
 			case ChallengeDifficulty.VERY_HARD:
 				difficultyString = resources.getString(R.string.challenge_very_hard);
 				break;
+			default:
+				difficultyString = null;
+				break;
 		}
 	}
 
@@ -174,9 +177,7 @@ public class Challenge {
 		return done;
 	}
 
-	public int getDifficulty() {
-		return difficulty;
-	}
+	int getDifficulty() {return difficulty;}
 
 	void setType(ChallengeType type) {
 		this.type = type;
@@ -186,7 +187,5 @@ public class Challenge {
 		this.descVars = descVars;
 	}
 
-	public void setDifficulty(int difficulty) {
-		this.difficulty = difficulty;
-	}
+	void setDifficulty(int difficulty) {this.difficulty = difficulty;}
 }
