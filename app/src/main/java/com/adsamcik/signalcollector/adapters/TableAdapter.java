@@ -70,6 +70,7 @@ public class TableAdapter extends BaseAdapter {
 
 	@Override
 	public View getView(int i, View view, ViewGroup viewGroup) {
+		//todo add proper view recycling
 		if(view != null)
 			return view;
 		ViewGroup v = (ViewGroup) tables.get(i).getView(context, true);
