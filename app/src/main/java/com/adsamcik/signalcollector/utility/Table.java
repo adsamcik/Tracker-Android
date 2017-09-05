@@ -25,8 +25,6 @@ import java.util.Locale;
 public class Table {
 	public final AppendBehavior appendBehavior;
 
-	private ViewGroup view = null;
-
 	public String getTitle() {
 		return title;
 	}
@@ -171,10 +169,6 @@ public class Table {
 	}
 
 	public View getView(@NonNull Context context, boolean requireWrapper) {
-		//todo caching breaks shadows
-		/*if (view != null)
-			return view;*/
-
 		Resources r = context.getResources();
 
 		CardView cardView = new CardView(context);
@@ -213,23 +207,9 @@ public class Table {
 				cardView.setLayoutParams(layoutParams);
 			}
 			frameLayout.addView(cardView);
-			return view = frameLayout;
+			return frameLayout;
 		}
 
-		return view = cardView;
-	}
-
-	/**
-	 * Removed all data from the table
-	 *
-	 * @return this table
-	 */
-	public Table clear() {
-		if (view != null) {
-			view.removeAllViewsInLayout();
-			view = null;
-		}
-		data.clear();
-		return this;
+		return cardView;
 	}
 }
