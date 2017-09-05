@@ -171,8 +171,9 @@ public class Table {
 	}
 
 	public View getView(@NonNull Context context, boolean requireWrapper) {
-		if (view != null)
-			return view;
+		//todo caching breaks shadows
+		/*if (view != null)
+			return view;*/
 
 		Resources r = context.getResources();
 
