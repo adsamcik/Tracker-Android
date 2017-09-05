@@ -40,11 +40,6 @@ public class TableAdapter extends BaseAdapter {
 	public void sort() {
 		Collections.sort(tables, (tx, ty) -> tx.appendBehavior.ordinal() - ty.appendBehavior.ordinal());
 		notifyDataSetChanged();
-
-		Log.d("ITEMS", "#### AFTER SORT ####");
-		for (Table t : tables) {
-			Log.d("ITEMS", t.getTitle() + " - " + t.appendBehavior.name());
-		}
 	}
 
 	public void remove(@NonNull final AppendBehavior appendBehavior) {
