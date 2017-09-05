@@ -19,6 +19,16 @@
         android:textStyle="bold"/>
 
     <TextView
+        android:id="@+id/challenge_difficulty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tougher than lorem"
+        android:textStyle="italic"
+        android:ellipsize="end"
+        android:textColor="?android:textColorSecondary"
+        android:textSize="@dimen/secondary_text_size"/>
+
+    <TextView
         android:id="@+id/challenge_description"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

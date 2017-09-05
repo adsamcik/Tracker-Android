@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_challenge_done_title">%1$s challenge completed</string>
-    <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge.</string>
-
     <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
     <string name="notification_challenge_unknown_description">Your version of Signals seems outdated. Please update.</string>
 
     <string name="challenge_error_name">Please update your app to latest version.</string>
+
+    <string name="notification_challenge_done_title">%1$s challenge completed</string>
+    <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge.</string>
+
+    <string name="challenge_very_easy">Very easy</string>
+    <string name="challenge_easy">Easy</string>
+    <string name="challenge_medium">Medium</string>
+    <string name="challenge_hard">Hard</string>
+    <string name="challenge_very_hard">Very hard</string>
 
     <string name="challenge_lawful_explorer_title">Lawful explorer</string>
     <string name="challenge_lawful_explorer_description">Collect %1$s new locations without breaking the speed limit of %2$s km/h</string>

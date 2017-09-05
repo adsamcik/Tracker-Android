@@ -5,6 +5,7 @@ import android.content.res.Resources;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.enums.ChallengeDifficulty;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import com.vimeo.stag.UseStag;
@@ -29,11 +30,20 @@ public class Challenge {
 	@SerializedName("descVars")
 	private String[] descVars;
 
+	/**
+	 * Difficulty of the challenge
+	 */
+	@SerializedName("difficulty")
+	private @ChallengeDifficulty int difficulty;
+
 	@Expose(serialize = false, deserialize = false)
 	private String title;
 
 	@Expose(serialize = false, deserialize = false)
 	private String description;
+
+	@Expose(serialize = false, deserialize = false)
+	private String difficultyString;
 
 	public Challenge(ChallengeType type, String title, String description, boolean done) {
 		this.type = type;
@@ -117,6 +127,24 @@ public class Challenge {
 				break;
 			default:
 				description = resources.getString(R.string.challenge_error_name);
+				break;
+		}
+
+		switch (difficulty) {
+			case ChallengeDifficulty.EASY:
+				difficultyString = resources.getString(R.string.challenge_easy);
+				break;
+			case ChallengeDifficulty.HARD:
+				difficultyString = resources.getString(R.string.challenge_hard);
+				break;
+			case ChallengeDifficulty.MEDIUM:
+				difficultyString = resources.getString(R.string.challenge_medium);
+				break;
+			case ChallengeDifficulty.VERY_EASY:
+				difficultyString = resources.getString(R.string.challenge_very_easy);
+				break;
+			case ChallengeDifficulty.VERY_HARD:
+				difficultyString = resources.getString(R.string.challenge_very_hard);
 				break;
 		}
 	}

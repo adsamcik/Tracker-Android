@@ -236,7 +236,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 
 		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
-			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
 			alertDialogBuilder
 					.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> DataStore.clearAllData(context))
 					.setNegativeButton(getResources().getText(R.string.no), (dialog, which) -> {
@@ -397,7 +397,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void createClearDialog(@NonNull Context context, IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
-		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
+		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
 		alertDialogBuilder
 				.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> {
 					new SnackMaker(getActivity()).showSnackbar(snackBarString);
