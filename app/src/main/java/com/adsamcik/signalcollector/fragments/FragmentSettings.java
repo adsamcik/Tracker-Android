@@ -136,7 +136,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		}
 		FirebaseAssist.updateValue(getContext(), FirebaseAssist.autoUploadString, trackingString[select]);
 		trackDesc.setText(trackingString[select]);
-		updateState(mTrackingSelected, selected, select);
+		updateState(mTrackingSelected, selected, Preferences.PREF_AUTO_TRACKING, select);
 		mTrackingSelected = selected;
 	}
 
@@ -158,13 +158,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		FirebaseAssist.updateValue(getContext(), FirebaseAssist.autoUploadString, autoupString[select]);
 
 		autoupDesc.setText(autoupString[select]);
-		updateState(mAutoupSelected, selected, select);
+		updateState(mAutoupSelected, selected, Preferences.PREF_AUTO_UPLOAD, select);
 		mAutoupSelected = selected;
 	}
 
-	private void updateState(@Nullable ImageView selected, @NonNull ImageView select, int index) {
+	private void updateState(@Nullable ImageView selected, @NonNull ImageView select, @NonNull String preference, int index) {
 		Context context = getContext();
-		Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_TRACKING, index).apply();
+		Preferences.get(context).edit().putInt(preference, index).apply();
 
 		if (selected != null)
 			setInactive(selected);
