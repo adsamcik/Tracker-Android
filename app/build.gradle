@@ -8,8 +8,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 26
-        versionCode 212
-        versionName "4.6.2"
+        versionCode 213
+        versionName "4.6.3"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
