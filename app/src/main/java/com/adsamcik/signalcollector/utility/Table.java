@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.CardView;
 import android.util.DisplayMetrics;
@@ -88,7 +89,7 @@ public class Table {
 	 * @return this table
 	 */
 	public Table addButton(String text, View.OnClickListener callback) {
-		if(buttons == null)
+		if (buttons == null)
 			buttons = new ArrayList<>(2);
 		buttons.add(new Pair<>(text, callback));
 		return this;
@@ -168,24 +169,57 @@ public class Table {
 		return row;
 	}
 
-	public View getView(@NonNull Context context, boolean requireWrapper) {
+	/**
+	 * Generates view for the table
+	 *
+	 * @param context        context
+	 * @param requireWrapper FrameView wrapper for margin
+	 * @return card view with the new table
+	 */
+	public View getView(@NonNull Context context, @Nullable View recycle, boolean requireWrapper) {
 		Resources r = context.getResources();
+		boolean addWrapper = marginDp != 0 || requireWrapper;
 
-		CardView cardView = new CardView(context);
+		CardView cardView = null;
+		FrameLayout frameLayout = null;
+		if (recycle != null) {
+			if (recycle instanceof CardView) {
+				cardView = (CardView) recycle;
+			} else if (recycle instanceof FrameLayout) {
+				View viewTest = ((FrameLayout) recycle).getChildAt(0);
+				if (viewTest instanceof CardView) {
+					cardView = (CardView) viewTest;
+					frameLayout = (FrameLayout) recycle;
+					addWrapper = false;
+				}
+			}
+		}
 
-		TableLayout layout = new TableLayout(context);
+		if (cardView == null)
+			cardView = new CardView(context);
 
-		int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
-		layout.setPadding(hPadding, 30, hPadding, 30);
+		final int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
+
+		TableLayout layout = (TableLayout) cardView.getChildAt(0);
+		if (layout == null) {
+			layout = new TableLayout(context);
+			layout.setPadding(hPadding, 30, hPadding, 30);
+			cardView.addView(layout);
+		} else
+			layout.removeAllViews();
 
 		if (title != null) {
-			TextView label = new TextView(context);
-			label.setTextSize(18);
-			label.setText(title);
-			label.setTypeface(null, Typeface.BOLD);
-			label.setGravity(Gravity.CENTER);
-			label.setPadding(0, 0, 0, 30);
-			layout.addView(label, 0);
+			TextView titleView = (TextView) layout.getChildAt(0);
+			if(titleView == null) {
+				titleView = new TextView(context);
+				titleView.setTextSize(18);
+				titleView.setTypeface(null, Typeface.BOLD);
+				titleView.setGravity(Gravity.CENTER);
+				titleView.setPadding(0, 0, 0, 30);
+				layout.addView(titleView, 0);
+			}
+
+			titleView.setText(title);
 		}
 
 		for (int i = 0; i < data.size(); i++)
@@ -195,21 +229,18 @@ public class Table {
 		if (buttonsRow != null)
 			layout.addView(buttonsRow);
 
-		cardView.addView(layout);
+		if (addWrapper) {
+			frameLayout = new FrameLayout(context);
 
-		if (marginDp != 0 || requireWrapper) {
-			FrameLayout frameLayout = new FrameLayout(context);
-
-			if(marginDp != 0) {
+			if (marginDp != 0) {
 				FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 				int margin = Assist.dpToPx(context, this.marginDp);
 				layoutParams.setMargins(margin, margin, margin, margin);
 				cardView.setLayoutParams(layoutParams);
 			}
 			frameLayout.addView(cardView);
-			return frameLayout;
 		}
 
-		return cardView;
+		return frameLayout != null ? frameLayout : cardView;
 	}
 }

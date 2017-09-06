@@ -70,10 +70,7 @@ public class TableAdapter extends BaseAdapter {
 
 	@Override
 	public View getView(int i, View view, ViewGroup viewGroup) {
-		//todo add proper view recycling
-		if(view != null)
-			return view;
-		ViewGroup v = (ViewGroup) tables.get(i).getView(context, true);
+		ViewGroup v = (ViewGroup) tables.get(i).getView(context, view, true);
 
 		FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getChildAt(0).getLayoutParams();
 		lp.setMargins(lp.leftMargin, i > 0 ? itemMarginPx / 2 : itemMarginPx, lp.rightMargin, i < getCount() - 1 ? itemMarginPx / 2 : itemMarginPx);
