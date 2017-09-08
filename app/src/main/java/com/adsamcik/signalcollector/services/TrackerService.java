@@ -286,7 +286,7 @@ public class TrackerService extends Service {
 				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(System.currentTimeMillis())  // the time stamp
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
-				.setColor(ContextCompat.getColor(this, R.color.color_primary));
+				.setColor(ContextCompat.getColor(this, R.color.color_accent));
 
 		Intent stopIntent = new Intent(this, NotificationReceiver.class);
 		stopIntent.putExtra(NotificationReceiver.ACTION_STRING, backgroundActivated ? 0 : 1);

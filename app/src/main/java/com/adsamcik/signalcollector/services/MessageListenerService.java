@@ -163,7 +163,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 				break;
 		}
 
-		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.color_primary);
+		int notiColor = ContextCompat.getColor(getApplicationContext(), R.color.color_accent);
 
 		NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(this, getString(channelId))
 				.setSmallIcon(R.drawable.ic_signals)
