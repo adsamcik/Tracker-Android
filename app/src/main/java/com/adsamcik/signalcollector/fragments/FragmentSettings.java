@@ -246,7 +246,11 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			alertDialogBuilder.create().show();
 		});
 
-		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> startActivity(new Intent(getActivity(), IntroActivity.class)));
+		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> {
+			Activity activity = getActivity();
+			startActivity(new Intent(activity, IntroActivity.class));
+			activity.finish();
+		});
 
 		//getUser should not produce null exception if isSigned in is true
 		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), Preferences.DEFAULT_TRACKING_WIFI_ENABLED, null);
@@ -280,9 +284,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		Switch darkThemeSwitch = rootView.findViewById(R.id.switchDarkTheme);
 		darkThemeSwitch.setChecked(Preferences.getTheme(context) == R.style.AppThemeDark);
 		darkThemeSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
-			int theme = b ? R.style.AppThemeDark : R.style.AppTheme;
-			Preferences.get(context).edit().putInt(Preferences.PREF_THEME, theme).apply();
-			context.getApplicationContext().setTheme(theme);
+			int theme = b ? R.style.AppThemeDark : R.style.AppThemeLight;
+			Preferences.setTheme(context, theme);
 			Activity activity = getActivity();
 			activity.finish();
 			startActivity(activity.getIntent());
