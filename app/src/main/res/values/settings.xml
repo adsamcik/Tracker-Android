@@ -9,6 +9,11 @@
     <string name="autotracking_disabled_description">Automatic tracking disabled</string>
     <string name="autotracking_onfoot_description">Automatic tracking enabled on foot</string>
     <string name="autotracking_onfootvehicle_description">Automatic tracking enabled in car and on foot</string>
+    <string name="settings_battery_optimalizations_enabled">Battery optimalizations are enabled.</string>
+    <string name="settings_battery_optimalizations_enabled_tracking">Battery optimalizations are enabled! Automatic tracking may be unreliable. Tap to disable.</string>
+    <string name="settings_battery_optimalizations_disabled">Battery optimalizations are disabled.</string>
+    <string name="settings_battery_optimalizations_unknown">Battery optimalizations status is unknown.</string>
+    
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
         <item>Disabled</item>

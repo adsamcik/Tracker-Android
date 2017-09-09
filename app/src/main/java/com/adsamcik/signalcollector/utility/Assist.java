@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.utility;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -15,11 +16,13 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.res.ResourcesCompat;
 import android.telephony.TelephonyManager;
@@ -41,6 +44,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
+import static android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;
 import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS;
 
 public class Assist {
@@ -201,6 +205,15 @@ public class Assist {
 			return permissions.toArray(new String[permissions.size()]);
 		}
 		return null;
+	}
+
+	@RequiresApi(23)
+	public static void requestBatteryOptimalizationDisable(@NonNull Context context) {
+		/*Intent myIntent = new Intent();
+		myIntent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+		startActivity(myIntent);*/
+		//Causes issues with automatic tracking on stock Android 8+ and other devices Android 6+
+		context.startActivity(new Intent(ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(Uri.parse("package:" + context.getPackageName())));
 	}
 
 	/**

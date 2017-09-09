@@ -9,7 +9,9 @@ import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
@@ -180,7 +182,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		rootView = inflater.inflate(R.layout.fragment_settings, container, false);
-		final Context context = getContext();
+		final Context context = getContext().getApplicationContext();
 		final Resources resources = getResources();
 		final SharedPreferences sharedPreferences = Preferences.get(getContext());
 		final TextView versionView = rootView.findViewById(R.id.versionNum);
@@ -221,6 +223,28 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		setInactive(autoupAlways);
 
 		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
+		PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+		assert powerManager != null;
+		TextView batteryOptimalizationText = rootView.findViewById(R.id.settings_battery_optimalization_text);
+		if (Build.VERSION.SDK_INT < 23)
+			batteryOptimalizationText.setVisibility(View.GONE);
+		else {
+			if (powerManager.isIgnoringBatteryOptimizations(context.getPackageName()))
+				batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_disabled);
+			else {
+				if (Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) >= 1) {
+					batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_enabled_tracking);
+					batteryOptimalizationText.setTextColor(context.getColor(R.color.error));
+					batteryOptimalizationText.setOnClickListener(view -> {
+						Assist.requestBatteryOptimalizationDisable(context);
+						batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_unknown);
+						batteryOptimalizationText.setOnClickListener(null);
+					});
+				} else
+					batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_enabled);
+			}
+		}
+
 		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
 
 		signInButton = rootView.findViewById(R.id.sign_in_button);

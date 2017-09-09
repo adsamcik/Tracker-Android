@@ -167,6 +167,13 @@
                 android:src="@drawable/ic_directions_car_black_24dp"/>
         </RelativeLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:id="@+id/settings_battery_optimalization_text"
+            android:layout_height="wrap_content"
+            style="@style/SettingsText"
+            android:text="@string/settings_battery_optimalizations_enabled"/>
+
         <Switch
             android:id="@+id/switchDisableTrackingTillRecharge"
             style="@style/SettingsText"

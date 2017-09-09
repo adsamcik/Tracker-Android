@@ -1,13 +1,16 @@
 package com.adsamcik.signalcollector.activities;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -24,6 +27,7 @@ import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
@@ -36,10 +40,13 @@ import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS;
+import static android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;
+
 public class IntroActivity extends AppIntro2 {
 	private final String TAG = "SignalsIntro";
 	private final int LOCATION_PERMISSION_REQUEST_CODE = 201;
-	private AlertDialog.Builder autoUploadDialog;
+	private AlertDialog.Builder autoUploadDialog, batteryOptimalizationDialog;
 	private boolean openedTrackingAlert = false;
 	private boolean openedSigninAlert = false;
 	private boolean openedThemeAlert = false;
@@ -47,7 +54,7 @@ public class IntroActivity extends AppIntro2 {
 	private Fragment currentFragment;
 
 	private int requestedTracking = 0;
-
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		setTheme(Preferences.getTheme(this));
@@ -81,6 +88,17 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
+		batteryOptimalizationDialog = new AlertDialog.Builder(this)
+				.setTitle(R.string.intro_disable_battery_optimalizations_title)
+				.setMessage(R.string.intro_disable_battery_optimalizations_description)
+				.setPositiveButton(android.R.string.ok, (dialogInterface, i) -> {
+					if (Build.VERSION.SDK_INT >= 23)
+						Assist.requestBatteryOptimalizationDisable(this);
+					autoUploadDialog.show();
+				})
+				.setNegativeButton(android.R.string.cancel, (dialogInterface, i) -> autoUploadDialog.show())
+				.setCancelable(false);
+
 		ICallback automationSlideCallback = () -> {
 			if (!openedTrackingAlert && getProgress() == 1) {
 				openedTrackingAlert = true;
@@ -95,7 +113,10 @@ public class IntroActivity extends AppIntro2 {
 								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
 							} else {
 								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, requestedTracking).apply();
-								autoUploadDialog.show();
+								if (Build.VERSION.SDK_INT >= 23)
+									batteryOptimalizationDialog.show();
+								else
+									autoUploadDialog.show();
 							}
 						})
 						.setNegativeButton(options[1], ((dialogInterface, i) -> {
@@ -104,7 +125,10 @@ public class IntroActivity extends AppIntro2 {
 								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
 							} else {
 								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, requestedTracking).apply();
-								autoUploadDialog.show();
+								if (Build.VERSION.SDK_INT >= 23)
+									batteryOptimalizationDialog.show();
+								else
+									autoUploadDialog.show();
 							}
 						}))
 						.setNeutralButton(options[0], ((dialogInterface, i) -> {
@@ -116,6 +140,7 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
+
 		INonNullValueCallback<Integer> uploadSetCallback = (value) -> {
 			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply();
 			nextSlide(1);
@@ -126,15 +151,9 @@ public class IntroActivity extends AppIntro2 {
 				.setTitle(R.string.intro_enable_auto_upload_title)
 				.setMessage(R.string.intro_enable_auto_upload_description)
 				.setCancelable(false)
-				.setPositiveButton(uploadOptions[2], (dialog, whichButton) -> {
-					uploadSetCallback.callback(2);
-				})
-				.setNeutralButton(uploadOptions[1], (dialog, whichButton) -> {
-					uploadSetCallback.callback(1);
-				})
-				.setNegativeButton(uploadOptions[0], ((dialogInterface, i) -> {
-					uploadSetCallback.callback(0);
-				}));
+				.setPositiveButton(uploadOptions[2], (dialog, whichButton) -> uploadSetCallback.callback(2))
+				.setNeutralButton(uploadOptions[1], (dialog, whichButton) -> uploadSetCallback.callback(1))
+				.setNegativeButton(uploadOptions[0], ((dialogInterface, i) -> uploadSetCallback.callback(0)));
 		//askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 2);
 
 
@@ -145,9 +164,7 @@ public class IntroActivity extends AppIntro2 {
 				View v = getLayoutInflater().inflate(R.layout.intro_dialog_signin, null);
 				AlertDialog dialog = new AlertDialog.Builder(this)
 						.setTitle(R.string.intro_enable_auto_tracking_title)
-						.setNegativeButton(R.string.cancel, ((dialogInterface, i) -> {
-							Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply();
-						}))
+						.setNegativeButton(R.string.cancel, ((dialogInterface, i) -> Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply()))
 						.setCancelable(false)
 						.create();
 
@@ -215,7 +232,7 @@ public class IntroActivity extends AppIntro2 {
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
 		super.onSlideChanged(oldFragment, newFragment);
 		currentFragment = newFragment;
-		if(currentFragment != null) {
+		if (currentFragment != null) {
 			//no check to ensure further changes handle this case
 			FragmentIntro fragmentIntro = (FragmentIntro) currentFragment;
 			if (fragmentIntro.hasCallback())
@@ -238,7 +255,11 @@ public class IntroActivity extends AppIntro2 {
 		if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
 			boolean success = grantResults[0] == PackageManager.PERMISSION_GRANTED;
 			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, success ? requestedTracking : 0).apply();
-			autoUploadDialog.show();
+
+			if (success)
+				batteryOptimalizationDialog.show();
+			else
+				autoUploadDialog.show();
 		}
 	}
 

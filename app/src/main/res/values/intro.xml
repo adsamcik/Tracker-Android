@@ -11,11 +11,14 @@
     <string name="intro_enable_auto_tracking_description">Would you like to enable automatic tracking? You can later change this in settings.</string>
     <string name="intro_enable_auto_tracking_description_23">Would you like to automatically tracking? Tracking requires location permission. You can later change this in settings.</string>
 
+    <string name="intro_disable_battery_optimalizations_title">Disable battery optimalizations?</string>
+    <string name="intro_disable_battery_optimalizations_description">Automatic tracking may be unreliable while battery optimalizations are enabled. Disabling them should have low impact on your battery life. Tracking itself is unaffected by battery optimalizations.</string>
+
     <string name="intro_enable_auto_upload_title">Automatic uploading</string>
     <string name="intro_enable_auto_upload_description">Would you like to enabled automatic uploading of tracked data on wifi?\nYou can later change this in settings.</string>
 
-    <string name="intro_auto_track_up_title">Automatic tracking and uploading</string>
-    <string name="intro_auto_track_up">Signals can automatically track and upload data.\nTo do so, Signals needs access to your GPS position\nYou can change when to track or upload any time settings.</string>
+    <string name="intro_auto_track_up_title">Automatization</string>
+    <string name="intro_auto_track_up">Signals can take care of tracking and uploading automatically for you if you enable it.</string>
 
     <string name="intro_welcome_title">First things first</string>
     <string name="intro_welcome_description">Light or Dark? (App theme)</string>
