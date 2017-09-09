@@ -3,7 +3,6 @@
               xmlns:tools="http://schemas.android.com/tools"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
-              android:background="?android:colorBackground"
               android:orientation="vertical"
               android:padding="@dimen/edge_margin"
               tools:ignore="HardcodedText">
@@ -14,9 +13,7 @@
         android:layout_height="wrap_content"
         android:text="Lorem ipsum dolor sit amet"
         android:textAllCaps="true"
-        android:textColor="?android:textColorPrimary"
-        android:textSize="@dimen/primary_text_size"
-        android:textStyle="bold"/>
+        style="@style/Base.TextAppearance.AppCompat.Subhead"/>
 
     <TextView
         android:id="@+id/challenge_difficulty"
@@ -25,14 +22,12 @@
         android:text="Tougher than lorem"
         android:textStyle="italic"
         android:ellipsize="end"
-        android:textColor="?android:textColorSecondary"
-        android:textSize="@dimen/secondary_text_size"/>
+        style="@style/Base.TextAppearance.AppCompat.Small"/>
 
     <TextView
         android:id="@+id/challenge_description"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Far far away, behind the word mountains, far from the countries Vokalia and Consonantia, there live the blind texts."
-        android:textColor="?android:textColorSecondary"
-        android:textSize="@dimen/secondary_text_size"/>
+        style="@style/Base.TextAppearance.AppCompat.Body1"/>
 </LinearLayout>

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <android.support.v4.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
                                               android:layout_width="match_parent"
-                                              android:layout_height="match_parent">
+                                              android:layout_height="match_parent"
+                                              xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
                   xmlns:tools="http://schemas.android.com/tools"
@@ -10,18 +11,32 @@
                   android:orientation="vertical"
                   android:paddingTop="@dimen/status_bar_height">
 
-        <TextView
-            style="@style/Base.TextAppearance.AppCompat.Title"
+        <android.support.v7.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="@dimen/edge_margin"
-            android:text="@string/challenge_list_title"/>
+            android:layout_margin="@dimen/edge_margin">
 
-        <ListView
-            android:id="@+id/listview_challenges"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            tools:listitem="@layout/layout_challenge_small"/>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/Base.TextAppearance.AppCompat.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="@dimen/edge_margin"
+                    android:paddingEnd="@dimen/edge_margin"
+                    android:paddingTop="@dimen/edge_margin"
+                    android:text="@string/challenge_list_title"/>
+
+                <ListView
+                    android:id="@+id/listview_challenges"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    tools:listitem="@layout/layout_challenge_small"/>
+            </LinearLayout>
+        </android.support.v7.widget.CardView>
 
     </LinearLayout>
 </android.support.v4.widget.SwipeRefreshLayout>

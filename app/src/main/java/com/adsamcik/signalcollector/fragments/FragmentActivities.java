@@ -124,18 +124,8 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			else
 				textViewDifficulty.setText(challenge.getDifficultyString());
 
-
-			Context context = getContext();
-
-			int color;
-			if(challenge.isDone()) {
-				color = ContextCompat.getColor(getContext(), R.color.background_success);
-			} else {
-				TypedValue typedValue = new TypedValue();
-				context.getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
-				color = typedValue.data;
-			}
-			view.setBackgroundColor(color);
+			if(challenge.isDone())
+				view.setBackgroundColor(ContextCompat.getColor(getContext(), R.color.background_success));
 			return view;
 		}
 	}
