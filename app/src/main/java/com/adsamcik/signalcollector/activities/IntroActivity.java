@@ -13,6 +13,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.util.Pair;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -21,6 +22,8 @@ import android.widget.Toast;
 import com.adsamcik.signalcollector.fragments.FragmentIntro;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
@@ -42,6 +45,8 @@ public class IntroActivity extends AppIntro2 {
 	private boolean openedThemeAlert = false;
 
 	private Fragment currentFragment;
+
+	private int requestedTracking = 0;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -77,24 +82,33 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
-
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome_description), R.drawable.ic_intro_theme, Color.parseColor("#8B8B8B"), window, themeCallback));
-
 		ICallback automationSlideCallback = () -> {
 			if (!openedTrackingAlert && pager.getCurrentItem() == 1) {
 				openedTrackingAlert = true;
+
+				String[] options = getResources().getStringArray(R.array.background_tracking_options);
 				new AlertDialog.Builder(this)
 						.setTitle(R.string.intro_enable_auto_tracking_title)
 						.setMessage(Build.VERSION.SDK_INT >= 23 ? R.string.intro_enable_auto_tracking_description_23 : R.string.intro_enable_auto_tracking_description)
-						.setPositiveButton(R.string.yes, (dialog, whichButton) -> {
+						.setPositiveButton(options[2], (dialog, whichButton) -> {
+							requestedTracking = 2;
 							if (Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
 							} else {
-								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 1).apply();
+								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, requestedTracking).apply();
 								autoUploadDialog.show();
 							}
 						})
-						.setNegativeButton(R.string.no, ((dialogInterface, i) -> {
+						.setNegativeButton(options[1], ((dialogInterface, i) -> {
+							requestedTracking = 1;
+							if (Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+							} else {
+								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, requestedTracking).apply();
+								autoUploadDialog.show();
+							}
+						}))
+						.setNeutralButton(options[0], ((dialogInterface, i) -> {
 							Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply();
 							autoUploadDialog.show();
 						}))
@@ -103,20 +117,25 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
+		INonNullValueCallback<Integer> uploadSetCallback = (value) -> {
+			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply();
+			nextSlide(1);
+		};
+
+		String[] uploadOptions = getResources().getStringArray(R.array.automatic_upload_options);
 		autoUploadDialog = new AlertDialog.Builder(this)
 				.setTitle(R.string.intro_enable_auto_upload_title)
 				.setMessage(R.string.intro_enable_auto_upload_description)
 				.setCancelable(false)
-				.setPositiveButton(R.string.yes, (dialog, whichButton) -> {
-					Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, 1).apply();
-					nextSlide(1);
+				.setPositiveButton(uploadOptions[2], (dialog, whichButton) -> {
+					uploadSetCallback.callback(2);
 				})
-				.setNegativeButton(R.string.no, ((dialogInterface, i) -> {
-					Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, 0).apply();
-					nextSlide(1);
+				.setNeutralButton(uploadOptions[1], (dialog, whichButton) -> {
+					uploadSetCallback.callback(1);
+				})
+				.setNegativeButton(uploadOptions[0], ((dialogInterface, i) -> {
+					uploadSetCallback.callback(0);
 				}));
-
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback));
 		//askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 2);
 
 
@@ -149,7 +168,6 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
 		window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
 		window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
 		window.setStatusBarColor(Color.parseColor("#11A63D"));
@@ -157,6 +175,10 @@ public class IntroActivity extends AppIntro2 {
 		setProgressButtonEnabled(true);
 		setNavBarColor("#4c6699");
 		skipButtonEnabled = false;
+
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome_description), R.drawable.ic_intro_theme, Color.parseColor("#8B8B8B"), window, themeCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
 	}
 
 	private void nextSlide(int currentSlide) {
@@ -212,9 +234,8 @@ public class IntroActivity extends AppIntro2 {
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
 		if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-			boolean isSuccess = grantResults[0] == PackageManager.PERMISSION_GRANTED;
-			Toast.makeText(this, isSuccess ? R.string.intro_notification_enabled_auto_tracking : R.string.intro_notification_no_permission_auto_tracking, Toast.LENGTH_SHORT).show();
-			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, isSuccess ? 1 : 0).apply();
+			boolean success = grantResults[0] == PackageManager.PERMISSION_GRANTED;
+			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, success ? requestedTracking : 0).apply();
 			autoUploadDialog.show();
 		}
 	}
