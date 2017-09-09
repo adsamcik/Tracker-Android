@@ -182,7 +182,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		rootView = inflater.inflate(R.layout.fragment_settings, container, false);
-		final Context context = getContext().getApplicationContext();
+		final Context context = getContext();
 		final Resources resources = getResources();
 		final SharedPreferences sharedPreferences = Preferences.get(getContext());
 		final TextView versionView = rootView.findViewById(R.id.versionNum);
@@ -267,7 +267,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					})
 					.setMessage(getResources().getText(R.string.alert_clear_text));
 
-			alertDialogBuilder.create().show();
+			alertDialogBuilder.show();
 		});
 
 		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> {
@@ -434,7 +434,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				})
 				.setMessage(getResources().getText(R.string.alert_confirm_generic));
 
-		alertDialogBuilder.create().show();
+		alertDialogBuilder.show();
 	}
 
 	private void createFileAlertDialog(@NonNull Context context, @NonNull File directory, @Nullable IVerify<File> verifyFunction) {
