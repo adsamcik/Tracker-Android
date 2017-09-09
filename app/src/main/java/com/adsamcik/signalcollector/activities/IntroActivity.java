@@ -215,7 +215,6 @@ public class IntroActivity extends AppIntro2 {
 	public void onSlideChanged(@Nullable Fragment oldFragment, @Nullable Fragment newFragment) {
 		super.onSlideChanged(oldFragment, newFragment);
 		currentFragment = newFragment;
-		Log.d(TAG, "fragment");
 		if(currentFragment != null) {
 			//no check to ensure further changes handle this case
 			FragmentIntro fragmentIntro = (FragmentIntro) currentFragment;
