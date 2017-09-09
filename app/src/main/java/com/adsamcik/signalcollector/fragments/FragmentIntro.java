@@ -21,7 +21,7 @@ public final class FragmentIntro extends AppIntroBaseFragment implements ISlideP
 	@Override
 	public void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		if(window == null)
+		if (window == null)
 			window = getActivity().getWindow();
 	}
 
@@ -118,9 +118,13 @@ public final class FragmentIntro extends AppIntroBaseFragment implements ISlideP
 
 	@Override
 	public void onUserIllegallyRequestedNextPage() {
-		if (onLeaveCallback != null) {
+		if (hasCallback()) {
 			onLeaveCallback.callback();
 			onLeaveCallback = null;
 		}
+	}
+
+	public boolean hasCallback() {
+		return onLeaveCallback != null;
 	}
 }
