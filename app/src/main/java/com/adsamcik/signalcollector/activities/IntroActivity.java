@@ -62,8 +62,7 @@ public class IntroActivity extends AppIntro2 {
 		setColorTransitionsEnabled(true);
 
 		ICallback themeCallback = () -> {
-			Log.d(TAG, "callback");
-			if (!openedThemeAlert && pager.getCurrentItem() == 0) {
+			if (!openedThemeAlert && getProgress() == 0) {
 				openedThemeAlert = true;
 				new AlertDialog.Builder(this)
 						.setTitle(R.string.intro_theme_select_title)
@@ -83,7 +82,7 @@ public class IntroActivity extends AppIntro2 {
 		};
 
 		ICallback automationSlideCallback = () -> {
-			if (!openedTrackingAlert && pager.getCurrentItem() == 1) {
+			if (!openedTrackingAlert && getProgress() == 1) {
 				openedTrackingAlert = true;
 
 				String[] options = getResources().getStringArray(R.array.background_tracking_options);
@@ -140,7 +139,7 @@ public class IntroActivity extends AppIntro2 {
 
 
 		ICallback googleSigninSlideCallback = () -> {
-			if (!openedSigninAlert && pager.getCurrentItem() == 2) {
+			if (!openedSigninAlert && getProgress() == 2) {
 				openedSigninAlert = true;
 
 				View v = getLayoutInflater().inflate(R.layout.intro_dialog_signin, null);
@@ -182,8 +181,12 @@ public class IntroActivity extends AppIntro2 {
 	}
 
 	private void nextSlide(int currentSlide) {
-		if (pager.getCurrentItem() == currentSlide)
+		if (getProgress() == currentSlide)
 			pager.goToNextSlide();
+	}
+
+	private int getProgress() {
+		return isRtl() ? slidesNumber - pager.getCurrentItem() - 1 : pager.getCurrentItem();
 	}
 
 	/**
