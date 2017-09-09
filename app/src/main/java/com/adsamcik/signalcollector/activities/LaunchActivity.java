@@ -84,7 +84,8 @@ public class LaunchActivity extends Activity {
 			NotificationTools.prepareChannels(this);
 
 		if (BuildConfig.DEBUG) {
-			Log.d("Signals", FirebaseInstanceId.getInstance().getToken());
+			String token = FirebaseInstanceId.getInstance().getToken();
+			Log.d("Signals", token == null ? "null token" : token);
 		}
 
 		overridePendingTransition(0, 0);
