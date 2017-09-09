@@ -28,7 +28,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.enums.CloudStatus;
-import com.adsamcik.signalcollector.network.Signin;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;

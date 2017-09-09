@@ -32,7 +32,7 @@ import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.network.Signin;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;

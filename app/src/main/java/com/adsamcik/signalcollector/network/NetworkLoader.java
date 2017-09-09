@@ -9,6 +9,7 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.CacheStore;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;

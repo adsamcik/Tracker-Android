@@ -4,7 +4,7 @@ import android.content.pm.PackageManager;
 import android.support.v4.content.ContextCompat;
 
 import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.network.Signin;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.FirebaseInstanceIdService;
 

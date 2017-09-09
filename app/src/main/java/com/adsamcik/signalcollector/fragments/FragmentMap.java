@@ -31,7 +31,7 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.network.Signin;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.data.MapLayer;

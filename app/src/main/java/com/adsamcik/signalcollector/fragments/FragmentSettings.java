@@ -54,7 +54,7 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.network.Signin;
+import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
