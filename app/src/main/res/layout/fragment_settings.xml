@@ -133,7 +133,7 @@
             android:gravity="center"
             android:paddingTop="@dimen/setting_item_padding"
             android:textColor="?android:textColorPrimary"
-            android:textSize="@dimen/setting_text_size"/>
+            android:textSize="@dimen/primary_text_size"/>
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -192,7 +192,7 @@
             android:gravity="center"
             android:paddingTop="@dimen/setting_item_padding"
             android:textColor="?android:textColorPrimary"
-            android:textSize="@dimen/setting_text_size"/>
+            android:textSize="@dimen/primary_text_size"/>
 
         <RelativeLayout
             android:layout_width="match_parent"

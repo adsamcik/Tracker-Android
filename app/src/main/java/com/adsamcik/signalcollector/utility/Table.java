@@ -144,13 +144,11 @@ public class Table {
 			TextView rowNum = new TextView(context);
 			rowNum.setText(String.format(Locale.UK, "%d", index + 1));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
-			rowNum.setTextSize(16);
 			row.addView(rowNum);
 		}
 
 		TextView textId = new TextView(context);
 		textId.setText(data.get(index).first);
-		textId.setTextSize(15);
 		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 3f));
 		row.addView(textId);
 
@@ -161,7 +159,6 @@ public class Table {
 		} catch (NumberFormatException e) {
 			textValue.setText(value);
 		}
-		textValue.setTextSize(15);
 		textValue.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 2f));
 		textValue.setGravity(Gravity.END);
 		row.addView(textValue);

@@ -26,7 +26,7 @@
         <item name="android:padding">5dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textStyle">normal</item>
-        <item name="android:textSize">@dimen/setting_text_size</item>
+        <item name="android:textSize">@dimen/primary_text_size</item>
         <item name="android:textColor">?android:textColorPrimary</item>
     </style>
 
@@ -54,18 +54,19 @@
     <style name="SettingsTitle" parent="SettingsItem">
         <item name="android:textColor">?android:textColorSecondary</item>
         <item name="android:textSize">@dimen/secondary_text_size</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
     </style>
 
     <style name="SettingsText" parent="SettingsItem">
         <item name="android:textColor">?android:textColorPrimary</item>
-        <item name="android:textSize">@dimen/setting_text_size</item>
+        <item name="android:textSize">@dimen/primary_text_size</item>
     </style>
 
     <style name="SettingsTextNoParent">
         <item name="android:textColor">?android:textColorPrimary</item>
-        <item name="android:textSize">@dimen/setting_text_size</item>
+        <item name="android:textSize">@dimen/primary_text_size</item>
     </style>
 
     <style name="SettingsTextSmall">

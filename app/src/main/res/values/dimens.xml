@@ -10,11 +10,9 @@
     <dimen name="main_data_padding">16dp</dimen>
     <dimen name="main_card_elevation">2dp</dimen>
     <dimen name="main_card_spacing">10dp</dimen>
-    <dimen name="primary_text_size">20sp</dimen>
-    <dimen name="secondary_text_size">16sp</dimen>
+    <dimen name="primary_text_size">16sp</dimen>
+    <dimen name="secondary_text_size">14sp</dimen>
     <dimen name="setting_item_padding">16dp</dimen>
-    <dimen name="setting_title_text_size">15sp</dimen>
-    <dimen name="setting_text_size">17sp</dimen>
     <dimen name="fab_margin">16dp</dimen>
     <dimen name="fab_size">56dp</dimen>
     <dimen name="divider_height">2dp</dimen>
