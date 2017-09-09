@@ -18,6 +18,13 @@ public final class FragmentIntro extends AppIntroBaseFragment implements ISlideP
 	private Window window;
 	private ICallback onLeaveCallback;
 
+	@Override
+	public void onCreate(@Nullable Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		if(window == null)
+			window = getActivity().getWindow();
+	}
+
 	public static FragmentIntro newInstance(CharSequence title, CharSequence description,
 	                                        @DrawableRes int imageDrawable,
 	                                        @ColorInt int bgColor,
@@ -111,7 +118,7 @@ public final class FragmentIntro extends AppIntroBaseFragment implements ISlideP
 
 	@Override
 	public void onUserIllegallyRequestedNextPage() {
-		if(onLeaveCallback != null) {
+		if (onLeaveCallback != null) {
 			onLeaveCallback.callback();
 			onLeaveCallback = null;
 		}
