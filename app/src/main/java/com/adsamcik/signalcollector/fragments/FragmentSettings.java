@@ -461,7 +461,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				.setNegativeButton(R.string.cancel, (dialog, which) -> {
 				});
 
-		alertDialogBuilder.create().show();
+		alertDialogBuilder.show();
 	}
 
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
