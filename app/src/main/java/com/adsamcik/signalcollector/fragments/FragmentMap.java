@@ -87,6 +87,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private FloatingActionButton fabTwo, fabOne;
 	private FabMenu menu;
 
+	boolean showFabTwo;
+
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
 		if (requestCode == PERMISSION_LOCATION_CODE && success && getActivity() != null) {
@@ -193,7 +195,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 				final String defaultOverlay = savedOverlay;
 				activity.runOnUiThread(() -> {
-					if(menu != null) {
+					if (menu != null) {
 						if (menu.getItemCount() == 0)
 							changeMapOverlay(defaultOverlay);
 
@@ -201,7 +203,9 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 							for (MapLayer layer : layerArray)
 								menu.addItem(layer.name, activity);
 						}
-						fabTwo.show();
+						if (fabOne.isShown())
+							fabTwo.show();
+						showFabTwo = true;
 					}
 				});
 			}
@@ -291,7 +295,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	private void initializeLocationListener(@NonNull Context context) {
 		if (locationListener == null) {
-			SensorManager sensorManager =  (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+			SensorManager sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
 			assert sensorManager != null;
 			locationListener = new UpdateLocationListener(sensorManager);
 		}
@@ -337,11 +341,13 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 				searchText.clearFocus();
 			} else if (searchText.getVisibility() == View.VISIBLE) {
 				searchText.setVisibility(View.INVISIBLE);
-				fabTwo.hide();
+				if (showFabTwo)
+					fabTwo.hide();
 				fabOne.hide();
 			} else {
 				searchText.setVisibility(View.VISIBLE);
-				fabTwo.show();
+				if (showFabTwo)
+					fabTwo.show();
 				fabOne.show();
 			}
 		});
