@@ -23,7 +23,7 @@ public class Preferences {
 	private static final String TAG = "SignalsSetting";
 
 	public static final String PREF_THEME = "theme";
-	public static final int DEFAULT_THEME = R.style.AppTheme;
+	public static final int DEFAULT_THEME = R.style.AppThemeLight;
 
 	public static final String LAST_VERSION = "lastVersion";
 
@@ -117,7 +117,11 @@ public class Preferences {
 	}
 
 	public static int getTheme(@NonNull Context context) {
-		return get(context).getInt(Preferences.PREF_THEME, DEFAULT_THEME);
+		return get(context.getApplicationContext()).getInt(PREF_THEME, DEFAULT_THEME);
+	}
+
+	public static void setTheme(@NonNull Context context, int theme) {
+		get(context.getApplicationContext()).edit().putInt(PREF_THEME, theme).apply();
 	}
 
 	/**
