@@ -319,8 +319,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			int theme = b ? R.style.AppThemeDark : R.style.AppThemeLight;
 			Preferences.setTheme(context, theme);
 			Activity activity = getActivity();
-			startActivity(activity.getIntent());
 			activity.finish();
+			startActivity(activity.getIntent());
 		});
 
 		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
