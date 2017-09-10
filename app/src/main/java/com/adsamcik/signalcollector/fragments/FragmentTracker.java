@@ -28,6 +28,7 @@ import android.widget.TextView;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.enums.CloudStatus;
+import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
@@ -430,7 +431,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				textNoise.setText(res.getString(R.string.main_noise_disabled));*/
 
 			if (d.activity != null) {
-				textActivity.setText(String.format(res.getString(R.string.main_activity), Assist.getResolvedActivityName(context, d.activity)));
+				textActivity.setText(String.format(res.getString(R.string.main_activity), ActivityInfo.getResolvedActivityName(context, d.activity)));
 				textActivity.setVisibility(View.VISIBLE);
 			} else {
 				textActivity.setVisibility(View.GONE);

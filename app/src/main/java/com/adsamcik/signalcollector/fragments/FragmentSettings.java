@@ -44,6 +44,7 @@ import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.interfaces.IVerify;
 import com.adsamcik.signalcollector.network.Prices;
 import com.adsamcik.signalcollector.network.User;
+import com.adsamcik.signalcollector.services.ActivityService;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.CacheStore;
@@ -88,9 +89,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ImageView trackingNone, trackingOnFoot, trackingAlways;
 	private ImageView autoupDisabled, autoupWifi, autoupAlways;
 	private TextView autoupDesc, trackDesc, signInNoConnection;
-	private Switch switchNoise;
+	//private Switch switchNoise;
 
-	private ImageView mTrackingSelected, mAutoupSelected;
+	private ImageView mTrackingSelected = null, mAutoupSelected = null;
 
 	private SignInButton signInButton;
 	private LinearLayout signedInMenu;
@@ -100,7 +101,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ColorStateList mDefaultState;
 
 	private View rootView;
-
 
 	private int dummyNotificationIndex = 1972;
 
@@ -136,9 +136,17 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			default:
 				return;
 		}
+
 		FirebaseAssist.updateValue(getContext(), FirebaseAssist.autoUploadString, trackingString[select]);
 		trackDesc.setText(trackingString[select]);
 		updateState(mTrackingSelected, selected, Preferences.PREF_AUTO_TRACKING, select);
+
+		if (mTrackingSelected != null)
+			if (select == 0)
+				ActivityService.removeAutoTracking(getContext());
+			else
+				ActivityService.requestAutoTracking(getContext());
+
 		mTrackingSelected = selected;
 	}
 
@@ -659,7 +667,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
-		switch (requestCode) {
+		/*switch (requestCode) {
 			case REQUEST_CODE_PERMISSIONS_MICROPHONE:
 				if (success)
 					Preferences.get(getContext()).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, true).apply();
@@ -668,7 +676,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				break;
 			default:
 				throw new UnsupportedOperationException("Permissions with requestPOST code " + requestCode + " has no defined behavior");
-		}
+		}*/
 	}
 
 	@Override

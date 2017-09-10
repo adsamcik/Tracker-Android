@@ -15,9 +15,11 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.util.Pair;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.fragments.FragmentActivities;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
@@ -73,9 +75,11 @@ public class MainActivity extends FragmentActivity {
 
 		Signin.signin(this, true, null);
 
-		Failure<String> s = ActivityService.initializeActivityClient(this);
-		if (s.hasFailed())
-			snackMaker.showSnackbar(s.value);
+		if (Assist.isPlayServiceAvailable(this))
+			ActivityService.requestAutoTracking(this);
+		else
+			snackMaker.showSnackbar(R.string.error_play_services_not_available);
+
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.text_primary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.color_accent));

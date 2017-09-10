@@ -21,6 +21,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
@@ -32,7 +33,9 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.interfaces.ICallback;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
+import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.utility.Constants;
@@ -97,8 +100,9 @@ public class TrackerService extends Service {
 	private WifiManager wifiManager;
 	private final Gson gson = new Gson();
 
-	private NoiseTracker noiseTracker;
-	private boolean noiseActive = false;
+	//private NoiseTracker noiseTracker;
+	//private boolean noiseActive = false;
+
 	/**
 	 * True if previous collection was mocked
 	 */
@@ -212,7 +216,7 @@ public class TrackerService extends Service {
 		}*/
 
 		if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
-			d.setLocation(location).setActivity(ActivityService.lastResolvedActivity);
+			d.setLocation(location).setActivity(ActivityService.getLastActivity().resolvedActivity);
 
 		data.add(d);
 		rawDataEcho = d;
@@ -330,7 +334,7 @@ public class TrackerService extends Service {
 		Assist.initialize(this);
 		SharedPreferences sp = Preferences.get(this);
 
-		ActivityService.initializeActivityClient(this);
+		ActivityService.requestActivity(this);
 
 		//Get managers
 		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
@@ -417,8 +421,10 @@ public class TrackerService extends Service {
 		stopForeground(true);
 		service = null;
 
-		if (noiseTracker != null)
-			noiseTracker.stop();
+		/*if (noiseTracker != null)
+			noiseTracker.stop();*/
+
+		ActivityService.removeActivityRequest(this);
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);

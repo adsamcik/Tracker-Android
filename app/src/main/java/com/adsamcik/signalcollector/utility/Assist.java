@@ -34,6 +34,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.DetectedActivity;
@@ -224,81 +225,6 @@ public class Assist {
 	 */
 	public static double amplitudeToDbm(final short amplitude) {
 		return 20 * Math.log10(Math.abs(amplitude));
-	}
-
-	/**
-	 * 0 still/default
-	 * 1 foot
-	 * 2 vehicle
-	 * 3 tilting
-	 */
-	public static int evaluateActivity(final int val) {
-		switch (val) {
-			case DetectedActivity.STILL:
-				return 0;
-			case DetectedActivity.RUNNING:
-				return 1;
-			case DetectedActivity.ON_FOOT:
-				return 1;
-			case DetectedActivity.WALKING:
-				return 1;
-			case DetectedActivity.ON_BICYCLE:
-				return 2;
-			case DetectedActivity.IN_VEHICLE:
-				return 2;
-			case DetectedActivity.TILTING:
-				return 3;
-			default:
-				return 3;
-		}
-	}
-
-	/**
-	 * Returns activity as string
-	 *
-	 * @param type type of activity (ENUM)
-	 * @return name of the activity
-	 */
-	public static String getActivityName(int type) {
-		switch (type) {
-			case DetectedActivity.IN_VEHICLE:
-				return "In Vehicle";
-			case DetectedActivity.ON_BICYCLE:
-				return "On Bicycle";
-			case DetectedActivity.ON_FOOT:
-				return "On Foot";
-			case DetectedActivity.WALKING:
-				return "Walking";
-			case DetectedActivity.STILL:
-				return "Still";
-			case DetectedActivity.TILTING:
-				return "Tilting";
-			case DetectedActivity.RUNNING:
-				return "Running";
-			case DetectedActivity.UNKNOWN:
-				return "Unknown";
-		}
-		return "N/A";
-	}
-
-	/**
-	 * Returns resolved activity as string
-	 *
-	 * @param type type of activity (ENUM)
-	 * @return name of the activity
-	 */
-	public static String getResolvedActivityName(@NonNull Context context, int type) {
-		switch (type) {
-			case 0:
-				return context.getString(R.string.activity_idle);
-			case 1:
-				return context.getString(R.string.activity_on_foot);
-			case 2:
-				return context.getString(R.string.activity_in_vehicle);
-			case 3:
-			default:
-				return context.getString(R.string.activity_unknown);
-		}
 	}
 
 	/**

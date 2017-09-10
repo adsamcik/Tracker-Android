@@ -45,8 +45,11 @@ public class ActivityInfo {
 		}
 	}
 
-
 	public String getActivityName() {
+		return getActivityName(activity);
+	}
+
+	public static String getActivityName(int activity) {
 		switch (activity) {
 			case DetectedActivity.IN_VEHICLE:
 				return "In Vehicle";
