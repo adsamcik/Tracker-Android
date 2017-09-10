@@ -1,32 +1,27 @@
 package com.adsamcik.signalcollector.activities;
 
-import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
+import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
-import android.util.Log;
-import android.util.Pair;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.Toast;
 
 import com.adsamcik.signalcollector.fragments.FragmentIntro;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Signin;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -40,9 +35,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import java.util.ArrayList;
 import java.util.List;
 
-import static android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS;
-import static android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;
-
 public class IntroActivity extends AppIntro2 {
 	private final String TAG = "SignalsIntro";
 	private final int LOCATION_PERMISSION_REQUEST_CODE = 201;
@@ -54,7 +46,7 @@ public class IntroActivity extends AppIntro2 {
 	private Fragment currentFragment;
 
 	private int requestedTracking = 0;
-	
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		setTheme(Preferences.getTheme(this));
@@ -107,34 +99,9 @@ public class IntroActivity extends AppIntro2 {
 				new AlertDialog.Builder(this)
 						.setTitle(R.string.intro_enable_auto_tracking_title)
 						.setMessage(Build.VERSION.SDK_INT >= 23 ? R.string.intro_enable_auto_tracking_description_23 : R.string.intro_enable_auto_tracking_description)
-						.setPositiveButton(options[2], (dialog, whichButton) -> {
-							requestedTracking = 2;
-							if (Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-							} else {
-								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, requestedTracking).apply();
-								if (Build.VERSION.SDK_INT >= 23)
-									batteryOptimalizationDialog.show();
-								else
-									autoUploadDialog.show();
-							}
-						})
-						.setNegativeButton(options[1], ((dialogInterface, i) -> {
-							requestedTracking = 1;
-							if (Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-								requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-							} else {
-								Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, requestedTracking).apply();
-								if (Build.VERSION.SDK_INT >= 23)
-									batteryOptimalizationDialog.show();
-								else
-									autoUploadDialog.show();
-							}
-						}))
-						.setNeutralButton(options[0], ((dialogInterface, i) -> {
-							Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply();
-							autoUploadDialog.show();
-						}))
+						.setPositiveButton(options[2], (dialog, whichButton) -> trackingDialogResponse(2))
+						.setNegativeButton(options[1], ((dialogInterface, i) -> trackingDialogResponse(1)))
+						.setNeutralButton(options[0], ((dialogInterface, i) -> trackingDialogResponse(0)))
 						.setCancelable(false)
 						.show();
 			}
@@ -197,6 +164,19 @@ public class IntroActivity extends AppIntro2 {
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
 	}
 
+	private void trackingDialogResponse(int option) {
+		if (option > 0 && Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+			requestedTracking = option;
+			requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+		} else {
+			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, option).apply();
+			if (option > 0 && shouldShowBatteryOptimalizationDialog(this))
+				batteryOptimalizationDialog.show();
+			else
+				autoUploadDialog.show();
+		}
+	}
+
 	private void nextSlide(int currentSlide) {
 		if (getProgress() == currentSlide)
 			pager.goToNextSlide();
@@ -204,6 +184,12 @@ public class IntroActivity extends AppIntro2 {
 
 	private int getProgress() {
 		return isRtl() ? slidesNumber - pager.getCurrentItem() - 1 : pager.getCurrentItem();
+	}
+
+	private boolean shouldShowBatteryOptimalizationDialog(@NonNull Context context) {
+		PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+		assert powerManager != null;
+		return Build.VERSION.SDK_INT >= 23 && powerManager.isIgnoringBatteryOptimizations(context.getPackageName());
 	}
 
 	/**
@@ -256,7 +242,7 @@ public class IntroActivity extends AppIntro2 {
 			boolean success = grantResults[0] == PackageManager.PERMISSION_GRANTED;
 			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, success ? requestedTracking : 0).apply();
 
-			if (success)
+			if (success && shouldShowBatteryOptimalizationDialog(this))
 				batteryOptimalizationDialog.show();
 			else
 				autoUploadDialog.show();
