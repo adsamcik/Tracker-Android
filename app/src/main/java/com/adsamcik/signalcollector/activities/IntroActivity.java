@@ -246,7 +246,7 @@ public class IntroActivity extends AppIntro2 {
 	public void onDonePressed(Fragment currentFragment) {
 		Preferences.get(this).edit().putBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, true).apply();
 		if (isTaskRoot())
-			startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK));
+			startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK));
 		finish();
 	}
 
