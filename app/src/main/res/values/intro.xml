@@ -23,6 +23,6 @@
     <string name="intro_welcome_title">First things first</string>
     <string name="intro_welcome_description">Light or Dark? (App theme)</string>
 
-    <string name="intro_signin_title">Google signin</string>
-    <string name="intro_signing_description">Signals requires google signin for access management and identifying from who the upload comes so personal statistics can be generated. Signals uses only id from Google, nothing else.</string>
+    <string name="intro_signin_title">Signin with Google</string>
+    <string name="intro_signing_description">Signals uses Google Signin to identify uploads, track challenge progress, generate personal stats and more. You will not be able to upload data until you sign in.</string>
 </resources>
