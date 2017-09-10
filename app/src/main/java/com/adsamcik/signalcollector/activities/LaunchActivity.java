@@ -84,6 +84,7 @@ public class LaunchActivity extends Activity {
 			NotificationTools.prepareChannels(this);
 
 		if (BuildConfig.DEBUG) {
+			FirebaseCrash.setCrashCollectionEnabled(false);
 			String token = FirebaseInstanceId.getInstance().getToken();
 			Log.d("Signals", token == null ? "null token" : token);
 		}
