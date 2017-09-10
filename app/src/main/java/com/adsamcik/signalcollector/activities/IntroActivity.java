@@ -162,6 +162,7 @@ public class IntroActivity extends AppIntro2 {
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome_description), R.drawable.ic_intro_theme, Color.parseColor("#8B8B8B"), window, themeCallback));
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback));
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_activites_title), r.getString(R.string.intro_activities_description), R.drawable.ic_intro_activites, Color.parseColor("#007b0c"), window, null));
 	}
 
 	private void trackingDialogResponse(int option) {

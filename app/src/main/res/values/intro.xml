@@ -25,4 +25,7 @@
 
     <string name="intro_signin_title">Signin with Google</string>
     <string name="intro_signing_description">Signals uses Google Signin to identify uploads, track challenge progress, generate personal stats and more. You will not be able to upload data until you sign in.</string>
+
+    <string name="intro_activites_title">Challenges</string>
+    <string name="intro_activities_description">Signals prepares few challenges every week for you to complete. Every challenge awards additional wireless points based on its difficulty.</string>
 </resources>
