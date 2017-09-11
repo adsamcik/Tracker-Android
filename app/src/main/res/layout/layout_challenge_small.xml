@@ -13,6 +13,7 @@
         android:layout_height="wrap_content"
         android:text="Lorem ipsum dolor sit amet"
         android:textAllCaps="true"
+        android:textStyle="bold"
         style="@style/Base.TextAppearance.AppCompat.Subhead"/>
 
     <TextView
