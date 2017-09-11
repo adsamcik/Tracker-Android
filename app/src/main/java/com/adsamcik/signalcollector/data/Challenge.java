@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.data;
 import android.content.Context;
 import android.content.res.Resources;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.ChallengeDifficulty;
@@ -10,56 +11,47 @@ import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import com.vimeo.stag.UseStag;
 
-@UseStag(UseStag.FieldOption.SERIALIZED_NAME)
 public class Challenge {
 	/**
 	 * Type of challenge
 	 */
-	@SerializedName("type")
 	private ChallengeType type;
 
 	/**
 	 * Is challenge done?
 	 */
-	@SerializedName("isDone")
 	private boolean done;
 
 	/**
 	 * Description variables used to format description strings
 	 */
-	@SerializedName("descVars")
 	private String[] descVars;
 
 	/**
 	 * Difficulty of the challenge
 	 */
-	@SerializedName("difficulty")
-	private @ChallengeDifficulty
-	int difficulty = ChallengeDifficulty.UNKNOWN;
+	private @ChallengeDifficulty int difficulty;
 
-	@Expose(serialize = false, deserialize = false)
 	private String title;
-
-	@Expose(serialize = false, deserialize = false)
 	private String description;
-
-	@Expose(serialize = false, deserialize = false)
 	private String difficultyString;
 
-	public Challenge(ChallengeType type, String title, String description, boolean done) {
+	public Challenge(ChallengeType type, String title, String description, boolean done, @ChallengeDifficulty int difficulty) {
 		this.type = type;
 		this.title = title;
 		this.description = description;
 		this.descVars = null;
 		this.done = done;
+		this.difficulty = difficulty;
 	}
 
-	public Challenge(ChallengeType type, String title, String[] descVars, boolean done) {
+	public Challenge(ChallengeType type, String title, String[] descVars, boolean done, @ChallengeDifficulty int difficulty) {
 		this.type = type;
 		this.title = title;
 		this.descVars = descVars;
 		this.description = null;
 		this.done = done;
+		this.difficulty = difficulty;
 	}
 
 	public ChallengeType getType() {
@@ -168,34 +160,5 @@ public class Challenge {
 		TripDownMemoryLane,
 		AIsForAlphabet,
 		StayInRange
-	}
-
-	//STAG CONSTRUCTOR GETTERS SETTERS//
-
-	Challenge() {
-	}
-
-	String[] getDescVars() {
-		return descVars;
-	}
-
-	boolean getDone() {
-		return done;
-	}
-
-	int getDifficulty() {
-		return difficulty;
-	}
-
-	void setType(ChallengeType type) {
-		this.type = type;
-	}
-
-	void setDescVars(String[] descVars) {
-		this.descVars = descVars;
-	}
-
-	void setDifficulty(int difficulty) {
-		this.difficulty = difficulty;
 	}
 }
