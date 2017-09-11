@@ -4,8 +4,10 @@ import android.app.IntentService;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
@@ -13,6 +15,8 @@ import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
+import com.google.android.gms.common.api.GoogleApi;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionClient;
 import com.google.android.gms.location.ActivityRecognitionResult;
@@ -27,8 +31,9 @@ public class ActivityService extends IntentService {
 	private static final int REQUEST_CODE_PENDING_INTENT = 4561201;
 
 	private static ActivityInfo lastActivity = new ActivityInfo(DetectedActivity.UNKNOWN, 0);
+	private static GoogleApiClient client;
 
-	private static Task task;
+	//private static Task task;
 	private static PowerManager powerManager;
 
 	private static int activeRequestCount;
@@ -63,7 +68,10 @@ public class ActivityService extends IntentService {
 		if (activeRequestCount == 0)
 			FirebaseCrash.report(new Throwable("Trying to remove more activity requests than existed"));
 		else if (--activeRequestCount == 0) {
-			ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
+			ActivityRecognition.ActivityRecognitionApi.removeActivityUpdates(client, getActivityDetectionPendingIntent(context));
+			client.disconnect();
+			client = null;
+			//ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
 		}
 	}
 
@@ -79,8 +87,23 @@ public class ActivityService extends IntentService {
 
 	private static boolean initializeActivityClient(@NonNull Context context) {
 		if (Assist.isPlayServiceAvailable(context)) {
-			ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
-			task = activityRecognitionClient.requestActivityUpdates(MIN_DELAY, getActivityDetectionPendingIntent(context));
+			//ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
+			//task = activityRecognitionClient.requestActivityUpdates(MIN_DELAY, getActivityDetectionPendingIntent(context));
+			client = new GoogleApiClient.Builder(context)
+					.addApi(ActivityRecognition.API)
+					.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+						@Override
+						public void onConnected(@Nullable Bundle bundle) {
+							ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(client, REQUEST_CODE_PENDING_INTENT, getActivityDetectionPendingIntent(context));
+						}
+
+						@Override
+						public void onConnectionSuspended(int i) {
+
+						}
+					})
+					.build();
+			client.connect();
 			return true;
 		} else {
 			FirebaseCrash.report(new Throwable("Unavailable play services"));
