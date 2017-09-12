@@ -190,7 +190,7 @@ public class IntroActivity extends AppIntro2 {
 	private boolean shouldShowBatteryOptimalizationDialog(@NonNull Context context) {
 		PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
 		assert powerManager != null;
-		return Build.VERSION.SDK_INT >= 23 && powerManager.isIgnoringBatteryOptimizations(context.getPackageName());
+		return Build.VERSION.SDK_INT >= 23 && !powerManager.isIgnoringBatteryOptimizations(context.getPackageName());
 	}
 
 	/**
