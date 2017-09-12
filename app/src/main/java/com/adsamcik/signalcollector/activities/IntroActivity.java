@@ -130,9 +130,9 @@ public class IntroActivity extends AppIntro2 {
 
 				View v = getLayoutInflater().inflate(R.layout.intro_dialog_signin, null);
 				AlertDialog dialog = new AlertDialog.Builder(this)
-						.setTitle(R.string.intro_enable_auto_tracking_title)
+						.setTitle(R.string.signin)
 						.setNegativeButton(R.string.cancel, ((dialogInterface, i) -> Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply()))
-						.setCancelable(false)
+						.setCancelable(true)
 						.create();
 
 				v.findViewById(R.id.sign_in_button).setOnClickListener((x) -> {
