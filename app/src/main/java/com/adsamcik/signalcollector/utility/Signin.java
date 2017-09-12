@@ -68,12 +68,12 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 	public static Signin signin(@NonNull FragmentActivity fragmentActivity, boolean silent, @Nullable IValueCallback<User> callback) {
 		if (instance == null)
-			instance = new Signin(fragmentActivity, callback);
+			instance = new Signin(fragmentActivity, callback, silent);
 		else if (instance.getActivity() == null || (instance.status == SigninStatus.SIGNIN_FAILED && !silent)) {
 			if (callback != null)
 				instance.onSignedCallbackList.add(callback);
 			instance.setActivity(fragmentActivity);
-			if ((instance.status == SigninStatus.SILENT_SIGNIN_FAILED && !instance.resolvingError) || (instance.status == SigninStatus.SIGNIN_FAILED && !silent))
+			if (!silent && ((instance.status == SigninStatus.SILENT_SIGNIN_FAILED && !instance.resolvingError) || instance.status == SigninStatus.SIGNIN_FAILED))
 				fragmentActivity.startActivityForResult(Auth.GoogleSignInApi.getSignInIntent(instance.client), RC_SIGN_IN);
 		} else if (callback != null && instance.user != null)
 			callback.callback(instance.user);
@@ -98,7 +98,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 	}
 
 
-	private Signin(@NonNull FragmentActivity activity, @Nullable IValueCallback<User> callback) {
+	private Signin(@NonNull FragmentActivity activity, @Nullable IValueCallback<User> callback, boolean silent) {
 		if (callback != null)
 			onSignedCallbackList.add(callback);
 
@@ -106,7 +106,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 
 		setActivity(activity);
 		client = initializeClient(activity);
-		silentSignIn(client, activity, false);
+		silentSignIn(client, activity, silent);
 	}
 
 	private Signin(@NonNull Context context, @Nullable IValueCallback<User> callback) {
