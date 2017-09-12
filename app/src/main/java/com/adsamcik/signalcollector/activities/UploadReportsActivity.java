@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.activities;
 import android.content.Context;
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.widget.LinearLayout;
@@ -13,6 +14,7 @@ import com.adsamcik.signalcollector.enums.AppendBehavior;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Table;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.google.gson.Gson;
@@ -66,20 +68,21 @@ public class UploadReportsActivity extends DetailActivity {
 		UploadStats[] recent = new Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
 		Arrays.sort(recent, (uploadStats, t1) -> (int) ((t1.time - uploadStats.time) / MINUTE_IN_MILLISECONDS));
 		if (recent.length > 0) {
-			Context context = getApplicationContext();
 			LinearLayout parent = createContentParent(false);
 			ListView listView = new ListView(this);
+
 			listView.setDivider(null);
 			listView.setDividerHeight(0);
 			listView.setSelector(android.R.color.transparent);
-			TableAdapter adapter = new TableAdapter(context, 16);
+			parent.addView(listView);
+
+			TableAdapter adapter = new TableAdapter(this, 16);
+			listView.setAdapter(adapter);
 
 			for (UploadStats s : recent)
 				if (s != null)
-					adapter.add(GenerateTableForUploadStat(s, context, null, AppendBehavior.Any));
+					adapter.add(GenerateTableForUploadStat(s, this, null, AppendBehavior.Any));
 
-			listView.setAdapter(adapter);
-			parent.addView(listView);
 		}
 
 
