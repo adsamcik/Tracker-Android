@@ -29,25 +29,6 @@ public class LicenseActivity extends DetailActivity {
 		super.onCreate(savedInstanceState);
 		LinearLayout parent = createScrollableContentParent(true);
 
-		InputStream isMeta = getResources().openRawResource(R.raw.third_party_license_metadata);
-		InputStream isLicense = getResources().openRawResource(R.raw.third_party_licenses);
-		BufferedReader rMeta = new BufferedReader(new InputStreamReader(isMeta));
-		BufferedReader rLicense = new BufferedReader(new InputStreamReader(isLicense));
-
-		try {
-			String name;
-			while ((name = rMeta.readLine()) != null) {
-				int firstSpace = name.indexOf(' ');
-				int length = name.length();
-				name = name.substring(firstSpace + 1, length);
-				Button button = addButton(parent, name);
-				addLicenseDialogListener(button, name, rLicense.readLine());
-			}
-		} catch (IOException e) {
-			FirebaseCrash.report(e);
-		}
-
-
 		final String GSON = "Gson";
 		addButton(parent, GSON).setOnClickListener(view -> {
 			Notice notice = new Notice(GSON, "https://github.com/google/gson", "Copyright 2008 Google Inc", new ApacheSoftwareLicense20());
@@ -75,6 +56,23 @@ public class LicenseActivity extends DetailActivity {
 					.show();
 		});
 
+		InputStream isMeta = getResources().openRawResource(R.raw.third_party_license_metadata);
+		InputStream isLicense = getResources().openRawResource(R.raw.third_party_licenses);
+		BufferedReader rMeta = new BufferedReader(new InputStreamReader(isMeta));
+		BufferedReader rLicense = new BufferedReader(new InputStreamReader(isLicense));
+
+		try {
+			String name;
+			while ((name = rMeta.readLine()) != null) {
+				int firstSpace = name.indexOf(' ');
+				int length = name.length();
+				name = name.substring(firstSpace + 1, length);
+				Button button = addButton(parent, name);
+				addLicenseDialogListener(button, name, rLicense.readLine());
+			}
+		} catch (IOException e) {
+			FirebaseCrash.report(e);
+		}
 
 		setTitle(R.string.open_source_licenses);
 	}
