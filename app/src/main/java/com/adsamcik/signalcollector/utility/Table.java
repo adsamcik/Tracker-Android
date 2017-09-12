@@ -5,13 +5,16 @@ import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.StyleRes;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.CardView;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.Pair;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
@@ -19,6 +22,8 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.AppendBehavior;
+
+import org.w3c.dom.Text;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -107,7 +112,7 @@ public class Table {
 		return this;
 	}
 
-	private TableRow generateButtonsRow(@NonNull Context context) {
+	private TableRow generateButtonsRow(@NonNull Context context, @StyleRes int theme) {
 		if (buttons != null) {
 			DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
 			TableRow row = new TableRow(context);
@@ -116,14 +121,14 @@ public class Table {
 			row.setLayoutParams(lp);
 
 			for (int i = 0; i < buttons.size(); i++)
-				row.addView(generateButton(context, displayMetrics, i));
+				row.addView(generateButton(context, displayMetrics, i, theme));
 			return row;
 		}
 		return null;
 	}
 
-	private TextView generateButton(@NonNull Context context, DisplayMetrics displayMetrics, int index) {
-		TextView button = new TextView(context);
+	private TextView generateButton(@NonNull Context context, DisplayMetrics displayMetrics, int index, @StyleRes int theme) {
+		Button button = new Button(context, null, theme);
 		button.setMinWidth(Assist.dpToPx(displayMetrics, 48));
 		button.setPadding(Assist.dpToPx(displayMetrics, 16), 0, Assist.dpToPx(displayMetrics, 16), 0);
 		button.setHeight(Assist.dpToPx(displayMetrics, 48));
@@ -136,23 +141,23 @@ public class Table {
 		return button;
 	}
 
-	private TableRow generateDataRow(@NonNull Context context, int index) {
+	private TableRow generateDataRow(@NonNull Context context, int index, @StyleRes int theme) {
 		TableRow row = new TableRow(context);
 		row.setPadding(0, 0, 0, 20);
 
 		if (showNumber) {
-			TextView rowNum = new TextView(context);
+			TextView rowNum = new TextView(context, null, theme);
 			rowNum.setText(String.format(Locale.UK, "%d", index + 1));
 			rowNum.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 0.5f));
 			row.addView(rowNum);
 		}
 
-		TextView textId = new TextView(context);
+		TextView textId = new TextView(context, null, theme);
 		textId.setText(data.get(index).first);
 		textId.setLayoutParams(new TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 3f));
 		row.addView(textId);
 
-		TextView textValue = new TextView(context);
+		TextView textValue = new TextView(context, null, theme);
 		String value = data.get(index).second;
 		try {
 			textValue.setText(Assist.formatNumber(Integer.parseInt(value)));
@@ -179,6 +184,8 @@ public class Table {
 
 		CardView cardView = null;
 		FrameLayout frameLayout = null;
+		@StyleRes int theme =  Preferences.getTheme(context);
+
 		if (recycle != null) {
 			if (recycle instanceof CardView) {
 				cardView = (CardView) recycle;
@@ -192,8 +199,11 @@ public class Table {
 			}
 		}
 
-		if (cardView == null)
-			cardView = new CardView(context);
+		if (cardView == null) {
+			cardView = new CardView(context, null, theme);
+			Log.d("Signals", String.valueOf(theme));
+			Log.d("Signals", "new card");
+		}
 
 		final int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
 
@@ -208,7 +218,7 @@ public class Table {
 		if (title != null) {
 			TextView titleView = (TextView) layout.getChildAt(0);
 			if(titleView == null) {
-				titleView = new TextView(context);
+				titleView = new TextView(context, null, theme);
 				titleView.setTextSize(18);
 				titleView.setTypeface(null, Typeface.BOLD);
 				titleView.setGravity(Gravity.CENTER);
@@ -220,9 +230,9 @@ public class Table {
 		}
 
 		for (int i = 0; i < data.size(); i++)
-			layout.addView(generateDataRow(context, i));
+			layout.addView(generateDataRow(context, i, theme));
 
-		TableRow buttonsRow = generateButtonsRow(context);
+		TableRow buttonsRow = generateButtonsRow(context, theme);
 		if (buttonsRow != null)
 			layout.addView(buttonsRow);
 
