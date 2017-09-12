@@ -168,10 +168,10 @@
         </RelativeLayout>
 
         <TextView
-            android:layout_width="match_parent"
             android:id="@+id/settings_battery_optimalization_text"
-            android:layout_height="wrap_content"
             style="@style/SettingsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:text="@string/settings_battery_optimalizations_enabled"/>
 
         <Switch
@@ -456,6 +456,18 @@
                 android:text="@string/dev_clear_cache"/>
 
         </LinearLayout>
+
+        <View
+            style="@style/Divider"/>
+
+        <TextView
+            android:id="@+id/open_source_licenses"
+            style="@style/SettingsItem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:textSize="@dimen/secondary_text_size"
+            android:text="@string/open_source_licenses"/>
 
 
         <TextView

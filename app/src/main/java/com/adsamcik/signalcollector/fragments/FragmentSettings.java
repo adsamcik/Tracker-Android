@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.activities.DebugFileActivity;
 import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.IntroActivity;
+import com.adsamcik.signalcollector.activities.LicenseActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
@@ -376,6 +377,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			else
 				new SnackMaker(getActivity()).showSnackbar(R.string.feedback_error_not_signed_in);
 		});
+
+		rootView.findViewById(R.id.open_source_licenses).setOnClickListener(v -> startActivity(new Intent(getActivity(), LicenseActivity.class)));
 
 		//Dev stuff
 

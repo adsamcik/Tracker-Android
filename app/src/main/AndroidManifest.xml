@@ -108,6 +108,11 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
 
+        <activity
+            android:name=".activities.LicenseActivity"
+            android:parentActivityName=".activities.MainActivity"
+            android:screenOrientation="portrait"/>
+
         <receiver android:name=".receivers.BatteryStateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_BATTERY_LOW"/>

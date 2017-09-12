@@ -101,6 +101,9 @@
     <string name="feedback_error_spaces_summary">Too much spacing</string>
     <string name="feedback_error_not_signed_in">You must be signed in</string>
 
+    <!-- Open source licenses -->
+    <string name="open_source_licenses">Open source licenses</string>
+
     <!-- Signin strings -->
     <string name="signin_connecting">Signin in, please wait</string>
 
