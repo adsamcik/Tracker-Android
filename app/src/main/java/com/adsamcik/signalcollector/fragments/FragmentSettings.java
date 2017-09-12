@@ -84,7 +84,7 @@ import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
-	private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
+	//private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
 
 	private String[] trackingString, autoupString;
 	private ImageView trackingNone, trackingOnFoot, trackingAlways;
