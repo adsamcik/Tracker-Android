@@ -9,7 +9,7 @@
 
     <string name="intro_enable_auto_tracking_title">Automatic tracking</string>
     <string name="intro_enable_auto_tracking_description">Would you like to enable automatic tracking? You can later change this in settings.</string>
-    <string name="intro_enable_auto_tracking_description_23">Would you like to automatically tracking? Tracking requires location permission. You can later change this in settings.</string>
+    <string name="intro_enable_auto_tracking_description_23">Would you like to enable automatic tracking? You can later change this in settings. Tracking requires location permission.</string>
 
     <string name="intro_disable_battery_optimalizations_title">Disable battery optimalizations?</string>
     <string name="intro_disable_battery_optimalizations_description">Automatic tracking may be unreliable while battery optimalizations are enabled. Disabling them should have low impact on your battery life. Tracking itself is unaffected by battery optimalizations.</string>

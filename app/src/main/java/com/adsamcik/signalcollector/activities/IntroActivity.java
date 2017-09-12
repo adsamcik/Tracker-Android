@@ -80,16 +80,16 @@ public class IntroActivity extends AppIntro2 {
 			}
 		};
 
-		batteryOptimalizationDialog = new AlertDialog.Builder(this)
-				.setTitle(R.string.intro_disable_battery_optimalizations_title)
-				.setMessage(R.string.intro_disable_battery_optimalizations_description)
-				.setPositiveButton(android.R.string.ok, (dialogInterface, i) -> {
-					if (Build.VERSION.SDK_INT >= 23)
+		if (Build.VERSION.SDK_INT >= 23)
+			batteryOptimalizationDialog = new AlertDialog.Builder(this)
+					.setTitle(R.string.intro_disable_battery_optimalizations_title)
+					.setMessage(R.string.intro_disable_battery_optimalizations_description)
+					.setPositiveButton(android.R.string.ok, (dialogInterface, i) -> {
 						Assist.requestBatteryOptimalizationDisable(this);
-					autoUploadDialog.show();
-				})
-				.setNegativeButton(android.R.string.cancel, (dialogInterface, i) -> autoUploadDialog.show())
-				.setCancelable(false);
+						autoUploadDialog.show();
+					})
+					.setNegativeButton(android.R.string.no, (dialogInterface, i) -> autoUploadDialog.show())
+					.setCancelable(false);
 
 		ICallback automationSlideCallback = () -> {
 			if (!openedTrackingAlert && getProgress() == 1) {
