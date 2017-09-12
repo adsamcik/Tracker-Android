@@ -117,11 +117,11 @@ public class Preferences {
 	}
 
 	public static int getTheme(@NonNull Context context) {
-		return get(context.getApplicationContext()).getInt(PREF_THEME, DEFAULT_THEME);
+		return get(context).getInt(PREF_THEME, DEFAULT_THEME);
 	}
 
 	public static void setTheme(@NonNull Context context, int theme) {
-		get(context.getApplicationContext()).edit().putInt(PREF_THEME, theme).apply();
+		get(context).edit().putInt(PREF_THEME, theme).apply();
 	}
 
 	/**
