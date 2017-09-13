@@ -113,6 +113,8 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 
 	public void clear() {
 		dataList.clear();
+		stringDataList.clear();
+		filteredData.clear();
 		notifyDataSetChanged();
 	}
 
@@ -126,20 +128,20 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		@Override
 		protected FilterResults performFiltering(CharSequence constraint) {
 			FilterResults results = new FilterResults();
-			if (constraint == null) {
-				results.values = stringDataList;
-				results.count = stringDataList.size();
-			} else if(dataList == null) {
+			if (dataList == null) {
 				results.values = new ArrayList<>(0);
 				results.count = 0;
-			} else{
+			} else if (constraint == null) {
+				results.values = stringDataList;
+				results.count = stringDataList.size();
+			} else {
 				final int count = stringDataList.size();
 				final ArrayList<String> nlist = new ArrayList<>(count);
 
 				if (filterRule != null) {
-					for (int i=0; i < count; i++) {
+					for (int i = 0; i < count; i++) {
 						String stringified = stringDataList.get(i);
-						if(filterRule.filter(dataList.get(i), stringified, constraint))
+						if (filterRule.filter(dataList.get(i), stringified, constraint))
 							nlist.add(stringified);
 					}
 				} else {
