@@ -96,14 +96,6 @@ public class ActivityRecognitionActivity extends DetailActivity {
 			} else
 				startStopButton.setText(getString(R.string.start));
 
-
-			if(BuildConfig.DEBUG) {
-				addLine(this, "DEBUG ACTIVITY", "ACTION0");
-				addLine(this, "DEBUG ACTIVITY 3", null);
-				addLine(this, "1 DEBUG ACTIVITY", "ACTION2");
-				addLine(this, "iDEBUG ACTIVITY", null);
-			}
-
 			editor.apply();
 		});
 
