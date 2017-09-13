@@ -1,8 +1,10 @@
 package com.adsamcik.signalcollector.adapters;
 
 import android.content.Context;
-import android.os.Build;
 import android.support.annotation.LayoutRes;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,42 +13,43 @@ import android.widget.Filter;
 import android.widget.Filterable;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.interfaces.IFilterRule;
+import com.adsamcik.signalcollector.interfaces.IString;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class FilterableAdapter extends BaseAdapter implements Filterable {
-	private final String delim;
+public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
+	private final List<T> dataList;
+	private final ArrayList<String> stringDataList;
+	private ArrayList<String> filteredData;
 
-	private final List<String[]> originalData;
-	private final List<String> originalDataSerialized;
-	private List<String> filteredData;
+	private final IString<T> stringMethod;
+
 	private final LayoutInflater mInflater;
-	private final int res;
-	private final ItemFilter mFilter = new ItemFilter();
+	private final @LayoutRes
+	int res;
+	private final ItemFilter mFilter;
 
-	private String serializeLine(String[] line) {
-		if (Build.VERSION.SDK_INT >= 26)
-			return String.join(delim, line);
-		else {
-			StringBuilder builder = new StringBuilder();
-			for (String s : line)
-				builder.append(s).append(delim);
-			builder.setLength(builder.length() - delim.length());
-			return builder.toString();
+	public FilterableAdapter(@NonNull Context context, @LayoutRes int resource, @Nullable List<T> items, @Nullable IFilterRule<T> filterRule, @NonNull IString<T> stringMethod) {
+		if (items == null) {
+			this.dataList = new ArrayList<>();
+			this.stringDataList = new ArrayList<>();
+			this.filteredData = stringDataList;
+		} else {
+			this.dataList = items;
+			this.stringDataList = new ArrayList<>(items.size());
+			for (T item : items)
+				this.stringDataList.add(stringMethod.stringify(item));
+
+			this.filteredData = stringDataList;
 		}
-	}
 
-	public FilterableAdapter(Context context, @LayoutRes int resource, List<String[]> items, String delimeter) {
-		delim = delimeter;
-		this.originalData = items;
+		mFilter = new ItemFilter(filterRule);
+		this.stringMethod = stringMethod;
 
-		originalDataSerialized = new ArrayList<>(items.size());
-		for (String[] line : items)
-			originalDataSerialized.add(serializeLine(line));
-
-		this.filteredData = originalDataSerialized;
 		mInflater = LayoutInflater.from(context);
 		res = resource;
 	}
@@ -102,41 +105,58 @@ public class FilterableAdapter extends BaseAdapter implements Filterable {
 		return mFilter;
 	}
 
-	public void add(String[] item) {
-		originalData.add(item);
-		originalDataSerialized.add(serializeLine(item));
+	public void add(T item) {
+		dataList.add(item);
+		stringDataList.add(stringMethod.stringify(item));
 		notifyDataSetChanged();
 	}
 
 	public void clear() {
-		originalData.clear();
-		originalDataSerialized.clear();
+		dataList.clear();
 		notifyDataSetChanged();
 	}
 
 	private class ItemFilter extends Filter {
+		private final IFilterRule<T> filterRule;
+
+		private ItemFilter(@Nullable IFilterRule<T> filterRule) {
+			this.filterRule = filterRule;
+		}
+
 		@Override
 		protected FilterResults performFiltering(CharSequence constraint) {
 			FilterResults results = new FilterResults();
 			if (constraint == null) {
-				results.values = originalDataSerialized;
-				results.count = originalDataSerialized.size();
-			} else {
-				int count = originalDataSerialized.size();
+				results.values = stringDataList;
+				results.count = stringDataList.size();
+			} else if(dataList == null) {
+				results.values = new ArrayList<>(0);
+				results.count = 0;
+			} else{
+				final int count = stringDataList.size();
 				final ArrayList<String> nlist = new ArrayList<>(count);
 
-				Pattern pattern = Pattern.compile(constraint.toString());
+				if (filterRule != null) {
+					for (int i=0; i < count; i++) {
+						String stringified = stringDataList.get(i);
+						if(filterRule.filter(dataList.get(i), stringified, constraint))
+							nlist.add(stringified);
+					}
+				} else {
+					Pattern pattern = Pattern.compile(constraint.toString());
 
-				for (int i = 0; i < count; i++) {
-					String filterableString = originalDataSerialized.get(i);
-					Matcher matcher = pattern.matcher(filterableString);
-					if (matcher.find()) {
-						nlist.add(filterableString);
+					for (int i = 0; i < count; i++) {
+						String filterableString = stringDataList.get(i);
+						Matcher matcher = pattern.matcher(filterableString);
+						if (matcher.find()) {
+							nlist.add(filterableString);
+						}
 					}
 				}
 
 				results.values = nlist;
 				results.count = nlist.size();
+
 			}
 			return results;
 		}
