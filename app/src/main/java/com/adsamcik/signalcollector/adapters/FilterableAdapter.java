@@ -25,8 +25,10 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 	private final List<T> dataList;
 	private final ArrayList<String> stringDataList;
 	private ArrayList<String> filteredData;
+	private CharSequence lastConstraint = null;
 
 	private final IString<T> stringMethod;
+	private final IFilterRule<T> filterRule;
 
 	private final LayoutInflater mInflater;
 	private final @LayoutRes
@@ -37,29 +39,27 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		if (items == null) {
 			this.dataList = new ArrayList<>();
 			this.stringDataList = new ArrayList<>();
-			this.filteredData = stringDataList;
 		} else {
 			this.dataList = items;
 			this.stringDataList = new ArrayList<>(items.size());
 			for (T item : items)
 				this.stringDataList.add(stringMethod.stringify(item));
-
-			this.filteredData = stringDataList;
 		}
 
 		mFilter = new ItemFilter(filterRule);
 		this.stringMethod = stringMethod;
+		this.filterRule = filterRule;
 
 		mInflater = LayoutInflater.from(context);
 		res = resource;
 	}
 
 	public int getCount() {
-		return filteredData.size();
+		return lastConstraint == null ? stringDataList.size() : filteredData.size();
 	}
 
 	public Object getItem(int position) {
-		return filteredData.get(position);
+		return lastConstraint == null ? stringDataList.get(position) : filteredData.get(position);
 	}
 
 	public long getItemId(int position) {
@@ -92,7 +92,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		}
 
 		// If weren't re-ordering this you could rely on what you set last time
-		holder.text.setText(filteredData.get(position));
+		holder.text.setText((String) getItem(position));
 
 		return convertView;
 	}
@@ -107,14 +107,26 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 
 	public void add(T item) {
 		dataList.add(item);
-		stringDataList.add(stringMethod.stringify(item));
+		String string = stringMethod.stringify(item);
+		stringDataList.add(string);
+		if (lastConstraint != null) {
+			if (filterRule != null) {
+				if (filterRule.filter(item, string, lastConstraint))
+					filteredData.add(string);
+			} else {
+				Pattern pattern = Pattern.compile(lastConstraint.toString());
+				if (pattern.matcher(string).find())
+					filteredData.add(string);
+			}
+		}
 		notifyDataSetChanged();
 	}
 
 	public void clear() {
 		dataList.clear();
 		stringDataList.clear();
-		filteredData.clear();
+		if (filteredData != null)
+			filteredData.clear();
 		notifyDataSetChanged();
 	}
 
@@ -131,7 +143,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 			if (dataList == null) {
 				results.values = new ArrayList<>(0);
 				results.count = 0;
-			} else if (constraint == null) {
+			} else if (constraint == null || constraint.length() == 0) {
 				results.values = stringDataList;
 				results.count = stringDataList.size();
 			} else {
@@ -167,6 +179,10 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		@Override
 		protected void publishResults(CharSequence constraint, FilterResults results) {
 			filteredData = (ArrayList<String>) results.values;
+			if (constraint == null || constraint.length() == 0)
+				lastConstraint = null;
+			else
+				lastConstraint = constraint;
 			notifyDataSetChanged();
 		}
 
