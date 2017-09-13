@@ -64,15 +64,19 @@ public class SnackMaker {
 		if (current != null)
 			queue.remove();
 		if (!queue.isEmpty()) {
-			current = Snackbar.make(view, queue.peek().first, queue.peek().second);
+			if (view == null)
+				interrupt();
+			else {
+				current = Snackbar.make(view, queue.peek().first, queue.peek().second);
 
-			current.show();
-			if (handler == null) {
-				if (Looper.myLooper() == null)
-					Looper.prepare();
-				handler = new Handler();
+				current.show();
+				if (handler == null) {
+					if (Looper.myLooper() == null)
+						Looper.prepare();
+					handler = new Handler();
+				}
+				handler.postDelayed(this::next, queue.peek().second == Snackbar.LENGTH_LONG ? 3500 : 2000);
 			}
-			handler.postDelayed(this::next, queue.peek().second == Snackbar.LENGTH_LONG ? 3500 : 2000);
 		}
 	}
 }
