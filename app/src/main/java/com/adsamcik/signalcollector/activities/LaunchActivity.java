@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.perf.FirebasePerformance;
 
 import java.util.List;
 
@@ -87,6 +88,7 @@ public class LaunchActivity extends Activity {
 		if (BuildConfig.DEBUG) {
 			FirebaseCrash.setCrashCollectionEnabled(false);
 			FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false);
+			FirebasePerformance.getInstance().setPerformanceCollectionEnabled(false);
 			String token = FirebaseInstanceId.getInstance().getToken();
 			Log.d("Signals", token == null ? "null token" : token);
 		}
