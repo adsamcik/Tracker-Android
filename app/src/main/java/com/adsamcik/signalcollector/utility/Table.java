@@ -201,8 +201,6 @@ public class Table {
 
 		if (cardView == null) {
 			cardView = new CardView(context, null, theme);
-			Log.d("Signals", String.valueOf(theme));
-			Log.d("Signals", "new card");
 		}
 
 		final int hPadding = (int) r.getDimension(R.dimen.activity_horizontal_margin);
