@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.activities;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -10,9 +11,12 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.adapters.FilterableAdapter;
+import com.adsamcik.signalcollector.interfaces.IFilterRule;
+import com.adsamcik.signalcollector.interfaces.IString;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
 
@@ -26,7 +30,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	private static final String FILE = "activityRecognitionDebug.tsv";
 
 	private Button startStopButton;
-	private FilterableAdapter adapter;
+	private FilterableAdapter<String[]> adapter;
 	private ListView listView;
 
 	private static WeakReference<ActivityRecognitionActivity> instance = null;
@@ -91,6 +95,15 @@ public class ActivityRecognitionActivity extends DetailActivity {
 				editor.putLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, System.currentTimeMillis());
 			} else
 				startStopButton.setText(getString(R.string.start));
+
+
+			if(BuildConfig.DEBUG) {
+				addLine(this, "DEBUG ACTIVITY", "ACTION0");
+				addLine(this, "DEBUG ACTIVITY 3", null);
+				addLine(this, "1 DEBUG ACTIVITY", "ACTION2");
+				addLine(this, "iDEBUG ACTIVITY", null);
+			}
+
 			editor.apply();
 		});
 
@@ -102,7 +115,18 @@ public class ActivityRecognitionActivity extends DetailActivity {
 				ArrayList<String[]> items = Parser.parseTSVFromFile(activity, FILE);
 				if (items == null)
 					items = new ArrayList<>();
-				adapter = new FilterableAdapter(activity, R.layout.spinner_item, items, delim);
+				adapter = new FilterableAdapter<>(activity, R.layout.spinner_item, items, (value, stringValue, constraint) -> value.length >= 3, item -> {
+					if (Build.VERSION.SDK_INT >= 26)
+						return String.join(delim, item);
+					else {
+						StringBuilder builder = new StringBuilder();
+						for (String s : item) {
+							builder.append(s).append(delim);
+						}
+						builder.setLength(builder.length() - delim.length());
+						return builder.toString();
+					}
+				});
 				listView.setAdapter(adapter);
 				listView.setSelection(items.size() - 1);
 			}
