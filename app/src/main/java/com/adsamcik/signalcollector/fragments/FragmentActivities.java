@@ -125,10 +125,9 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			else
 				textViewDifficulty.setText(challenge.getDifficultyString());
 
-			int progress = challenge.getProgress() == 1 ? 100 : (int)(challenge.getProgress() * 75);
-			((TextView) view.findViewById(R.id.challenge_progress)).setText(getString(R.string.challenge_progress, progress));
+			((TextView) view.findViewById(R.id.challenge_progress)).setText(getString(R.string.challenge_progress, (int) (challenge.getProgress() * 100)));
 
-			int color = ColorUtils.blendARGB(0, ContextCompat.getColor(getContext(), R.color.background_success), challenge.getProgress());
+			int color = (ContextCompat.getColor(getContext(), R.color.background_success) & Integer.MAX_VALUE >> 8) | (int) (challenge.getProgress() * 255) << 24;
 			view.setBackgroundColor(color);
 			return view;
 		}
