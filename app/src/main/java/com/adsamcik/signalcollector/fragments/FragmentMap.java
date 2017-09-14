@@ -182,41 +182,39 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return view;
 		}
 
-		menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
-		menu.setCallback(this::changeMapOverlay);
-
-		NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
-			if (fabTwo != null && layerArray != null) {
-				String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
-				if (!MapLayer.contains(layerArray, savedOverlay)) {
-					savedOverlay = layerArray[0].name;
-					Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
-				}
-
-				final String defaultOverlay = savedOverlay;
-				activity.runOnUiThread(() -> {
-					if (menu != null) {
-						if (menu.getItemCount() == 0)
-							changeMapOverlay(defaultOverlay);
-
-						if (layerArray.length > 0) {
-							for (MapLayer layer : layerArray)
-								menu.addItem(layer.name, activity);
-						}
-						if (fabOne.isShown())
-							fabTwo.show();
-						showFabTwo = true;
-					}
-				});
-			}
-		});
-
 		Signin.getUserDataAsync(activity, u -> {
-			if (fabTwo != null && u != null)
-				activity.runOnUiThread(() -> {
-					if (menu != null)
-						menu.addItem(activity.getString(R.string.map_personal), activity);
-				});
+			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess())) {
+				menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
+				menu.setCallback(this::changeMapOverlay);
+
+				if (u.networkInfo.hasPersonalMapAccess())
+					menu.addItem(activity.getString(R.string.map_personal), activity);
+
+				if (u.networkInfo.hasMapAccess())
+					NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+						if (fabTwo != null && layerArray != null) {
+							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+							if (!MapLayer.contains(layerArray, savedOverlay)) {
+								savedOverlay = layerArray[0].name;
+								Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
+							}
+
+							final String defaultOverlay = savedOverlay;
+							if (menu != null) {
+								if (menu.getItemCount() == 0)
+									changeMapOverlay(defaultOverlay);
+
+								if (layerArray.length > 0) {
+									for (MapLayer layer : layerArray)
+										menu.addItem(layer.name, activity);
+								}
+								if (fabOne.isShown())
+									activity.runOnUiThread(() -> fabTwo.show());
+								showFabTwo = true;
+							}
+						}
+					});
+			}
 		});
 
 		searchText = view.findViewById(R.id.map_search);
