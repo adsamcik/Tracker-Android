@@ -28,13 +28,22 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 	private CharSequence lastConstraint = null;
 
 	private final IString<T> stringMethod;
-	private final IFilterRule<T> filterRule;
+	private IFilterRule<T> filterRule;
 
 	private final LayoutInflater mInflater;
 	private final @LayoutRes
 	int res;
 	private final ItemFilter mFilter;
 
+	/**
+	 * Filterable adapter constructor
+	 *
+	 * @param context      Context
+	 * @param resource     Resource for items
+	 * @param items        Initial item list
+	 * @param filterRule   Initial filtering rule
+	 * @param stringMethod Method to convert objects to strings
+	 */
 	public FilterableAdapter(@NonNull Context context, @LayoutRes int resource, @Nullable List<T> items, @Nullable IFilterRule<T> filterRule, @NonNull IString<T> stringMethod) {
 		if (items == null) {
 			this.dataList = new ArrayList<>();
@@ -46,7 +55,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 				this.stringDataList.add(stringMethod.stringify(item));
 		}
 
-		mFilter = new ItemFilter(filterRule);
+		mFilter = new ItemFilter();
 		this.stringMethod = stringMethod;
 		this.filterRule = filterRule;
 
@@ -69,6 +78,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 	public View getView(int position, View convertView, ViewGroup parent) {
 		// A ViewHolder keeps references to children views to avoid unnecessary calls
 		// to findViewById() on each row.
+
 		ViewHolder holder;
 
 		// When convertView is not null, we can reuse it directly, there is no need
@@ -101,6 +111,12 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		TextView text;
 	}
 
+	public void setFilterRule(@Nullable IFilterRule<T> filterRule) {
+		this.filterRule = filterRule;
+		if(lastConstraint != null)
+			getFilter().filter(lastConstraint);
+	}
+
 	public Filter getFilter() {
 		return mFilter;
 	}
@@ -131,12 +147,6 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 	}
 
 	private class ItemFilter extends Filter {
-		private final IFilterRule<T> filterRule;
-
-		private ItemFilter(@Nullable IFilterRule<T> filterRule) {
-			this.filterRule = filterRule;
-		}
-
 		@Override
 		protected FilterResults performFiltering(CharSequence constraint) {
 			FilterResults results = new FilterResults();
