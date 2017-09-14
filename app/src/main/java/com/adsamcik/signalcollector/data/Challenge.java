@@ -74,7 +74,7 @@ public class Challenge {
 		return progress;
 	}
 
-	public void setDone(boolean done) {
+	public void setDone() {
 		this.progress = 1;
 	}
 
