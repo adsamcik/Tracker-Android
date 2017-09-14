@@ -9,6 +9,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.graphics.ColorUtils;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
@@ -119,13 +120,16 @@ public class FragmentActivities extends Fragment implements ITabFragment {
 			((TextView) view.findViewById(R.id.challenge_description)).setText(challenge.getDescription());
 
 			TextView textViewDifficulty = view.findViewById(R.id.challenge_difficulty);
-			if(challenge.getDifficultyString() == null)
+			if (challenge.getDifficultyString() == null)
 				textViewDifficulty.setVisibility(View.GONE);
 			else
 				textViewDifficulty.setText(challenge.getDifficultyString());
 
-			if(challenge.isDone())
-				view.setBackgroundColor(ContextCompat.getColor(getContext(), R.color.background_success));
+			int progress = challenge.getProgress() == 1 ? 100 : (int)(challenge.getProgress() * 75);
+			((TextView) view.findViewById(R.id.challenge_progress)).setText(getString(R.string.challenge_progress, progress));
+
+			int color = ColorUtils.blendARGB(0, ContextCompat.getColor(getContext(), R.color.background_success), challenge.getProgress());
+			view.setBackgroundColor(color);
 			return view;
 		}
 	}

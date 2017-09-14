@@ -18,9 +18,9 @@ public class Challenge {
 	private ChallengeType type;
 
 	/**
-	 * Is challenge done?
+	 * Challenge progress
 	 */
-	private boolean done;
+	private float progress;
 
 	/**
 	 * Description variables used to format description strings
@@ -36,21 +36,21 @@ public class Challenge {
 	private String description;
 	private String difficultyString;
 
-	public Challenge(ChallengeType type, String title, String description, boolean done, @ChallengeDifficulty int difficulty) {
+	public Challenge(ChallengeType type, String title, String description, float progress, @ChallengeDifficulty int difficulty) {
 		this.type = type;
 		this.title = title;
 		this.description = description;
 		this.descVars = null;
-		this.done = done;
+		this.progress = progress;
 		this.difficulty = difficulty;
 	}
 
-	public Challenge(ChallengeType type, String title, String[] descVars, boolean done, @ChallengeDifficulty int difficulty) {
+	public Challenge(ChallengeType type, String title, String[] descVars, float progress, @ChallengeDifficulty int difficulty) {
 		this.type = type;
 		this.title = title;
 		this.descVars = descVars;
 		this.description = null;
-		this.done = done;
+		this.progress = progress;
 		this.difficulty = difficulty;
 	}
 
@@ -70,12 +70,12 @@ public class Challenge {
 		return difficultyString;
 	}
 
-	public boolean isDone() {
-		return done;
+	public float getProgress() {
+		return progress;
 	}
 
 	public void setDone(boolean done) {
-		this.done = done;
+		this.progress = 1;
 	}
 
 	public void generateTexts(@NonNull Context context) {

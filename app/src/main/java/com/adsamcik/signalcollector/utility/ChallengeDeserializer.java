@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 
 import java.lang.reflect.Type;
+import java.util.Random;
 
 public class ChallengeDeserializer implements JsonDeserializer<Challenge> {
 	@Override
@@ -20,11 +21,18 @@ public class ChallengeDeserializer implements JsonDeserializer<Challenge> {
 		for (int i = 0; i < descVars.length; i++)
 			descVars[i] = jDescVars.get(i).getAsString();
 
+		JsonElement progressElement  = jobject.get("progress");
+		float progress;
+		if(progressElement == null)
+			progress = 0;
+		else
+			progress = progressElement.getAsFloat();
+
 		return new Challenge(
 				Challenge.ChallengeType.valueOf(jobject.get("type").getAsString()),
 				jobject.get("title").getAsString(),
 				descVars,
-				jobject.get("isDone").getAsBoolean(),
+				progress,
 				jobject.get("difficulty").getAsInt());
 	}
 }
