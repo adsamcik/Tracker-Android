@@ -39,6 +39,12 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 	private boolean usingFilter = false;
 
+	/**
+	 * Adds line to the activity debug if tracking is enabled
+	 * @param context Context
+	 * @param activity Name of the activity
+	 * @param action Action that this activity resulted in
+	 */
 	public static void addLineIfDebug(@NonNull Context context, @NonNull String activity, @Nullable String action) {
 		SharedPreferences preferences = Preferences.get(context);
 		if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
@@ -53,6 +59,12 @@ public class ActivityRecognitionActivity extends DetailActivity {
 		}
 	}
 
+	/**
+	 * Adds line to the activity debug
+	 * @param context Context
+	 * @param activity Name of the activity
+	 * @param action Action that this activity resulted in
+	 */
 	private static void addLine(@NonNull Context context, @NonNull String activity, @Nullable String action) {
 		String time = getDateTimeInstance().format(System.currentTimeMillis());
 		String line = time + '\t' + activity + '\t' + (action != null ? action + '\n' : '\n');
