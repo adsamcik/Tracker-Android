@@ -76,7 +76,7 @@ public class CellData implements Serializable {
 	 */
 	public int level;
 
-	public CellData(){}
+	CellData(){}
 
 	/**
 	 * CellData constructor
