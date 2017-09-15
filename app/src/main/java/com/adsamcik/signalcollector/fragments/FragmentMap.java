@@ -25,6 +25,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -91,6 +92,8 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 	private FloatingActionButton fabTwo, fabOne;
 	private FabMenu<MapLayer> menu;
 
+	//fab.isShown() is not fast enough (it probably changes on the next ui update)
+	boolean fabOneVisible;
 	boolean showFabTwo;
 
 	private MapFilterRule mapLayerFilterRule;
@@ -162,6 +165,7 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 		locationListener.setFAB(fabOne, activity);
 
 		fabOne.show();
+		fabOneVisible = true;
 		fabOne.setOnClickListener(v -> {
 			if (checkLocationPermission(activity, true) && map != null)
 				locationListener.onMyPositionFabClick();
@@ -217,8 +221,9 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 									menu.addItem(layer, activity);
 
 								//Check if fab one is visible so fab two is not shown if user decided to hide maps ui
-								if (fabOne.isShown())
+								if (fabOneVisible) {
 									activity.runOnUiThread(() -> fabTwo.show());
+								}
 								showFabTwo = true;
 							}
 						}
@@ -264,6 +269,7 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 			}
 		} else {
 			if (fabOne != null && fabTwo != null) {
+				fabOneVisible = false;
 				fabOne.hide();
 				fabTwo.hide();
 			}
@@ -352,11 +358,13 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 				searchText.setVisibility(View.INVISIBLE);
 				if (showFabTwo)
 					fabTwo.hide();
+				fabOneVisible = false;
 				fabOne.hide();
 			} else {
 				searchText.setVisibility(View.VISIBLE);
 				if (showFabTwo)
 					fabTwo.show();
+				fabOneVisible = true;
 				fabOne.show();
 			}
 		});
