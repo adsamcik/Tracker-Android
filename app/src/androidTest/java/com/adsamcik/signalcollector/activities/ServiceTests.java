@@ -5,7 +5,7 @@ import android.support.test.InstrumentationRegistry;
 import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.UiDevice;
 
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.signin.Signin;
 
 import org.junit.Assert;
 import org.junit.Before;

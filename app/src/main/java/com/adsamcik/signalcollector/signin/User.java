@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.network;
+package com.adsamcik.signalcollector.signin;
 
 public class User {
 	public final String id;

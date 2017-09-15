@@ -23,7 +23,7 @@ import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.SnackMaker;

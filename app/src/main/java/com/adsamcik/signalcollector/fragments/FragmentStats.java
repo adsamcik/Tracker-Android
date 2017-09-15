@@ -19,7 +19,7 @@ import android.widget.ListView;
 
 import com.adsamcik.signalcollector.adapters.TableAdapter;
 import com.adsamcik.signalcollector.enums.AppendBehavior;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.network.NetworkLoader;
