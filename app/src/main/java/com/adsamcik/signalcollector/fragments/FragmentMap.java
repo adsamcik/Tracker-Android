@@ -31,11 +31,14 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.interfaces.IFilterRule;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.data.MapLayer;
 import com.adsamcik.signalcollector.network.NetworkLoader;
+import com.adsamcik.signalcollector.utility.MapFilterRule;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.network.Network;
@@ -53,6 +56,7 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -64,7 +68,7 @@ import java.util.List;
 
 import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
 
-public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
+public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListener, OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
 	private static final int PERMISSION_LOCATION_CODE = 200;
 
@@ -85,9 +89,11 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	private FragmentActivity activity;
 	private FloatingActionButton fabTwo, fabOne;
-	private FabMenu menu;
+	private FabMenu<MapLayer> menu;
 
 	boolean showFabTwo;
+
+	private MapFilterRule mapLayerFilterRule;
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
@@ -182,32 +188,35 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return view;
 		}
 
+		mapLayerFilterRule = new MapFilterRule();
+
 		Signin.getUserDataAsync(activity, u -> {
 			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess())) {
-				menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
-				menu.setCallback(this::changeMapOverlay);
+				menu = new FabMenu<>((ViewGroup) container.getParent(), fabTwo, activity, mapLayerFilterRule, MapLayer::getName);
+				menu.setCallback(value -> activity.runOnUiThread(() -> changeMapOverlay(value)));
 
 				if (u.networkInfo.hasPersonalMapAccess())
-					menu.addItem(activity.getString(R.string.map_personal), activity);
+					menu.addItem(new MapLayer(activity.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE));
 
 				if (u.networkInfo.hasMapAccess())
 					NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 						if (fabTwo != null && layerArray != null) {
-							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
 							if (!MapLayer.contains(layerArray, savedOverlay)) {
-								savedOverlay = layerArray[0].name;
+								savedOverlay = layerArray[0].getName();
 								Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
 							}
 
 							final String defaultOverlay = savedOverlay;
+							//menu can become null if user leaves the fragment
 							if (menu != null) {
 								if (menu.getItemCount() == 0)
 									changeMapOverlay(defaultOverlay);
 
-								if (layerArray.length > 0) {
-									for (MapLayer layer : layerArray)
-										menu.addItem(layer.name, activity);
-								}
+								for (MapLayer layer : layerArray)
+									menu.addItem(layer, activity);
+
+								//Check if fab one is visible so fab two is not shown if user decided to hide maps ui
 								if (fabOne.isShown())
 									activity.runOnUiThread(() -> fabTwo.show());
 								showFabTwo = true;
@@ -286,7 +295,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 					tileProvider.setType(type);
 
 				this.type = type;
-				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+				activity.runOnUiThread(() -> activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider)));
 			}
 		} else this.type = type;
 	}
@@ -314,6 +323,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		tileProvider = new SignalsTileProvider(c, MAX_ZOOM);
 
 		initializeLocationListener(c);
+
+		map.setOnCameraIdleListener(this);
 
 		map.setMaxZoomPreference(MAX_ZOOM);
 		if (checkLocationPermission(c, false)) {
@@ -392,6 +403,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			userRadius.setRadius(accuracy);
 			userCenter.setPosition(latlng);
 		}
+	}
+
+	@Override
+	public void onCameraIdle() {
+		LatLngBounds bounds = map.getProjection().getVisibleRegion().latLngBounds;
+		mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude);
 	}
 
 	private class UpdateLocationListener implements LocationListener, SensorEventListener {

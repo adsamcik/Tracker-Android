@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.signalcollector.signin;
 
 import android.app.Activity;
 import android.content.Context;
@@ -17,7 +17,8 @@ import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
-import com.adsamcik.signalcollector.network.User;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;

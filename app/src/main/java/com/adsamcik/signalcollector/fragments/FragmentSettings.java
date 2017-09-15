@@ -33,6 +33,7 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
 import com.adsamcik.signalcollector.activities.FeedbackActivity;
@@ -44,7 +45,7 @@ import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.interfaces.IVerify;
 import com.adsamcik.signalcollector.network.Prices;
-import com.adsamcik.signalcollector.network.User;
+import com.adsamcik.signalcollector.signin.User;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
@@ -58,7 +59,7 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -607,15 +608,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 					if (layerArray != null && layerArray.length > 0) {
 						SharedPreferences sp = Preferences.get(activity);
-						String defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+						String defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
 						int index = MapLayer.indexOf(layerArray, defaultOverlay);
 						final int selectIndex = index == -1 ? 0 : index;
 						if (index == -1)
-							sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name).apply();
+							sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName()).apply();
 
 						CharSequence[] items = new CharSequence[layerArray.length];
 						for (int i = 0; i < layerArray.length; i++)
-							items[i] = layerArray[i].name;
+							items[i] = layerArray[i].getName();
 
 						activity.runOnUiThread(() -> {
 							final Button mapOverlayButton = rootView.findViewById(R.id.setting_map_overlay_button);
@@ -624,7 +625,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 							adapter.setDropDownViewResource(R.layout.spinner_item);
 							mapOverlayButton.setText(items[selectIndex]);
 							mapOverlayButton.setOnClickListener(v -> {
-								String ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+								String ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
 								int in = MapLayer.indexOf(layerArray, ov);
 								int selectIn = in == -1 ? 0 : in;
 

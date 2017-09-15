@@ -15,11 +15,9 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import android.util.Pair;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.fragments.FragmentActivities;
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
@@ -34,7 +32,7 @@ import com.adsamcik.signalcollector.fragments.FragmentMap;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.fragments.FragmentStats;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -79,7 +77,6 @@ public class MainActivity extends FragmentActivity {
 			ActivityService.requestAutoTracking(this);
 		else
 			snackMaker.showSnackbar(R.string.error_play_services_not_available);
-
 
 		ColorStateList primary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.text_primary));
 		ColorStateList secondary = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.color_accent));
