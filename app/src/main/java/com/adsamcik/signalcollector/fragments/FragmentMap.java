@@ -32,11 +32,13 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.interfaces.IFilterRule;
 import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.data.MapLayer;
 import com.adsamcik.signalcollector.network.NetworkLoader;
+import com.adsamcik.signalcollector.utility.MapFilterRule;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.network.Network;
@@ -54,6 +56,7 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -65,7 +68,7 @@ import java.util.List;
 
 import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
 
-public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFragment {
+public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListener, OnMapReadyCallback, ITabFragment {
 	private static final int MAX_ZOOM = 17;
 	private static final int PERMISSION_LOCATION_CODE = 200;
 
@@ -89,6 +92,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 	private FabMenu<MapLayer> menu;
 
 	boolean showFabTwo;
+
+	private MapFilterRule mapLayerFilterRule;
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
@@ -183,23 +188,18 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			return view;
 		}
 
+		mapLayerFilterRule = new MapFilterRule();
+
 		Signin.getUserDataAsync(activity, u -> {
-			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess()) || BuildConfig.DEBUG) {
-				menu = new FabMenu<>((ViewGroup) container.getParent(), fabTwo, activity, null, MapLayer::getName);
+			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess())) {
+				menu = new FabMenu<>((ViewGroup) container.getParent(), fabTwo, activity, mapLayerFilterRule, MapLayer::getName);
 				menu.setCallback(value -> activity.runOnUiThread(() -> changeMapOverlay(value)));
 
 				if (u.networkInfo.hasPersonalMapAccess())
 					menu.addItem(new MapLayer(activity.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE));
 
-				if (u.networkInfo.hasMapAccess() || BuildConfig.DEBUG)
+				if (u.networkInfo.hasMapAccess())
 					NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
-						if (BuildConfig.DEBUG) {
-							state = NetworkLoader.Source.network;
-							layerArray = new MapLayer[20];
-							for (int i = 0; i < 20; i++)
-								layerArray[i] = new MapLayer("wifi" + i, MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE);
-						}
-
 						if (fabTwo != null && layerArray != null) {
 							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
 							if (!MapLayer.contains(layerArray, savedOverlay)) {
@@ -324,6 +324,8 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 		initializeLocationListener(c);
 
+		map.setOnCameraIdleListener(this);
+
 		map.setMaxZoomPreference(MAX_ZOOM);
 		if (checkLocationPermission(c, false)) {
 			locationListener.setFollowMyPosition(true, c);
@@ -401,6 +403,12 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 			userRadius.setRadius(accuracy);
 			userCenter.setPosition(latlng);
 		}
+	}
+
+	@Override
+	public void onCameraIdle() {
+		LatLngBounds bounds = map.getProjection().getVisibleRegion().latLngBounds;
+		mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude);
 	}
 
 	private class UpdateLocationListener implements LocationListener, SensorEventListener {

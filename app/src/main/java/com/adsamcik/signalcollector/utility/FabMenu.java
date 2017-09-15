@@ -10,6 +10,7 @@ import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Filter;
 import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -97,7 +98,17 @@ public class FabMenu<T> {
 		final int dp16px = Assist.dpToPx(context, 16);
 
 		int maxHeight = wrapper.getHeight() / 2;
-		int height = listView.getHeight();
+		int height;
+		if(adapter.getCount() == 0)
+			height = 0;
+		else {
+			View item = adapter.getView(0, null, null);
+			item.measure(
+					View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+					View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+			int measureHeight = item.getMeasuredHeight();
+			height = measureHeight * adapter.getCount();
+		}
 		int minHeight = fab.getHeight() + dp16px;
 		if (height > maxHeight)
 			height = maxHeight;
@@ -186,16 +197,23 @@ public class FabMenu<T> {
 			throw new NullPointerException("Fab is null");
 		if (isVisible)
 			return;
-		isVisible = true;
 
-		recalculateBounds(activity);
-		wrapper.setVisibility(View.VISIBLE);
-		listView.setVisibility(View.INVISIBLE);
-		final int fabPos[] = new int[2];
-		fab.getLocationOnScreen(fabPos);
+		adapter.getFilter().filter(" ", new Filter.FilterListener() {
+			@Override
+			public void onFilterComplete(int i) {
+				isVisible = true;
+				boundsCalculated = false;
 
-		final int pos[] = calculateRevealCenter();
-		Animate.RevealShow(listView, pos[0], pos[1], 0);
-		wrapper.setOnClickListener(closeClickListener);
+				recalculateBounds(activity);
+				wrapper.setVisibility(View.VISIBLE);
+				listView.setVisibility(View.INVISIBLE);
+				final int fabPos[] = new int[2];
+				fab.getLocationOnScreen(fabPos);
+
+				final int pos[] = calculateRevealCenter();
+				Animate.RevealShow(listView, pos[0], pos[1], 0);
+				wrapper.setOnClickListener(closeClickListener);
+			}
+		});
 	}
 }
