@@ -9,8 +9,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 26
-        versionCode 217
-        versionName "4.7.2 Undead Zhevra"
+        versionCode 218
+        versionName "4.7.3 Swift Zhevra"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
