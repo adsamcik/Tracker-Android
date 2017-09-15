@@ -31,7 +31,8 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.utility.Signin;
+import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.data.MapLayer;
@@ -85,7 +86,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 
 	private FragmentActivity activity;
 	private FloatingActionButton fabTwo, fabOne;
-	private FabMenu menu;
+	private FabMenu<MapLayer> menu;
 
 	boolean showFabTwo;
 
@@ -183,31 +184,39 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 		}
 
 		Signin.getUserDataAsync(activity, u -> {
-			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess())) {
-				menu = new FabMenu((ViewGroup) container.getParent(), fabTwo, activity);
-				menu.setCallback(this::changeMapOverlay);
+			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess()) || BuildConfig.DEBUG) {
+				menu = new FabMenu<>((ViewGroup) container.getParent(), fabTwo, activity, null, MapLayer::getName);
+				menu.setCallback(value -> activity.runOnUiThread(() -> changeMapOverlay(value)));
 
 				if (u.networkInfo.hasPersonalMapAccess())
-					menu.addItem(activity.getString(R.string.map_personal), activity);
+					menu.addItem(new MapLayer(activity.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE));
 
-				if (u.networkInfo.hasMapAccess())
+				if (u.networkInfo.hasMapAccess() || BuildConfig.DEBUG)
 					NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+						if (BuildConfig.DEBUG) {
+							state = NetworkLoader.Source.network;
+							layerArray = new MapLayer[20];
+							for (int i = 0; i < 20; i++)
+								layerArray[i] = new MapLayer("wifi" + i, MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE);
+						}
+
 						if (fabTwo != null && layerArray != null) {
-							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name);
+							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
 							if (!MapLayer.contains(layerArray, savedOverlay)) {
-								savedOverlay = layerArray[0].name;
+								savedOverlay = layerArray[0].getName();
 								Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
 							}
 
 							final String defaultOverlay = savedOverlay;
+							//menu can become null if user leaves the fragment
 							if (menu != null) {
 								if (menu.getItemCount() == 0)
 									changeMapOverlay(defaultOverlay);
 
-								if (layerArray.length > 0) {
-									for (MapLayer layer : layerArray)
-										menu.addItem(layer.name, activity);
-								}
+								for (MapLayer layer : layerArray)
+									menu.addItem(layer, activity);
+
+								//Check if fab one is visible so fab two is not shown if user decided to hide maps ui
 								if (fabOne.isShown())
 									activity.runOnUiThread(() -> fabTwo.show());
 								showFabTwo = true;
@@ -286,7 +295,7 @@ public class FragmentMap extends Fragment implements OnMapReadyCallback, ITabFra
 					tileProvider.setType(type);
 
 				this.type = type;
-				activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider));
+				activity.runOnUiThread(() -> activeOverlay = map.addTileOverlay(new TileOverlayOptions().tileProvider(tileProvider)));
 			}
 		} else this.type = type;
 	}
