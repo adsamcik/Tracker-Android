@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.adapters;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Looper;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -56,6 +57,9 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 				this.stringDataList.add(stringMethod.stringify(item));
 		}
 
+		if(Looper.myLooper() == null)
+			Looper.prepare();
+		
 		mFilter = new ItemFilter();
 		this.stringMethod = stringMethod;
 		this.filterRule = filterRule;
