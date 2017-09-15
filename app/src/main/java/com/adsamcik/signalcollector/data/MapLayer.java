@@ -12,10 +12,10 @@ public class MapLayer {
 	private String name;
 	private ArrayList<ValueColor> values;
 
-	private double top;
-	private double right;
-	private double bottom;
-	private double left;
+	private double top = MAX_LONGITUDE;
+	private double right = MAX_LONGITUDE;
+	private double bottom = MIN_LATITUDE;
+	private double left = MIN_LONGITUDE;
 
 	public static final double MIN_LATITUDE = -90;
 	public static final double MAX_LATITUDE = 90;
