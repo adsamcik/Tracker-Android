@@ -72,7 +72,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 		if (instance != null && instance.get() != null) {
 			final ActivityRecognitionActivity _this = instance.get();
 			_this.runOnUiThread(() -> {
-				_this.adapter.add(action == null ? new String[]{time, activity} : new String[]{time, activity, action});
+				_this.adapter.add(action == null ? new String[]{time, activity} : new String[]{time, activity, action}, null);
 				if (_this.listView.getLastVisiblePosition() == _this.adapter.getCount() - 2)
 					_this.listView.smoothScrollToPosition(_this.adapter.getCount() - 1);
 			});

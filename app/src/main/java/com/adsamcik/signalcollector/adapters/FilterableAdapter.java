@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.adapters;
 
+import android.app.Activity;
 import android.content.Context;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
@@ -67,7 +68,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		return lastConstraint == null ? stringDataList.size() : filteredData.size();
 	}
 
-	public Object getItem(int position) {
+	public String getItem(int position) {
 		return lastConstraint == null ? stringDataList.get(position) : filteredData.get(position);
 	}
 
@@ -113,7 +114,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 
 	public void setFilterRule(@Nullable IFilterRule<T> filterRule) {
 		this.filterRule = filterRule;
-		if(lastConstraint != null)
+		if (lastConstraint != null)
 			getFilter().filter(lastConstraint);
 	}
 
@@ -121,7 +122,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		return mFilter;
 	}
 
-	public void add(T item) {
+	public void add(T item, @Nullable Activity activity) {
 		dataList.add(item);
 		String string = stringMethod.stringify(item);
 		stringDataList.add(string);
@@ -135,7 +136,11 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 					filteredData.add(string);
 			}
 		}
-		notifyDataSetChanged();
+
+		if (activity != null)
+			activity.runOnUiThread(this::notifyDataSetChanged);
+		else
+			notifyDataSetChanged();
 	}
 
 	public void clear() {
