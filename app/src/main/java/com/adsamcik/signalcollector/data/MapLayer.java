@@ -12,19 +12,19 @@ public class MapLayer {
 	private String name;
 	private ArrayList<ValueColor> values;
 
-	private float top;
-	private float right;
-	private float bottom;
-	private float left;
+	private double top;
+	private double right;
+	private double bottom;
+	private double left;
 
-	public static final float MIN_LATITUDE = -90;
-	public static final float MAX_LATITUDE = 90;
-	public static final float MIN_LONGITUDE = -180;
-	public static final float MAX_LONGITUDE = 180;
+	public static final double MIN_LATITUDE = -90;
+	public static final double MAX_LATITUDE = 90;
+	public static final double MIN_LONGITUDE = -180;
+	public static final double MAX_LONGITUDE = 180;
 
 	MapLayer() {}
 
-	public MapLayer(@NonNull String name, float top, float right, float bottom, float left) {
+	public MapLayer(@NonNull String name, double top, double right, double bottom, double left) {
 		this.name = name;
 		this.top = top;
 		this.right = right;
@@ -75,19 +75,19 @@ public class MapLayer {
 		return values;
 	}
 
-	public float getTop() {
+	public double getTop() {
 		return top;
 	}
 
-	public float getRight() {
+	public double getRight() {
 		return right;
 	}
 
-	public float getBottom() {
+	public double getBottom() {
 		return bottom;
 	}
 
-	public float getLeft() {
+	public double getLeft() {
 		return left;
 	}
 
@@ -100,18 +100,16 @@ public class MapLayer {
 		this.values = values;
 	}
 
-	void setTop(float top) {
+	void setTop(double top) {
 		this.top = top;
 	}
-
-	void setRight(float right) {
+	void setRight(double right) {
 		this.right = right;
 	}
-	void setBottom(float bottom) {
+	void setBottom(double bottom) {
 		this.bottom = bottom;
 	}
-
-	void setLeft(float left) {
+	void setLeft(double left) {
 		this.left = left;
 	}
 }
