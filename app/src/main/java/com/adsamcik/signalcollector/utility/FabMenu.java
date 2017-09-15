@@ -11,9 +11,14 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.adapters.FilterableAdapter;
+import com.adsamcik.signalcollector.interfaces.IFilterRule;
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
+import com.adsamcik.signalcollector.interfaces.IString;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 
 import org.json.JSONArray;
@@ -21,75 +26,68 @@ import org.json.JSONException;
 
 import java.util.List;
 
-public class FabMenu {
+public class FabMenu<T> {
 	private final String TAG = "SignalsFabMenu";
 
 	private FloatingActionButton fab;
 
 	private final ViewGroup wrapper;
-	private final ViewGroup menu;
-	private final ViewGroup container;
+	private final ListView listView;
 
-	private IValueCallback<String> callback;
+	private final FilterableAdapter<T> adapter;
+
+	private INonNullValueCallback<String> callback;
 
 	private final View.OnClickListener closeClickListener = (p) -> hide();
 
 	private boolean isVisible = false;
 	private boolean boundsCalculated = false;
 
-	public FabMenu(ViewGroup parent, FloatingActionButton fab, Activity activity) {
+	public FabMenu(ViewGroup parent, FloatingActionButton fab, Activity activity, @Nullable IFilterRule<T> filterRule, @NonNull IString<T> toString) {
 		wrapper = (ViewGroup) LayoutInflater.from(activity).inflate(R.layout.fab_menu, parent, false);
-		menu = (ViewGroup) wrapper.getChildAt(0);
-		container = (ViewGroup) ((ViewGroup) menu.getChildAt(0)).getChildAt(0);
+		listView = (ListView) wrapper.getChildAt(0);
 		wrapper.setVisibility(View.INVISIBLE);
-		menu.setVisibility(View.INVISIBLE);
+		listView.setVisibility(View.INVISIBLE);
+
+		adapter = new FilterableAdapter<>(activity, R.layout.spinner_item, null, filterRule, toString);
+
+		listView.setAdapter(adapter);
+		listView.setOnItemClickListener((adapterView, view, i, l) -> callback(adapter.getItem(i)));
 
 		activity.runOnUiThread(() -> parent.addView(wrapper));
 		this.fab = fab;
 	}
 
-	private void callback(String value) {
-		assert value != null;
+	private void callback(@NonNull String value) {
 		callback.callback(value);
 		hide();
 	}
 
-	public FabMenu setCallback(@Nullable IValueCallback<String> callback) {
+	public FabMenu setCallback(@Nullable INonNullValueCallback<String> callback) {
 		this.callback = callback;
 		return this;
 	}
 
-	public FabMenu addItems(final String jsonStringArray, final Activity activity) throws JSONException {
-		JSONArray array = new JSONArray(jsonStringArray);
-		for (int i = 0; i < array.length(); i++)
-			addItem(array.getString(i), activity);
+	public FabMenu addItems(final @NonNull List<T> itemList) {
+		for (T item : itemList)
+			addItem(item);
 		return this;
 	}
 
-	public FabMenu addItems(final List<String> stringList, final Activity activity) {
-		for (String item : stringList)
-			addItem(item, activity);
+	public FabMenu addItem(final @NonNull T item) {
+		adapter.add(item, null);
+		boundsCalculated = false;
 		return this;
 	}
 
-	public FabMenu addItem(final String name, final Activity activity) {
-		TextView tv = (TextView) LayoutInflater.from(activity).inflate(R.layout.fab_menu_button, menu, false);
-		tv.setText(name);
-		tv.setOnClickListener(v -> callback(name));
-		activity.runOnUiThread(() -> container.addView(tv));
+	public FabMenu addItem(final @NonNull T item, Activity activity) {
+		adapter.add(item, activity);
 		boundsCalculated = false;
 		return this;
 	}
 
 	public int getItemCount() {
-		return container.getChildCount();
-	}
-
-	private View findTopParent(View view, final int temp[]) {
-		if (view == null || view.getTop() == 0)
-			return view;
-		else
-			return findTopParent((View) view.getParent(), temp);
+		return adapter.getCount();
 	}
 
 	public void recalculateBounds(@NonNull Context context) {
@@ -99,7 +97,7 @@ public class FabMenu {
 		final int dp16px = Assist.dpToPx(context, 16);
 
 		int maxHeight = wrapper.getHeight() / 2;
-		int height = container.getHeight();
+		int height = listView.getHeight();
 		int minHeight = fab.getHeight() + dp16px;
 		if (height > maxHeight)
 			height = maxHeight;
@@ -116,7 +114,7 @@ public class FabMenu {
 
 
 		DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
-		menu.setX(displayMetrics.widthPixels - menu.getWidth() - dp16px);
+		listView.setX(displayMetrics.widthPixels - listView.getWidth() - dp16px);
 
 		fabPos[1] += fab.getHeight() / 2;
 		int halfHeight = height / 2;
@@ -127,17 +125,17 @@ public class FabMenu {
 			offset += (botY - maxY);
 
 		int y = fabPos[1] - offset;
-		menu.setY(y);
+		listView.setY(y);
 
-		FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(menu.getWidth(), height);
-		menu.setLayoutParams(layoutParams);
+		FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(listView.getWidth(), height);
+		listView.setLayoutParams(layoutParams);
 		boundsCalculated = true;
 		//Log.d(TAG, "offset " + offset + " y " + y + " max y " + maxY + " bot y " + botY + " height " + menu.getHeight() + " target height " + height + " max height " + maxHeight);
 	}
 
 	public FabMenu clear(final Activity activity) {
 		if (activity != null)
-			activity.runOnUiThread(menu::removeAllViews);
+			adapter.clear();
 		return this;
 	}
 
@@ -155,7 +153,7 @@ public class FabMenu {
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 		final int menuPos[] = new int[2];
-		menu.getLocationOnScreen(menuPos);
+		listView.getLocationOnScreen(menuPos);
 
 		final int result[] = new int[2];
 		result[0] = fabPos[0] - menuPos[0] + fab.getWidth() / 2;
@@ -169,7 +167,7 @@ public class FabMenu {
 		isVisible = false;
 		wrapper.setOnClickListener(null);
 		final int pos[] = calculateRevealCenter();
-		Animate.RevealHide(menu, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
+		Animate.RevealHide(listView, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
 	}
 
 	public void hideAndDestroy(@NonNull FragmentActivity activity) {
@@ -179,7 +177,7 @@ public class FabMenu {
 			isVisible = false;
 			wrapper.setOnClickListener(null);
 			final int pos[] = calculateRevealCenter();
-			Animate.RevealHide(menu, pos[0], pos[1], 0, () -> destroy(activity));
+			Animate.RevealHide(listView, pos[0], pos[1], 0, () -> destroy(activity));
 		}
 	}
 
@@ -192,12 +190,12 @@ public class FabMenu {
 
 		recalculateBounds(activity);
 		wrapper.setVisibility(View.VISIBLE);
-		menu.setVisibility(View.INVISIBLE);
+		listView.setVisibility(View.INVISIBLE);
 		final int fabPos[] = new int[2];
 		fab.getLocationOnScreen(fabPos);
 
 		final int pos[] = calculateRevealCenter();
-		Animate.RevealShow(menu, pos[0], pos[1], 0);
+		Animate.RevealShow(listView, pos[0], pos[1], 0);
 		wrapper.setOnClickListener(closeClickListener);
 	}
 }
