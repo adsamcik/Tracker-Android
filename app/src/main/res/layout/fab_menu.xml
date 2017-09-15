@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             xmlns:tools="http://schemas.android.com/tools"
              android:layout_width="match_parent"
              android:layout_height="match_parent"
              android:clipToPadding="false"
@@ -10,9 +9,8 @@
         android:layout_width="150dp"
         android:layout_height="wrap_content"
         android:background="@color/text_primary"
+        android:divider="@null"
+        android:dividerHeight="0dp"
         android:elevation="8dp"
-        android:paddingEnd="16dp"
-        android:paddingStart="16dp"
-        android:scrollbarThumbVertical="@color/color_accent"
-        tools:ignore="UselessParent" />
+        android:scrollbarThumbVertical="@color/color_accent"/>
 </FrameLayout>
