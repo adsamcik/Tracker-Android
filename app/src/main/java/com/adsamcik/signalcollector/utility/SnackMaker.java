@@ -54,9 +54,10 @@ public class SnackMaker {
 		Snackbar.make(view, message, Snackbar.LENGTH_LONG).setAction(action, onClickListener).show();
 	}
 
-	public void interrupt() {
-		current.dismiss();
-		queue.remove();
+	private void interrupt() {
+		if (current != null)
+			current.dismiss();
+		queue.clear();
 		handler = null;
 	}
 
