@@ -31,9 +31,8 @@ public class ActivityService extends IntentService {
 	private static final int REQUEST_CODE_PENDING_INTENT = 4561201;
 
 	private static ActivityInfo lastActivity = new ActivityInfo(DetectedActivity.UNKNOWN, 0);
-	private static GoogleApiClient client;
 
-	//private static Task task;
+	private static Task task;
 	private static PowerManager powerManager;
 
 	private static int activeRequestCount;
@@ -68,10 +67,7 @@ public class ActivityService extends IntentService {
 		if (activeRequestCount == 0)
 			FirebaseCrash.report(new Throwable("Trying to remove more activity requests than existed"));
 		else if (--activeRequestCount == 0) {
-			ActivityRecognition.ActivityRecognitionApi.removeActivityUpdates(client, getActivityDetectionPendingIntent(context));
-			client.disconnect();
-			client = null;
-			//ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
+			ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
 		}
 	}
 
@@ -87,23 +83,8 @@ public class ActivityService extends IntentService {
 
 	private static boolean initializeActivityClient(@NonNull Context context) {
 		if (Assist.isPlayServiceAvailable(context)) {
-			//ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
-			//task = activityRecognitionClient.requestActivityUpdates(MIN_DELAY, getActivityDetectionPendingIntent(context));
-			client = new GoogleApiClient.Builder(context)
-					.addApi(ActivityRecognition.API)
-					.addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
-						@Override
-						public void onConnected(@Nullable Bundle bundle) {
-							ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(client, REQUEST_CODE_PENDING_INTENT, getActivityDetectionPendingIntent(context));
-						}
-
-						@Override
-						public void onConnectionSuspended(int i) {
-
-						}
-					})
-					.build();
-			client.connect();
+			ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
+			task = activityRecognitionClient.requestActivityUpdates(MIN_DELAY, getActivityDetectionPendingIntent(context));
 			return true;
 		} else {
 			FirebaseCrash.report(new Throwable("Unavailable play services"));
@@ -120,7 +101,6 @@ public class ActivityService extends IntentService {
 	 */
 	private static PendingIntent getActivityDetectionPendingIntent(@NonNull Context context) {
 		Intent intent = new Intent(context.getApplicationContext(), ActivityService.class);
-
 		// We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
 		// requestActivityUpdates() and removeActivityUpdates().
 		return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent, PendingIntent.FLAG_UPDATE_CURRENT);
