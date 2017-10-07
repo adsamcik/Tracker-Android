@@ -10,7 +10,7 @@ import com.google.android.gms.location.DetectedActivity;
 public class ActivityInfo {
 	public final int activity;
 	public final int confidence;
-	public final int resolvedActivity;
+	public final @ResolvedActivity int resolvedActivity;
 
 	public ActivityInfo(final int activity, final int confidence) {
 		this.activity = activity;
