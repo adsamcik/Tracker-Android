@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="channel_track_id">tracking_channel_id</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Tracking channel</string>
     <string name="channel_track_description">Channel containing tracking notifications</string>
-    <string name="channel_upload_id">upload_channel_id</string>
+
+    <string name="channel_upload_id" translatable="false">upload_channel_id</string>
     <string name="channel_upload_name">Upload channel</string>
     <string name="channel_upload_description">Channel containing upload notifications</string>
-    <string name="channel_other_id">other_channel_id</string>
+
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Other channel</string>
     <string name="channel_other_description">Channel containing various notifications</string>
-    <string name="channel_challenges_id">challenge_channel_id</string>
-    <string name="channel_challenges_name">Challenge_channel_id channel</string>
+
+    <string name="channel_challenges_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_challenges_name">Challenge channel id channel</string>
     <string name="channel_challenges_description">Channel containing challenge reports and notifications</string>
+
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Activity watcher channel</string>
+    <string name="channel_activity_watcher_description">Channel used for activity watching so you can easily hide activity watcher foreground service notification if desired.</string>
 </resources>

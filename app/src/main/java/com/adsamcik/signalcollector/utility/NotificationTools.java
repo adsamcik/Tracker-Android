@@ -18,6 +18,7 @@ public class NotificationTools {
 		createChannel(context, R.string.channel_upload_id, R.string.channel_upload_name, R.string.channel_upload_description, false, NotificationManager.IMPORTANCE_HIGH);
 		createChannel(context, R.string.channel_other_id, R.string.channel_other_name, R.string.channel_other_description, true, android.app.NotificationManager.IMPORTANCE_LOW);
 		createChannel(context, R.string.channel_challenges_id, R.string.channel_challenges_name, R.string.channel_challenges_description, true, NotificationManager.IMPORTANCE_HIGH);
+		createChannel(context, R.string.channel_activity_watcher_id, R.string.channel_activity_watcher_name, R.string.channel_activity_watcher_description, false, NotificationManager.IMPORTANCE_NONE);
 	}
 
 	private static void createChannel(@NonNull Context context, @StringRes int idId, @StringRes int nameId, @StringRes int descriptionId, boolean useVibration, int importance) {
