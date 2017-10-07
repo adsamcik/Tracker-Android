@@ -255,6 +255,13 @@ public class Assist {
 		return c.getTimeInMillis();
 	}
 
+	public static void startServiceForeground(@NonNull Activity activity, @NonNull Intent intent) {
+		if(Build.VERSION.SDK_INT >= 26)
+			activity.startForegroundService(intent);
+		else
+			activity.startService(intent);
+	}
+
 	/**
 	 * Checks if airplane mode is turned on
 	 *
