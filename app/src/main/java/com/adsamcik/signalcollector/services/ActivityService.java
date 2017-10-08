@@ -70,12 +70,10 @@ public class ActivityService extends IntentService {
 		int index = activeRequests.indexOfKey(hash);
 		if (index < 0) {
 			activeRequests.append(hash, new ActivityRequestInfo(hash, updateRate, backgroundTracking));
-			Log.d(TAG, "Added " + hash);
 		} else {
 			ActivityRequestInfo ari = activeRequests.valueAt(index);
 			ari.setBackgroundTracking(backgroundTracking);
 			ari.setUpdateFrequency(updateRate);
-			Log.d(TAG, "Updated " + hash);
 		}
 
 		return true;
@@ -102,17 +100,13 @@ public class ActivityService extends IntentService {
 				backgroundTracking = ari.isBackgroundTracking();
 				setMinUpdateRate(context, ari.getUpdateFrequency());
 			}
-
-			Log.d(TAG, "Removed " + tClass.hashCode());
 		} else {
 			FirebaseCrash.report(new Throwable("Trying to remove class that is not subscribed (" + tClass.getName() + ")"));
-			Log.e(TAG, "Unknown " + tClass.hashCode());
 		}
 
 		if (activeRequests.size() == 0) {
 			ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
 			activeRequests = new SparseArray<>();
-			Log.d(TAG, "No active requests");
 		}
 	}
 
@@ -150,7 +144,6 @@ public class ActivityService extends IntentService {
 
 	private static boolean initializeActivityClient(@NonNull Context context, int delayInS) {
 		if (Assist.isPlayServiceAvailable(context)) {
-			Log.d(TAG, "Initialized");
 			ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
 			task = activityRecognitionClient.requestActivityUpdates(delayInS * Constants.SECOND_IN_MILLISECONDS, getActivityDetectionPendingIntent(context));
 			return true;
@@ -176,7 +169,6 @@ public class ActivityService extends IntentService {
 
 	@Override
 	protected void onHandleIntent(Intent intent) {
-		Log.d(TAG, "new activity");
 		ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
 		DetectedActivity detectedActivity = result.getMostProbableActivity();
 
