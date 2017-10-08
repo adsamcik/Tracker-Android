@@ -514,7 +514,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				seekBar.setProgress(lastRounded);
 				title.setText(textGenerationFuncton.stringify(minValue + lastRounded));
 				Preferences.get(context).edit().putInt(preference, minValue + lastRounded).apply();
-				valueCallback.callback(lastRounded);
+				if (valueCallback != null)
+					valueCallback.callback(lastRounded);
 			}
 		});
 
