@@ -11,6 +11,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
@@ -47,13 +48,12 @@ public class ActivityWakerService extends Service {
 		thread = new Thread(() -> {
 			//Is not supposed to quit while until service is stopped
 			//noinspection InfiniteLoopStatement
-			while (true) {
+			while (!Thread.currentThread().isInterrupted()) {
 				try {
 					Thread.sleep(Preferences.get(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS));
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					break;
 				}
-
 				notificationManager.notify(NOTIFICATION_ID, updateNotification());
 			}
 
@@ -67,6 +67,7 @@ public class ActivityWakerService extends Service {
 		super.onDestroy();
 		ActivityService.removeAutoTracking(this, getClass());
 		instance = null;
+		thread.interrupt();
 	}
 
 	private Notification updateNotification() {
@@ -104,11 +105,12 @@ public class ActivityWakerService extends Service {
 	 *
 	 * @param activity activity
 	 */
-	public static void poke(@NonNull Activity activity) {
+	public static synchronized void poke(@NonNull Activity activity) {
 		if (Preferences.get(activity).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
 			if (instance == null)
 				Assist.startServiceForeground(activity, new Intent(activity, ActivityWakerService.class));
-		} else if(instance != null)
+		} else if(instance != null) {
 			instance.stopSelf();
+		}
 	}
 }
