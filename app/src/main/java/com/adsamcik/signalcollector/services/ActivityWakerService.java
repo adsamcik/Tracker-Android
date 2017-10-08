@@ -51,10 +51,10 @@ public class ActivityWakerService extends Service {
 			while (!Thread.currentThread().isInterrupted()) {
 				try {
 					Thread.sleep(Preferences.get(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS));
+					notificationManager.notify(NOTIFICATION_ID, updateNotification());
 				} catch (InterruptedException e) {
 					break;
 				}
-				notificationManager.notify(NOTIFICATION_ID, updateNotification());
 			}
 
 		});
