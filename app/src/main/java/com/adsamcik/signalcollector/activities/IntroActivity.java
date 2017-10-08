@@ -38,7 +38,7 @@ import java.util.List;
 public class IntroActivity extends AppIntro2 {
 	private final String TAG = "SignalsIntro";
 	private final int LOCATION_PERMISSION_REQUEST_CODE = 201;
-	private AlertDialog.Builder autoUploadDialog, batteryOptimalizationDialog;
+	private AlertDialog.Builder autoUploadDialog;
 	private boolean openedTrackingAlert = false;
 	private boolean openedSigninAlert = false;
 	private boolean openedThemeAlert = false;
@@ -79,17 +79,6 @@ public class IntroActivity extends AppIntro2 {
 						.show();
 			}
 		};
-
-		if (Build.VERSION.SDK_INT >= 23)
-			batteryOptimalizationDialog = new AlertDialog.Builder(this)
-					.setTitle(R.string.intro_disable_battery_optimalizations_title)
-					.setMessage(R.string.intro_disable_battery_optimalizations_description)
-					.setPositiveButton(android.R.string.ok, (dialogInterface, i) -> {
-						Assist.requestBatteryOptimalizationDisable(this);
-						autoUploadDialog.show();
-					})
-					.setNegativeButton(android.R.string.no, (dialogInterface, i) -> autoUploadDialog.show())
-					.setCancelable(false);
 
 		ICallback automationSlideCallback = () -> {
 			if (!openedTrackingAlert && getProgress() == 1) {
@@ -171,10 +160,7 @@ public class IntroActivity extends AppIntro2 {
 			requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
 		} else {
 			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, option).apply();
-			if (option > 0 && shouldShowBatteryOptimalizationDialog(this))
-				batteryOptimalizationDialog.show();
-			else
-				autoUploadDialog.show();
+			autoUploadDialog.show();
 		}
 	}
 
@@ -243,10 +229,7 @@ public class IntroActivity extends AppIntro2 {
 			boolean success = grantResults[0] == PackageManager.PERMISSION_GRANTED;
 			Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, success ? requestedTracking : 0).apply();
 
-			if (success && shouldShowBatteryOptimalizationDialog(this))
-				batteryOptimalizationDialog.show();
-			else
-				autoUploadDialog.show();
+			autoUploadDialog.show();
 		}
 	}
 
