@@ -11,6 +11,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
@@ -25,6 +26,8 @@ public class ActivityWakerService extends Service {
 	private NotificationManager notificationManager;
 	private final int NOTIFICATION_ID = 568465;
 	private Thread thread;
+
+	private ActivityInfo activityInfo = ActivityService.getLastActivity();
 
 	@Nullable
 	@Override
@@ -49,8 +52,12 @@ public class ActivityWakerService extends Service {
 			//noinspection InfiniteLoopStatement
 			while (!Thread.currentThread().isInterrupted()) {
 				try {
-					Thread.sleep(Preferences.get(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS));
-					notificationManager.notify(NOTIFICATION_ID, updateNotification());
+					Thread.sleep(500 + Preferences.get(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS));
+					ActivityInfo newActivityInfo = ActivityService.getLastActivity();
+					if (!newActivityInfo.equals(activityInfo)) {
+						activityInfo = newActivityInfo;
+						notificationManager.notify(NOTIFICATION_ID, updateNotification());
+					}
 				} catch (InterruptedException e) {
 					break;
 				}
@@ -79,7 +86,6 @@ public class ActivityWakerService extends Service {
 				.setColor(ContextCompat.getColor(this, R.color.color_accent));
 
 		builder.setContentTitle(getString(R.string.notification_activity_watcher));
-		ActivityInfo activityInfo = ActivityService.getLastActivity();
 		builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getActivityName(), activityInfo.confidence));
 		switch (activityInfo.resolvedActivity) {
 			case ResolvedActivity.IN_VEHICLE:
@@ -108,7 +114,7 @@ public class ActivityWakerService extends Service {
 		if (Preferences.get(activity).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
 			if (instance == null)
 				Assist.startServiceForeground(activity, new Intent(activity, ActivityWakerService.class));
-		} else if(instance != null) {
+		} else if (instance != null) {
 			instance.stopSelf();
 		}
 	}
