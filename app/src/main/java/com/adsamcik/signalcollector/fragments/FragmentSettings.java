@@ -521,6 +521,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		title.setText(textGenerationFuncton.stringify(previousProgress));
 	}
 
+	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
+		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
+		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			Preferences.get(context).edit().putBoolean(name, b).apply();
+			if (callback != null)
+				callback.callback(b);
+		});
+	}
+
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
 		Activity activity = getActivity();
 		if (activity != null) {
@@ -690,15 +699,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					}
 				});
 		}
-	}
-
-	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
-		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
-		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
-			Preferences.get(context).edit().putBoolean(name, b).apply();
-			if (callback != null)
-				callback.callback(b);
-		});
 	}
 
 	@NonNull
