@@ -143,8 +143,7 @@
             android:name=".services.TrackerService"
             android:exported="false"/>
         <service
-            android:name=".services.ActivityService"
-            android:exported="false"/>
+            android:name=".services.ActivityService"/>
         <service
             android:name=".services.InstanceIDListenerService"
             tools:ignore="ExportedService">
@@ -161,8 +160,8 @@
         </service>
         <service
             android:name=".services.UploadService"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
+            android:exported="false"/>
+        <service android:name=".services.ActivityWakerService"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
