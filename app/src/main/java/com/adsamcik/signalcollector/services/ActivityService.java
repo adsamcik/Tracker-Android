@@ -23,7 +23,6 @@ import com.google.firebase.crash.FirebaseCrash;
 public class ActivityService extends IntentService {
 	private static final String TAG = "Signals" + ActivityService.class.getSimpleName();
 	private static final int REQUIRED_CONFIDENCE = 75;
-	private static final int MIN_DELAY = 5000;
 	private static final int REQUEST_CODE_PENDING_INTENT = 4561201;
 
 	private static ActivityInfo lastActivity = new ActivityInfo(DetectedActivity.UNKNOWN, 0);
@@ -34,6 +33,7 @@ public class ActivityService extends IntentService {
 	private static boolean backgroundTracking;
 
 	private static SparseIntArray activeRequests = new SparseIntArray();
+	private static int minUpdateRate = Integer.MIN_VALUE;
 
 	public ActivityService() {
 		super("ActivityService");
@@ -54,8 +54,8 @@ public class ActivityService extends IntentService {
 	/**
 	 * Request activity updates
 	 *
-	 * @param context    context
-	 * @param tClass     class that requests update
+	 * @param context context
+	 * @param tClass  class that requests update
 	 * @return true if success
 	 */
 	public static boolean requestActivity(@NonNull Context context, @NonNull Class tClass) {
@@ -63,12 +63,7 @@ public class ActivityService extends IntentService {
 	}
 
 	private static boolean requestActivity(@NonNull Context context, int hash, int updateRate) {
-		if (activeRequests.size() == 0) {
-			if (!initializeActivityClient(context)) {
-				FirebaseCrash.report(new Throwable("Failed to start activity recognition service"));
-				return false;
-			}
-		}
+		setMinUpdateRate(context, updateRate);
 		activeRequests.append(hash, updateRate);
 		return true;
 	}
@@ -80,19 +75,23 @@ public class ActivityService extends IntentService {
 				return true;
 			}
 		}
-
 		return false;
 	}
 
 	public static void removeActivityRequest(@NonNull Context context, @NonNull Class tClass) {
-		if (activeRequests.size() == 0)
-			FirebaseCrash.report(new Throwable("Trying to remove more activity requests than existed"));
-		else {
-			activeRequests.delete(tClass.hashCode());
-			if (activeRequests.size() == 0) {
-				ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
-				activeRequests = new SparseIntArray();
+		int index = activeRequests.indexOfKey(tClass.hashCode());
+		if (index >= 0) {
+			if (minUpdateRate == activeRequests.valueAt(index)) {
+				setMinUpdateRate(context, getMinUpdateRate());
 			}
+
+			activeRequests.removeAt(index);
+		} else
+			FirebaseCrash.report(new Throwable("Trying to remove class that is not subscribed (" + tClass.getName() + ")"));
+
+		if (activeRequests.size() == 0) {
+			ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
+			activeRequests = new SparseIntArray();
 		}
 	}
 
@@ -106,10 +105,29 @@ public class ActivityService extends IntentService {
 		backgroundTracking = false;
 	}
 
-	private static boolean initializeActivityClient(@NonNull Context context) {
+	private static void setMinUpdateRate(@NonNull Context context, int minUpdateRate) {
+		if (minUpdateRate < ActivityService.minUpdateRate) {
+			ActivityService.minUpdateRate = minUpdateRate;
+			initializeActivityClient(context, minUpdateRate);
+		}
+	}
+
+	private static int getMinUpdateRate() {
+		if (activeRequests.size() == 0)
+			return Integer.MIN_VALUE;
+
+		int min = activeRequests.get(0);
+		for (int i = 1; i < activeRequests.size(); i++) {
+			if (activeRequests.valueAt(i) < min)
+				min = activeRequests.valueAt(i);
+		}
+		return min;
+	}
+
+	private static boolean initializeActivityClient(@NonNull Context context, int delay) {
 		if (Assist.isPlayServiceAvailable(context)) {
 			ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
-			task = activityRecognitionClient.requestActivityUpdates(MIN_DELAY, getActivityDetectionPendingIntent(context));
+			task = activityRecognitionClient.requestActivityUpdates(delay, getActivityDetectionPendingIntent(context));
 			return true;
 		} else {
 			FirebaseCrash.report(new Throwable("Unavailable play services"));
