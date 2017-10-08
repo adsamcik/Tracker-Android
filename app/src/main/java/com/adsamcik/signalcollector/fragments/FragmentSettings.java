@@ -329,10 +329,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				(progress) -> {
 					if (progress == 0)
 						return getString(R.string.frequency_asap);
+					else if (progress < 60)
+						return getString(R.string.frequency_seconds, progress);
 					else if (progress % 60 == 0)
 						return getString(R.string.frequency_minute, progress / 60);
-					else
-						return getString(R.string.frequency_seconds, progress);
+					else {
+						int minutes = progress / 60;
+						return getString(R.string.frequency_minute_second, minutes, progress - minutes * 60);
+					}
 				},
 				value -> {
 					ActivityService.requestActivity(context, MainActivity.class, value);

@@ -46,6 +46,7 @@
     <string name="frequency_asap">As often as possible</string>
     <string name="frequency_seconds">%1$d s</string>
     <string name="frequency_minute">%1$d m</string>
+    <string name="frequency_minute_second">%1$d m %2$d s</string>
     <string name="frequency_activity">Activity update frequency</string>
     <string name="activity_watcher">Activity Watcher</string>
 
