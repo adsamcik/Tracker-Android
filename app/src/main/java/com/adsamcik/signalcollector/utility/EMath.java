@@ -1,6 +1,15 @@
 package com.adsamcik.signalcollector.utility;
 
 public class EMath {
+	public static int limit(int min, int max, int value) {
+		if(value < min)
+			return min;
+		else if(value > max)
+			return max;
+		else
+			return value;
+	}
+
 	public static int step(int value, int direction, final int step) {
 		int target = value + direction;
 
