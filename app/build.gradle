@@ -9,7 +9,7 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 26
-        versionCode 222
+        versionCode 223
         versionName "4.7.5 Injured Zhevra"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
