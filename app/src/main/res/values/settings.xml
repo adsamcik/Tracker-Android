@@ -42,12 +42,20 @@
     <string name="cell">Cell</string>
     <string name="noise">Noise β</string>
     <string name="location">Location</string>
+
+    <string name="frequency_asap">As often as possible</string>
+    <string name="frequency_seconds">%1$d s</string>
+    <string name="frequency_minute">%1$d m</string>
+    <string name="frequency_activity">Activity update frequency</string>
+    <string name="activity_watcher">Activity Watcher</string>
+
     <string name="settings_allow_notifications_upload">Allow upload notifications</string>
     <string name="settings_use_dark_theme">Dark theme</string>
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="settings_autoupload_at">Autoupload at</string>
     <string name="settings_autoupload_at_value">%1$d MB</string>
     <string name="internet_connection_required">Internet connection required</string>
+
     <string name="signout">Sign out</string>
     <string name="signin">Sign in</string>
     <string name="signed_in_message">Signed in successfully</string>

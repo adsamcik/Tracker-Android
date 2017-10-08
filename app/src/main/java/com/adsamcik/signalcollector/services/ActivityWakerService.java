@@ -1,11 +1,13 @@
 package com.adsamcik.signalcollector.services;
 
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
@@ -14,10 +16,12 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.adsamcik.signalcollector.utility.ActivityInfo;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 
 public class ActivityWakerService extends Service {
+	private static ActivityWakerService instance;
 	private NotificationManager notificationManager;
 	private final int NOTIFICATION_ID = 568465;
 	private Thread thread;
@@ -31,6 +35,8 @@ public class ActivityWakerService extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
+
+		instance = this;
 
 		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
@@ -90,5 +96,18 @@ public class ActivityWakerService extends Service {
 		}
 
 		return builder.build();
+	}
+
+	/**
+	 * Pokes Activity Waker Service which checks if it should run
+	 *
+	 * @param activity activity
+	 */
+	public static void poke(@NonNull Activity activity) {
+		if (Preferences.get(activity).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
+			if (instance == null)
+				Assist.startServiceForeground(activity, new Intent(activity, ActivityWakerService.class));
+		} else if(instance != null)
+			instance.stopSelf();
 	}
 }

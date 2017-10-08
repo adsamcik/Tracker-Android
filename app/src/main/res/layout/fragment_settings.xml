@@ -167,12 +167,49 @@
                 android:src="@drawable/ic_directions_car_black_24dp"/>
         </RelativeLayout>
 
-        <TextView
-            android:id="@+id/settings_battery_optimalization_text"
+        <Switch
+            android:id="@+id/switch_activity_watcher"
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_battery_optimalizations_enabled"/>
+            android:paddingBottom="@dimen/setting_item_padding"
+            android:paddingTop="@dimen/setting_item_padding"
+            android:text="@string/activity_watcher"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/activity_horizontal_margin">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/Base.TextAppearance.AppCompat.Body1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/frequency_activity"/>
+
+                <TextView
+                    android:id="@+id/settings_text_activity_frequency"
+                    style="@style/Base.TextAppearance.AppCompat.Body1"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/frequency_asap"/>
+            </LinearLayout>
+
+
+            <SeekBar
+                android:id="@+id/settings_seekbar_watcher_frequency"
+                style="@style/SettingsItem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
 
         <Switch
             android:id="@+id/switchDisableTrackingTillRecharge"
@@ -466,8 +503,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackground"
-            android:textSize="@dimen/secondary_text_size"
-            android:text="@string/open_source_licenses"/>
+            android:text="@string/open_source_licenses"
+            android:textSize="@dimen/secondary_text_size"/>
 
 
         <TextView

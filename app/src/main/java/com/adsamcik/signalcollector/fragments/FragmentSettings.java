@@ -40,16 +40,20 @@ import com.adsamcik.signalcollector.activities.FeedbackActivity;
 import com.adsamcik.signalcollector.activities.FileSharingActivity;
 import com.adsamcik.signalcollector.activities.IntroActivity;
 import com.adsamcik.signalcollector.activities.LicenseActivity;
+import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
+import com.adsamcik.signalcollector.interfaces.IString;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.interfaces.IVerify;
 import com.adsamcik.signalcollector.network.Prices;
+import com.adsamcik.signalcollector.services.ActivityWakerService;
 import com.adsamcik.signalcollector.signin.User;
 import com.adsamcik.signalcollector.services.ActivityService;
 import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.CacheStore;
+import com.adsamcik.signalcollector.utility.EMath;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.data.MapLayer;
@@ -145,9 +149,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		if (mTrackingSelected != null)
 			if (select == 0)
-				ActivityService.removeAutoTracking(getContext(), getClass());
+				ActivityService.removeAutoTracking(getContext(), MainActivity.class);
 			else
-				ActivityService.requestAutoTracking(getContext(), getClass());
+				ActivityService.requestAutoTracking(getContext(), MainActivity.class);
 
 		mTrackingSelected = selected;
 	}
@@ -308,6 +312,33 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			startActivity(activity.getIntent());
 		});
 
+		setSwitchChangeListener(context,
+				Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
+				rootView.findViewById(R.id.switch_activity_watcher),
+				Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
+				value -> ActivityWakerService.poke(getActivity());
+
+		setSeekbar(context,
+				rootView.findViewById(R.id.settings_seekbar_watcher_frequency),
+				rootView.findViewById(R.id.settings_text_activity_frequency),
+				0,
+				300,
+				30,
+				Preferences.PREF_ACTIVITY_UPDATE_RATE,
+				Preferences.DEFAULT_ACTIVITY_UPDATE_RATE,
+				(progress) -> {
+					if (progress == 0)
+						return getString(R.string.frequency_asap);
+					else if (progress % 60 == 0)
+						return getString(R.string.frequency_minute, progress / 60);
+					else
+						return getString(R.string.frequency_seconds, progress);
+				},
+				value -> {
+					ActivityService.requestActivity(context, MainActivity.class, value);
+					ActivityWakerService.poke(getActivity());
+				});
+
 		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
 			if (b) {
 				Bundle bundle = new Bundle();
@@ -321,31 +352,16 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		TextView valueAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_value);
 		SeekBar seekAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_seekbar);
 
-		final int MIN_UPLOAD_VALUE = 1;
-
-		seekAutoUploadAt.incrementProgressBy(1);
-		seekAutoUploadAt.setMax(10 - MIN_UPLOAD_VALUE);
-		int progress = Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB) - MIN_UPLOAD_VALUE;
-		seekAutoUploadAt.setProgress(progress);
-		seekAutoUploadAt.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-			@Override
-			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-				valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
-				if (fromUser)
-					Preferences.get(context).edit().putInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, progress + MIN_UPLOAD_VALUE).apply();
-			}
-
-			@Override
-			public void onStartTrackingTouch(SeekBar seekBar) {
-
-			}
-
-			@Override
-			public void onStopTrackingTouch(SeekBar seekBar) {
-
-			}
-		});
-		valueAutoUploadAt.setText(getString(R.string.settings_autoupload_at_value, progress + MIN_UPLOAD_VALUE));
+		setSeekbar(context,
+				seekAutoUploadAt,
+				valueAutoUploadAt,
+				1,
+				10,
+				1,
+				Preferences.PREF_AUTO_UPLOAD_AT_MB,
+				Preferences.DEFAULT_AUTO_UPLOAD_AT_MB,
+				(progress) -> getString(R.string.settings_autoupload_at_value, progress),
+				null);
 
 		setSwitchChangeListener(context, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, value -> ((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(value ? View.GONE : View.VISIBLE));
 
@@ -457,6 +473,48 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				});
 
 		alertDialogBuilder.show();
+	}
+
+	private void setSeekbar(@NonNull Context context,
+	                        @NonNull SeekBar seekbar,
+	                        @NonNull TextView title,
+	                        int minValue,
+	                        int maxValue,
+	                        int step,
+	                        @Nullable String preference,
+	                        int defaultValue,
+	                        @NonNull IString<Integer> textGenerationFuncton,
+	                        @Nullable INonNullValueCallback<Integer> valueCallback) {
+		seekbar.setMax(maxValue - minValue);
+		int previousProgress = Preferences.get(context).getInt(preference, defaultValue) - minValue;
+		seekbar.setProgress(previousProgress);
+		seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+			int prevProg = previousProgress;
+			int lastRounded = previousProgress;
+
+			@Override
+			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+				if (fromUser)
+					lastRounded = EMath.limit(minValue, maxValue, EMath.step(progress, progress - prevProg, step));
+				title.setText(textGenerationFuncton.stringify(minValue + lastRounded));
+				prevProg = progress;
+			}
+
+			@Override
+			public void onStartTrackingTouch(SeekBar seekBar) {
+
+			}
+
+			@Override
+			public void onStopTrackingTouch(SeekBar seekBar) {
+				seekBar.setProgress(lastRounded);
+				title.setText(textGenerationFuncton.stringify(minValue + lastRounded));
+				Preferences.get(context).edit().putInt(preference, minValue + lastRounded).apply();
+				valueCallback.callback(lastRounded);
+			}
+		});
+
+		title.setText(textGenerationFuncton.stringify(previousProgress));
 	}
 
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {

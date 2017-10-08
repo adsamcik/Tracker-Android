@@ -75,7 +75,9 @@ public class Preferences {
 	public static final String PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled";
 	public static final boolean DEFAULT_TRACKING_LOCATION_ENABLED = true;
 
-	public static final String PREF_ACTIVITY_UPDATE_RATE = "activityWatcher";
+	public static final String PREF_ACTIVITY_WATCHER_ENABLED = "activityWatcherEnabled";
+	public static final boolean DEFAULT_ACTIVITY_WATCHER_ENABLED = false;
+	public static final String PREF_ACTIVITY_UPDATE_RATE = "activityUpdateRate";
 	public static final int DEFAULT_ACTIVITY_UPDATE_RATE = 30;
 
 	public static final String PREF_COLLECTIONS_SINCE_LAST_UPLOAD = "collectionsSinceLastUpload";

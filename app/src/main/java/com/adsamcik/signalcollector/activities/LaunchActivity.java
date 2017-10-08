@@ -13,6 +13,7 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.services.ActivityWakerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
@@ -82,7 +83,7 @@ public class LaunchActivity extends Activity {
 		if (Build.VERSION.SDK_INT >= 25)
 			Shortcuts.initializeShortcuts(this);
 
-		if(Build.VERSION.SDK_INT >= 26)
+		if (Build.VERSION.SDK_INT >= 26)
 			NotificationTools.prepareChannels(this);
 
 		if (BuildConfig.DEBUG) {
@@ -92,6 +93,8 @@ public class LaunchActivity extends Activity {
 			String token = FirebaseInstanceId.getInstance().getToken();
 			Log.d("Signals", token == null ? "null token" : token);
 		}
+
+		ActivityWakerService.poke(this);
 
 		overridePendingTransition(0, 0);
 		finish();
