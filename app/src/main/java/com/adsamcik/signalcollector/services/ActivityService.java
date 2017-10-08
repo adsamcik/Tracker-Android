@@ -6,11 +6,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
-import android.util.SparseIntArray;
+import android.util.Log;
+import android.util.SparseArray;
 
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.adsamcik.signalcollector.utility.ActivityInfo;
+import com.adsamcik.signalcollector.utility.ActivityRequestInfo;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
@@ -33,8 +35,8 @@ public class ActivityService extends IntentService {
 
 	private static boolean backgroundTracking;
 
-	private static SparseIntArray activeRequests = new SparseIntArray();
-	private static int minUpdateRate = Integer.MIN_VALUE;
+	private static SparseArray<ActivityRequestInfo> activeRequests = new SparseArray<>();
+	private static int minUpdateRate = Integer.MAX_VALUE;
 
 	public ActivityService() {
 		super("ActivityService");
@@ -49,7 +51,7 @@ public class ActivityService extends IntentService {
 	 * @return true if success
 	 */
 	public static boolean requestActivity(@NonNull Context context, @NonNull Class tClass, int updateRate) {
-		return requestActivity(context, tClass.hashCode(), updateRate);
+		return requestActivity(context, tClass.hashCode(), updateRate, false);
 	}
 
 	/**
@@ -60,18 +62,28 @@ public class ActivityService extends IntentService {
 	 * @return true if success
 	 */
 	public static boolean requestActivity(@NonNull Context context, @NonNull Class tClass) {
-		return requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE));
+		return requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false);
 	}
 
-	private static boolean requestActivity(@NonNull Context context, int hash, int updateRate) {
+	private static boolean requestActivity(@NonNull Context context, int hash, int updateRate, boolean backgroundTracking) {
 		setMinUpdateRate(context, updateRate);
-		activeRequests.append(hash, updateRate);
+		int index = activeRequests.indexOfKey(hash);
+		if (index < 0) {
+			activeRequests.append(hash, new ActivityRequestInfo(hash, updateRate, backgroundTracking));
+			Log.d(TAG, "Added " + hash);
+		} else {
+			ActivityRequestInfo ari = activeRequests.valueAt(index);
+			ari.setBackgroundTracking(backgroundTracking);
+			ari.setUpdateFrequency(updateRate);
+			Log.d(TAG, "Updated " + hash);
+		}
+
 		return true;
 	}
 
 	public static boolean requestAutoTracking(@NonNull Context context, @NonNull Class tClass) {
 		if (!backgroundTracking && Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) > 0) {
-			if (requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE))) {
+			if (requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), true)) {
 				backgroundTracking = true;
 				return true;
 			}
@@ -82,17 +94,25 @@ public class ActivityService extends IntentService {
 	public static void removeActivityRequest(@NonNull Context context, @NonNull Class tClass) {
 		int index = activeRequests.indexOfKey(tClass.hashCode());
 		if (index >= 0) {
-			if (minUpdateRate == activeRequests.valueAt(index)) {
-				setMinUpdateRate(context, getMinUpdateRate());
-			}
+			int updateRate = activeRequests.valueAt(index).getUpdateFrequency();
 
 			activeRequests.removeAt(index);
-		} else
+			if (minUpdateRate == updateRate) {
+				ActivityRequestInfo ari = generateExtremeRequest();
+				backgroundTracking = ari.isBackgroundTracking();
+				setMinUpdateRate(context, ari.getUpdateFrequency());
+			}
+
+			Log.d(TAG, "Removed " + tClass.hashCode());
+		} else {
 			FirebaseCrash.report(new Throwable("Trying to remove class that is not subscribed (" + tClass.getName() + ")"));
+			Log.e(TAG, "Unknown " + tClass.hashCode());
+		}
 
 		if (activeRequests.size() == 0) {
 			ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
-			activeRequests = new SparseIntArray();
+			activeRequests = new SparseArray<>();
+			Log.d(TAG, "No active requests");
 		}
 	}
 
@@ -113,20 +133,24 @@ public class ActivityService extends IntentService {
 		}
 	}
 
-	private static int getMinUpdateRate() {
+	private static ActivityRequestInfo generateExtremeRequest() {
 		if (activeRequests.size() == 0)
-			return Integer.MIN_VALUE;
+			return new ActivityRequestInfo(0, Integer.MIN_VALUE, false);
 
-		int min = activeRequests.get(0);
-		for (int i = 1; i < activeRequests.size(); i++) {
-			if (activeRequests.valueAt(i) < min)
-				min = activeRequests.valueAt(i);
+		boolean backgroundTracking = false;
+		int min = Integer.MAX_VALUE;
+		for (int i = 0; i < activeRequests.size(); i++) {
+			ActivityRequestInfo ari = activeRequests.get(i);
+			if (ari.getUpdateFrequency() < min)
+				min = ari.getUpdateFrequency();
+			backgroundTracking |= ari.isBackgroundTracking();
 		}
-		return min;
+		return new ActivityRequestInfo(0, min, backgroundTracking);
 	}
 
 	private static boolean initializeActivityClient(@NonNull Context context, int delayInS) {
 		if (Assist.isPlayServiceAvailable(context)) {
+			Log.d(TAG, "Initialized");
 			ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
 			task = activityRecognitionClient.requestActivityUpdates(delayInS * Constants.SECOND_IN_MILLISECONDS, getActivityDetectionPendingIntent(context));
 			return true;
@@ -152,6 +176,7 @@ public class ActivityService extends IntentService {
 
 	@Override
 	protected void onHandleIntent(Intent intent) {
+		Log.d(TAG, "new activity");
 		ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
 		DetectedActivity detectedActivity = result.getMostProbableActivity();
 
