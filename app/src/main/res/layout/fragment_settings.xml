@@ -155,7 +155,7 @@
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/tracking_none"
                 android:contentDescription="@string/autotracking_onfoot_description"
-                android:src="@drawable/ic_directions_walk_black_24dp"/>
+                android:src="@drawable/ic_directions_walk_white_24dp"/>
 
             <ImageView
                 android:id="@+id/tracking_always"
@@ -164,7 +164,7 @@
                 android:layout_margin="10dp"
                 android:layout_toEndOf="@id/tracking_onfoot"
                 android:contentDescription="@string/autotracking_onfootvehicle_description"
-                android:src="@drawable/ic_directions_car_black_24dp"/>
+                android:src="@drawable/ic_directions_car_white_24dp"/>
         </RelativeLayout>
 
         <Switch

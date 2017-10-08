@@ -11,7 +11,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
@@ -84,16 +83,16 @@ public class ActivityWakerService extends Service {
 		builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getActivityName(), activityInfo.confidence));
 		switch (activityInfo.resolvedActivity) {
 			case ResolvedActivity.IN_VEHICLE:
-				builder.setSmallIcon(R.drawable.ic_directions_car_black_24dp);
+				builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp);
 				break;
 			case ResolvedActivity.ON_FOOT:
-				builder.setSmallIcon(R.drawable.ic_directions_walk_black_24dp);
+				builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp);
 				break;
 			case ResolvedActivity.STILL:
-				builder.setSmallIcon(R.drawable.ic_accessibility_black_24dp);
+				builder.setSmallIcon(R.drawable.ic_accessibility_white_24dp);
 				break;
 			case ResolvedActivity.UNKNOWN:
-				builder.setSmallIcon(R.drawable.ic_help_black_24dp);
+				builder.setSmallIcon(R.drawable.ic_help_white_24dp);
 				break;
 		}
 
