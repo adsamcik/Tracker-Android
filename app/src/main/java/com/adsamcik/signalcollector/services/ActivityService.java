@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionClient;
@@ -124,10 +125,10 @@ public class ActivityService extends IntentService {
 		return min;
 	}
 
-	private static boolean initializeActivityClient(@NonNull Context context, int delay) {
+	private static boolean initializeActivityClient(@NonNull Context context, int delayInS) {
 		if (Assist.isPlayServiceAvailable(context)) {
 			ActivityRecognitionClient activityRecognitionClient = ActivityRecognition.getClient(context);
-			task = activityRecognitionClient.requestActivityUpdates(delay, getActivityDetectionPendingIntent(context));
+			task = activityRecognitionClient.requestActivityUpdates(delayInS * Constants.SECOND_IN_MILLISECONDS, getActivityDetectionPendingIntent(context));
 			return true;
 		} else {
 			FirebaseCrash.report(new Throwable("Unavailable play services"));
