@@ -145,9 +145,9 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		if (mTrackingSelected != null)
 			if (select == 0)
-				ActivityService.removeAutoTracking(getContext());
+				ActivityService.removeAutoTracking(getContext(), getClass());
 			else
-				ActivityService.requestAutoTracking(getContext());
+				ActivityService.requestAutoTracking(getContext(), getClass());
 
 		mTrackingSelected = selected;
 	}
@@ -233,27 +233,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		setInactive(autoupAlways);
 
 		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
-		PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-		assert powerManager != null;
-		TextView batteryOptimalizationText = rootView.findViewById(R.id.settings_battery_optimalization_text);
-		if (Build.VERSION.SDK_INT < 23)
-			batteryOptimalizationText.setVisibility(View.GONE);
-		else {
-			if (powerManager.isIgnoringBatteryOptimizations(context.getPackageName()))
-				batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_disabled);
-			else {
-				if (Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) >= 1) {
-					batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_enabled_tracking);
-					batteryOptimalizationText.setTextColor(context.getColor(R.color.error));
-					batteryOptimalizationText.setOnClickListener(view -> {
-						Assist.requestBatteryOptimalizationDisable(context);
-						batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_unknown);
-						batteryOptimalizationText.setOnClickListener(null);
-					});
-				} else
-					batteryOptimalizationText.setText(R.string.settings_battery_optimalizations_enabled);
-			}
-		}
 
 		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
 

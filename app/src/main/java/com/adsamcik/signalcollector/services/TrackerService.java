@@ -60,7 +60,10 @@ public class TrackerService extends Service {
 	private final static int LOCK_TIME_IN_MINUTES = 30;
 	private final static int LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS;
 	private static final int NOTIFICATION_ID_SERVICE = 7643;
+
+	public final static int UPDATE_TIME_SEC = 2;
 	private final float MIN_DISTANCE_M = 5;
+
 	public static ICallback onServiceStateChange;
 	public static ICallback onNewDataFound;
 
@@ -334,7 +337,7 @@ public class TrackerService extends Service {
 		Assist.initialize(this);
 		SharedPreferences sp = Preferences.get(this);
 
-		ActivityService.requestActivity(this);
+		ActivityService.requestActivity(this, getClass(), UPDATE_TIME_SEC);
 
 		//Get managers
 		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
@@ -364,7 +367,7 @@ public class TrackerService extends Service {
 			}
 		};
 
-		int UPDATE_TIME_MILLISEC = 2 * SECOND_IN_MILLISECONDS;
+		int UPDATE_TIME_MILLISEC = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS;
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener);
 		else {
@@ -424,7 +427,7 @@ public class TrackerService extends Service {
 		/*if (noiseTracker != null)
 			noiseTracker.stop();*/
 
-		ActivityService.removeActivityRequest(this);
+		ActivityService.removeActivityRequest(this, getClass());
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
 			locationManager.removeUpdates(locationListener);

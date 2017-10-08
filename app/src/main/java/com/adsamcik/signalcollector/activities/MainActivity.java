@@ -18,6 +18,7 @@ import android.util.Log;
 
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.fragments.FragmentActivities;
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
@@ -74,7 +75,7 @@ public class MainActivity extends FragmentActivity {
 		Signin.signin(this, true, null);
 
 		if (Assist.isPlayServiceAvailable(this))
-			ActivityService.requestAutoTracking(this);
+			ActivityService.requestAutoTracking(this, getClass());
 		else
 			snackMaker.showSnackbar(R.string.error_play_services_not_available);
 
