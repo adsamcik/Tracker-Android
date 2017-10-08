@@ -208,15 +208,6 @@ public class Assist {
 		return null;
 	}
 
-	@RequiresApi(23)
-	public static void requestBatteryOptimalizationDisable(@NonNull Context context) {
-		/*Intent myIntent = new Intent();
-		myIntent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-		startActivity(myIntent);*/
-		//Causes issues with automatic tracking on stock Android 8+ and other devices Android 6+
-		context.startActivity(new Intent(ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(Uri.parse("package:" + context.getPackageName())));
-	}
-
 	/**
 	 * Converts amplitude to dbm
 	 *
