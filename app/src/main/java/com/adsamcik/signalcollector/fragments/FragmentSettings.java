@@ -316,7 +316,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
 				rootView.findViewById(R.id.switch_activity_watcher),
 				Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
-				value -> ActivityWakerService.poke(getActivity());
+				value -> ActivityWakerService.poke(getActivity()));
 
 		setSeekbar(context,
 				rootView.findViewById(R.id.settings_seekbar_watcher_frequency),
