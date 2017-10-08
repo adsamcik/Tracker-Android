@@ -66,6 +66,7 @@ public class ActivityWakerService extends Service {
 	public void onDestroy() {
 		super.onDestroy();
 		ActivityService.removeAutoTracking(this, getClass());
+		instance = null;
 	}
 
 	private Notification updateNotification() {
