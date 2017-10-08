@@ -95,7 +95,7 @@ public class ActivityService extends IntentService {
 			int updateRate = activeRequests.valueAt(index).getUpdateFrequency();
 
 			activeRequests.removeAt(index);
-			if (minUpdateRate == updateRate) {
+			if (minUpdateRate == updateRate && activeRequests.size() > 0) {
 				ActivityRequestInfo ari = generateExtremeRequest();
 				backgroundTracking = ari.isBackgroundTracking();
 				setMinUpdateRate(context, ari.getUpdateFrequency());
@@ -134,7 +134,7 @@ public class ActivityService extends IntentService {
 		boolean backgroundTracking = false;
 		int min = Integer.MAX_VALUE;
 		for (int i = 0; i < activeRequests.size(); i++) {
-			ActivityRequestInfo ari = activeRequests.get(i);
+			ActivityRequestInfo ari = activeRequests.valueAt(i);
 			if (ari.getUpdateFrequency() < min)
 				min = ari.getUpdateFrequency();
 			backgroundTracking |= ari.isBackgroundTracking();
