@@ -4,19 +4,15 @@ import android.app.IntentService;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.util.Log;
+import android.util.SparseIntArray;
 
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.google.android.gms.common.api.GoogleApi;
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionClient;
 import com.google.android.gms.location.ActivityRecognitionResult;
@@ -35,26 +31,51 @@ public class ActivityService extends IntentService {
 	private static Task task;
 	private static PowerManager powerManager;
 
-	private static int activeRequestCount;
 	private static boolean backgroundTracking;
+
+	private static SparseIntArray activeRequests = new SparseIntArray();
 
 	public ActivityService() {
 		super("ActivityService");
 	}
 
-	public static boolean requestActivity(@NonNull Context context) {
-		if (activeRequestCount == 0)
+	/**
+	 * Request activity updates
+	 *
+	 * @param context    context
+	 * @param tClass     class that requests update
+	 * @param updateRate update rate in seconds
+	 * @return true if success
+	 */
+	public static boolean requestActivity(@NonNull Context context, @NonNull Class tClass, int updateRate) {
+		return requestActivity(context, tClass.hashCode(), updateRate);
+	}
+
+	/**
+	 * Request activity updates
+	 *
+	 * @param context    context
+	 * @param tClass     class that requests update
+	 * @return true if success
+	 */
+	public static boolean requestActivity(@NonNull Context context, @NonNull Class tClass) {
+		return requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE));
+	}
+
+	private static boolean requestActivity(@NonNull Context context, int hash, int updateRate) {
+		if (activeRequests.size() == 0) {
 			if (!initializeActivityClient(context)) {
 				FirebaseCrash.report(new Throwable("Failed to start activity recognition service"));
 				return false;
 			}
-		activeRequestCount++;
+		}
+		activeRequests.append(hash, updateRate);
 		return true;
 	}
 
-	public static boolean requestAutoTracking(@NonNull Context context) {
+	public static boolean requestAutoTracking(@NonNull Context context, @NonNull Class tClass) {
 		if (!backgroundTracking && Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) > 0) {
-			if (requestActivity(context)) {
+			if (requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE))) {
 				backgroundTracking = true;
 				return true;
 			}
@@ -63,21 +84,25 @@ public class ActivityService extends IntentService {
 		return false;
 	}
 
-	public static void removeActivityRequest(@NonNull Context context) {
-		if (activeRequestCount == 0)
+	public static void removeActivityRequest(@NonNull Context context, @NonNull Class tClass) {
+		if (activeRequests.size() == 0)
 			FirebaseCrash.report(new Throwable("Trying to remove more activity requests than existed"));
-		else if (--activeRequestCount == 0) {
-			ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
+		else {
+			activeRequests.delete(tClass.hashCode());
+			if (activeRequests.size() == 0) {
+				ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context));
+				activeRequests = new SparseIntArray();
+			}
 		}
 	}
 
-	public static void removeAutoTracking(@NonNull Context context) {
+	public static void removeAutoTracking(@NonNull Context context, @NonNull Class tClass) {
 		if (!backgroundTracking) {
 			FirebaseCrash.report(new Throwable("Trying to remove auto tracking request that never existed"));
 			return;
 		}
 
-		removeActivityRequest(context);
+		removeActivityRequest(context, tClass);
 		backgroundTracking = false;
 	}
 
