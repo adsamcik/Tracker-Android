@@ -11,6 +11,7 @@ public class EMathTest {
 		Assert.assertEquals(30, EMath.step(0, 30, 30));
 		Assert.assertEquals(30, EMath.step(0, 1, 30));
 		Assert.assertEquals(60, EMath.step(90, -1, 30));
+		Assert.assertEquals(150, EMath.step(149, 1, 30));
 
 		//negative value test
 		Assert.assertEquals(-60, EMath.step(-90, 1, 30));
