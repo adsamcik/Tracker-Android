@@ -6,10 +6,6 @@ public class EMath {
 		return value + increment * step;
 	}
 
-	public static int step(int value, final int step) {
-		return  value /= step;
-	}
-
 	public static int sign(int value) {
 		if(value > 0)
 			return 1;
