@@ -19,13 +19,12 @@ import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import static com.adsamcik.signalcollector.file.DataFile.FileType.CACHE;
+import static com.adsamcik.signalcollector.file.DataFile.FileType.STANDARD;
 import static com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX;
 import static com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX;
 
 public class DataFile {
-	public static final int STANDARD = 0;
-	public static final int CACHE = 1;
-
 	public static final String SEPARATOR = " ";
 
 	private File file;
@@ -68,6 +67,12 @@ public class DataFile {
 		}
 	}
 
+	/**
+	 * Returns number of collection in given file
+	 *
+	 * @param file File
+	 * @return Number of collections
+	 */
 	public static int getCollectionCount(@NonNull File file) {
 		String fileName = file.getName();
 		int indexOf = fileName.indexOf(SEPARATOR) + SEPARATOR.length();
@@ -77,7 +82,14 @@ public class DataFile {
 			return 0;
 	}
 
-	public static String getTemplate(@NonNull File file) {
+	/**
+	 * Returns file's template
+	 * File's template is common part shared by all files of the same type
+	 *
+	 * @param file File
+	 * @return File template
+	 */
+	private static String getTemplate(@NonNull File file) {
 		String fileName = file.getName();
 		int indexOf = fileName.indexOf(SEPARATOR);
 		if (indexOf > 2)
@@ -89,12 +101,12 @@ public class DataFile {
 	private void updateCollectionCount(int collectionCount) {
 		this.collectionCount += collectionCount;
 		File newFile;
-		if(fileNameTemplate != null)
+		if (fileNameTemplate != null)
 			newFile = new File(file.getParentFile(), fileNameTemplate + SEPARATOR + this.collectionCount);
 		else
 			newFile = new File(file.getParentFile(), getTemplate(file) + SEPARATOR + this.collectionCount);
 
-		if(!file.renameTo(newFile))
+		if (!file.renameTo(newFile))
 			FirebaseCrash.report(new Throwable("Failed to rename file"));
 		else
 			file = newFile;
@@ -103,18 +115,33 @@ public class DataFile {
 	@IntDef({STANDARD, CACHE})
 	@Retention(RetentionPolicy.SOURCE)
 	public @interface FileType {
+		int STANDARD = 0;
+		int CACHE = 1;
 	}
 
+	/**
+	 * Add json array data to file
+	 *
+	 * @param jsonArray       Json array
+	 * @param collectionCount Number of collections (items in array)
+	 * @return true if adding was success, false otherwise
+	 */
 	public boolean addData(@NonNull String jsonArray, int collectionCount) {
 		if (jsonArray.charAt(0) != '[')
 			throw new IllegalArgumentException("Given string is not json array!");
-		if(saveData(jsonArray)) {
+		if (saveData(jsonArray)) {
 			updateCollectionCount(collectionCount);
 			return true;
 		} else
 			return false;
 	}
 
+	/**
+	 * Add RawData array to file
+	 *
+	 * @param data RawData array
+	 * @return true if adding was success, false otherwise
+	 */
 	public boolean addData(@NonNull RawData[] data) {
 		if (!writeable) {
 			try {
@@ -126,7 +153,7 @@ public class DataFile {
 			writeable = true;
 		}
 
-		if(saveData(gson.toJson(data))) {
+		if (saveData(gson.toJson(data))) {
 			updateCollectionCount(data.length);
 			return true;
 		} else

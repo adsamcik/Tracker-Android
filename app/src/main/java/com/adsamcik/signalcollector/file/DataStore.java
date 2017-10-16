@@ -317,7 +317,7 @@ public class DataStore {
 	public static DataFile getCurrentDataFile(@NonNull Context context) {
 		if (currentDataFile == null) {
 			String userID = Signin.getUserID(context);
-			updateCurrentData(context, userID == null ? DataFile.CACHE : DataFile.STANDARD, userID);
+			updateCurrentData(context, userID == null ? DataFile.FileType.CACHE : DataFile.FileType.STANDARD, userID);
 		}
 		return currentDataFile;
 	}
@@ -326,17 +326,17 @@ public class DataStore {
 		String dataFile;
 		String preference;
 
-		if (type == DataFile.STANDARD && userID == null) {
-			type = DataFile.CACHE;
+		if (type == DataFile.FileType.STANDARD && userID == null) {
+			type = DataFile.FileType.CACHE;
 			FirebaseCrash.report(new Throwable("Wrong data file type"));
 		}
 
 		switch (type) {
-			case DataFile.CACHE:
+			case DataFile.FileType.CACHE:
 				dataFile = DATA_CACHE_FILE;
 				preference = PREF_CACHE_FILE_INDEX;
 				break;
-			case DataFile.STANDARD:
+			case DataFile.FileType.STANDARD:
 				dataFile = DATA_FILE;
 				preference = PREF_DATA_FILE_INDEX;
 				break;
@@ -360,15 +360,15 @@ public class DataStore {
 	public static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
 		String userID = Signin.getUserID(context);
 		if (UploadService.isUploading() || userID == null)
-			updateCurrentData(context, DataFile.CACHE, userID);
+			updateCurrentData(context, DataFile.FileType.CACHE, userID);
 		else
-			updateCurrentData(context, DataFile.STANDARD, userID);
+			updateCurrentData(context, DataFile.FileType.STANDARD, userID);
 		return saveData(context, currentDataFile, rawData);
 	}
 
 	private synchronized static void writeTempData(@NonNull Context context) {
 		String userId = Signin.getUserID(context);
-		if (currentDataFile.getType() != DataFile.STANDARD || userId == null)
+		if (currentDataFile.getType() != DataFile.FileType.STANDARD || userId == null)
 			return;
 
 		File[] files = getDir(context).listFiles((file, s) -> s.startsWith(DATA_CACHE_FILE));
@@ -405,7 +405,7 @@ public class DataStore {
 					String data = FileStore.loadString(files[0]);
 					assert data != null;
 					String nameTemplate = DATA_FILE + (currentDataIndex + i);
-					dataFile = new DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD);
+					dataFile = new DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.FileType.STANDARD);
 					if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
 						throw new RuntimeException();
 
@@ -423,7 +423,7 @@ public class DataStore {
 	private synchronized static SaveStatus saveData(@NonNull Context context, DataFile file, @NonNull RawData[] rawData) {
 		long prevSize = file.size();
 
-		if (file.getType() == DataFile.STANDARD)
+		if (file.getType() == DataFile.FileType.STANDARD)
 			writeTempData(context);
 
 		if (file.addData(rawData)) {
