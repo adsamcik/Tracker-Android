@@ -330,7 +330,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					else if (progress % 60 == 0)
 						return getString(R.string.frequency_minute, progress / 60);
 					else {
-						int minutes = (int) progress / 60;
+						int minutes = progress / 60;
 						return getString(R.string.frequency_minute_second, minutes, progress - minutes * 60);
 					}
 				},

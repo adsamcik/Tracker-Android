@@ -106,7 +106,7 @@ public class FilterableAdapter<T> extends BaseAdapter implements Filterable {
 		}
 
 		// If weren't re-ordering this you could rely on what you set last time
-		holder.text.setText((String) getItem(position));
+		holder.text.setText(getItem(position));
 
 		return convertView;
 	}

@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.data;
 
+import android.annotation.SuppressLint;
 import android.location.Location;
 import android.net.wifi.ScanResult;
 import android.os.Build;
@@ -151,7 +152,8 @@ public class RawData implements Serializable {
 	 *
 	 */
 	public void addCell(@NonNull TelephonyManager telephonyManager) {
-		List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();
+		//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
+		@SuppressLint("MissingPermission") List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();
 		String nOp = telephonyManager.getNetworkOperator();
 		if (!nOp.isEmpty()) {
 			short mcc = Short.parseShort(nOp.substring(0, 3));
