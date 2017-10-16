@@ -9,7 +9,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 
 import java.lang.reflect.Type;
-import java.util.Random;
 
 public class ChallengeDeserializer implements JsonDeserializer<Challenge> {
 	@Override

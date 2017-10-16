@@ -6,7 +6,6 @@ import android.content.Intent;
 
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.services.ActivityService;
-import com.adsamcik.signalcollector.utility.Preferences;
 
 import java.util.Objects;
 

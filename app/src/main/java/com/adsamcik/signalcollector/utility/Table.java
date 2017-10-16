@@ -9,7 +9,6 @@ import android.support.annotation.StyleRes;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.CardView;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.util.Pair;
 import android.view.Gravity;
 import android.view.View;
@@ -22,8 +21,6 @@ import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.AppendBehavior;
-
-import org.w3c.dom.Text;
 
 import java.util.ArrayList;
 import java.util.Locale;

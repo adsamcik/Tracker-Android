@@ -3,13 +3,9 @@ package com.adsamcik.signalcollector.data;
 import android.content.Context;
 import android.content.res.Resources;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.enums.ChallengeDifficulty;
-import com.google.gson.annotations.Expose;
-import com.google.gson.annotations.SerializedName;
-import com.vimeo.stag.UseStag;
 
 public class Challenge {
 	/**

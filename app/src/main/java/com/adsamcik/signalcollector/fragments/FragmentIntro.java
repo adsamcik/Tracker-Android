@@ -11,7 +11,6 @@ import android.view.Window;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.github.paolorotolo.appintro.AppIntroBaseFragment;
-import com.github.paolorotolo.appintro.ISlideBackgroundColorHolder;
 import com.github.paolorotolo.appintro.ISlidePolicy;
 
 public final class FragmentIntro extends AppIntroBaseFragment implements ISlidePolicy {

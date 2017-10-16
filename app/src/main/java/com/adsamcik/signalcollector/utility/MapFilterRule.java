@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.utility;
 
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.adsamcik.signalcollector.data.MapLayer;
 import com.adsamcik.signalcollector.interfaces.IFilterRule;

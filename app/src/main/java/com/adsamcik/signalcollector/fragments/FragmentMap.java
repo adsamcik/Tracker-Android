@@ -25,15 +25,12 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.adsamcik.signalcollector.BuildConfig;
-import com.adsamcik.signalcollector.interfaces.IFilterRule;
 import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Failure;

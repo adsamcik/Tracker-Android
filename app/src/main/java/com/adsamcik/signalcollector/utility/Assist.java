@@ -16,13 +16,11 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.annotation.RequiresApi;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.res.ResourcesCompat;
 import android.telephony.TelephonyManager;
@@ -34,10 +32,8 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.enums.ResolvedActivity;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.location.DetectedActivity;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -45,7 +41,6 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
-import static android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;
 import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS;
 
 public class Assist {

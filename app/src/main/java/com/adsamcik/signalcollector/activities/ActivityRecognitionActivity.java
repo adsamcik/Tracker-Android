@@ -11,12 +11,9 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
 
-import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.adapters.FilterableAdapter;
-import com.adsamcik.signalcollector.interfaces.IFilterRule;
-import com.adsamcik.signalcollector.interfaces.IString;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
 
