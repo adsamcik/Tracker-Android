@@ -173,6 +173,12 @@ public class DataFile {
 		}
 	}
 
+	/**
+	 * Closes DataFile
+	 * File will be automatically reopened when saveData is called
+	 *
+	 * @return True if close was successful
+	 */
 	public boolean close() {
 		try {
 			String last2 = FileStore.loadLastAscii(file, 2);
@@ -186,19 +192,39 @@ public class DataFile {
 		}
 	}
 
+	/**
+	 * Returns size of DataFile
+	 *
+	 * @return Size
+	 */
 	public long size() {
 		return file.length();
 	}
 
+	/**
+	 * Returns whether the DataFile is writeable
+	 *
+	 * @return True if is writeable
+	 */
 	public boolean isWriteable() {
 		return writeable;
 	}
 
+	/**
+	 * Returns FileType
+	 *
+	 * @return FileType
+	 */
 	public @FileType
 	int getType() {
 		return type;
 	}
 
+	/**
+	 * Returns preference string for index
+	 *
+	 * @return Preference string for index
+	 */
 	public String getPreference() {
 		switch (type) {
 			case CACHE:
@@ -210,6 +236,11 @@ public class DataFile {
 		}
 	}
 
+	/**
+	 * Checks if DataFile is larger or equal than maximum DataFile size
+	 *
+	 * @return True if is larger or equal than maximum DataFile size
+	 */
 	public boolean isFull() {
 		return file.length() > Constants.MAX_DATA_FILE_SIZE;
 	}
