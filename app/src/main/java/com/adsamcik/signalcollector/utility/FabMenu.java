@@ -13,17 +13,12 @@ import android.view.ViewGroup;
 import android.widget.Filter;
 import android.widget.FrameLayout;
 import android.widget.ListView;
-import android.widget.TextView;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.adapters.FilterableAdapter;
 import com.adsamcik.signalcollector.interfaces.IFilterRule;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.interfaces.IString;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
-
-import org.json.JSONArray;
-import org.json.JSONException;
 
 import java.util.List;
 
@@ -198,22 +193,19 @@ public class FabMenu<T> {
 		if (isVisible)
 			return;
 
-		adapter.getFilter().filter(" ", new Filter.FilterListener() {
-			@Override
-			public void onFilterComplete(int i) {
-				isVisible = true;
-				boundsCalculated = false;
+		adapter.getFilter().filter(" ", i -> {
+			isVisible = true;
+			boundsCalculated = false;
 
-				recalculateBounds(activity);
-				wrapper.setVisibility(View.VISIBLE);
-				listView.setVisibility(View.INVISIBLE);
-				final int fabPos[] = new int[2];
-				fab.getLocationOnScreen(fabPos);
+			recalculateBounds(activity);
+			wrapper.setVisibility(View.VISIBLE);
+			listView.setVisibility(View.INVISIBLE);
+			final int fabPos[] = new int[2];
+			fab.getLocationOnScreen(fabPos);
 
-				final int pos[] = calculateRevealCenter();
-				Animate.RevealShow(listView, pos[0], pos[1], 0);
-				wrapper.setOnClickListener(closeClickListener);
-			}
+			final int pos[] = calculateRevealCenter();
+			Animate.RevealShow(listView, pos[0], pos[1], 0);
+			wrapper.setOnClickListener(closeClickListener);
 		});
 	}
 }
