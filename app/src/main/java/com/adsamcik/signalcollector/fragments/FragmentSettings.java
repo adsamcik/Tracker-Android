@@ -65,6 +65,8 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.adsamcik.slider.IntSlider;
+import com.adsamcik.slider.Slider;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
@@ -334,7 +336,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					else if (progress % 60 == 0)
 						return getString(R.string.frequency_minute, progress / 60);
 					else {
-						int minutes = progress / 60;
+						int minutes = (int) progress / 60;
 						return getString(R.string.frequency_minute_second, minutes, progress - minutes * 60);
 					}
 				},
@@ -354,7 +356,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		});
 
 		TextView valueAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_value);
-		SeekBar seekAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_seekbar);
+		IntSlider seekAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_seekbar);
 
 		setSeekbar(context,
 				seekAutoUploadAt,
@@ -480,46 +482,23 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void setSeekbar(@NonNull Context context,
-	                        @NonNull SeekBar seekbar,
+	                        @NonNull IntSlider slider,
 	                        @NonNull TextView title,
 	                        int minValue,
 	                        int maxValue,
 	                        int step,
 	                        @Nullable String preference,
 	                        int defaultValue,
-	                        @NonNull IString<Integer> textGenerationFuncton,
+	                        @NonNull Slider.IStringify<Integer> textGenerationFuncton,
 	                        @Nullable INonNullValueCallback<Integer> valueCallback) {
-		seekbar.setMax(maxValue - minValue);
+		slider.setMaxValue(maxValue);
 		int previousProgress = Preferences.get(context).getInt(preference, defaultValue) - minValue;
-		seekbar.setProgress(previousProgress);
-		seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-			int prevProg = previousProgress;
-			int lastRounded = previousProgress;
-
-			@Override
-			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-				if (fromUser)
-					lastRounded = EMath.limit(minValue, maxValue, EMath.step(progress, progress - prevProg, step));
-				title.setText(textGenerationFuncton.stringify(minValue + lastRounded));
-				prevProg = progress;
-			}
-
-			@Override
-			public void onStartTrackingTouch(SeekBar seekBar) {
-
-			}
-
-			@Override
-			public void onStopTrackingTouch(SeekBar seekBar) {
-				seekBar.setProgress(lastRounded);
-				title.setText(textGenerationFuncton.stringify(minValue + lastRounded));
-				Preferences.get(context).edit().putInt(preference, minValue + lastRounded).apply();
-				if (valueCallback != null)
-					valueCallback.callback(lastRounded);
-			}
-		});
-
-		title.setText(textGenerationFuncton.stringify(previousProgress));
+		slider.setProgressValue(previousProgress);
+		slider.setStep(step);
+		slider.setMinValue(minValue);
+		slider.setTextView(title, textGenerationFuncton);
+		if (valueCallback != null)
+			slider.setOnValueChangeListener((value, fromUser) -> valueCallback.callback(slider.getValue()));
 	}
 
 	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {

@@ -196,15 +196,15 @@
                 <TextView
                     android:id="@+id/settings_text_activity_frequency"
                     style="@style/Base.TextAppearance.AppCompat.Body1"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:paddingEnd="4dp"
+                    android:paddingStart="4dp"
                     android:text="@string/frequency_asap"/>
             </LinearLayout>
 
 
-            <SeekBar
+            <com.adsamcik.slider.IntSlider
                 android:id="@+id/settings_seekbar_watcher_frequency"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"
@@ -305,7 +305,7 @@
                     android:text="@string/settings_autoupload_at_value"/>
             </LinearLayout>
 
-            <SeekBar
+            <com.adsamcik.slider.IntSlider
                 android:id="@+id/settings_autoupload_at_seekbar"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"
