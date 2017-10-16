@@ -37,11 +37,11 @@ public class TableAdapter extends BaseAdapter {
 	}
 
 	public void sort() {
-		Collections.sort(tables, (tx, ty) -> tx.appendBehavior.ordinal() - ty.appendBehavior.ordinal());
+		Collections.sort(tables, (tx, ty) -> tx.appendBehavior - ty.appendBehavior);
 		notifyDataSetChanged();
 	}
 
-	public void remove(@NonNull final AppendBehavior appendBehavior) {
+	public void remove(final @AppendBehavior int appendBehavior) {
 		if (Build.VERSION.SDK_INT >= 24)
 			tables.removeIf(table -> table.appendBehavior == appendBehavior);
 		else

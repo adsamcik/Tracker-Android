@@ -58,7 +58,7 @@ public class MainActivity extends FragmentActivity {
 		SnackMaker snackMaker = new SnackMaker(this);
 		Assist.initialize(this);
 
-		if (Network.cloudStatus == null) {
+		if (Network.cloudStatus == CloudStatus.UNKNOWN) {
 			UploadService.UploadScheduleSource scheduleSource = UploadService.getUploadScheduled(this);
 			switch (scheduleSource) {
 				case NONE:

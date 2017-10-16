@@ -168,18 +168,18 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 
 	private void updateUploadButton() {
-		if (fabUp == null || Network.cloudStatus == null) {
-			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == null ? " is null " : " is fine"));
-			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == null ? " is null " : " is fine")));
+		if (fabUp == null || Network.cloudStatus == CloudStatus.UNKNOWN) {
+			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == CloudStatus.UNKNOWN ? " is null " : " is fine"));
+			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == CloudStatus.UNKNOWN ? " is null " : " is fine")));
 			return;
 		}
 
 		switch (Network.cloudStatus) {
-			case NO_SYNC_REQUIRED:
+			case CloudStatus.NO_SYNC_REQUIRED:
 				fabUp.hide();
 				fabUp.setOnClickListener(null);
 				break;
-			case SYNC_AVAILABLE:
+			case CloudStatus.SYNC_AVAILABLE:
 				fabUp.setImageResource(R.drawable.ic_cloud_upload_24dp);
 				progressBar.setVisibility(View.GONE);
 				fabUp.setOnClickListener(
@@ -201,7 +201,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				);
 				fabUp.show();
 				break;
-			case SYNC_SCHEDULED:
+			case CloudStatus.SYNC_SCHEDULED:
 				fabUp.setImageResource(R.drawable.ic_cloud_queue_black_24dp);
 				fabUp.setOnClickListener(
 						v -> {
@@ -217,12 +217,12 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				);
 				fabUp.show();
 				break;
-			case SYNC_IN_PROGRESS:
+			case CloudStatus.SYNC_IN_PROGRESS:
 				fabUp.setImageResource(R.drawable.ic_sync_black_24dp);
 				fabUp.setOnClickListener(null);
 				fabUp.show();
 				break;
-			case ERROR:
+			case CloudStatus.ERROR:
 				fabUp.setImageResource(R.drawable.ic_cloud_off_24dp);
 				fabUp.setOnClickListener(null);
 				fabUp.show();

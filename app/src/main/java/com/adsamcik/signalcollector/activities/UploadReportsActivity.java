@@ -33,7 +33,7 @@ public class UploadReportsActivity extends DetailActivity {
 	 * @param title      title, if null is replaced with upload time
 	 * @return table
 	 */
-	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, @NonNull Context context, @Nullable String title, @NonNull AppendBehavior appendBehavior) {
+	public static Table GenerateTableForUploadStat(@NonNull UploadStats uploadStat, @NonNull Context context, @Nullable String title, @AppendBehavior int appendBehavior) {
 		Resources resources = context.getResources();
 		Table t = new Table(9, false, 16, appendBehavior);
 

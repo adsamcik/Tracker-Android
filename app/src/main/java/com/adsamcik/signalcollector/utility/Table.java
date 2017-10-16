@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public class Table {
-	public final AppendBehavior appendBehavior;
+	public final @AppendBehavior int appendBehavior;
 
 	public String getTitle() {
 		return title;
@@ -46,7 +46,7 @@ public class Table {
 	 * @param rowCount   number of data (used to initialize array holding data)
 	 * @param showNumber show number of row (starts at 1)
 	 */
-	public Table(int rowCount, boolean showNumber, int marginDp, @NonNull AppendBehavior appendBehavior) {
+	public Table(int rowCount, boolean showNumber, int marginDp, @AppendBehavior int appendBehavior) {
 		this.data = new ArrayList<>(rowCount);
 		this.showNumber = showNumber;
 		this.appendBehavior = appendBehavior;

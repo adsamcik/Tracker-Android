@@ -126,7 +126,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 		}
 	}
 
-	private void handleResponse(@NonNull Activity activity, @NonNull NetworkLoader.Source state, @Nullable Stat[] value, @NonNull AppendBehavior appendBehavior) {
+	private void handleResponse(@NonNull Activity activity, @NonNull NetworkLoader.Source state, @Nullable Stat[] value, @AppendBehavior int appendBehavior) {
 		if (!state.isSuccess())
 			new SnackMaker(activity).showSnackbar(state.toString(activity));
 		refreshingCount--;
@@ -147,7 +147,7 @@ public class FragmentStats extends Fragment implements ITabFragment {
 	 *
 	 * @param stats stats
 	 */
-	private void addStatsTable(@NonNull Stat[] stats, @NonNull AppendBehavior appendBehavior) {
+	private void addStatsTable(@NonNull Stat[] stats, @AppendBehavior int appendBehavior) {
 		for (Stat s : stats) {
 			if (s.data != null) {
 				Table table = new Table(s.data.size(), s.showPosition, CARD_LIST_MARGIN, appendBehavior);
