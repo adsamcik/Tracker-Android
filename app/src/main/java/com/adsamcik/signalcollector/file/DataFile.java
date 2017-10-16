@@ -98,7 +98,7 @@ public class DataFile {
 			return fileName;
 	}
 
-	private void updateCollectionCount(int collectionCount) {
+	private synchronized void updateCollectionCount(int collectionCount) {
 		this.collectionCount += collectionCount;
 		File newFile;
 		if (fileNameTemplate != null)
@@ -126,7 +126,7 @@ public class DataFile {
 	 * @param collectionCount Number of collections (items in array)
 	 * @return true if adding was success, false otherwise
 	 */
-	public boolean addData(@NonNull String jsonArray, int collectionCount) {
+	public synchronized boolean addData(@NonNull String jsonArray, int collectionCount) {
 		if (jsonArray.charAt(0) != '[')
 			throw new IllegalArgumentException("Given string is not json array!");
 		if (saveData(jsonArray)) {
@@ -142,7 +142,7 @@ public class DataFile {
 	 * @param data RawData array
 	 * @return true if adding was success, false otherwise
 	 */
-	public boolean addData(@NonNull RawData[] data) {
+	public synchronized boolean addData(@NonNull RawData[] data) {
 		if (!writeable) {
 			try {
 				new FileOutputStream(file, true).getChannel().truncate(file.length() - 2).close();
@@ -160,7 +160,7 @@ public class DataFile {
 			return false;
 	}
 
-	private boolean saveData(@NonNull String jsonArray) {
+	private synchronized boolean saveData(@NonNull String jsonArray) {
 		try {
 			boolean status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty);
 			if (status)
@@ -179,7 +179,7 @@ public class DataFile {
 	 *
 	 * @return True if close was successful
 	 */
-	public boolean close() {
+	public synchronized boolean close() {
 		try {
 			String last2 = FileStore.loadLastAscii(file, 2);
 			assert last2 != null;
@@ -197,7 +197,7 @@ public class DataFile {
 	 *
 	 * @return Size
 	 */
-	public long size() {
+	public synchronized long size() {
 		return file.length();
 	}
 
@@ -241,7 +241,7 @@ public class DataFile {
 	 *
 	 * @return True if is larger or equal than maximum DataFile size
 	 */
-	public boolean isFull() {
-		return file.length() > Constants.MAX_DATA_FILE_SIZE;
+	public synchronized boolean isFull() {
+		return size() > Constants.MAX_DATA_FILE_SIZE;
 	}
 }
