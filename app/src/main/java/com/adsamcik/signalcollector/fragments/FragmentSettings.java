@@ -314,8 +314,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
 				value -> ActivityWakerService.poke(getActivity()));
 
+		IntSlider activityFrequencySlider = rootView.findViewById(R.id.settings_seekbar_watcher_frequency);
+		//todo update to not set useless values because of setItems below
 		setSeekbar(context,
-				rootView.findViewById(R.id.settings_seekbar_watcher_frequency),
+				activityFrequencySlider,
 				rootView.findViewById(R.id.settings_text_activity_frequency),
 				0,
 				300,
@@ -338,6 +340,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					ActivityService.requestActivity(context, MainActivity.class, value);
 					ActivityWakerService.poke(getActivity());
 				});
+
+		activityFrequencySlider.setItems(new Integer[]{0, 5, 10, 30, 60, 120, 240, 300, 600});
 
 		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
 			if (b) {
