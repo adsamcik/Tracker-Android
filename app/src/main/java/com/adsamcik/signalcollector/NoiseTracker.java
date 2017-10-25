@@ -18,7 +18,7 @@ public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";
 	private static final int SAMPLING = 22050;
 	// AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
-	private static final int bufferSize = SAMPLING;
+	private static final int bufferSize = SAMPLING * 2;
 
 	private final short MAX_HISTORY_SIZE = 20;
 	private final short[] values = new short[MAX_HISTORY_SIZE];
@@ -128,7 +128,7 @@ public class NoiseTracker implements SensorEventListener {
 		private final NoiseTracker noiseTracker;
 
 		private NoiseCheckTask(NoiseTracker noiseTracker) {
-			audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+			audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 			if (NoiseSuppressor.isAvailable()) {
 				NoiseSuppressor noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
 				if (noiseSuppressor == null)
@@ -165,6 +165,19 @@ public class NoiseTracker implements SensorEventListener {
 			return null;
 		}
 
+		private short[][] deinterleaveData(short[] samples, int numChannels) {
+			int numFrames = samples.length / numChannels;
+
+			short[][] result = new short[numChannels][];
+			for (int ch = 0; ch < numChannels; ch++) {
+				result[ch] = new short[numFrames];
+				for (int i = 0; i < numFrames; i++) {
+					result[ch][i] = samples[numChannels * i + ch];
+				}
+			}
+			return result;
+		}
+
 		@Override
 		protected void onPostExecute(Void aVoid) {
 			if (audioRecorder.getState() > 0)
@@ -180,8 +193,11 @@ public class NoiseTracker implements SensorEventListener {
 		}
 
 		private short getApproxAmplitude(boolean inPocket) {
-			short[] buffer = new short[bufferSize];
-			int audioState = audioRecorder.read(buffer, 0, bufferSize);
+			short[] temp = new short[bufferSize];
+			FFT
+			int audioState = audioRecorder.read(temp, 0, bufferSize);
+			short[][] buffer = deinterleaveData(temp, 2);
+
 
 			if (audioState == AudioRecord.ERROR_INVALID_OPERATION || audioState == AudioRecord.ERROR_BAD_VALUE) {
 				FirebaseCrash.report(new Throwable("Noise tracking failed with state " + audioState));
