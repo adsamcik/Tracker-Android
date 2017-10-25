@@ -3,14 +3,14 @@ apply plugin: 'com.google.gms.oss.licenses.plugin'
 apply from: 'key.gradle'
 
 android {
-    compileSdkVersion 26
+    compileSdkVersion 27
     buildToolsVersion '26.0.2'
     defaultConfig {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
-        targetSdkVersion 26
-        versionCode 224
-        versionName "4.8.0 Wendigo"
+        targetSdkVersion 27
+        versionCode 225
+        versionName "4.9.0 Wendigo"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
@@ -52,10 +52,10 @@ dependencies {
     compile 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     compile 'de.psdev.licensesdialog:licensesdialog:1.8.3'
     compile 'com.adsamcik:slider:0.3.0'
-    compile 'com.android.support:design:26.1.0'
-    compile 'com.android.support:appcompat-v7:26.1.0'
-    compile 'com.android.support:support-compat:26.1.0'
-    compile 'com.android.support:cardview-v7:26.1.0'
+    compile 'com.android.support:design:27.0.0'
+    compile 'com.android.support:appcompat-v7:27.0.0'
+    compile 'com.android.support:support-compat:27.0.0'
+    compile 'com.android.support:cardview-v7:27.0.0'
     compile 'com.android.support.constraint:constraint-layout:1.1.0-beta3'
     compile 'com.google.android.gms:play-services-maps:11.4.2'
     compile 'com.google.android.gms:play-services-location:11.4.2'
