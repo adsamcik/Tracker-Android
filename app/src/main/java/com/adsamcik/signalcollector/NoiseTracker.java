@@ -12,7 +12,13 @@ import android.media.audiofx.NoiseSuppressor;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 
+import com.adsamcik.signalcollector.utility.EArray;
 import com.google.firebase.crash.FirebaseCrash;
+
+import org.apache.commons.math3.complex.Complex;
+import org.apache.commons.math3.transform.DftNormalization;
+import org.apache.commons.math3.transform.FastFourierTransformer;
+import org.apache.commons.math3.transform.TransformType;
 
 public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";
@@ -127,6 +133,8 @@ public class NoiseTracker implements SensorEventListener {
 		private short currentIndex = -1;
 		private final NoiseTracker noiseTracker;
 
+		private final FastFourierTransformer transformer;
+
 		private NoiseCheckTask(NoiseTracker noiseTracker) {
 			audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 			if (NoiseSuppressor.isAvailable()) {
@@ -137,6 +145,7 @@ public class NoiseTracker implements SensorEventListener {
 					noiseSuppressor.setEnabled(true);
 			}
 			this.noiseTracker = noiseTracker;
+			this.transformer = new FastFourierTransformer(DftNormalization.STANDARD);
 		}
 
 		@Override
@@ -194,9 +203,7 @@ public class NoiseTracker implements SensorEventListener {
 
 		private short getApproxAmplitude(boolean inPocket) {
 			short[] temp = new short[bufferSize];
-			FFT
 			int audioState = audioRecorder.read(temp, 0, bufferSize);
-			short[][] buffer = deinterleaveData(temp, 2);
 
 
 			if (audioState == AudioRecord.ERROR_INVALID_OPERATION || audioState == AudioRecord.ERROR_BAD_VALUE) {
@@ -204,10 +211,44 @@ public class NoiseTracker implements SensorEventListener {
 				return -1;
 			}
 
-			if (inPocket) {
+			return EArray.avgAbs(temp);
+
+
+
+			/*Complex[][] results = new Complex[2][];
+			final int count = audioState / 2;
+
+			for (int times = 0; times < 2; times++) {
+				Complex[] complex = new Complex[count];
+				for (int i = 0; i < count; i++) {
+					//Put the time domain data into a complex number with imaginary part as 0:
+					complex[i] = new Complex(temp[(times * count) + i], 0);
+				}
+				//Perform FFT analysis on the chunk:
+				results[times] = transformer.transform(complex, TransformType.FORWARD);
+			}
+
+			double[] noiseWave = new double[bufferSize / SKIP_SAMPLES];
+			for (int i = 1; i < results.length - 1; i += SKIP_SAMPLES) {
+				short amp = (short) Math.abs(results[i].);
+				if (amp < min && Math.abs(amp - Math.abs(buffer[i - 1])) < 100 && Math.abs(amp - Math.abs(buffer[i + 1])) < 100) {
+					min = amp;
+				}
+			}
+
+			short min = Short.MAX_VALUE;
+			for (int i = 1; i < results.length - 1; i += SKIP_SAMPLES) {
+				short amp = (short) Math.abs(results[i].);
+				if (amp < min && Math.abs(amp - Math.abs(buffer[i - 1])) < 100 && Math.abs(amp - Math.abs(buffer[i + 1])) < 100) {
+					min = amp;
+				}
+			}
+			return min;*/
+
+			/*if (inPocket) {
 				short min = Short.MAX_VALUE;
-				for (int i = 1; i < buffer.length - 1; i += SKIP_SAMPLES) {
-					short amp = (short) Math.abs(buffer[i]);
+				for (int i = 1; i < results.length - 1; i += SKIP_SAMPLES) {
+					short amp = (short) Math.abs(results[i].);
 					if (amp < min && Math.abs(amp - Math.abs(buffer[i - 1])) < 100 && Math.abs(amp - Math.abs(buffer[i + 1])) < 100) {
 						min = amp;
 					}
@@ -241,7 +282,7 @@ public class NoiseTracker implements SensorEventListener {
 
 				lastAvg = (short) avg;
 				return (short) (finalAvg / count);
-			}
+			}*/
 		}
 	}
 }
