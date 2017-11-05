@@ -241,11 +241,11 @@ public class Assist {
 		return c.getTimeInMillis();
 	}
 
-	public static void startServiceForeground(@NonNull Activity activity, @NonNull Intent intent) {
+	public static void startServiceForeground(@NonNull Context context, @NonNull Intent intent) {
 		if(Build.VERSION.SDK_INT >= 26)
-			activity.startForegroundService(intent);
+			context.startForegroundService(intent);
 		else
-			activity.startService(intent);
+			context.startService(intent);
 	}
 
 	/**
