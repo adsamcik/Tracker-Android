@@ -15,11 +15,6 @@ import android.support.annotation.NonNull;
 import com.adsamcik.signalcollector.utility.EArray;
 import com.google.firebase.crash.FirebaseCrash;
 
-import org.apache.commons.math3.complex.Complex;
-import org.apache.commons.math3.transform.DftNormalization;
-import org.apache.commons.math3.transform.FastFourierTransformer;
-import org.apache.commons.math3.transform.TransformType;
-
 public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";
 	private static final int SAMPLING = 22050;
@@ -133,8 +128,6 @@ public class NoiseTracker implements SensorEventListener {
 		private short currentIndex = -1;
 		private final NoiseTracker noiseTracker;
 
-		private final FastFourierTransformer transformer;
-
 		private NoiseCheckTask(NoiseTracker noiseTracker) {
 			audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
 			if (NoiseSuppressor.isAvailable()) {
@@ -145,7 +138,6 @@ public class NoiseTracker implements SensorEventListener {
 					noiseSuppressor.setEnabled(true);
 			}
 			this.noiseTracker = noiseTracker;
-			this.transformer = new FastFourierTransformer(DftNormalization.STANDARD);
 		}
 
 		@Override
