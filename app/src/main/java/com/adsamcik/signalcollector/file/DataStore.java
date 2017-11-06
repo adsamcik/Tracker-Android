@@ -322,7 +322,7 @@ public class DataStore {
 		return currentDataFile;
 	}
 
-	private static void updateCurrentData(@NonNull Context context, @DataFile.FileType int type, @Nullable String userID) {
+	private synchronized static void updateCurrentData(@NonNull Context context, @DataFile.FileType int type, @Nullable String userID) {
 		String dataFile;
 		String preference;
 
