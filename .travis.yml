@@ -41,7 +41,8 @@ android:
         #system images
         - sys-img-$ANDROID_ABI-android-$EMULATOR_API
 
-after_script:
+before_script:
+    - yes | cp -rf Server.java.example app/src/main/java/com/adsamcik/signalcollector/network/Server.java
     - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
     - emulator -avd test -no-audio -no-window &
     - android-wait-for-emulator
