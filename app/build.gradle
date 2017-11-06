@@ -1,6 +1,7 @@
 apply plugin: 'com.android.application'
 apply plugin: 'com.google.gms.oss.licenses.plugin'
-apply from: 'key.gradle'
+if (file('key.gradle').exists())
+    apply from: 'key.gradle'
 
 android {
     compileSdkVersion 27
