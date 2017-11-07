@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.network;
 
 import android.content.Context;
 
+import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.maps.model.Tile;
 import com.google.android.gms.maps.model.TileProvider;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -68,7 +68,7 @@ public class SignalsTileProvider implements TileProvider {
 			if (body != null)
 				return readBytes(body.byteStream());
 		} catch (IOException e) {
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 		} finally {
 			if (r != null)
 				r.close();

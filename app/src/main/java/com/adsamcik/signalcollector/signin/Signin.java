@@ -19,6 +19,7 @@ import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -28,7 +29,6 @@ import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.OptionalPendingResult;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -261,7 +261,7 @@ public class Signin implements GoogleApiClient.OnConnectionFailedListener, Googl
 		if (token != null)
 			Network.register(context, user.token, token);
 		else
-			FirebaseCrash.report(new Throwable("Token is null"));
+			Crashlytics.logException(new Throwable("Token is null"));
 		//}
 
 		updateStatus(SigninStatus.SIGNED, context);

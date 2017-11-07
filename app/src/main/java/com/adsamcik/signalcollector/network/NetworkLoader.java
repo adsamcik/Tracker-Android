@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.google.firebase.crash.FirebaseCrash;
+import com.crashlytics.android.Crashlytics;
 
 import java.io.IOException;
 
@@ -119,8 +119,8 @@ public class NetworkLoader {
 				public void onFailure(@NonNull Call call, @NonNull IOException e) {
 					callbackNoData(context, preferenceString, callback, lastUpdate, -1);
 
-					FirebaseCrash.log("Load " + preferenceString);
-					FirebaseCrash.report(e);
+					Crashlytics.log("Load " + preferenceString);
+					Crashlytics.logException(e);
 				}
 
 				@Override
