@@ -27,10 +27,7 @@ android {
     }
     buildTypes {
         debug {
-            minifyEnabled false
             testCoverageEnabled = true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            versionNameSuffix 'DBG'
             ext.enableCrashlytics = false
         }
         release_nominify {
