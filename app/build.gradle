@@ -24,6 +24,12 @@ android {
         }
     }
     buildTypes {
+        debug {
+            minifyEnabled false
+            testCoverageEnabled = true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            versionNameSuffix 'DBG'
+        }
         release_nominify {
             minifyEnabled false
         }
@@ -31,11 +37,6 @@ android {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'),
                     'proguard-rules.pro'
-        }
-        dev {
-            testCoverageEnabled = true
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
     compileOptions {
@@ -49,17 +50,17 @@ android {
 
 def build_param = "${build}"
 
-if (build_param != "dev") {
+if (build_param != "debug") {
     //exclude production build
     android.variantFilter { variant ->
-        if (variant.buildType.name == 'dev') {
+        if (variant.buildType.name == 'debug') {
             variant.setIgnore(true)
         }
     }
 } else {
     //exclude all except production build
     android.variantFilter { variant ->
-        if (variant.buildType.name != 'dev') {
+        if (variant.buildType.name != 'debug') {
             variant.setIgnore(true)
         }
     }
@@ -93,12 +94,11 @@ dependencies {
     androidTestCompile 'com.android.support.test.uiautomator:uiautomator-v18:2.1.3'
     implementation 'com.android.support:support-annotations:27.0.0'
     testImplementation 'junit:junit:4.12'
-
     androidTestCompile 'com.android.support.test.espresso:espresso-core:3.0.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     }
 }
 
 apply plugin: 'com.google.gms.google-services'
-if (build_param != "dev")
+if (build_param != "debug")
     apply plugin: 'com.google.firebase.firebase-perf'
