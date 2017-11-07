@@ -10,10 +10,6 @@ env:
         - ADB_INSTALL_TIMEOUT=5
         - ANDROID_ABI=armeabi-v7a
 
-stages:
-  - compile
-  - test
-
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
   - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
@@ -52,18 +48,13 @@ before_install:
 before_script:
     - yes | cp -rf Server.java.example app/src/main/java/com/adsamcik/signalcollector/network/Server.java
     - yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
+    - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
+    - emulator -avd test -no-audio -no-window &
+    - android-wait-for-emulator
+    - adb shell input keyevent 82 &
 
-jobs:
-  include:
-    - stage: compile
-      script: ./gradlew assembleDebug
-    - stage: test
-      script:
-        - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
-        - emulator -avd test -no-audio -no-window &
-        - android-wait-for-emulator
-        - adb shell input keyevent 82 &
-        - ./gradlew test connectedCheck
+script: 
+    - ./gradle assembleDebug connectedCheck
 
 after_success:
     - bash <(curl -s https://codecov.io/bash)
