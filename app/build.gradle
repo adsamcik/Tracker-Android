@@ -54,7 +54,7 @@ dependencies {
     compile 'com.squareup.okhttp3:okhttp:3.9.0'
     compile 'com.google.code.gson:gson:2.8.2'
     compile 'com.github.apl-devs:appintro:v4.2.2'
-    compile 'com.vimeo.stag:stag-library:2.3.3'
+    compile 'com.vimeo.stag:stag-library:2.4.0'
     compile 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     compile 'de.psdev.licensesdialog:licensesdialog:1.8.3'
     compile 'com.adsamcik:slider:0.3.0'
@@ -73,7 +73,7 @@ dependencies {
         transitive = true
     }
 
-    annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.3.3'
+    annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.4.0'
     androidTestCompile 'com.android.support:support-annotations:27.0.0'
     androidTestCompile 'com.android.support.test:runner:1.0.1'
     androidTestCompile 'com.android.support.test:rules:1.0.1'
