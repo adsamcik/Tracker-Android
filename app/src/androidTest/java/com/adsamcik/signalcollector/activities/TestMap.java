@@ -66,9 +66,9 @@ public class TestMap {
 		String[] items = new String[]{"action_tracker", "action_map", "action_stats", "action_settings"};
 		Random random = new Random(System.currentTimeMillis());
 
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 15; i++) {
 			mDevice.findObject(By.res(PACKAGE, items[(int) (random.nextDouble() * items.length)])).click();
-			Thread.sleep(1000);
+			Thread.sleep(750);
 		}
 
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
