@@ -20,11 +20,14 @@ import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.NotificationTools;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
+import com.crashlytics.android.Crashlytics;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.perf.FirebasePerformance;
 
 import java.util.List;
+
+import io.fabric.sdk.android.Fabric;
 
 public class LaunchActivity extends Activity {
 
@@ -49,7 +52,7 @@ public class LaunchActivity extends Activity {
 			try {
 				editor.putInt(Preferences.LAST_VERSION, getPackageManager().getPackageInfo(getPackageName(), 0).versionCode);
 			} catch (PackageManager.NameNotFoundException e) {
-				FirebaseCrash.report(e);
+				Crashlytics.logException(e);
 			}
 			editor.apply();
 
@@ -86,7 +89,6 @@ public class LaunchActivity extends Activity {
 			NotificationTools.prepareChannels(this);
 
 		if (BuildConfig.DEBUG) {
-			FirebaseCrash.setCrashCollectionEnabled(false);
 			FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false);
 			FirebasePerformance.getInstance().setPerformanceCollectionEnabled(false);
 			String token = FirebaseInstanceId.getInstance().getToken();

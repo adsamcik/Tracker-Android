@@ -23,6 +23,7 @@ import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
 import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.crashlytics.android.Crashlytics;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -75,7 +76,7 @@ public class FileSharingActivity extends DetailActivity {
 					try {
 						compress = new Compress(DataStore.file(this, String.valueOf(System.currentTimeMillis())));
 					} catch (FileNotFoundException e) {
-						FirebaseCrash.report(e);
+						Crashlytics.logException(e);
 						new SnackMaker(v).showSnackbar(R.string.error_general);
 						return;
 					}
@@ -90,7 +91,7 @@ public class FileSharingActivity extends DetailActivity {
 					try {
 						c = compress.finish();
 					} catch (IOException e) {
-						FirebaseCrash.report(e);
+						Crashlytics.logException(e);
 						return;
 					}
 					File target = new File(c.getParent() + File.separatorChar + SHAREABLE_DIR_NAME + File.separatorChar + c.getName() + ".zip");

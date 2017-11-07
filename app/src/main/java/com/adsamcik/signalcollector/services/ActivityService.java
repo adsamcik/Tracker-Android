@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.utility.ActivityRequestInfo;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
+import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionClient;
 import com.google.android.gms.location.ActivityRecognitionResult;
@@ -99,7 +100,7 @@ public class ActivityService extends IntentService {
 				setMinUpdateRate(context, ari.getUpdateFrequency());
 			}
 		} else {
-			FirebaseCrash.report(new Throwable("Trying to remove class that is not subscribed (" + tClass.getName() + ")"));
+			Crashlytics.logException(new Throwable("Trying to remove class that is not subscribed (" + tClass.getName() + ")"));
 		}
 
 		if (activeRequests.size() == 0) {
@@ -110,7 +111,7 @@ public class ActivityService extends IntentService {
 
 	public static void removeAutoTracking(@NonNull Context context, @NonNull Class tClass) {
 		if (!backgroundTracking) {
-			FirebaseCrash.report(new Throwable("Trying to remove auto tracking request that never existed"));
+			Crashlytics.logException(new Throwable("Trying to remove auto tracking request that never existed"));
 			return;
 		}
 
@@ -146,7 +147,7 @@ public class ActivityService extends IntentService {
 			task = activityRecognitionClient.requestActivityUpdates(delayInS * Constants.SECOND_IN_MILLISECONDS, getActivityDetectionPendingIntent(context));
 			return true;
 		} else {
-			FirebaseCrash.report(new Throwable("Unavailable play services"));
+			Crashlytics.logException(new Throwable("Unavailable play services"));
 			return false;
 		}
 	}

@@ -34,6 +34,7 @@ import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInResult;
@@ -163,7 +164,7 @@ public class MainActivity extends FragmentActivity {
 			try {
 				currentFragment = tClass.newInstance();
 			} catch (InstantiationException | IllegalAccessException e) {
-				FirebaseCrash.report(e);
+				Crashlytics.logException(e);
 				return;
 			}
 

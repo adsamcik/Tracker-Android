@@ -4,6 +4,7 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.file.DataStore;
+import com.crashlytics.android.Crashlytics;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
@@ -28,7 +29,7 @@ public class Parser {
 			try {
 				return new Gson().fromJson(json, tClass);
 			} catch (JsonSyntaxException e) {
-				FirebaseCrash.report(e);
+				Crashlytics.logException(e);
 			}
 		}
 		return null;
@@ -49,7 +50,7 @@ public class Parser {
 				isr.close();
 				return items;
 			} catch (IOException e) {
-				FirebaseCrash.report(e);
+				Crashlytics.logException(e);
 			}
 		}
 

@@ -43,6 +43,7 @@ import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.crashlytics.android.Crashlytics;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
 public class FragmentTracker extends Fragment implements ITabFragment {
@@ -169,7 +170,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 	private void updateUploadButton() {
 		if (fabUp == null || Network.cloudStatus == CloudStatus.UNKNOWN) {
 			Log.e("SignalsTrackerFragment", "fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == CloudStatus.UNKNOWN ? " is null " : " is fine"));
-			FirebaseCrash.report(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == CloudStatus.UNKNOWN ? " is null " : " is fine")));
+			Crashlytics.logException(new Exception("fab " + (fabUp == null ? " is null " : " is fine ") + " done " + (Network.cloudStatus == CloudStatus.UNKNOWN ? " is null " : " is fine")));
 			return;
 		}
 

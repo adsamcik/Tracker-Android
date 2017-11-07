@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.file;
 import android.support.annotation.NonNull;
 import android.util.MalformedJsonException;
 
+import com.crashlytics.android.Crashlytics;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
@@ -60,7 +61,7 @@ public class FileStore {
 			osw.write(data);
 			osw.close();
 		} catch (Exception e) {
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 			e.printStackTrace();
 			return false;
 		}
@@ -139,7 +140,7 @@ public class FileStore {
 			isr.close();
 			return stringBuilder;
 		} catch (Exception e) {
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 			return null;
 		}
 	}
@@ -190,7 +191,7 @@ public class FileStore {
 				try {
 					return new Gson().fromJson(sb.substring(i), tClass);
 				} catch (JsonSyntaxException e) {
-					FirebaseCrash.report(e);
+					Crashlytics.logException(e);
 					return null;
 				}
 			}
@@ -213,7 +214,7 @@ public class FileStore {
 			raf.read(arr, 0, n);
 			return arr;
 		} catch (IOException e) {
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 			return null;
 		}
 	}

@@ -12,6 +12,7 @@ import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
 import android.telephony.TelephonyManager;
 
+import com.crashlytics.android.Crashlytics;
 import com.vimeo.stag.UseStag;
 
 import java.io.Serializable;
@@ -189,7 +190,7 @@ public class RawData implements Serializable {
 						else*/
 							cd = CellData.newInstance(cic, (String) null);
 						} else {
-							FirebaseCrash.report(new Throwable("UNKNOWN CELL TYPE"));
+							Crashlytics.logException(new Throwable("UNKNOWN CELL TYPE"));
 						}
 
 						if (cd != null)

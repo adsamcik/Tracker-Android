@@ -10,6 +10,7 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.NotYetImplementedException;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType;
+import com.crashlytics.android.Crashlytics;
 
 import java.util.Objects;
 
@@ -39,7 +40,7 @@ public class ShortcutActivity extends Activity {
 						throw new NotYetImplementedException(type.name() + " is not implemented.");
 				}
 			} else {
-				FirebaseCrash.report(new Throwable("Invalid value " + value));
+				Crashlytics.logException(new Throwable("Invalid value " + value));
 			}
 		}
 		finishAffinity();

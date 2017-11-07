@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.file;
 
 
+import com.crashlytics.android.Crashlytics;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -44,7 +46,7 @@ public final class Compress {
 			zipStream.write(buffer, 0, buffer.length);
 			return true;
 		} catch (IOException e) {
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 			return false;
 		}
 	}
@@ -61,7 +63,7 @@ public final class Compress {
 		try {
 			fi = new FileInputStream(file);
 		} catch (FileNotFoundException e) {
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 			return false;
 		}
 		BufferedInputStream origin = new BufferedInputStream(fi, BUFFER);
@@ -77,7 +79,7 @@ public final class Compress {
 			return true;
 		} catch (IOException e) {
 			e.printStackTrace();
-			FirebaseCrash.report(e);
+			Crashlytics.logException(e);
 			return false;
 		}
 	}
