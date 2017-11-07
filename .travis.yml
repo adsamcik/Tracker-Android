@@ -10,6 +10,10 @@ env:
         - ADB_INSTALL_TIMEOUT=5
         - ANDROID_ABI=armeabi-v7a
 
+stages:
+  - compile
+  - test
+
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
   - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
@@ -41,20 +45,24 @@ android:
         #system images
         - sys-img-$ANDROID_ABI-android-$EMULATOR_API
 
+
+before_install:
+    - chmod +x gradlew
+
 before_script:
     - yes | cp -rf Server.java.example app/src/main/java/com/adsamcik/signalcollector/network/Server.java
     - yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
 
-    - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
-    - emulator -avd test -no-audio -no-window &
-    - android-wait-for-emulator
-    - adb shell input keyevent 82 &
-
-script:
-    - ./gradlew clean build connectedCheck -Pbuild=dev
-
-before_install:
-    - chmod +x gradlew
+jobs:
+  include:
+    - stage: compile
+      script: ./gradlew clean build connectedCheck -Pbuild=dev
+    - stage: test
+      script:
+        - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
+        - emulator -avd test -no-audio -no-window &
+        - android-wait-for-emulator
+        - adb shell input keyevent 82 &
 
 after_success:
     - bash <(curl -s https://codecov.io/bash)
