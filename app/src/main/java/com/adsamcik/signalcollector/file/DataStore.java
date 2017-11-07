@@ -22,7 +22,6 @@ import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.analytics.FirebaseAnalytics;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 

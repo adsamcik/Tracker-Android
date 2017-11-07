@@ -10,7 +10,6 @@ import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
 

@@ -4,7 +4,6 @@ import android.content.Context;
 
 import com.google.android.gms.maps.model.Tile;
 import com.google.android.gms.maps.model.TileProvider;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

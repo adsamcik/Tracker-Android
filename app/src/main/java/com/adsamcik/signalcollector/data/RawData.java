@@ -12,7 +12,6 @@ import android.telephony.CellInfoLte;
 import android.telephony.CellInfoWcdma;
 import android.telephony.TelephonyManager;
 
-import com.google.firebase.crash.FirebaseCrash;
 import com.vimeo.stag.UseStag;
 
 import java.io.Serializable;

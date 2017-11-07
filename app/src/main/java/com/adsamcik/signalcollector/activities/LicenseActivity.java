@@ -7,7 +7,6 @@ import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.BufferedReader;
 import java.io.IOException;

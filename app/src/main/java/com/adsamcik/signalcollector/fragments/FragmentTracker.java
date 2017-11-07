@@ -44,7 +44,6 @@ import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.firebase.analytics.FirebaseAnalytics;
-import com.google.firebase.crash.FirebaseCrash;
 
 public class FragmentTracker extends Fragment implements ITabFragment {
 	private CardView layoutCell, layoutWifi, layoutOther;

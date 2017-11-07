@@ -23,7 +23,6 @@ import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.BottomSheetMenu;
 import com.adsamcik.signalcollector.utility.SnackMaker;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.File;
 import java.io.FileNotFoundException;

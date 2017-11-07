@@ -20,7 +20,6 @@ import com.google.android.gms.location.ActivityRecognitionClient;
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
 import com.google.android.gms.tasks.Task;
-import com.google.firebase.crash.FirebaseCrash;
 
 public class ActivityService extends IntentService {
 	private static final String TAG = "Signals" + ActivityService.class.getSimpleName();

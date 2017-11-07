@@ -13,7 +13,6 @@ import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.utility.EArray;
-import com.google.firebase.crash.FirebaseCrash;
 
 public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";

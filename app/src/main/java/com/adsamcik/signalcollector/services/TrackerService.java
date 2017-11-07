@@ -37,7 +37,6 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 
 import java.lang.ref.WeakReference;

@@ -10,7 +10,6 @@ import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.NotYetImplementedException;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.Objects;
 

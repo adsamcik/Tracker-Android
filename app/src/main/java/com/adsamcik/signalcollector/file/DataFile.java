@@ -9,7 +9,6 @@ import android.util.MalformedJsonException;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.utility.Constants;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 
 import java.io.File;

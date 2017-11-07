@@ -21,7 +21,6 @@ import com.adsamcik.signalcollector.utility.NotificationTools;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
 import com.google.firebase.analytics.FirebaseAnalytics;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.perf.FirebasePerformance;
 

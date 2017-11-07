@@ -1,8 +1,6 @@
 package com.adsamcik.signalcollector.file;
 
 
-import com.google.firebase.crash.FirebaseCrash;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;

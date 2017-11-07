@@ -11,7 +11,6 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
-import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
 import java.util.Collections;

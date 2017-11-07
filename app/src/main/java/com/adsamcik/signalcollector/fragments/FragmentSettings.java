@@ -65,7 +65,6 @@ import com.adsamcik.slider.IntSlider;
 import com.adsamcik.slider.Slider;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
-import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 
 import java.io.File;
