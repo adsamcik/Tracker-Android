@@ -25,7 +25,7 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.crashlytics.android.Crashlytics;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.perf.FirebasePerformance;
 import com.google.firebase.perf.metrics.Trace;
 
@@ -199,7 +199,7 @@ public class UploadService extends JobService {
 				int collectionCount = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0);
 				if (collectionCount < collectionsToUpload) {
 					collectionCount = 0;
-					Crashlytics.logException(new Throwable("There are less collections than thought"));
+					FirebaseCrash.report(new Throwable("There are less collections than thought"));
 				} else
 					collectionCount -= collectionsToUpload;
 				DataStore.setCollections(this, collectionCount);
@@ -253,7 +253,7 @@ public class UploadService extends JobService {
 			if (file == null)
 				throw new InvalidParameterException("file is null");
 			else if (token == null) {
-				Crashlytics.logException(new Throwable("Token is null"));
+				FirebaseCrash.report(new Throwable("Token is null"));
 				return false;
 			}
 
@@ -271,10 +271,10 @@ public class UploadService extends JobService {
 					return true;
 
 				if (code >= 500 || code == 403)
-					Crashlytics.logException(new Throwable("Upload failed " + code));
+					FirebaseCrash.report(new Throwable("Upload failed " + code));
 				return false;
 			} catch (IOException e) {
-				Crashlytics.logException(e);
+				FirebaseCrash.report(e);
 				return false;
 			}
 		}
@@ -302,7 +302,7 @@ public class UploadService extends JobService {
 			Context context = this.context.get();
 			File[] files = DataStore.getDataFiles(context, source.equals(UploadScheduleSource.USER) ? Constants.MIN_USER_UPLOAD_FILE_SIZE : Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE);
 			if (files == null) {
-				Crashlytics.logException(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
+				FirebaseCrash.report(new Throwable("No files found. This should not happen. Upload initiated by " + source.name()));
 				DataStore.onUpload(context, -1);
 				return false;
 			} else {
@@ -317,7 +317,7 @@ public class UploadService extends JobService {
 					}
 					tempZipFile = compress.finish();
 				} catch (IOException e) {
-					Crashlytics.logException(e);
+					FirebaseCrash.report(e);
 					uploadTrace.incrementCounter("fail", 1);
 					uploadTrace.stop();
 					return false;
@@ -343,7 +343,7 @@ public class UploadService extends JobService {
 					if (token.getString() == null)
 						callbackReceived.await();
 				} catch (InterruptedException e) {
-					Crashlytics.logException(e);
+					FirebaseCrash.report(e);
 					uploadTrace.incrementCounter("fail", 2);
 					uploadTrace.stop();
 					return false;
@@ -379,7 +379,7 @@ public class UploadService extends JobService {
 			}
 
 			if (tempZipFile != null && !FileStore.delete(tempZipFile))
-				Crashlytics.logException(new IOException("Upload zip file was not deleted"));
+				FirebaseCrash.report(new IOException("Upload zip file was not deleted"));
 
 			if (callback != null)
 				callback.callback(result);

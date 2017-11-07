@@ -21,8 +21,8 @@ import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.crashlytics.android.Crashlytics;
 import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -135,7 +135,7 @@ public class DataStore {
 	 */
 	public static void delete(@NonNull Context context, String fileName) {
 		if (!FileStore.delete(file(context, fileName)))
-			Crashlytics.logException(new RuntimeException("Failed to delete " + fileName));
+			FirebaseCrash.report(new RuntimeException("Failed to delete " + fileName));
 	}
 
 	/**
@@ -274,7 +274,7 @@ public class DataStore {
 			String name = file.getName();
 			if (name.startsWith(DATA_FILE))
 				if (!FileStore.delete(file))
-					Crashlytics.logException(new RuntimeException("Failed to delete " + file.getName()));
+					FirebaseCrash.report(new RuntimeException("Failed to delete " + file.getName()));
 		}
 		onDataChanged(context);
 
@@ -328,7 +328,7 @@ public class DataStore {
 
 		if (type == DataFile.FileType.STANDARD && userID == null) {
 			type = DataFile.FileType.CACHE;
-			Crashlytics.logException(new Throwable("Wrong data file type"));
+			FirebaseCrash.report(new Throwable("Wrong data file type"));
 		}
 
 		switch (type) {
@@ -341,7 +341,7 @@ public class DataStore {
 				preference = PREF_DATA_FILE_INDEX;
 				break;
 			default:
-				Crashlytics.logException(new Throwable("Unknown type " + type));
+				FirebaseCrash.report(new Throwable("Unknown type " + type));
 				return;
 		}
 
@@ -416,7 +416,7 @@ public class DataStore {
 
 			for (File f : files)
 				if (!FileStore.delete(f))
-					Crashlytics.logException(new RuntimeException("Failed to delete " + f.getName()));
+					FirebaseCrash.report(new RuntimeException("Failed to delete " + f.getName()));
 		}
 	}
 
@@ -470,7 +470,7 @@ public class DataStore {
 				try {
 					FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), gson.toJson(stats), false);
 				} catch (Exception e) {
-					Crashlytics.logException(e);
+					FirebaseCrash.report(e);
 				}
 			}
 		}
@@ -488,7 +488,7 @@ public class DataStore {
 		try {
 			return FileStore.saveAppendableJsonArray(file(context, fileName), data, append);
 		} catch (MalformedJsonException e) {
-			Crashlytics.logException(e);
+			FirebaseCrash.report(e);
 			return false;
 		}
 	}

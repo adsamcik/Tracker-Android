@@ -7,7 +7,7 @@ import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.crashlytics.android.Crashlytics;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -70,7 +70,7 @@ public class LicenseActivity extends DetailActivity {
 				addLicenseDialogListener(button, name, rLicense.readLine());
 			}
 		} catch (IOException e) {
-			Crashlytics.logException(e);
+			FirebaseCrash.report(e);
 		}
 
 		setTitle(R.string.open_source_licenses);

@@ -8,10 +8,10 @@ import android.support.annotation.Nullable;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.crashlytics.android.Crashlytics;
 import com.franmontiel.persistentcookiejar.PersistentCookieJar;
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache;
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -118,8 +118,8 @@ public final class Network {
 		client(context, userToken).newCall(request).enqueue(new Callback() {
 			@Override
 			public void onFailure(@NonNull Call call, @NonNull IOException e) {
-				Crashlytics.log("Register " + preferencesName);
-				Crashlytics.logException(e);
+				FirebaseCrash.log("Register " + preferencesName);
+				FirebaseCrash.report(e);
 			}
 
 			@Override

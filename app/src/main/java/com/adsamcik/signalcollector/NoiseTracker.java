@@ -13,7 +13,7 @@ import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.utility.EArray;
-import com.crashlytics.android.Crashlytics;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class NoiseTracker implements SensorEventListener {
 	private final String TAG = "SignalsNoise";
@@ -133,7 +133,7 @@ public class NoiseTracker implements SensorEventListener {
 			if (NoiseSuppressor.isAvailable()) {
 				NoiseSuppressor noiseSuppressor = NoiseSuppressor.create(audioRecorder.getAudioSessionId());
 				if (noiseSuppressor == null)
-					Crashlytics.logException(new Throwable("noise suppressor is null when it should be available."));
+					FirebaseCrash.report(new Throwable("noise suppressor is null when it should be available."));
 				else if (!noiseSuppressor.getEnabled())
 					noiseSuppressor.setEnabled(true);
 			}
@@ -199,7 +199,7 @@ public class NoiseTracker implements SensorEventListener {
 
 
 			if (audioState == AudioRecord.ERROR_INVALID_OPERATION || audioState == AudioRecord.ERROR_BAD_VALUE) {
-				Crashlytics.logException(new Throwable("Noise tracking failed with state " + audioState));
+				FirebaseCrash.report(new Throwable("Noise tracking failed with state " + audioState));
 				return -1;
 			}
 

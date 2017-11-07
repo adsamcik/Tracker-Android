@@ -9,7 +9,7 @@ import android.content.pm.PackageManager;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.crashlytics.android.Crashlytics;
+import com.google.firebase.crash.FirebaseCrash;
 
 public class OnAppUpdateReceiver extends BroadcastReceiver {
 	@Override
@@ -33,7 +33,7 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			try {
 				editor.putInt(Preferences.LAST_VERSION, context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode);
 			} catch (PackageManager.NameNotFoundException e) {
-				Crashlytics.logException(e);
+				FirebaseCrash.report(e);
 			}
 			editor.apply();
 		}

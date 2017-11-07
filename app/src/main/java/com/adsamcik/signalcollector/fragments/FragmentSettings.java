@@ -63,9 +63,9 @@ import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.slider.IntSlider;
 import com.adsamcik.slider.Slider;
-import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.common.SignInButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 
 import java.io.File;
@@ -560,7 +560,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 										}
 
 									} else
-										Crashlytics.logException(new Throwable("Body is null"));
+										FirebaseCrash.report(new Throwable("Body is null"));
 								}
 								DataStore.saveString(activity, Preferences.PREF_USER_DATA, new Gson().toJson(u), false);
 							} else {
@@ -616,7 +616,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 										}
 
 									} else
-										Crashlytics.logException(new Throwable("Body is null"));
+										FirebaseCrash.report(new Throwable("Body is null"));
 								}
 								DataStore.saveString(activity, Preferences.PREF_USER_DATA, new Gson().toJson(u), false);
 							} else {

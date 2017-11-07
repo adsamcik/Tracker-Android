@@ -9,7 +9,7 @@ import android.util.MalformedJsonException;
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.utility.Constants;
-import com.crashlytics.android.Crashlytics;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 
 import java.io.File;
@@ -58,7 +58,7 @@ public class DataFile {
 			try {
 				ascii = FileStore.loadLastAscii(file, 2);
 			} catch (FileNotFoundException e) {
-				Crashlytics.logException(e);
+				FirebaseCrash.report(e);
 			}
 
 			writeable = ascii == null || !ascii.equals("]}");
@@ -107,7 +107,7 @@ public class DataFile {
 			newFile = new File(file.getParentFile(), getTemplate(file) + SEPARATOR + this.collectionCount);
 
 		if (!file.renameTo(newFile))
-			Crashlytics.logException(new Throwable("Failed to rename file"));
+			FirebaseCrash.report(new Throwable("Failed to rename file"));
 		else
 			file = newFile;
 	}
@@ -147,7 +147,7 @@ public class DataFile {
 			try {
 				new FileOutputStream(file, true).getChannel().truncate(file.length() - 2).close();
 			} catch (IOException e) {
-				Crashlytics.logException(e);
+				FirebaseCrash.report(e);
 				return false;
 			}
 			writeable = true;
@@ -168,7 +168,7 @@ public class DataFile {
 			return status;
 		} catch (MalformedJsonException e) {
 			//Should never happen, but w/e
-			Crashlytics.logException(e);
+			FirebaseCrash.report(e);
 			return false;
 		}
 	}
@@ -186,7 +186,7 @@ public class DataFile {
 			writeable = false;
 			return last2.equals("]}") || FileStore.saveString(file, "]}", true);
 		} catch (FileNotFoundException e) {
-			Crashlytics.logException(e);
+			FirebaseCrash.report(e);
 			writeable = true;
 			return false;
 		}
