@@ -84,8 +84,7 @@ dependencies {
     compile 'com.google.firebase:firebase-core:11.4.2'
     compile 'com.google.firebase:firebase-crash:11.4.2'
     compile 'com.google.firebase:firebase-messaging:11.4.2'
-    if (build_param != "dev")
-        compile 'com.google.firebase:firebase-perf:11.4.2'
+    compile 'com.google.firebase:firebase-perf:11.4.2'
     implementation 'com.google.firebase:firebase-crash:11.4.2'
     annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.3.3'
     androidTestCompile 'com.android.support:support-annotations:27.0.0'
