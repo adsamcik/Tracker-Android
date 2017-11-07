@@ -84,5 +84,5 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
-if (build_param != "debug")
-    apply plugin: 'com.google.firebase.firebase-perf'
+//if (build_param != "debug")
+//    apply plugin: 'com.google.firebase.firebase-perf'
