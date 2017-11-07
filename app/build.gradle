@@ -1,6 +1,5 @@
 apply plugin: 'com.android.application'
 apply plugin: 'com.google.gms.oss.licenses.plugin'
-apply plugin: 'io.fabric'
 
 if (file('key.gradle').exists())
     apply from: 'key.gradle'
@@ -28,7 +27,6 @@ android {
     buildTypes {
         debug {
             testCoverageEnabled = true
-            ext.enableCrashlytics = false
         }
         release_nominify {
             minifyEnabled false
@@ -67,9 +65,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-core:11.6.0'
     implementation 'com.google.firebase:firebase-messaging:11.6.0'
     implementation 'com.google.firebase:firebase-perf:11.6.0'
-    implementation('com.crashlytics.sdk.android:crashlytics:2.7.1@aar') {
-        transitive = true
-    }
+    implementation 'com.google.firebase:firebase-crash:11.6.0'
+
 
     annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.4.0'
     androidTestImplementation 'com.android.support:support-annotations:27.0.0'
