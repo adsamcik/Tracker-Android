@@ -56,14 +56,14 @@ before_script:
 jobs:
   include:
     - stage: compile
-      script: ./gradlew build
+      script: ./gradlew assembleDebug
     - stage: test
       script:
         - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
         - emulator -avd test -no-audio -no-window &
         - android-wait-for-emulator
         - adb shell input keyevent 82 &
-        - ./gradlew connectedCheck
+        - ./gradlew test connectedCheck
 
 after_success:
     - bash <(curl -s https://codecov.io/bash)
