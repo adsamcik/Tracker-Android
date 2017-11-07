@@ -37,30 +37,30 @@
 1740:46 jsr305
 1788:46 runtime
 1836:46 constraint-layout-solver
-1884:11358 safeparcel
-13244:243 tz database
-13489:11358 CCTZ
-24849:731 UTF
-25582:1732 Protobuf Nano
-27316:19442 ICU4C
-46760:1484 DynamicAnnotations
-48246:3182 PCRE
-51430:2500 zlib
-53932:1481 darts_clone
-55415:1558 RE2
-56975:680 STL
-57657:1602 JSR 305
-59261:16013 Android SDK
-75276:10695 Android Annotations Support Library
-85973:10695 Android Fragments Support Library
-96670:10691 Android Media Compat Support Library
-107363:11358 okhttp3
-118723:11358 v2964546_google
-130083:10695 Android Compat Support Library
-140780:11358 Okio
-152140:10691 Android Core Utils Support Library
-162833:10695 Android Compatibility Library v4
-173530:10695 Android Core UI Support Library
-184275:46 common
-184323:50 stag-library-compiler
-184375:46 javapoet
+1884:243 tz database
+2129:2500 zlib
+4631:1602 JSR 305
+6235:731 UTF
+6968:11358 safeparcel
+18328:1558 RE2
+19888:1732 Protobuf Nano
+21622:1481 darts_clone
+23105:3182 PCRE
+26289:11358 CCTZ
+37649:19442 ICU4C
+57093:680 STL
+57775:10695 Android Fragments Support Library
+68472:10691 Android Media Compat Support Library
+79165:11358 okhttp3
+90525:11358 Okio
+101885:10695 Android Compat Support Library
+112582:11358 v2964546_google
+123942:11342 flatbuffers
+135286:10691 Android Core Utils Support Library
+145979:10695 Android Core UI Support Library
+156676:16013 Android SDK
+172691:10695 Android Compatibility Library v4
+183388:10695 Android Annotations Support Library
+194133:46 common
+194181:50 stag-library-compiler
+194233:46 javapoet
