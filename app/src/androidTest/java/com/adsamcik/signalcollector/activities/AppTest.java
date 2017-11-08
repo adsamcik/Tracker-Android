@@ -144,7 +144,7 @@ public class AppTest {
 	public void UploadFABTest() throws InterruptedException {
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 
-		Thread.sleep(500);
+		Thread.sleep(1000);
 
 		mDevice.findObject(By.res(PACKAGE, "action_stats")).click();
 		mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
