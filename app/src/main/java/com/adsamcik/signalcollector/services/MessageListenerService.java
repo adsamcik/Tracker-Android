@@ -12,14 +12,14 @@ import android.support.annotation.StringRes;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 
+import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
+import com.adsamcik.signalcollector.activities.UploadReportsActivity;
 import com.adsamcik.signalcollector.data.Challenge;
+import com.adsamcik.signalcollector.data.UploadStats;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.utility.ChallengeManager;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.activities.UploadReportsActivity;
-import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.data.UploadStats;
-import com.adsamcik.signalcollector.R;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 

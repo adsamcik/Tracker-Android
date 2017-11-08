@@ -10,13 +10,13 @@ import android.util.MalformedJsonException;
 import android.util.Pair;
 
 import com.adsamcik.signalcollector.data.RawData;
+import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
-import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.services.UploadService;
+import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;

@@ -5,8 +5,8 @@ jdk: oraclejdk8
 env:
   global:
         - ANDROID_API=27
-        - EMULATOR_API=22
-        - ANDROID_BUILD_TOOLS=27.0.0
+        - EMULATOR_API=21
+        - ANDROID_BUILD_TOOLS=27.0.1
         - ADB_INSTALL_TIMEOUT=5
         - ANDROID_ABI=armeabi-v7a
 
@@ -41,20 +41,21 @@ android:
         #system images
         - sys-img-$ANDROID_ABI-android-$EMULATOR_API
 
-before_script:
-    - yes | cp -rf Server.java.example app/src/main/java/com/adsamcik/signalcollector/network/Server.java
-    - yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
-
-    - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
-    - emulator -avd test -no-audio -no-window &
-    - android-wait-for-emulator
-    - adb shell input keyevent 82 &
-
-script:
-    - ./gradlew clean build connectedCheck -Pbuild=dev
 
 before_install:
     - chmod +x gradlew
+
+before_script:
+    - yes | cp -rf Server.java.example app/src/main/java/com/adsamcik/signalcollector/network/Server.java
+    - yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
+    - yes | cp -rf google-services.json.example app/google-services.json
+    - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
+    - emulator -avd test -no-audio -no-window &
+    - android-wait-for-emulator
+    - adb shell settings put global window_animation_scale 0 &
+    - adb shell settings put global transition_animation_scale 0 &
+    - adb shell settings put global animator_duration_scale 0 &
+    - adb shell input keyevent 82 &
 
 after_success:
     - bash <(curl -s https://codecov.io/bash)

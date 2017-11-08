@@ -22,9 +22,9 @@ import android.view.ViewParent;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
-import com.adsamcik.signalcollector.services.MessageListenerService;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.services.MessageListenerService;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
 
@@ -86,15 +86,15 @@ public class AppTest {
 	@Test
 	public void NotificationSavingTest() throws MalformedJsonException, InterruptedException {
 		final String testFileName = DataStore.RECENT_UPLOADS_FILE;
+		Gson gson = new Gson();
 
 		long time = System.currentTimeMillis();
 		UploadStats us = new UploadStats(time, 2500, 10, 130, 1, 130, 2, 0, 10654465, 0);
 		UploadStats usOld = new UploadStats(20, 2500, 10, 130, 1, 130, 2, 0, 10654465, 0);
-		final String data = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":" + time + ",\"uploadSize\":10654465,\"wifi\":2500}";
-		final String dataOld = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":20,\"uploadSize\":10654465,\"wifi\":2500}";
+		final String data = gson.toJson(us);
+		final String dataOld = gson.toJson(usOld);
 
 		Preferences.get(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
-		Gson gson = new Gson();
 		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
 		Assert.assertEquals(true, DataStore.exists(context, testFileName));
 		Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName));
@@ -144,7 +144,7 @@ public class AppTest {
 	public void UploadFABTest() throws InterruptedException {
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 
-		Thread.sleep(500);
+		Thread.sleep(1000);
 
 		mDevice.findObject(By.res(PACKAGE, "action_stats")).click();
 		mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
@@ -185,7 +185,7 @@ public class AppTest {
 		DataStore.onUpload(context, 100);
 		DataStore.incData(context, 500, 25);
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
-		Thread.sleep(2500);
+		Thread.sleep(4000);
 		fabUpload.check(matches(isDisplayed()));
 		progressBar.check(doesNotExist());
 	}

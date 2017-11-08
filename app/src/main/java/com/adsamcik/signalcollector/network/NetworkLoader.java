@@ -4,12 +4,12 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
-import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.CacheStore;
+import com.adsamcik.signalcollector.interfaces.IStateValueCallback;
+import com.adsamcik.signalcollector.signin.Signin;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Parser;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.signin.Signin;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.io.IOException;
