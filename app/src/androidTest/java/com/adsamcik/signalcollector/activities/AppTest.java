@@ -185,7 +185,7 @@ public class AppTest {
 		DataStore.onUpload(context, 100);
 		DataStore.incData(context, 500, 25);
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
-		Thread.sleep(3000);
+		Thread.sleep(4000);
 		fabUpload.check(matches(isDisplayed()));
 		progressBar.check(doesNotExist());
 	}
