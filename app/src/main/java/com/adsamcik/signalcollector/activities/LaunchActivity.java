@@ -75,7 +75,7 @@ public class LaunchActivity extends Activity {
 			}
 		}
 
-		if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || Assist.isEmulator())
+		if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || isTestMode())
 			startActivity(new Intent(this, MainActivity.class));
 		else
 			startActivity(new Intent(this, IntroActivity.class));
@@ -98,5 +98,14 @@ public class LaunchActivity extends Activity {
 
 		overridePendingTransition(0, 0);
 		finish();
+	}
+
+	private boolean isTestMode() {
+		try {
+			Class.forName("com.adsamcik.signalcollector.activities.AppTest");
+			return true;
+		} catch (final Exception e) {
+			return false;
+		}
 	}
 }
