@@ -67,7 +67,9 @@ public class TestMap {
 		Random random = new Random(System.currentTimeMillis());
 
 		for (int i = 0; i < 15; i++) {
-			mDevice.findObject(By.res(PACKAGE, items[(int) (random.nextDouble() * items.length)])).click();
+			UiObject2 obj = mDevice.findObject(By.res(PACKAGE, items[(int) (random.nextDouble() * items.length)]));
+			Assert.assertNotNull(obj);
+			obj.click();
 			Thread.sleep(750);
 		}
 

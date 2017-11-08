@@ -27,39 +27,13 @@ import static org.junit.Assert.assertThat;
 @RunWith(AndroidJUnit4.class)
 public class SaveLoadTest {
 	private static final String TAG = "SignalsSaveLoadTest";
-	private static final String PACKAGE = "com.adsamcik.signalcollector";
-	private static final int LAUNCH_TIMEOUT = 5000;
-	private Context context;
-
-	@Before
-	public void before() {
-		// Initialize UiDevice instance
-		UiDevice mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
-
-		final String launcherPackage = getLauncherPackageName();
-		assertThat(launcherPackage, notNullValue());
-
-		// Start from the home screen
-		if (!mDevice.getCurrentPackageName().equals(launcherPackage)) {
-			mDevice.pressHome();
-			mDevice.wait(Until.hasObject(By.pkg(launcherPackage).depth(0)), LAUNCH_TIMEOUT);
-		}
-
-		// Launch the blueprint app
-		context = InstrumentationRegistry.getContext();
-		final Intent intent = context.getPackageManager()
-				.getLaunchIntentForPackage(PACKAGE);
-		assert intent != null;
-		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
-		context.startActivity(intent);
-
-		// Wait for the app to appear
-		mDevice.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), LAUNCH_TIMEOUT);
-	}
+	private Context context = InstrumentationRegistry.getTargetContext();
 
 	@org.junit.Test
 	public void RepeatedSaveTest() throws MalformedJsonException, InterruptedException {
 		final String testFileName = DataStore.RECENT_UPLOADS_FILE;
+
+		DataStore.delete(context, testFileName);
 
 		long time = System.currentTimeMillis();
 		UploadStats us = new UploadStats(time, 2500, 10, 130, 1, 130, 2, 0, 10654465, 0);
@@ -96,21 +70,5 @@ public class SaveLoadTest {
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);    // Clear out any previous instances
 		context.startActivity(intent);
 		Thread.sleep(5000);
-	}
-
-	/**
-	 * Uses package manager to find the package name of the device launcher. Usually this package
-	 * is "com.android.launcher" but can be different at times. This is a generic solution which
-	 * works on all platforms.`
-	 */
-	private String getLauncherPackageName() {
-		// Create launcher Intent
-		final Intent intent = new Intent(Intent.ACTION_MAIN);
-		intent.addCategory(Intent.CATEGORY_HOME);
-
-		// Use PackageManager to get the launcher package name
-		PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();
-		ResolveInfo resolveInfo = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
-		return resolveInfo.activityInfo.packageName;
 	}
 }
