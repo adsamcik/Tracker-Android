@@ -12,6 +12,9 @@ import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
+import android.util.Log;
+
+import com.adsamcik.signalcollector.utility.Assist;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,6 +34,7 @@ public class TestMap {
 	private static final String PACKAGE = "com.adsamcik.signalcollector";
 	private static final int LAUNCH_TIMEOUT = 5000;
 	private UiDevice mDevice;
+	private Context context;
 
 	@Before
 	public void before() {
@@ -56,10 +60,17 @@ public class TestMap {
 
 		// Wait for the app to appear
 		mDevice.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), LAUNCH_TIMEOUT);
+
+		this.context = InstrumentationRegistry.getTargetContext();
 	}
 
 	@org.junit.Test
 	public void StabilityTest() throws InterruptedException {
+		if(!Assist.isPlayServiceAvailable(context)) {
+			Log.w("SignalsTest", "Skipping stability test because play services are not available or up-to-date.");
+			return;
+		}
+
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
 		Thread.sleep(5000);
 
