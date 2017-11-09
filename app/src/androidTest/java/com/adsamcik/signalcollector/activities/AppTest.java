@@ -26,6 +26,8 @@ import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.services.MessageListenerService;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
 
@@ -145,8 +147,9 @@ public class AppTest {
 	public void UploadFABTest() throws Exception {
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 
-		Thread.sleep(1000);
+		Thread.sleep(Constants.SECOND_IN_MILLISECONDS);
 
+		mDevice.waitForIdle(30 * Constants.SECOND_IN_MILLISECONDS);
 		UiObject2 actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"));
 		if(actionStats == null) {
 			throw new Exception(mDevice.getCurrentPackageName() + " activity " + InstrumentationRegistry.getTargetContext());
@@ -154,7 +157,7 @@ public class AppTest {
 		actionStats.click();
 		mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
 
-		Thread.sleep(500);
+		Thread.sleep(Constants.SECOND_IN_MILLISECONDS / 2);
 
 		ViewInteraction fabUpload = onView(
 				allOf(withId(R.id.fabTwo),
@@ -185,12 +188,12 @@ public class AppTest {
 		progressBar.check(matches(isDisplayed()));
 
 		DataStore.onUpload(context, 50);
-		Thread.sleep(500);
+		Thread.sleep(Constants.SECOND_IN_MILLISECONDS / 2);
 
 		DataStore.onUpload(context, 100);
 		DataStore.incData(context, 500, 25);
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
-		Thread.sleep(4000);
+		Thread.sleep(4 * Constants.SECOND_IN_MILLISECONDS);
 		fabUpload.check(matches(isDisplayed()));
 		progressBar.check(doesNotExist());
 	}
