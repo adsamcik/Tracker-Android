@@ -12,6 +12,7 @@ import android.support.test.espresso.matcher.ViewMatchers;
 import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
 import android.util.Log;
 import android.util.MalformedJsonException;
@@ -141,12 +142,16 @@ public class AppTest {
 	}
 
 	@Test
-	public void UploadFABTest() throws InterruptedException {
+	public void UploadFABTest() throws Exception {
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 
 		Thread.sleep(1000);
 
-		mDevice.findObject(By.res(PACKAGE, "action_stats")).click();
+		UiObject2 actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"));
+		if(actionStats == null) {
+			throw new Exception(mDevice.getCurrentPackageName() + " activity " + InstrumentationRegistry.getTargetContext());
+		}
+		actionStats.click();
 		mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
 
 		Thread.sleep(500);
