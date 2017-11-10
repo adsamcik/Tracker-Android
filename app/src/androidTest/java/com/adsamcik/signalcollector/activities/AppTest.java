@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.activities;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -10,6 +11,8 @@ import android.support.test.espresso.ViewAssertion;
 import android.support.test.espresso.ViewInteraction;
 import android.support.test.espresso.matcher.ViewMatchers;
 import android.support.test.runner.AndroidJUnit4;
+import android.support.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import android.support.test.runner.lifecycle.Stage;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
@@ -40,9 +43,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
+import static android.support.test.InstrumentationRegistry.getInstrumentation;
 import static android.support.test.espresso.Espresso.onView;
 import static android.support.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
@@ -62,7 +68,7 @@ public class AppTest {
 	@Before
 	public void before() {
 		// Initialize UiDevice instance
-		mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+		mDevice = UiDevice.getInstance(getInstrumentation());
 
 		final String launcherPackage = getLauncherPackageName();
 		assertThat(launcherPackage, notNullValue());
@@ -152,7 +158,7 @@ public class AppTest {
 		mDevice.waitForIdle(30 * Constants.SECOND_IN_MILLISECONDS);
 		UiObject2 actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"));
 		if(actionStats == null) {
-			throw new Exception(mDevice.getCurrentPackageName() + " activity " + InstrumentationRegistry.getTargetContext());
+			throw new Exception(mDevice.getCurrentPackageName() + " activity " + getActivityInstance().getClass().getSimpleName());
 		}
 		actionStats.click();
 		mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
@@ -231,6 +237,20 @@ public class AppTest {
 		PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();
 		ResolveInfo resolveInfo = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
 		return resolveInfo.activityInfo.packageName;
+	}
+
+	private Activity getActivityInstance(){
+		final Activity[] currentActivity = {null};
+
+		getInstrumentation().runOnMainSync(new Runnable(){
+			public void run(){
+				Collection<Activity> resumedActivity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED);
+				Iterator<Activity> it = resumedActivity.iterator();
+				currentActivity[0] = it.next();
+			}
+		});
+
+		return currentActivity[0];
 	}
 
 	/**
