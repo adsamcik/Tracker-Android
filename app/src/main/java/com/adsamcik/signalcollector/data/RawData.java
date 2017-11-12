@@ -74,7 +74,7 @@ public class RawData implements Serializable {
 	 */
 	public Integer activity;
 
-	//public short noise;
+	public short noise;
 
 	/**
 	 * Stag constructor
@@ -132,17 +132,17 @@ public class RawData implements Serializable {
 		return this;
 	}
 
-	/*/**
+	/**
 	 * Sets noise value.
 	 *
 	 * @param noise Noise value. Must be absolute amplitude.
 	 * @return this
 	 */
-	/*public RawData setNoise(short noise) {
+	public RawData setNoise(short noise) {
 		if (noise > 0)
 			this.noise = noise;
 		return this;
-	}*/
+	}
 
 	/**
 	 * Sets current active cell from nearby cells
