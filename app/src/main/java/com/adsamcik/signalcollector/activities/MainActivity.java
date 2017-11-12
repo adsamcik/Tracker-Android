@@ -51,7 +51,7 @@ public class MainActivity extends FragmentActivity {
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
-		setTheme(Preferences.getTheme(this));
+		Preferences.setTheme(this);
 		super.onCreate(savedInstanceState);
 
 		setContentView(R.layout.activity_main);

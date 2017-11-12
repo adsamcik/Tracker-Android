@@ -32,9 +32,7 @@ public class LaunchActivity extends Activity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		int theme = Preferences.getTheme(this);
-		getApplicationContext().setTheme(theme);
-		setTheme(theme);
+		Preferences.setTheme(this);
 		super.onCreate(savedInstanceState);
 		JobScheduler scheduler = ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE));
 		assert scheduler != null;

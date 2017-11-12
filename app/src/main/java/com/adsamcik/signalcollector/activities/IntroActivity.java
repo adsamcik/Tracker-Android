@@ -48,7 +48,7 @@ public class IntroActivity extends AppIntro2 {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		setTheme(Preferences.getTheme(this));
+		Preferences.setTheme(this);
 		super.onCreate(savedInstanceState);
 		Window window = getWindow();
 		Resources r = getResources();
