@@ -29,7 +29,6 @@ import com.adsamcik.signalcollector.enums.CloudStatus;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.services.MessageListenerService;
-import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
@@ -242,12 +241,10 @@ public class AppTest {
 	private Activity getActivityInstance(){
 		final Activity[] currentActivity = {null};
 
-		getInstrumentation().runOnMainSync(new Runnable(){
-			public void run(){
-				Collection<Activity> resumedActivity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED);
-				Iterator<Activity> it = resumedActivity.iterator();
-				currentActivity[0] = it.next();
-			}
+		getInstrumentation().runOnMainSync(() -> {
+			Collection<Activity> resumedActivity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED);
+			Iterator<Activity> it = resumedActivity.iterator();
+			currentActivity[0] = it.next();
 		});
 
 		return currentActivity[0];

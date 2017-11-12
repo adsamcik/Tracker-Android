@@ -60,7 +60,7 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 
 	@Nullable
 	@Override
-	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+	public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_tracker, container, false);
 
 		textAccuracy = view.findViewById(R.id.textAccuracy);
@@ -226,6 +226,9 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 				fabUp.setImageResource(R.drawable.ic_cloud_off_24dp);
 				fabUp.setOnClickListener(null);
 				fabUp.show();
+				break;
+			case CloudStatus.UNKNOWN:
+				//do nothing
 				break;
 		}
 	}

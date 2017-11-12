@@ -139,6 +139,7 @@ public class Challenge {
 			case ChallengeDifficulty.VERY_HARD:
 				difficultyString = resources.getString(R.string.challenge_very_hard);
 				break;
+			case ChallengeDifficulty.UNKNOWN:
 			default:
 				difficultyString = null;
 				break;

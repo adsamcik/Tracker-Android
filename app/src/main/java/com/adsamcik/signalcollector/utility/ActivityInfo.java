@@ -73,13 +73,13 @@ public class ActivityInfo {
 
 	public static String getResolvedActivityName(@NonNull Context context, @ResolvedActivity int resolvedActivity) {
 		switch (resolveActivity(resolvedActivity)) {
-			case 0:
+			case ResolvedActivity.STILL:
 				return context.getString(R.string.activity_idle);
-			case 1:
+			case ResolvedActivity.ON_FOOT:
 				return context.getString(R.string.activity_on_foot);
-			case 2:
+			case ResolvedActivity.IN_VEHICLE:
 				return context.getString(R.string.activity_in_vehicle);
-			case 3:
+			case ResolvedActivity.UNKNOWN:
 			default:
 				return context.getString(R.string.activity_unknown);
 		}

@@ -499,7 +499,7 @@
             style="@style/SettingsItem"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
+            android:background="?selectableItemBackground"
             android:text="@string/open_source_licenses"
             android:textSize="@dimen/secondary_text_size"/>
 
@@ -509,7 +509,7 @@
             style="@style/SettingsItem"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
+            android:background="?selectableItemBackground"
             android:textSize="@dimen/secondary_text_size"/>
     </LinearLayout>
 </ScrollView>
