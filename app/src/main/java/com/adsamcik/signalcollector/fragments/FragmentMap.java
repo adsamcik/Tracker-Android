@@ -179,7 +179,7 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 
 	@Nullable
 	@Override
-	public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+	public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		activity = activity == null ? getActivity() : activity;
 		if (Assist.isPlayServiceAvailable(activity) && container != null && hasPermissions)
 			view = inflater.inflate(R.layout.fragment_map, container, false);

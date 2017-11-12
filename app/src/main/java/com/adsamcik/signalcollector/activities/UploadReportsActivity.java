@@ -82,9 +82,5 @@ public class UploadReportsActivity extends DetailActivity {
 					adapter.add(GenerateTableForUploadStat(s, this, null, AppendBehavior.Any));
 
 		}
-
-
-		//if (recent.size() > 10)
-		//	DataStore.saveString(DataStore.RECENT_UPLOADS_FILE, new Gson().toJson(recent.subList(recent.size() - 11, recent.size() - 1)));
 	}
 }

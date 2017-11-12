@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.activities;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -13,6 +14,7 @@ import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.view.View;
 import android.view.Window;
@@ -30,6 +32,7 @@ import com.github.paolorotolo.appintro.AppIntro2;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInResult;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -126,11 +129,18 @@ public class IntroActivity extends AppIntro2 {
 				v.findViewById(R.id.sign_in_button).setOnClickListener((x) -> {
 					dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setEnabled(false);
 					dialog.setMessage(getString(R.string.signin_connecting));
-					Signin.signin(currentFragment.getActivity(), false, (user) -> {
-						if (user == null)
-							new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
+					FragmentActivity activity = currentFragment.getActivity();
+					if(activity == null) {
+						FirebaseCrash.report(new Throwable("Activity was null during Intro"));
+						new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
 						dialog.dismiss();
-					});
+					} else {
+						Signin.signin(activity, false, (user) -> {
+							if (user == null)
+								new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
+							dialog.dismiss();
+						});
+					}
 
 				});
 
