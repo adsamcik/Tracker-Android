@@ -346,9 +346,7 @@
             style="@style/SettingsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:enabled="false"
-            android:text="@string/noise"
-            android:visibility="gone"/>
+            android:text="@string/noise"/>
 
         <LinearLayout
             android:id="@+id/settings_map_overlay_layout"
@@ -459,8 +457,7 @@
                 android:id="@+id/dev_button_noise_tracking"
                 style="@style/SettingsButton"
                 android:backgroundTint="@color/color_accent"
-                android:text="@string/dev_noise_tracking_test"
-                android:visibility="gone"/>
+                android:text="@string/dev_noise_tracking_test"/>
 
             <Button
                 android:id="@+id/dev_button_activity_recognition"

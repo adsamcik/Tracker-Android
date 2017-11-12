@@ -7,9 +7,9 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.services.TrackerService;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
 public class NotificationReceiver extends BroadcastReceiver {

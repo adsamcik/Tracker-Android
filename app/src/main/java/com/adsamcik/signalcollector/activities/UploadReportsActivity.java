@@ -8,13 +8,13 @@ import android.support.annotation.Nullable;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 
-import com.adsamcik.signalcollector.adapters.TableAdapter;
-import com.adsamcik.signalcollector.enums.AppendBehavior;
-import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.utility.Table;
+import com.adsamcik.signalcollector.adapters.TableAdapter;
 import com.adsamcik.signalcollector.data.UploadStats;
+import com.adsamcik.signalcollector.enums.AppendBehavior;
+import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Table;
 import com.google.gson.Gson;
 
 import java.text.DateFormat;

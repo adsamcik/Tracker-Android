@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Build;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.runner.AndroidJUnit4;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.data.RawData;
@@ -36,8 +37,10 @@ public class DataStoreTest {
 				",\"version\":" + BuildConfig.VERSION_CODE + "," +
 				"\"data\":";
 
-		if(!Signin.isSignedIn())
-			throw new Exception("Please sign in before doing this test");
+		if(!Signin.isSignedIn()) {
+			Log.w("SignalsTest","Please sign in before doing this test");
+			return;
+		}
 
 		RawData[] rawData = new RawData[2];
 		rawData[0] = new RawData(System.currentTimeMillis());

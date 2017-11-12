@@ -12,14 +12,16 @@ import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
+import android.util.Log;
 
+import com.adsamcik.signalcollector.utility.Assist;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.util.Random;
-
-import org.junit.Assert;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -32,6 +34,7 @@ public class TestMap {
 	private static final String PACKAGE = "com.adsamcik.signalcollector";
 	private static final int LAUNCH_TIMEOUT = 5000;
 	private UiDevice mDevice;
+	private Context context;
 
 	@Before
 	public void before() {
@@ -57,19 +60,28 @@ public class TestMap {
 
 		// Wait for the app to appear
 		mDevice.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), LAUNCH_TIMEOUT);
+
+		this.context = InstrumentationRegistry.getTargetContext();
 	}
 
 	@org.junit.Test
 	public void StabilityTest() throws InterruptedException {
+		if(!Assist.isPlayServiceAvailable(context)) {
+			Log.w("SignalsTest", "Skipping stability test because play services are not available or up-to-date.");
+			return;
+		}
+
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
 		Thread.sleep(5000);
 
 		String[] items = new String[]{"action_tracker", "action_map", "action_stats", "action_settings"};
 		Random random = new Random(System.currentTimeMillis());
 
-		for (int i = 0; i < 100; i++) {
-			mDevice.findObject(By.res(PACKAGE, items[(int) (random.nextDouble() * items.length)])).click();
-			Thread.sleep(1000);
+		for (int i = 0; i < 15; i++) {
+			UiObject2 obj = mDevice.findObject(By.res(PACKAGE, items[(int) (random.nextDouble() * items.length)]));
+			Assert.assertNotNull(obj);
+			obj.click();
+			Thread.sleep(750);
 		}
 
 		mDevice.findObject(By.res(PACKAGE, "action_map")).click();
