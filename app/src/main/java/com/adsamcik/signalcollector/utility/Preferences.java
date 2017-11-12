@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.utility;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -127,6 +128,20 @@ public class Preferences {
 
 	public static void setTheme(@NonNull Context context, int theme) {
 		get(context).edit().putInt(PREF_THEME, theme).apply();
+		context.setTheme(theme);
+	}
+
+	public static void setTheme(@NonNull Activity activity, int theme) {
+		setTheme((Context) activity, theme);
+		//This ensures that all components use the proper theme
+		activity.getApplicationContext().setTheme(theme);
+	}
+
+	public static void setTheme(@NonNull Activity activity) {
+		int theme = getTheme(activity);
+		activity.setTheme(theme);
+		//This ensures that all components use the proper theme
+		activity.getApplicationContext().setTheme(theme);
 	}
 
 	/**

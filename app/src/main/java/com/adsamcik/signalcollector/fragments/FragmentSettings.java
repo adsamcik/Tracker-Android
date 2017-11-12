@@ -302,10 +302,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		darkThemeSwitch.setChecked(Preferences.getTheme(context) == R.style.AppThemeDark);
 		darkThemeSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			int theme = b ? R.style.AppThemeDark : R.style.AppThemeLight;
-			Preferences.setTheme(context, theme);
 			Activity activity = getActivity();
-			//This ensures that all components use the proper theme
-			activity.getApplicationContext().setTheme(theme);
+			Preferences.setTheme(activity, theme);
 
 			//If activity is first started than finished it will finish the new activity
 			activity.finish();

@@ -24,7 +24,7 @@ public class LicenseActivity extends DetailActivity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		setTheme(Preferences.getTheme(this));
+		Preferences.setTheme(this);
 		super.onCreate(savedInstanceState);
 		LinearLayout parent = createScrollableContentParent(true);
 

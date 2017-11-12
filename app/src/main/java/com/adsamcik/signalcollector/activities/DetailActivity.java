@@ -15,7 +15,7 @@ public abstract class DetailActivity extends Activity {
 
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
-		setTheme(Preferences.getTheme(this));
+		Preferences.setTheme(this);
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_content_detail);
 		findViewById(R.id.back_button).setOnClickListener(view -> NavUtils.navigateUpFromSameTask(this));
