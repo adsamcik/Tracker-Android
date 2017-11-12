@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.activities;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -10,8 +11,11 @@ import android.support.test.espresso.ViewAssertion;
 import android.support.test.espresso.ViewInteraction;
 import android.support.test.espresso.matcher.ViewMatchers;
 import android.support.test.runner.AndroidJUnit4;
+import android.support.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import android.support.test.runner.lifecycle.Stage;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
 import android.util.Log;
 import android.util.MalformedJsonException;
@@ -22,9 +26,11 @@ import android.view.ViewParent;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.data.UploadStats;
 import com.adsamcik.signalcollector.enums.CloudStatus;
-import com.adsamcik.signalcollector.services.MessageListenerService;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.services.MessageListenerService;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.gson.Gson;
 
@@ -37,9 +43,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
+import static android.support.test.InstrumentationRegistry.getInstrumentation;
 import static android.support.test.espresso.Espresso.onView;
 import static android.support.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
@@ -59,7 +68,7 @@ public class AppTest {
 	@Before
 	public void before() {
 		// Initialize UiDevice instance
-		mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+		mDevice = UiDevice.getInstance(getInstrumentation());
 
 		final String launcherPackage = getLauncherPackageName();
 		assertThat(launcherPackage, notNullValue());
@@ -86,15 +95,15 @@ public class AppTest {
 	@Test
 	public void NotificationSavingTest() throws MalformedJsonException, InterruptedException {
 		final String testFileName = DataStore.RECENT_UPLOADS_FILE;
+		Gson gson = new Gson();
 
 		long time = System.currentTimeMillis();
 		UploadStats us = new UploadStats(time, 2500, 10, 130, 1, 130, 2, 0, 10654465, 0);
 		UploadStats usOld = new UploadStats(20, 2500, 10, 130, 1, 130, 2, 0, 10654465, 0);
-		final String data = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":" + time + ",\"uploadSize\":10654465,\"wifi\":2500}";
-		final String dataOld = "{\"cell\":130,\"collections\":130,\"newCell\":1,\"newLocations\":2,\"newNoiseLocations\":0,\"newWifi\":10,\"noiseCollections\":0,\"time\":20,\"uploadSize\":10654465,\"wifi\":2500}";
+		final String data = gson.toJson(us);
+		final String dataOld = gson.toJson(usOld);
 
 		Preferences.get(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
-		Gson gson = new Gson();
 		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
 		Assert.assertEquals(true, DataStore.exists(context, testFileName));
 		Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName));
@@ -141,15 +150,20 @@ public class AppTest {
 	}
 
 	@Test
-	public void UploadFABTest() throws InterruptedException {
+	public void UploadFABTest() throws Exception {
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
 
-		Thread.sleep(500);
+		Thread.sleep(Constants.SECOND_IN_MILLISECONDS);
 
-		mDevice.findObject(By.res(PACKAGE, "action_stats")).click();
+		mDevice.waitForIdle(30 * Constants.SECOND_IN_MILLISECONDS);
+		UiObject2 actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"));
+		if(actionStats == null) {
+			throw new Exception(mDevice.getCurrentPackageName() + " activity " + getActivityInstance().getClass().getSimpleName());
+		}
+		actionStats.click();
 		mDevice.findObject(By.res(PACKAGE, "action_tracker")).click();
 
-		Thread.sleep(500);
+		Thread.sleep(Constants.SECOND_IN_MILLISECONDS / 2);
 
 		ViewInteraction fabUpload = onView(
 				allOf(withId(R.id.fabTwo),
@@ -180,12 +194,12 @@ public class AppTest {
 		progressBar.check(matches(isDisplayed()));
 
 		DataStore.onUpload(context, 50);
-		Thread.sleep(500);
+		Thread.sleep(Constants.SECOND_IN_MILLISECONDS / 2);
 
 		DataStore.onUpload(context, 100);
 		DataStore.incData(context, 500, 25);
 		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
-		Thread.sleep(2500);
+		Thread.sleep(4 * Constants.SECOND_IN_MILLISECONDS);
 		fabUpload.check(matches(isDisplayed()));
 		progressBar.check(doesNotExist());
 	}
@@ -223,6 +237,20 @@ public class AppTest {
 		PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();
 		ResolveInfo resolveInfo = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
 		return resolveInfo.activityInfo.packageName;
+	}
+
+	private Activity getActivityInstance(){
+		final Activity[] currentActivity = {null};
+
+		getInstrumentation().runOnMainSync(new Runnable(){
+			public void run(){
+				Collection<Activity> resumedActivity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED);
+				Iterator<Activity> it = resumedActivity.iterator();
+				currentActivity[0] = it.next();
+			}
+		});
+
+		return currentActivity[0];
 	}
 
 	/**

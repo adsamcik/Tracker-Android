@@ -6,8 +6,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 
-import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.google.firebase.crash.FirebaseCrash;
 

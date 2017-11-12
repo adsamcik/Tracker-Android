@@ -1,10 +1,10 @@
 package com.adsamcik.signalcollector.services;
 
-import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
@@ -47,7 +47,7 @@ public class ActivityWakerService extends Service {
 		ActivityService.requestAutoTracking(this, getClass());
 
 		thread = new Thread(() -> {
-			//Is not supposed to quit while until service is stopped
+			//Is not supposed to quit while, until service is stopped
 			//noinspection InfiniteLoopStatement
 			while (!Thread.currentThread().isInterrupted()) {
 				try {
@@ -107,12 +107,12 @@ public class ActivityWakerService extends Service {
 	/**
 	 * Pokes Activity Waker Service which checks if it should run
 	 *
-	 * @param activity activity
+	 * @param context context
 	 */
-	public static synchronized void poke(@NonNull Activity activity) {
-		if (Preferences.get(activity).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
+	public static synchronized void poke(@NonNull Context context) {
+		if (Preferences.get(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
 			if (instance == null)
-				Assist.startServiceForeground(activity, new Intent(activity, ActivityWakerService.class));
+				Assist.startServiceForeground(context, new Intent(context, ActivityWakerService.class));
 		} else if (instance != null) {
 			instance.stopSelf();
 		}

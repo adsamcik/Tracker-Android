@@ -26,22 +26,22 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.adsamcik.signalcollector.BuildConfig;
+import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.data.CellData;
 import com.adsamcik.signalcollector.data.RawData;
 import com.adsamcik.signalcollector.enums.CloudStatus;
-import com.adsamcik.signalcollector.utility.ActivityInfo;
+import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.services.TrackerService;
+import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.signin.Signin;
+import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.FirebaseAssist;
 import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.R;
-import com.adsamcik.signalcollector.data.CellData;
-import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.services.TrackerService;
-import com.adsamcik.signalcollector.services.UploadService;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crash.FirebaseCrash;
@@ -337,8 +337,8 @@ public class FragmentTracker extends Fragment implements ITabFragment {
 			updateData(activity);
 
 		//todo move this check to upload scheduling
-		if (Assist.isEmulator())
-			fabUp.hide();
+		//if (Assist.isEmulator())
+		//	fabUp.hide();
 		return new Failure<>();
 	}
 

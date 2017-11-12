@@ -17,24 +17,24 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ListView;
 
-import com.adsamcik.signalcollector.adapters.TableAdapter;
-import com.adsamcik.signalcollector.enums.AppendBehavior;
-import com.adsamcik.signalcollector.signin.Signin;
-import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.utility.Failure;
-import com.adsamcik.signalcollector.network.NetworkLoader;
-import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.UploadReportsActivity;
-import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.utility.SnackMaker;
-import com.adsamcik.signalcollector.utility.Table;
-import com.adsamcik.signalcollector.data.UploadStats;
+import com.adsamcik.signalcollector.adapters.TableAdapter;
 import com.adsamcik.signalcollector.data.Stat;
 import com.adsamcik.signalcollector.data.StatData;
 import com.adsamcik.signalcollector.data.StatDay;
+import com.adsamcik.signalcollector.data.UploadStats;
+import com.adsamcik.signalcollector.enums.AppendBehavior;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.interfaces.ITabFragment;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.NetworkLoader;
+import com.adsamcik.signalcollector.signin.Signin;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Failure;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.adsamcik.signalcollector.utility.SnackMaker;
+import com.adsamcik.signalcollector.utility.Table;
 
 import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
 

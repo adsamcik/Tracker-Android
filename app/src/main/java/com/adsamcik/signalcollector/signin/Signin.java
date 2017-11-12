@@ -13,8 +13,8 @@ import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.file.DataStore;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;

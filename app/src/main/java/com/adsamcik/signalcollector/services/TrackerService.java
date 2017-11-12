@@ -27,13 +27,16 @@ import android.support.v4.content.ContextCompat;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
+import com.adsamcik.signalcollector.NoiseTracker;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.data.RawData;
+import com.adsamcik.signalcollector.enums.ResolvedActivity;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.receivers.NotificationReceiver;
+import com.adsamcik.signalcollector.utility.ActivityInfo;
 import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.Shortcuts;
@@ -48,6 +51,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS;
+import static com.adsamcik.signalcollector.utility.Constants.NOISE_ENABLED;
 import static com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS;
 
 public class TrackerService extends Service {
@@ -99,8 +103,8 @@ public class TrackerService extends Service {
 	private WifiManager wifiManager;
 	private final Gson gson = new Gson();
 
-	//private NoiseTracker noiseTracker;
-	//private boolean noiseActive = false;
+	private NoiseTracker noiseTracker;
+	private boolean noiseActive = false;
 
 	/**
 	 * True if previous collection was mocked
@@ -200,9 +204,11 @@ public class TrackerService extends Service {
 			d.addCell(telephonyManager);
 		}
 
-		/*if (noiseTracker != null) {
+		ActivityInfo activityInfo = ActivityService.getLastActivity();
+
+		if (noiseTracker != null) {
 			float MAX_NOISE_TRACKING_SPEED_M = (float) (MAX_NOISE_TRACKING_SPEED_KM / 3.6);
-			if ((ActivityService.lastResolvedActivity == 1 || (noiseActive && ActivityService.lastResolvedActivity == 3)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
+			if ((activityInfo.resolvedActivity == ResolvedActivity.ON_FOOT || (noiseActive && activityInfo.resolvedActivity == ResolvedActivity.UNKNOWN)) && location.getSpeed() < MAX_NOISE_TRACKING_SPEED_M) {
 				noiseTracker.start();
 				short value = noiseTracker.getSample(10);
 				if (value >= 0)
@@ -212,10 +218,10 @@ public class TrackerService extends Service {
 				noiseTracker.stop();
 				noiseActive = false;
 			}
-		}*/
+		}
 
 		if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
-			d.setLocation(location).setActivity(ActivityService.getLastActivity().resolvedActivity);
+			d.setLocation(location).setActivity(activityInfo.resolvedActivity);
 
 		data.add(d);
 		rawDataEcho = d;
@@ -317,8 +323,8 @@ public class TrackerService extends Service {
 			sb.append(d.wifi.length).append(" wifi ");
 		if (d.cellCount != null)
 			sb.append(d.cellCount).append(" cell ");
-		/*if (d.noise > 0)
-			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");*/
+		if (d.noise > 0)
+			sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ");
 		if (sb.length() > 0)
 			sb.setLength(sb.length() - 1);
 		else
@@ -409,8 +415,8 @@ public class TrackerService extends Service {
 		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null));
 		if (onServiceStateChange != null)
 			onServiceStateChange.callback();
-		//if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
-		//	noiseTracker = new NoiseTracker(this).start();
+		if (NOISE_ENABLED && Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
+			noiseTracker = new NoiseTracker(this).start();
 		return super.onStartCommand(intent, flags, startId);
 	}
 

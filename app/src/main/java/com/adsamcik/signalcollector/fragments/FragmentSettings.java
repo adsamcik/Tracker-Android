@@ -6,9 +6,11 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -30,6 +32,7 @@ import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
 import com.adsamcik.signalcollector.activities.FeedbackActivity;
@@ -38,26 +41,25 @@ import com.adsamcik.signalcollector.activities.IntroActivity;
 import com.adsamcik.signalcollector.activities.LicenseActivity;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.activities.NoiseTestingActivity;
+import com.adsamcik.signalcollector.data.MapLayer;
+import com.adsamcik.signalcollector.file.CacheStore;
+import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
+import com.adsamcik.signalcollector.interfaces.ITabFragment;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.interfaces.IVerify;
-import com.adsamcik.signalcollector.network.Prices;
-import com.adsamcik.signalcollector.services.ActivityWakerService;
-import com.adsamcik.signalcollector.signin.User;
-import com.adsamcik.signalcollector.services.ActivityService;
-import com.adsamcik.signalcollector.services.TrackerService;
-import com.adsamcik.signalcollector.utility.Assist;
-import com.adsamcik.signalcollector.file.CacheStore;
-import com.adsamcik.signalcollector.utility.Failure;
-import com.adsamcik.signalcollector.utility.FirebaseAssist;
-import com.adsamcik.signalcollector.data.MapLayer;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
-import com.adsamcik.signalcollector.utility.Preferences;
-import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.interfaces.ITabFragment;
-import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.network.Prices;
+import com.adsamcik.signalcollector.services.ActivityService;
+import com.adsamcik.signalcollector.services.ActivityWakerService;
+import com.adsamcik.signalcollector.services.TrackerService;
 import com.adsamcik.signalcollector.signin.Signin;
+import com.adsamcik.signalcollector.signin.User;
+import com.adsamcik.signalcollector.utility.Assist;
+import com.adsamcik.signalcollector.utility.Failure;
+import com.adsamcik.signalcollector.utility.FirebaseAssist;
+import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.adsamcik.slider.IntSlider;
 import com.adsamcik.slider.Slider;
@@ -85,7 +87,7 @@ import static com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES;
 
 public class FragmentSettings extends Fragment implements ITabFragment {
 	private final String TAG = "SignalsSettings";
-	//private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
+	private final int REQUEST_CODE_PERMISSIONS_MICROPHONE = 401;
 
 	private String[] trackingString, autoupString;
 	private ImageView trackingNone, trackingOnFoot, trackingAlways;
@@ -98,6 +100,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private SignInButton signInButton;
 	private LinearLayout signedInMenu;
 	private Signin signin;
+
+	private Switch switchNoise;
 
 	private ColorStateList mSelectedState;
 	private ColorStateList mDefaultState;
@@ -283,14 +287,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 		});
 
-		/*switchNoise = rootView.findViewById(R.id.switchTrackNoise);
+		switchNoise = rootView.findViewById(R.id.switchTrackNoise);
 		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));
 		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
 				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
 			else
 				Preferences.get(context).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply();
-		});*/
+		});
 
 		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
 
@@ -694,7 +698,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Override
 	public void onPermissionResponse(int requestCode, boolean success) {
-		/*switch (requestCode) {
+		switch (requestCode) {
 			case REQUEST_CODE_PERMISSIONS_MICROPHONE:
 				if (success)
 					Preferences.get(getContext()).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, true).apply();
@@ -703,7 +707,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				break;
 			default:
 				throw new UnsupportedOperationException("Permissions with requestPOST code " + requestCode + " has no defined behavior");
-		}*/
+		}
 	}
 
 	@Override

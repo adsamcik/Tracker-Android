@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.utility;
 
 public class Constants {
+	public static final boolean NOISE_ENABLED = true;
+
 	//Base units to make sure there are no typos
 	/**
 	 * 10^3
