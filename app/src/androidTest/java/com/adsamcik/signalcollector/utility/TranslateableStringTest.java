@@ -30,16 +30,7 @@ public class TranslateableStringTest {
 
 	@Test
 	public void basicValueTest() {
-		final TranslateableString target = new TranslateableString() {
-			@Override
-			protected int getId(@NonNull String identifier) {
-				return identifierInt;
-			}
-		};
-
-
-		target.setDefaultString(defaultString);
-		target.setIdentifier(identifier);
+		final TranslateableString target = new TranslateableString(identifier, defaultString, (identifier) -> identifierInt);
 
 		Assert.assertEquals(defaultString, target.getDefaultString());
 		Assert.assertEquals(identifier, target.getIdentifier());
@@ -48,12 +39,7 @@ public class TranslateableStringTest {
 
 	@Test
 	public void exceptionTest() {
-		final TranslateableString target = new TranslateableString() {
-			@Override
-			protected int getId(@NonNull String identifier) {
-				return 0;
-			}
-		};
+		final TranslateableString target = new TranslateableString();
 
 		try {
 			target.getString(appContext);
@@ -74,12 +60,7 @@ public class TranslateableStringTest {
 
 	@Test
 	public void dynamicResourceTest() {
-		final TranslateableString target = new TranslateableString() {
-			@Override
-			protected int getId(@NonNull String identifier) {
-				return 0;
-			}
-		};
+		final TranslateableString target = new TranslateableString();
 		target.setIdentifier(identifier);
 		Assert.assertEquals(appContext.getString(identifierInt), target.getString(appContext));
 	}
