@@ -5,18 +5,30 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.network.Network;
+import com.adsamcik.signalcollector.network.NetworkLoader;
+import com.adsamcik.signalcollector.utility.Preferences;
+import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.crash.FirebaseCrash;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 public class GoogleSignInSignalsClient implements ISignInClient {
 	private GoogleSignInClient client;
+	private User user;
+
+	private IValueCallback<User> userValueCallback;
 
 	private GoogleSignInOptions getOptions(@NonNull Context context) {
 		return new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -38,13 +50,15 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	}
 
 	@Override
-	public void signIn(@NonNull Activity activity) {
+	public void signIn(@NonNull Activity activity, @NonNull IValueCallback<User> userValueCallback) {
 		client = GoogleSignIn.getClient(activity, getOptions(activity));
 
-		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task ->  {
+		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task -> {
 			try {
-				Signin.onSignedIn(task.getResult(ApiException.class), activity);
+				resolveUser(activity, task.getResult(ApiException.class));
+				userValueCallback.callback(user);
 			} catch (ApiException e) {
+				this.userValueCallback = userValueCallback;
 				Intent signInIntent = client.getSignInIntent();
 				activity.startActivityForResult(signInIntent, RC_SIGN_IN);
 			}
@@ -53,9 +67,9 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	}
 
 	@Override
-	public void signInSilent(@NonNull Context context) {
+	public void signInSilent(@NonNull Context context, @NonNull IValueCallback<User> userValueCallback) {
 		client = GoogleSignIn.getClient(context, getOptions(context));
-		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task ->  {
+		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task -> {
 			try {
 				Signin.onSignedIn(task.getResult(ApiException.class), context);
 			} catch (ApiException e) {
@@ -66,7 +80,48 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	}
 
 	@Override
-	public void signOut(@NonNull Activity activity) {
-		client.signOut().addOnCompleteListener(activity, task -> Signin.onSignOut());
+	public void signOut(@NonNull Context context) {
+		client.signOut().addOnCompleteListener(task -> Signin.onSignOut(context));
+	}
+
+	private User resolveUser(@NonNull Activity activity, @NonNull GoogleSignInAccount account) {
+		Signin.onSignedIn(account, activity);
+		User user = new User(account.getId(), account.getIdToken());
+
+		assert user.token != null;
+		assert user.id != null;
+
+		Preferences.get(activity).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
+
+		if (userValueCallback != null)
+			userValueCallback.callback(user);
+
+		//todo uncomment this when server is ready
+		//SharedPreferences sp = Preferences.get(context);
+		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
+		String token = FirebaseInstanceId.getInstance().getToken();
+		if (token != null)
+			Network.register(activity, user.token, token);
+		else
+			FirebaseCrash.report(new Throwable("Token is null"));
+		//}
+
+		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, activity, Preferences.PREF_USER_DATA, (state, value) -> {
+			if (state.isDataAvailable()) {
+				user.deserializeServerData(value);
+			}
+		});
+
+		return user;
+	}
+
+	@Override
+	public void onSignInResult(@NonNull Activity activity, int resultCode, Intent intent) {
+		GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent);
+		if (result.isSuccess()) {
+			GoogleSignInAccount acct = result.getSignInAccount();
+			assert acct != null;
+			user = resolveUser(activity, acct);
+		}
 	}
 }
