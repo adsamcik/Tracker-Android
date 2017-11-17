@@ -135,11 +135,11 @@ public class IntroActivity extends AppIntro2 {
 						new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
 						dialog.dismiss();
 					} else {
-						Signin.signin(activity, false, (user) -> {
+						Signin.signin(activity, (user) -> {
 							if (user == null)
 								new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
 							dialog.dismiss();
-						});
+						}, false);
 					}
 
 				});
@@ -247,20 +247,7 @@ public class IntroActivity extends AppIntro2 {
 		super.onActivityResult(requestCode, resultCode, data);
 
 		if (requestCode == Signin.RC_SIGN_IN) {
-			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
-			if (result.isSuccess()) {
-				if (currentFragment instanceof FragmentSettings) {
-					FragmentSettings fragmentSettings = (FragmentSettings) currentFragment;
-					Signin.getUserDataAsync(this, fragmentSettings.userSignedCallback);
-				}
-
-				GoogleSignInAccount acct = result.getSignInAccount();
-				assert acct != null;
-				Signin.onSignedIn(acct, this);
-			} else {
-				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
-				Signin.onSignedInFailed(this);
-			}
+			Signin.onSignResult(this, resultCode, data);
 		}
 	}
 }

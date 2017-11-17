@@ -71,7 +71,7 @@ public class MainActivity extends FragmentActivity {
 			}
 		}
 
-		Signin.signin(this, true, null);
+		Signin.signin(this, null, true);
 
 		if (Assist.isPlayServiceAvailable(this))
 			ActivityService.requestAutoTracking(this, MainActivity.class);
@@ -200,20 +200,7 @@ public class MainActivity extends FragmentActivity {
 		super.onActivityResult(requestCode, resultCode, data);
 
 		if (requestCode == Signin.RC_SIGN_IN) {
-			GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
-			if (result.isSuccess()) {
-				if (currentFragment instanceof FragmentSettings) {
-					FragmentSettings fragmentSettings = (FragmentSettings) currentFragment;
-					Signin.getUserDataAsync(this, fragmentSettings.userSignedCallback);
-				}
-
-				GoogleSignInAccount acct = result.getSignInAccount();
-				assert acct != null;
-				Signin.onSignedIn(acct, this);
-			} else {
-				new SnackMaker(this).showSnackbar(getString(R.string.error_failed_signin));
-				Signin.onSignedInFailed(this);
-			}
+			Signin.onSignResult(this, resultCode, data);
 		}
 	}
 }
