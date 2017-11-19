@@ -12,6 +12,7 @@ import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 
 import com.adsamcik.signalcollector.BuildConfig;
@@ -191,10 +192,9 @@ public class Signin {
 			if (signInButton != null && signedMenu != null) {
 				switch (status) {
 					case SIGNED:
-						signedMenu.getChildAt(0).setVisibility(View.VISIBLE);
+						signedMenu.setVisibility(View.VISIBLE);
 					case SIGNED_NO_DATA:
 						signedMenu.findViewById(R.id.sign_out_button).setOnClickListener(v -> signout(context));
-						signedMenu.setVisibility(View.VISIBLE);
 						signInButton.setVisibility(View.GONE);
 						break;
 					case SIGNIN_FAILED:
