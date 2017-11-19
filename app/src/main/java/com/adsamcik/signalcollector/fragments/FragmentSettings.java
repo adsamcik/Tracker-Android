@@ -119,7 +119,6 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		final Activity activity = getActivity();
 		if (activity != null) {
 			if (u != null) {
-
 				if (Signin.isMock()) {
 					u.addServerDataCallback(user -> resolveUserMenuOnLogin(u, new Prices()));
 				} else

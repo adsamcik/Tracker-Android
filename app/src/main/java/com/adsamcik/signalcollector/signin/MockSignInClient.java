@@ -38,7 +38,8 @@ public class MockSignInClient implements ISignInClient {
 				u.mockServerData();
 				break;
 			case 1:
-				new Handler().postDelayed(u::mockServerData, 100 + System.currentTimeMillis() % 1000);
+				//server data received later on
+				new Handler().postDelayed(u::mockServerData, 2000 + System.currentTimeMillis() % 6000);
 				break;
 			case 3:
 				//no server data received
