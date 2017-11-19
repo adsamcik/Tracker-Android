@@ -119,22 +119,23 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		if (u != null) {
 			final Activity activity = getActivity();
 			if (activity != null) {
-				if (Signin.isMock())
-					resolveUserMenuOnLogin(u, new Prices());
-				else
+				if (Signin.isMock()) {
+					u.addServerDataCallback(user -> resolveUserMenuOnLogin(u, new Prices()));
+				} else
 					NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
 						//todo check when server data are available
 						if (s.isSuccess()) {
 							if (p == null)
 								new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
 							else
-								resolveUserMenuOnLogin(u, p);
+								u.addServerDataCallback(user -> resolveUserMenuOnLogin(user, p));
 						} else
 							new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
 					});
 			}
 		}
 	};
+
 
 	private void updateTracking(int select) {
 		ImageView selected;
@@ -563,6 +564,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
+		if(u.isServerDataAvailable()) {
+			return;
+		}
+
 		Activity activity = getActivity();
 		if (activity != null) {
 			activity.runOnUiThread(() -> {
