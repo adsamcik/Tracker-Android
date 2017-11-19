@@ -235,21 +235,15 @@ public class Signin {
 			instance.client.onSignInResult(activity, resultCode, intent);
 		} else {
 			new SnackMaker(activity).showSnackbar(activity.getString(R.string.error_failed_signin));
-			Signin.onSignedInFailed(activity, result.getStatus().getStatusCode());
+			onSignedInFailed(activity, result.getStatus().getStatusCode());
 		}
 
 	}
 
-	static void onSignedIn(@NonNull GoogleSignInAccount account, @NonNull Context context) {
-		Signin signin = signin(context, null);
-		signin.onSignIn(account, context);
-		signin.showSnackbar(R.string.signed_in_message);
-	}
-
-	public static void onSignedInFailed(@NonNull Context context, int statusCode) {
+	private static void onSignedInFailed(@NonNull Context context, int statusCode) {
 		Signin signin = signin(context, null);
 		signin.onSignInFailed(context);
-		signin.showSnackbar(R.string.error_failed_signin);
+		signin.showSnackbar(context.getString(R.string.error_failed_signin, statusCode));
 	}
 
 	public static boolean isMock() {
@@ -257,42 +251,6 @@ public class Signin {
 			throw new RuntimeException("Cannot ask if is mock before signing in");
 
 		return instance.client instanceof MockSignInClient;
-	}
-
-	private void onSignIn(@NonNull GoogleSignInAccount account, @NonNull Context context) {
-		this.user = new User(account.getId(), account.getIdToken());
-
-		assert user.token != null;
-		assert user.id != null;
-
-		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
-
-		//todo uncomment this when server is ready
-		//SharedPreferences sp = Preferences.get(context);
-		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
-		String token = FirebaseInstanceId.getInstance().getToken();
-		if (token != null)
-			Network.register(context, user.token, token);
-		else
-			FirebaseCrash.report(new Throwable("Token is null"));
-		//}
-
-		updateStatus(SIGNED, context);
-
-		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
-			if (state.isDataAvailable()) {
-				InstanceCreator<User> creator = type -> user;
-				Gson gson = new GsonBuilder().registerTypeAdapter(User.class, creator).create();
-				user = gson.fromJson(value, User.class);
-			}
-
-			if (!state.isSuccess()) {
-				//todo add job schedule to download data at later date
-				showSnackbar(R.string.error_connection_failed);
-			}
-		});
-
-		callOnSigninCallbacks();
 	}
 
 	static void onSignOut(@NonNull Context context) {
@@ -321,13 +279,19 @@ public class Signin {
 			new SnackMaker(a).showSnackbar(a.getString(messageResId));
 	}
 
+	private void showSnackbar(@NonNull String message) {
+		Activity a = getActivity();
+		if (a != null && a instanceof MainActivity)
+			new SnackMaker(a).showSnackbar(message);
+	}
+
 	private void signout(@NonNull final Context context) {
-		if (status == SIGNED) {
+		if (status == SIGNED || status == SIGNED_NO_DATA) {
 			client.signOut(context);
 			client = null;
 			user = null;
 			updateStatus(NOT_SIGNED, context);
-			Network.clearCookieJar();
+			Network.clearCookieJar(context);
 			Preferences.get(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply();
 			DataStore.delete(context, Preferences.PREF_USER_DATA);
 			DataStore.delete(context, Preferences.PREF_USER_STATS);

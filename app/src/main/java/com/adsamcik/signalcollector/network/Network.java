@@ -45,7 +45,8 @@ public final class Network {
 	public static final String URL_USER_UPDATE_MAP_PREFERENCE = Server.URL_USER_UPDATE_MAP_PREFERENCE;
 	public static final String URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE;
 
-	public static @CloudStatus int cloudStatus = CloudStatus.UNKNOWN;
+	public static @CloudStatus
+	int cloudStatus = CloudStatus.UNKNOWN;
 
 	private static PersistentCookieJar cookieJar = null;
 
@@ -63,7 +64,9 @@ public final class Network {
 		return cookieJar != null ? cookieJar : (cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context)));
 	}
 
-	public static void clearCookieJar() {
+	public static void clearCookieJar(@NonNull Context context) {
+		if (cookieJar == null)
+			getCookieJar(context);
 		cookieJar.clear();
 	}
 

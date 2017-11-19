@@ -55,7 +55,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 
 		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task -> {
 			try {
-				resolveUser(activity, task.getResult(ApiException.class));
+				user = resolveUser(activity, task.getResult(ApiException.class));
 				userValueCallback.callback(user);
 			} catch (ApiException e) {
 				this.userValueCallback = userValueCallback;
@@ -71,7 +71,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 		client = GoogleSignIn.getClient(context, getOptions(context));
 		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task -> {
 			try {
-				Signin.onSignedIn(task.getResult(ApiException.class), context);
+				user = resolveUser(context, task.getResult(ApiException.class));
 			} catch (ApiException e) {
 				//do nothing
 			}
@@ -84,14 +84,13 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 		client.signOut().addOnCompleteListener(task -> Signin.onSignOut(context));
 	}
 
-	private User resolveUser(@NonNull Activity activity, @NonNull GoogleSignInAccount account) {
-		Signin.onSignedIn(account, activity);
+	private User resolveUser(@NonNull Context context, @NonNull GoogleSignInAccount account) {
 		User user = new User(account.getId(), account.getIdToken());
 
 		assert user.token != null;
 		assert user.id != null;
 
-		Preferences.get(activity).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
+		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
 
 		if (userValueCallback != null)
 			userValueCallback.callback(user);
@@ -101,12 +100,12 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
-			Network.register(activity, user.token, token);
+			Network.register(context, user.token, token);
 		else
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
 
-		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, activity, Preferences.PREF_USER_DATA, (state, value) -> {
+		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
 			if (state.isDataAvailable()) {
 				user.deserializeServerData(value);
 			}
