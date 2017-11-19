@@ -116,9 +116,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	@Nullable
 	public final IValueCallback<User> userSignedCallback = u -> {
-		if (u != null) {
-			final Activity activity = getActivity();
-			if (activity != null) {
+		final Activity activity = getActivity();
+		if (activity != null) {
+			if (u != null) {
+
 				if (Signin.isMock()) {
 					u.addServerDataCallback(user -> resolveUserMenuOnLogin(u, new Prices()));
 				} else
@@ -132,7 +133,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						} else
 							new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
 					});
-			}
+			} else
+				new SnackMaker(activity).showSnackbar(R.string.error_failed_signin);
 		}
 	};
 
@@ -301,9 +303,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private void initializeSignIn(@NonNull Activity activity) {
 		if (Assist.hasNetwork(activity)) {
-			signin = Signin.signin(activity, null, true);
+			signin = Signin.signin(activity, userSignedCallback, true);
 			signin.setButtons(signInButton, signedInMenu, activity);
-			Signin.getUserAsync(activity, userSignedCallback);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
 	}
@@ -564,7 +565,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
-		if(u.isServerDataAvailable()) {
+		if (!u.isServerDataAvailable()) {
+			Activity activity = getActivity();
+			if(activity != null)
+				new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
 			return;
 		}
 

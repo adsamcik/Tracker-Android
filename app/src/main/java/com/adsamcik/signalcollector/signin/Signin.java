@@ -188,7 +188,7 @@ public class Signin {
 	}
 
 	public static boolean isSignedIn() {
-		return instance != null && instance.status == SIGNED;
+		return instance != null && instance.user != null;
 	}
 
 	public void setButtons(@NonNull SignInButton signInButton, @NonNull LinearLayout signedMenu, @NonNull Context context) {
@@ -221,13 +221,15 @@ public class Signin {
 							if (a != null) {
 								initializeClient();
 								client.signIn(a, (ctx, user) -> {
+									this.user = user;
 									if (user != null) {
 										if (user.isServerDataAvailable())
 											updateStatus(SIGNED, ctx);
 										else {
 											updateStatus(SIGNED_NO_DATA, ctx);
 											user.addServerDataCallback(value -> {
-
+												this.user = value;
+												updateStatus(SIGNED, ctx);
 											});
 										}
 									}
