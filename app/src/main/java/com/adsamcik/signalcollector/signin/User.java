@@ -83,7 +83,7 @@ public class User {
 	}
 
 	public boolean isServerDataAvailable() {
-		return networkInfo == null || networkPreferences == null;
+		return networkInfo != null && networkPreferences != null;
 	}
 
 	public void addServerDataCallback(@NonNull INonNullValueCallback<User> callback) {
