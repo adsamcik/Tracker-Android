@@ -41,6 +41,7 @@
             android:visibility="gone">
 
             <LinearLayout
+                android:id="@+id/signed_in_server_menu"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -108,7 +109,6 @@
                         android:text="@string/user_access_date"/>
                 </LinearLayout>
             </LinearLayout>
-
 
             <Button
                 android:id="@+id/sign_out_button"

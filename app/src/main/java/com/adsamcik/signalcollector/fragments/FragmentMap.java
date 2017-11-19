@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.network.SignalsTileProvider;
 import com.adsamcik.signalcollector.signin.Signin;
+import com.adsamcik.signalcollector.signin.User;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.FabMenu;
 import com.adsamcik.signalcollector.utility.Failure;
@@ -181,6 +182,7 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 	@Override
 	public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
 		activity = activity == null ? getActivity() : activity;
+		assert activity != null;
 		if (Assist.isPlayServiceAvailable(activity) && container != null && hasPermissions)
 			view = inflater.inflate(R.layout.fragment_map, container, false);
 		else {
@@ -191,41 +193,47 @@ public class FragmentMap extends Fragment implements GoogleMap.OnCameraIdleListe
 
 		mapLayerFilterRule = new MapFilterRule();
 
-		Signin.getUserDataAsync(activity, u -> {
-			if (fabTwo != null && u != null && (u.networkInfo.hasMapAccess() || u.networkInfo.hasPersonalMapAccess())) {
-				menu = new FabMenu<>((ViewGroup) container.getParent(), fabTwo, activity, mapLayerFilterRule, MapLayer::getName);
-				menu.setCallback(value -> activity.runOnUiThread(() -> changeMapOverlay(value)));
+		Signin.getUserAsync(activity, user -> {
+			if (fabTwo != null && user != null)
+				user.addServerDataCallback(u -> {
+					if (fabTwo != null) {
+						User.NetworkInfo networkInfo = u.getNetworkInfo();
+						if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
+							menu = new FabMenu<>((ViewGroup) container.getParent(), fabTwo, activity, mapLayerFilterRule, MapLayer::getName);
+							menu.setCallback(value -> activity.runOnUiThread(() -> changeMapOverlay(value)));
 
-				if (u.networkInfo.hasPersonalMapAccess())
-					menu.addItem(new MapLayer(activity.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE));
+							if (networkInfo.hasPersonalMapAccess())
+								menu.addItem(new MapLayer(activity.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE));
 
-				if (u.networkInfo.hasMapAccess())
-					NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
-						if (fabTwo != null && layerArray != null) {
-							String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
-							if (!MapLayer.contains(layerArray, savedOverlay)) {
-								savedOverlay = layerArray[0].getName();
-								Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
-							}
+							if (networkInfo.hasMapAccess())
+								NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
+									if (fabTwo != null && layerArray != null) {
+										String savedOverlay = Preferences.get(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].getName());
+										if (!MapLayer.contains(layerArray, savedOverlay)) {
+											savedOverlay = layerArray[0].getName();
+											Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply();
+										}
 
-							final String defaultOverlay = savedOverlay;
-							//menu can become null if user leaves the fragment
-							if (menu != null) {
-								if (menu.getItemCount() == 0)
-									changeMapOverlay(defaultOverlay);
+										final String defaultOverlay = savedOverlay;
+										//menu can become null if user leaves the fragment
+										if (menu != null) {
+											if (menu.getItemCount() == 0)
+												changeMapOverlay(defaultOverlay);
 
-								for (MapLayer layer : layerArray)
-									menu.addItem(layer, activity);
+											for (MapLayer layer : layerArray)
+												menu.addItem(layer, activity);
 
-								//Check if fab one is visible so fab two is not shown if user decided to hide maps ui
-								if (fabOneVisible) {
-									activity.runOnUiThread(() -> fabTwo.show());
-								}
-								showFabTwo = true;
-							}
+											//Check if fab one is visible so fab two is not shown if user decided to hide maps ui
+											if (fabOneVisible) {
+												activity.runOnUiThread(() -> fabTwo.show());
+											}
+											showFabTwo = true;
+										}
+									}
+								});
 						}
-					});
-			}
+					}
+				});
 		});
 
 		searchText = view.findViewById(R.id.map_search);
