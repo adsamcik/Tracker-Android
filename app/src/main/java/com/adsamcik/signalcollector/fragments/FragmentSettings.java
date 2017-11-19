@@ -205,10 +205,10 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		assert activity != null;
 		final SharedPreferences sharedPreferences = Preferences.get(activity);
 
+		initializeClassVariables(activity);
+
 		findViews(rootView);
 		initializeVersionLicense(rootView, devView);
-
-		initializeClassVariables(activity);
 
 		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
 
