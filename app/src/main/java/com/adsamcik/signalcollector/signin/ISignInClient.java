@@ -5,13 +5,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.support.annotation.NonNull;
 
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.interfaces.IContextValueCallback;
 
 interface ISignInClient {
 	int RC_SIGN_IN = 4654;
 
-	void signIn(@NonNull final Activity activity, @NonNull IValueCallback<User> userValueCallback);
-	void signInSilent(@NonNull final Context context, @NonNull IValueCallback<User> userValueCallback);
+	void signIn(@NonNull final Activity activity, @NonNull IContextValueCallback<Context, User> userValueCallback);
+
+	void signInSilent(@NonNull final Context context, @NonNull IContextValueCallback<Context, User> userValueCallback);
+
 	void signOut(@NonNull final Context context);
-	void onSignInResult(@NonNull Activity activity,int resultCode, Intent data);
+
+	void onSignInResult(@NonNull Activity activity, int resultCode, Intent data);
 }

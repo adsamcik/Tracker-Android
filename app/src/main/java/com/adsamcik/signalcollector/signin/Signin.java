@@ -20,6 +20,7 @@ import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.file.DataStore;
 import com.adsamcik.signalcollector.fragments.FragmentSettings;
+import com.adsamcik.signalcollector.interfaces.IContextValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
@@ -74,8 +75,14 @@ public class Signin {
 
 	private final ArrayList<IValueCallback<User>> onSignedCallbackList = new ArrayList<>(2);
 
-	private IValueCallback<User> onSignInInternal = value -> {
+	private IContextValueCallback<Context, User> onSignInInternal = (context, value) -> {
 		callOnSigninCallbacks();
+		if (value == null)
+			updateStatus(SIGNIN_FAILED, context);
+		else if(value.isServerDataAvailable())
+			updateStatus(SIGNED, context);
+		else
+			updateStatus(SIGNED_NO_DATA, context);
 	};
 
 	private ISignInClient client;
@@ -201,18 +208,21 @@ public class Signin {
 					case SILENT_SIGNIN_FAILED:
 					case NOT_SIGNED:
 						signInButton.setVisibility(View.VISIBLE);
-						signedMenu.getChildAt(0).setVisibility(View.GONE);
 						signedMenu.setVisibility(View.GONE);
 						signInButton.setOnClickListener((v) -> {
 							Activity a = getActivity();
 							if (a != null) {
 								initializeClient();
-								client.signIn(a, value -> {
-									if(value != null) {
-										if(value.isServerDataAvailable())
-											updateStatus(SIGNED, context);
-										else
-											updateStatus(SIGNED_NO_DATA, context);
+								client.signIn(a, (ctx, user) -> {
+									if (user != null) {
+										if (user.isServerDataAvailable())
+											updateStatus(SIGNED, ctx);
+										else {
+											updateStatus(SIGNED_NO_DATA, ctx);
+											user.addServerDataCallback(value -> {
+
+											});
+										}
 									}
 								});
 							}

@@ -7,28 +7,28 @@ import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
+import com.adsamcik.signalcollector.interfaces.IContextValueCallback;
 
 
 public class MockSignInClient implements ISignInClient {
 	private User u = null;
 
 	@Override
-	public void signIn(@NonNull Activity activity, @NonNull IValueCallback<User> userValueCallback) {
+	public void signIn(@NonNull Activity activity, @NonNull IContextValueCallback<Context, User> userValueCallback) {
 		signInSilent(activity, userValueCallback);
 	}
 
 	@Override
-	public void signInSilent(@NonNull Context context, @NonNull IValueCallback<User> userValueCallback) {
+	public void signInSilent(@NonNull Context context, @NonNull IContextValueCallback<Context, User> userValueCallback) {
 		if(u != null) {
-			userValueCallback.callback(u);
+			userValueCallback.callback(context, u);
 			return;
 		}
 
 		int left = (int) (System.currentTimeMillis() % 4);
 		Log.d("MockSigninSignals", "State " + left);
 		if(left == 2) {
-			userValueCallback.callback(null);
+			userValueCallback.callback(context, null);
 			return;
 		}
 
@@ -45,7 +45,7 @@ public class MockSignInClient implements ISignInClient {
 				break;
 		}
 
-		userValueCallback.callback(u);
+		userValueCallback.callback(context, u);
 	}
 
 	@Override

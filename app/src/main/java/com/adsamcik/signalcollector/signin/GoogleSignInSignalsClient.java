@@ -5,9 +5,9 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import com.adsamcik.signalcollector.R;
+import com.adsamcik.signalcollector.interfaces.IContextValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
@@ -28,7 +28,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	private GoogleSignInClient client;
 	private User user;
 
-	private IValueCallback<User> userValueCallback;
+	private IContextValueCallback<Context, User> userValueCallback;
 
 	private GoogleSignInOptions getOptions(@NonNull Context context) {
 		return new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -50,13 +50,13 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	}
 
 	@Override
-	public void signIn(@NonNull Activity activity, @NonNull IValueCallback<User> userValueCallback) {
+	public void signIn(@NonNull Activity activity, @NonNull IContextValueCallback<Context, User> userValueCallback) {
 		client = GoogleSignIn.getClient(activity, getOptions(activity));
 
 		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task -> {
 			try {
 				user = resolveUser(activity, task.getResult(ApiException.class));
-				userValueCallback.callback(user);
+				userValueCallback.callback(activity, user);
 			} catch (ApiException e) {
 				this.userValueCallback = userValueCallback;
 				Intent signInIntent = client.getSignInIntent();
@@ -67,7 +67,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	}
 
 	@Override
-	public void signInSilent(@NonNull Context context, @NonNull IValueCallback<User> userValueCallback) {
+	public void signInSilent(@NonNull Context context, @NonNull IContextValueCallback<Context, User> userValueCallback) {
 		client = GoogleSignIn.getClient(context, getOptions(context));
 		OnCompleteListener<GoogleSignInAccount> onCompleteListener = task -> {
 			try {
@@ -93,7 +93,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
 
 		if (userValueCallback != null)
-			userValueCallback.callback(user);
+			userValueCallback.callback(context, user);
 
 		//todo uncomment this when server is ready
 		//SharedPreferences sp = Preferences.get(context);
