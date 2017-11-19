@@ -75,14 +75,17 @@ public class Signin {
 
 	private final ArrayList<IValueCallback<User>> onSignedCallbackList = new ArrayList<>(2);
 
-	private IContextValueCallback<Context, User> onSignInInternal = (context, value) -> {
-		callOnSigninCallbacks();
-		if (value == null)
+	private IContextValueCallback<Context, User> onSignInInternal = (context, user) -> {
+		this.user = user;
+
+		if (user == null)
 			updateStatus(SIGNIN_FAILED, context);
-		else if(value.isServerDataAvailable())
+		else if (user.isServerDataAvailable())
 			updateStatus(SIGNED, context);
 		else
 			updateStatus(SIGNED_NO_DATA, context);
+
+		callOnSigninCallbacks();
 	};
 
 	private ISignInClient client;
@@ -162,7 +165,10 @@ public class Signin {
 	}
 
 	public static void getUserAsync(@NonNull Context context, IValueCallback<User> callback) {
-		signin(context, callback);
+		if (instance.user != null)
+			callback.callback(instance.user);
+		else
+			signin(context, callback);
 	}
 
 	public @Nullable
@@ -199,8 +205,9 @@ public class Signin {
 			if (signInButton != null && signedMenu != null) {
 				switch (status) {
 					case SIGNED:
-						signedMenu.setVisibility(View.VISIBLE);
+						signedMenu.findViewById(R.id.signed_in_server_menu).setVisibility(View.VISIBLE);
 					case SIGNED_NO_DATA:
+						signedMenu.setVisibility(View.VISIBLE);
 						signedMenu.findViewById(R.id.sign_out_button).setOnClickListener(v -> signout(context));
 						signInButton.setVisibility(View.GONE);
 						break;
@@ -227,6 +234,7 @@ public class Signin {
 								});
 							}
 						});
+						signedMenu.findViewById(R.id.signed_in_server_menu).setVisibility(View.GONE);
 						break;
 					case SIGNIN_IN_PROGRESS:
 						signInButton.setVisibility(View.GONE);

@@ -8,7 +8,6 @@ import android.support.annotation.NonNull;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.interfaces.IContextValueCallback;
-import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Network;
 import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Preferences;

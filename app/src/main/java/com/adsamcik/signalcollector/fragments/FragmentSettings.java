@@ -97,10 +97,12 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private View devView;
 
+	@Nullable
 	private ImageView mTrackingSelected = null, mAutoupSelected = null;
 
 	private SignInButton signInButton;
 	private LinearLayout signedInMenu;
+	@Nullable
 	private Signin signin;
 
 	private Switch switchNoise;
@@ -112,20 +114,24 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private int dummyNotificationIndex = 1972;
 
+	@Nullable
 	public final IValueCallback<User> userSignedCallback = u -> {
 		if (u != null) {
 			final Activity activity = getActivity();
 			if (activity != null) {
-				NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
-					//todo check when server data are available
-					if (s.isSuccess()) {
-						if (p == null)
-							new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
-						else
-							resolveUserMenuOnLogin(u, p);
-					} else
-						new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
-				});
+				if (Signin.isMock())
+					resolveUserMenuOnLogin(u, new Prices());
+				else
+					NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
+						//todo check when server data are available
+						if (s.isSuccess()) {
+							if (p == null)
+								new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
+							else
+								resolveUserMenuOnLogin(u, p);
+						} else
+							new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+					});
 			}
 		}
 	};
@@ -486,7 +492,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		rootView.findViewById(R.id.dev_button_activity_recognition).setOnClickListener(v -> startActivity(new Intent(getActivity(), ActivityRecognitionActivity.class)));
 	}
 
-	private void createClearDialog(@NonNull Context context, IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
+	private void createClearDialog(@NonNull Context context, @NonNull IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
 		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
 		alertDialogBuilder
 				.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> {
@@ -547,7 +553,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			slider.setOnValueChangeListener((value, fromUser) -> valueCallback.callback(slider.getValue()));
 	}
 
-	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
+	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, @NonNull Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
 		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
 		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			Preferences.get(context).edit().putBoolean(name, b).apply();
