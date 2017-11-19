@@ -71,9 +71,16 @@ public class User {
 	void mockServerData() {
 		if(!Assist.isEmulator() && !BuildConfig.DEBUG)
 			throw new RuntimeException("Cannot mock server data on production version");
-		wirelessPoints = (System.currentTimeMillis() * System.currentTimeMillis()) % 64546;
-		this.networkPreferences = new NetworkPreferences();
-		this.networkInfo = new NetworkInfo();
+		wirelessPoints = Math.abs((System.currentTimeMillis() * System.currentTimeMillis()) % 64546);
+		networkPreferences = new NetworkPreferences();
+		networkPreferences.renewMap = true;
+		networkPreferences.renewPersonalMap = false;
+
+		networkInfo = new NetworkInfo();
+
+		networkInfo.feedbackAccess = false;
+		networkInfo.mapAccessUntil = System.currentTimeMillis();
+		networkInfo.personalMapAccessUntil = 0;
 
 	}
 
