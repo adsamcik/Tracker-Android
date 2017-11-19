@@ -5,13 +5,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import android.util.Log;
 
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 
 
 public class MockSignInClient implements ISignInClient {
-	User u = null;
+	private User u = null;
 
 	@Override
 	public void signIn(@NonNull Activity activity, @NonNull IValueCallback<User> userValueCallback) {
@@ -20,7 +20,13 @@ public class MockSignInClient implements ISignInClient {
 
 	@Override
 	public void signInSilent(@NonNull Context context, @NonNull IValueCallback<User> userValueCallback) {
+		if(u != null) {
+			userValueCallback.callback(u);
+			return;
+		}
+
 		int left = (int) (System.currentTimeMillis() % 4);
+		Log.d("MockSigninSignals", "State " + left);
 		if(left == 2) {
 			userValueCallback.callback(null);
 			return;
@@ -44,7 +50,7 @@ public class MockSignInClient implements ISignInClient {
 
 	@Override
 	public void signOut(@NonNull Context context) {
-		//nothing
+		u = null;
 	}
 
 	@Override
