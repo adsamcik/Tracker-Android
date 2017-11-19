@@ -32,6 +32,7 @@ import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity;
 import com.adsamcik.signalcollector.activities.DebugFileActivity;
@@ -93,12 +94,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	private ImageView trackingNone, trackingOnFoot, trackingAlways;
 	private ImageView autoupDisabled, autoupWifi, autoupAlways;
 	private TextView autoupDesc, trackDesc, signInNoConnection;
-	//private Switch switchNoise;
 
+	private View devView;
+
+	@Nullable
 	private ImageView mTrackingSelected = null, mAutoupSelected = null;
 
 	private SignInButton signInButton;
 	private LinearLayout signedInMenu;
+	@Nullable
 	private Signin signin;
 
 	private Switch switchNoise;
@@ -110,22 +114,29 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private int dummyNotificationIndex = 1972;
 
+	@Nullable
 	public final IValueCallback<User> userSignedCallback = u -> {
-		if (u != null) {
-			final Activity activity = getActivity();
-			if (activity != null) {
-				NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
-					if (s.isSuccess()) {
-						if (p == null)
-							new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
-						else
-							resolveUserMenuOnLogin(u, p);
-					} else
-						new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
-				});
-			}
+		final Activity activity = getActivity();
+		if (activity != null) {
+			if (u != null) {
+				if (Signin.isMock()) {
+					u.addServerDataCallback(user -> resolveUserMenuOnLogin(u, new Prices()));
+				} else
+					NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices.class, (s, p) -> {
+						//todo check when server data are available
+						if (s.isSuccess()) {
+							if (p == null)
+								new SnackMaker(activity).showSnackbar(R.string.error_invalid_data);
+							else
+								u.addServerDataCallback(user -> resolveUserMenuOnLogin(user, p));
+						} else
+							new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+					});
+			} else
+				new SnackMaker(activity).showSnackbar(R.string.error_failed_signin);
 		}
 	};
+
 
 	private void updateTracking(int select) {
 		ImageView selected;
@@ -180,6 +191,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 
 	private void updateState(@Nullable ImageView selected, @NonNull ImageView select, @NonNull String preference, int index) {
 		Context context = getContext();
+		assert context != null;
 		Preferences.get(context).edit().putInt(preference, index).apply();
 
 		if (selected != null)
@@ -193,26 +205,61 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		item.setImageAlpha(Color.alpha(mDefaultState.getDefaultColor()));
 	}
 
+
 	@Override
 	public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		rootView = inflater.inflate(R.layout.fragment_settings, container, false);
-		final Context context = getContext();
-		final Resources resources = getResources();
-		final SharedPreferences sharedPreferences = Preferences.get(getContext());
+		final Activity activity = getActivity();
+		assert activity != null;
+		final SharedPreferences sharedPreferences = Preferences.get(activity);
+
+		initializeClassVariables(activity);
+
+		findViews(rootView);
+		initializeVersionLicense(rootView, devView);
+
+		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
+
+		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
+
+		initializeSignIn(activity);
+
+		initializeAutoTrackingSection(activity, rootView);
+
+		initializeAutoUploadSection(activity, rootView);
+
+		initializeTrackingOptionsSection(activity, rootView);
+
+		initializeExportSection(rootView);
+
+		initializeOtherSection(activity, rootView);
+
+		initializeDevSection(activity, rootView);
+
+		return rootView;
+	}
+
+
+	private void initializeVersionLicense(@NonNull View rootView, @NonNull View devView) {
+		rootView.findViewById(R.id.open_source_licenses).setOnClickListener(v -> startActivity(new Intent(getActivity(), LicenseActivity.class)));
+
 		final TextView versionView = rootView.findViewById(R.id.versionNum);
 		try {
-			versionView.setText(context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName);
+			versionView.setText(String.format("%1$s - %2$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME));
 		} catch (Exception e) {
 			Log.d(TAG, "Failed to set version");
 		}
 
-		ColorStateList[] csl = Assist.getSelectionStateLists(resources, context.getTheme());
-		mSelectedState = csl[1];
-		mDefaultState = csl[0];
+		versionView.setOnLongClickListener(view -> {
+			boolean setVisible = devView.getVisibility() == View.GONE;
+			devView.setVisibility(setVisible ? View.VISIBLE : View.GONE);
+			Preferences.get(rootView.getContext()).edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply();
+			new SnackMaker(getActivity()).showSnackbar(getString(setVisible ? R.string.dev_join : R.string.dev_leave));
+			return true;
+		});
+	}
 
-		trackingString = resources.getStringArray(R.array.background_tracking_options);
-		autoupString = resources.getStringArray(R.array.automatic_upload_options);
-
+	private void findViews(@NonNull View rootView) {
 		autoupDesc = rootView.findViewById(R.id.autoupload_description);
 		trackDesc = rootView.findViewById(R.id.tracking_description);
 
@@ -236,89 +283,41 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 		autoupAlways.setOnClickListener(v -> updateAutoup(2));
 		setInactive(autoupAlways);
 
-		updateTracking(sharedPreferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING));
-
-		updateAutoup(sharedPreferences.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD));
+		devView = rootView.findViewById(R.id.dev_corner_layout);
 
 		signInButton = rootView.findViewById(R.id.sign_in_button);
 		signedInMenu = rootView.findViewById(R.id.signed_in_menu);
 		signInNoConnection = rootView.findViewById(R.id.sign_in_message);
+	}
 
-		if (Assist.hasNetwork(context)) {
-			signin = Signin.signin(getActivity(), true, null);
-			signin.setButtons(signInButton, signedInMenu, context);
-			Signin.getUserDataAsync(context, userSignedCallback);
+	private void initializeClassVariables(@NonNull Activity activity) {
+		final Resources resources = getResources();
+		ColorStateList[] csl = Assist.getSelectionStateLists(resources, activity.getTheme());
+		mSelectedState = csl[1];
+		mDefaultState = csl[0];
+
+		trackingString = resources.getStringArray(R.array.background_tracking_options);
+		autoupString = resources.getStringArray(R.array.automatic_upload_options);
+	}
+
+	private void initializeSignIn(@NonNull Activity activity) {
+		if (Assist.hasNetwork(activity)) {
+			signin = Signin.signin(activity, userSignedCallback, true);
+			signin.setButtons(signInButton, signedInMenu, activity);
 		} else
 			signInNoConnection.setVisibility(View.VISIBLE);
+	}
 
-
-		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
-			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
-			alertDialogBuilder
-					.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> DataStore.clearAllData(context))
-					.setNegativeButton(getResources().getText(R.string.no), (dialog, which) -> {
-					})
-					.setMessage(getResources().getText(R.string.alert_clear_text));
-
-			alertDialogBuilder.show();
-		});
-
-		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> {
-			Activity activity = getActivity();
-			startActivity(new Intent(activity, IntroActivity.class));
-			activity.finish();
-		});
-
-		//getUser should not produce null exception if isSigned in is true
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), Preferences.DEFAULT_TRACKING_WIFI_ENABLED, null);
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), Preferences.DEFAULT_TRACKING_CELL_ENABLED, null);
-		final Switch switchTrackLocation = rootView.findViewById(R.id.switchTrackLocation);
-		setSwitchChangeListener(context, Preferences.PREF_TRACKING_LOCATION_ENABLED, switchTrackLocation, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, (s) -> {
-			if (!s) {
-				AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context, R.style.AlertDialog);
-				alertDialogBuilder
-						.setPositiveButton(getText(R.string.yes), null)
-						.setNegativeButton(getText(R.string.cancel), (dialog, which) -> switchTrackLocation.setChecked(true))
-						.setMessage(getText(R.string.alert_disable_location_tracking_description))
-						.setTitle(R.string.alert_disable_location_tracking_title);
-
-				alertDialogBuilder.create().show();
-			}
-
-		});
-
-		switchNoise = rootView.findViewById(R.id.switchTrackNoise);
-		switchNoise.setChecked(Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));
-		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
-			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-				getActivity().requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
-			else
-				Preferences.get(context).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply();
-		});
-
-		setSwitchChangeListener(context, Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, rootView.findViewById(R.id.switchNotificationsUpload), true, (b) -> FirebaseAssist.updateValue(context, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
-
-		Switch darkThemeSwitch = rootView.findViewById(R.id.switchDarkTheme);
-		darkThemeSwitch.setChecked(Preferences.getTheme(context) == R.style.AppThemeDark);
-		darkThemeSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
-			int theme = b ? R.style.AppThemeDark : R.style.AppThemeLight;
-			Activity activity = getActivity();
-			Preferences.setTheme(activity, theme);
-
-			//If activity is first started than finished it will finish the new activity
-			activity.finish();
-			startActivity(activity.getIntent());
-		});
-
-		setSwitchChangeListener(context,
+	private void initializeAutoTrackingSection(@NonNull Activity activity, @NonNull View rootView) {
+		setSwitchChangeListener(activity,
 				Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
 				rootView.findViewById(R.id.switch_activity_watcher),
 				Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
-				value -> ActivityWakerService.poke(getActivity()));
+				value -> ActivityWakerService.poke(activity));
 
 		IntSlider activityFrequencySlider = rootView.findViewById(R.id.settings_seekbar_watcher_frequency);
 		//todo update to not set useless values because of setItems below
-		setSeekbar(context,
+		setSeekbar(activity,
 				activityFrequencySlider,
 				rootView.findViewById(R.id.settings_text_activity_frequency),
 				0,
@@ -339,26 +338,28 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					}
 				},
 				value -> {
-					ActivityService.requestActivity(context, MainActivity.class, value);
-					ActivityWakerService.poke(getActivity());
+					ActivityService.requestActivity(activity, MainActivity.class, value);
+					ActivityWakerService.poke(activity);
 				});
 
 		activityFrequencySlider.setItems(new Integer[]{0, 5, 10, 30, 60, 120, 240, 300, 600});
 
-		setSwitchChangeListener(context, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
+		setSwitchChangeListener(activity, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, (b) -> {
 			if (b) {
 				Bundle bundle = new Bundle();
 				bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings");
-				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, bundle);
+				FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, bundle);
 				if (TrackerService.isRunning())
-					context.stopService(new Intent(context, TrackerService.class));
+					activity.stopService(new Intent(activity, TrackerService.class));
 			}
 		});
+	}
 
+	private void initializeAutoUploadSection(@NonNull Activity activity, @NonNull View rootView) {
 		TextView valueAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_value);
 		IntSlider seekAutoUploadAt = rootView.findViewById(R.id.settings_autoupload_at_seekbar);
 
-		setSeekbar(context,
+		setSeekbar(activity,
 				seekAutoUploadAt,
 				valueAutoUploadAt,
 				1,
@@ -369,13 +370,78 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				(progress) -> getString(R.string.settings_autoupload_at_value, progress),
 				null);
 
-		setSwitchChangeListener(context, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, value -> ((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(value ? View.GONE : View.VISIBLE));
+		setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, value -> ((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(value ? View.GONE : View.VISIBLE));
 
-		if (sharedPreferences.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
+		if (Preferences.get(activity).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
 			((ViewGroup) seekAutoUploadAt.getParent()).setVisibility(View.GONE);
 		}
+	}
 
+	private void initializeTrackingOptionsSection(@NonNull Activity activity, @NonNull View rootView) {
+		setSwitchChangeListener(activity, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), Preferences.DEFAULT_TRACKING_WIFI_ENABLED, null);
+		setSwitchChangeListener(activity, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), Preferences.DEFAULT_TRACKING_CELL_ENABLED, null);
+		final Switch switchTrackLocation = rootView.findViewById(R.id.switchTrackLocation);
+		setSwitchChangeListener(activity, Preferences.PREF_TRACKING_LOCATION_ENABLED, switchTrackLocation, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, (s) -> {
+			if (!s) {
+				AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(activity, R.style.AlertDialog);
+				alertDialogBuilder
+						.setPositiveButton(getText(R.string.yes), null)
+						.setNegativeButton(getText(R.string.cancel), (dialog, which) -> switchTrackLocation.setChecked(true))
+						.setMessage(getText(R.string.alert_disable_location_tracking_description))
+						.setTitle(R.string.alert_disable_location_tracking_title);
+
+				alertDialogBuilder.create().show();
+			}
+
+		});
+
+		switchNoise = rootView.findViewById(R.id.switchTrackNoise);
+		switchNoise.setChecked(Preferences.get(activity).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false));
+		switchNoise.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(activity, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+				activity.requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_PERMISSIONS_MICROPHONE);
+			else
+				Preferences.get(activity).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply();
+		});
+	}
+
+	private void initializeExportSection(@NonNull View rootView) {
 		rootView.findViewById(R.id.export_share_button).setOnClickListener(v -> startActivity(new Intent(getActivity(), FileSharingActivity.class)));
+	}
+
+	private void initializeOtherSection(@NonNull Activity activity, @NonNull View rootView) {
+		Switch darkThemeSwitch = rootView.findViewById(R.id.switchDarkTheme);
+		darkThemeSwitch.setChecked(Preferences.getTheme(activity) == R.style.AppThemeDark);
+		darkThemeSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
+			int theme = b ? R.style.AppThemeDark : R.style.AppThemeLight;
+			Preferences.setTheme(activity, theme);
+
+			//If activity is first started than finished it will finish the new activity
+			activity.finish();
+			startActivity(activity.getIntent());
+		});
+
+		setSwitchChangeListener(activity,
+				Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED,
+				rootView.findViewById(R.id.switchNotificationsUpload),
+				true,
+				(b) -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, Boolean.toString(b)));
+
+		rootView.findViewById(R.id.other_clear_data).setOnClickListener(v -> {
+			AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(activity);
+			alertDialogBuilder
+					.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> DataStore.clearAllData(activity))
+					.setNegativeButton(getResources().getText(R.string.no), (dialog, which) -> {
+					})
+					.setMessage(getResources().getText(R.string.alert_clear_text));
+
+			alertDialogBuilder.show();
+		});
+
+		rootView.findViewById(R.id.other_reopen_tutorial).setOnClickListener(v -> {
+			startActivity(new Intent(activity, IntroActivity.class));
+			activity.finish();
+		});
 
 		rootView.findViewById(R.id.other_feedback).setOnClickListener(v -> {
 			if (Signin.isSignedIn())
@@ -383,46 +449,35 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			else
 				new SnackMaker(getActivity()).showSnackbar(R.string.feedback_error_not_signed_in);
 		});
+	}
 
-		rootView.findViewById(R.id.open_source_licenses).setOnClickListener(v -> startActivity(new Intent(getActivity(), LicenseActivity.class)));
-
-		//Dev stuff
-
-		View devView = rootView.findViewById(R.id.dev_corner_layout);
-		versionView.setOnLongClickListener(view -> {
-			boolean setVisible = devView.getVisibility() == View.GONE;
-			devView.setVisibility(setVisible ? View.VISIBLE : View.GONE);
-			sharedPreferences.edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply();
-			new SnackMaker(getActivity()).showSnackbar(getString(setVisible ? R.string.dev_join : R.string.dev_leave));
-			return true;
-		});
-
-		boolean isDevEnabled = sharedPreferences.getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false);
+	private void initializeDevSection(@NonNull Activity activity, @NonNull View rootView) {
+		boolean isDevEnabled = Preferences.get(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false);
 		devView.setVisibility(isDevEnabled ? View.VISIBLE : View.GONE);
 
-		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> createClearDialog(context, CacheStore::clearAll, R.string.settings_cleared_all_cache_files));
-		rootView.findViewById(R.id.dev_button_data_clear).setOnClickListener((v) -> createClearDialog(context, DataStore::clearAll, R.string.settings_cleared_all_data_files));
-		rootView.findViewById(R.id.dev_button_upload_reports_clear).setOnClickListener((v) -> createClearDialog(context, c -> {
-			DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
-			Preferences.get(context).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply();
+		rootView.findViewById(R.id.dev_button_cache_clear).setOnClickListener((v) -> createClearDialog(activity, CacheStore::clearAll, R.string.settings_cleared_all_cache_files));
+		rootView.findViewById(R.id.dev_button_data_clear).setOnClickListener((v) -> createClearDialog(activity, DataStore::clearAll, R.string.settings_cleared_all_data_files));
+		rootView.findViewById(R.id.dev_button_upload_reports_clear).setOnClickListener((v) -> createClearDialog(activity, c -> {
+			DataStore.delete(activity, DataStore.RECENT_UPLOADS_FILE);
+			Preferences.get(activity).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply();
 		}, R.string.settings_cleared_all_upload_reports));
 
-		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> createFileAlertDialog(context, context.getFilesDir(), (file) -> {
+		rootView.findViewById(R.id.dev_button_browse_files).setOnClickListener(v -> createFileAlertDialog(activity, activity.getFilesDir(), (file) -> {
 			String name = file.getName();
 			return !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && !name.equals("ZoomTables.data");
 		}));
 
-		rootView.findViewById(R.id.dev_button_browse_cache_files).setOnClickListener(v -> createFileAlertDialog(context, context.getCacheDir(), (file) -> !file.getName().startsWith("com.") && !file.isDirectory()));
+		rootView.findViewById(R.id.dev_button_browse_cache_files).setOnClickListener(v -> createFileAlertDialog(activity, activity.getCacheDir(), (file) -> !file.getName().startsWith("com.") && !file.isDirectory()));
 
 
 		rootView.findViewById(R.id.dev_button_noise_tracking).setOnClickListener(v -> startActivity(new Intent(getActivity(), NoiseTestingActivity.class)));
 
 		rootView.findViewById(R.id.dev_button_notification_dummy).setOnClickListener(v -> {
 			String helloWorld = getString(R.string.dev_notification_dummy);
-			int color = ContextCompat.getColor(context, R.color.color_primary);
+			int color = ContextCompat.getColor(activity, R.color.color_primary);
 			Random rng = new Random(System.currentTimeMillis());
 			String[] facts = getResources().getStringArray(R.array.lorem_ipsum_facts);
-			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(context, getString(R.string.channel_other_id))
+			NotificationCompat.Builder notiBuilder = new NotificationCompat.Builder(activity, getString(R.string.channel_other_id))
 					.setSmallIcon(R.drawable.ic_signals)
 					.setTicker(helloWorld)
 					.setColor(color)
@@ -430,17 +485,15 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					.setContentTitle(getString(R.string.did_you_know))
 					.setContentText(facts[rng.nextInt(facts.length)])
 					.setWhen(System.currentTimeMillis());
-			NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+			NotificationManager notificationManager = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
 			assert notificationManager != null;
 			notificationManager.notify(dummyNotificationIndex++, notiBuilder.build());
 		});
 
 		rootView.findViewById(R.id.dev_button_activity_recognition).setOnClickListener(v -> startActivity(new Intent(getActivity(), ActivityRecognitionActivity.class)));
-
-		return rootView;
 	}
 
-	private void createClearDialog(@NonNull Context context, IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
+	private void createClearDialog(@NonNull Context context, @NonNull IValueCallback<Context> clearFunction, @StringRes int snackBarString) {
 		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
 		alertDialogBuilder
 				.setPositiveButton(getResources().getText(R.string.yes), (dialog, which) -> {
@@ -501,7 +554,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 			slider.setOnValueChangeListener((value, fromUser) -> valueCallback.callback(slider.getValue()));
 	}
 
-	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
+	private void setSwitchChangeListener(@NonNull final Context context, @NonNull final String name, @NonNull Switch s, final boolean defaultState, @Nullable final INonNullValueCallback<Boolean> callback) {
 		s.setChecked(Preferences.get(context).getBoolean(name, defaultState));
 		s.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 			Preferences.get(context).edit().putBoolean(name, b).apply();
@@ -511,6 +564,13 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 	}
 
 	private void resolveUserMenuOnLogin(@NonNull final User u, @NonNull final Prices prices) {
+		if (!u.isServerDataAvailable()) {
+			Activity activity = getActivity();
+			if(activity != null)
+				new SnackMaker(activity).showSnackbar(R.string.error_connection_failed);
+			return;
+		}
+
 		Activity activity = getActivity();
 		if (activity != null) {
 			activity.runOnUiThread(() -> {
@@ -519,14 +579,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				userInfoLayout.setVisibility(View.VISIBLE);
 
 				TextView wPointsTextView = (TextView) userInfoLayout.getChildAt(0);
-				wPointsTextView.setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints)));
+				wPointsTextView.setText(String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.getWirelessPoints())));
 
 				LinearLayout mapAccessLayout = (LinearLayout) userInfoLayout.getChildAt(1);
 				Switch mapAccessSwitch = (Switch) mapAccessLayout.getChildAt(0);
 				TextView mapAccessTimeTextView = ((TextView) mapAccessLayout.getChildAt(1));
 
 				mapAccessSwitch.setText(activity.getString(R.string.user_renew_map));
-				mapAccessSwitch.setChecked(u.networkPreferences.renewMap);
+				mapAccessSwitch.setChecked(u.getNetworkPreferences().renewMap);
 				mapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 					compoundButton.setEnabled(false);
 					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
@@ -542,17 +602,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						@Override
 						public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
 							if (response.isSuccessful()) {
-								u.networkPreferences.renewMap = b;
+								User.NetworkInfo networkInfo = u.getNetworkInfo();
+								u.getNetworkPreferences().renewMap = b;
 								if (b) {
 									ResponseBody body = response.body();
 									if (body != null) {
-										long temp = u.networkInfo.mapAccessUntil;
-										u.networkInfo.mapAccessUntil = Long.parseLong(body.string());
-										if (temp != u.networkInfo.mapAccessUntil) {
-											u.wirelessPoints -= prices.PRICE_30DAY_MAP;
+										long temp = networkInfo.mapAccessUntil;
+										networkInfo.mapAccessUntil = Long.parseLong(body.string());
+										if (temp != networkInfo.mapAccessUntil) {
+											u.addWirelessPoints(-prices.PRICE_30DAY_MAP);
 											activity.runOnUiThread(() -> {
-												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints)));
-												mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.getWirelessPoints())));
+												mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(networkInfo.mapAccessUntil))));
 												mapAccessTimeTextView.setVisibility(View.VISIBLE);
 											});
 										}
@@ -571,8 +632,8 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					});
 				});
 
-				if (u.networkInfo.mapAccessUntil > System.currentTimeMillis())
-					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.mapAccessUntil))));
+				if (u.getNetworkInfo().mapAccessUntil > System.currentTimeMillis())
+					mapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.getNetworkInfo().mapAccessUntil))));
 				else
 					mapAccessTimeTextView.setVisibility(View.GONE);
 				((TextView) mapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP)));
@@ -582,7 +643,7 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 				TextView personalMapAccessTimeTextView = ((TextView) userMapAccessLayout.getChildAt(1));
 
 				userMapAccessSwitch.setText(activity.getString(R.string.user_renew_personal_map));
-				userMapAccessSwitch.setChecked(u.networkPreferences.renewPersonalMap);
+				userMapAccessSwitch.setChecked(u.getNetworkPreferences().renewPersonalMap);
 				userMapAccessSwitch.setOnCheckedChangeListener((CompoundButton compoundButton, boolean b) -> {
 					compoundButton.setEnabled(false);
 					MultipartBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", Boolean.toString(b)).build();
@@ -598,17 +659,18 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 						@Override
 						public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
 							if (response.isSuccessful()) {
-								u.networkPreferences.renewPersonalMap = b;
+								User.NetworkInfo networkInfo = u.getNetworkInfo();
+								u.getNetworkPreferences().renewPersonalMap = b;
 								if (b) {
 									ResponseBody body = response.body();
 									if (body != null) {
-										long temp = u.networkInfo.personalMapAccessUntil;
-										u.networkInfo.personalMapAccessUntil = Long.parseLong(body.string());
-										if (temp != u.networkInfo.personalMapAccessUntil) {
-											u.wirelessPoints -= prices.PRICE_30DAY_PERSONAL_MAP;
+										long temp = networkInfo.personalMapAccessUntil;
+										networkInfo.personalMapAccessUntil = Long.parseLong(body.string());
+										if (temp != networkInfo.personalMapAccessUntil) {
+											u.addWirelessPoints(-prices.PRICE_30DAY_PERSONAL_MAP);
 											activity.runOnUiThread(() -> {
-												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints)));
-												personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(u.networkInfo.personalMapAccessUntil))));
+												wPointsTextView.setText(activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.getWirelessPoints())));
+												personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date(networkInfo.personalMapAccessUntil))));
 												personalMapAccessTimeTextView.setVisibility(View.VISIBLE);
 											});
 										}
@@ -627,14 +689,14 @@ public class FragmentSettings extends Fragment implements ITabFragment {
 					});
 				});
 
-				if (u.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
+				if (u.getNetworkInfo().personalMapAccessUntil > System.currentTimeMillis())
 					personalMapAccessTimeTextView.setText(String.format(activity.getString(R.string.user_access_date), dateFormat.format(new Date())));
 				else
 					personalMapAccessTimeTextView.setVisibility(View.GONE);
 				((TextView) userMapAccessLayout.getChildAt(2)).setText(String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP)));
 			});
 
-			if (u.networkInfo.hasMapAccess())
+			if (u.getNetworkInfo().hasMapAccess())
 				NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, MapLayer[].class, (state, layerArray) -> {
 					if (layerArray != null && layerArray.length > 0) {
 						SharedPreferences sp = Preferences.get(activity);
