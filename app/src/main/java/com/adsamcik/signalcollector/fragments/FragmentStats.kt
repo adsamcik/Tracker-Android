@@ -61,15 +61,15 @@ class FragmentStats : Fragment(), ITabFragment {
 
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
-        refreshLayout = view!!.findViewById(R.id.statsSwipeRefresh)
+        refreshLayout = fragmentView!!.findViewById(R.id.statsSwipeRefresh)
         refreshLayout!!.setOnRefreshListener({ this.updateStats() })
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
         refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity!!, 40))
 
-        val listView = view!!.findViewById<ListView>(R.id.stats_list_view)
+        val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
         listView.adapter = adapter
         updateStats()
-        return view
+        return fragmentView
     }
 
     private fun updateStats() {
@@ -144,10 +144,10 @@ class FragmentStats : Fragment(), ITabFragment {
             if (s.data != null) {
                 val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
                 table.title = s.name
-                for (y in s.data.indices) {
-                    val sd = s.data[y]
-                    table.addData(sd.id, sd.value)
-                }
+                s.data.indices
+                        .asSequence()
+                        .map { s.data[it] }
+                        .forEach { table.addData(it.id, it.value) }
                 adapter!!.add(table)
             }
         }
@@ -168,8 +168,8 @@ class FragmentStats : Fragment(), ITabFragment {
     }
 
     override fun onHomeAction() {
-        if (view != null) {
-            (view!!.findViewById<View>(R.id.stats_list_view) as ListView).smoothScrollToPosition(0)
+        if (fragmentView != null) {
+            (fragmentView!!.findViewById<View>(R.id.stats_list_view) as ListView).smoothScrollToPosition(0)
         }
     }
 
