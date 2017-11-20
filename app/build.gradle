@@ -16,7 +16,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 27
         versionCode 226
-        versionName "5.0.0 Kobold the candle keeper"
+        versionName "5.0.α1 Kobold the candle keeper"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
