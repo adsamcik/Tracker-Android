@@ -109,18 +109,18 @@ class Signin {
                     SIGNED -> {
                         signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
                         signedMenu.visibility = View.VISIBLE
-                        signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { v -> signout(context) }
+                        signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
                         signInButton.visibility = View.GONE
                     }
                     SIGNED_NO_DATA -> {
                         signedMenu.visibility = View.VISIBLE
-                        signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { v -> signout(context) }
+                        signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
                         signInButton.visibility = View.GONE
                     }
                     SIGNIN_FAILED, SILENT_SIGNIN_FAILED, NOT_SIGNED -> {
                         signInButton.visibility = View.VISIBLE
                         signedMenu.visibility = View.GONE
-                        signInButton.setOnClickListener { v ->
+                        signInButton.setOnClickListener { _ ->
                             val a = activity
                             if (a != null) {
                                 initializeClient()

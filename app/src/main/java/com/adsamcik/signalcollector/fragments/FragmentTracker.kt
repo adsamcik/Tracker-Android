@@ -143,7 +143,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (requiredPermissions == null) {
             if (!TrackerService.isRunning()) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable) { v ->
+                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable) { _ ->
                         val gpsOptionsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(gpsOptionsIntent)
                     }
@@ -180,7 +180,7 @@ class FragmentTracker : Fragment(), ITabFragment {
             CloudStatus.SYNC_AVAILABLE -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_upload_24dp)
                 progressBar!!.visibility = View.GONE
-                fabUp!!.setOnClickListener { v ->
+                fabUp!!.setOnClickListener { _ ->
                     if (Signin.isSignedIn) {
                         val context = context
                         val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
@@ -199,7 +199,7 @@ class FragmentTracker : Fragment(), ITabFragment {
             }
             CloudStatus.SYNC_SCHEDULED -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
-                fabUp!!.setOnClickListener { v ->
+                fabUp!!.setOnClickListener { _ ->
                     val context = context
                     val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
                     FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
@@ -315,7 +315,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         }
 
         changeTrackerButton(if (TrackerService.isRunning()) 1 else 0, false)
-        fabTrack!!.setOnClickListener { v ->
+        fabTrack!!.setOnClickListener { _ ->
             if (TrackerService.isRunning() && TrackerService.isBackgroundActivated()) {
                 val lockedForMinutes = TrackerService.setAutoLock()
                 SnackMaker(activity).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
