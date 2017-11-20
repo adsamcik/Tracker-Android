@@ -91,7 +91,7 @@ public class LaunchActivity extends Activity {
 			Log.d("Signals", token == null ? "null token" : token);
 		}
 
-		ActivityWakerService.poke(this);
+		ActivityWakerService.Companion.poke(this);
 
 		overridePendingTransition(0, 0);
 		finish();
