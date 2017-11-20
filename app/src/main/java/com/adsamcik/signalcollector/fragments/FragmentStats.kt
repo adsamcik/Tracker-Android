@@ -76,7 +76,7 @@ class FragmentStats : Fragment(), ITabFragment {
 
         val us = DataStore.loadLastFromAppendableJsonArray<UploadStats>(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats::class.java)
         if (us != null && Assist.getAgeInDays(us.time) < 30) {
-            val lastUpload = UploadReportsActivity.GenerateTableForUploadStat(us, context!!, resources.getString(R.string.most_recent_upload), AppendBehavior.FirstFirst)
+            val lastUpload = UploadReportsActivity.generateTableForUploadStat(us, context!!, resources.getString(R.string.most_recent_upload), AppendBehavior.FirstFirst)
             lastUpload.addButton(getString(R.string.more_uploads)) { _ ->
                 val intent = Intent(context, UploadReportsActivity::class.java)
                 startActivity(intent)
