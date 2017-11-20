@@ -27,10 +27,7 @@ import com.adsamcik.signalcollector.activities.*
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.interfaces.IValueCallback
-import com.adsamcik.signalcollector.interfaces.IVerify
+import com.adsamcik.signalcollector.interfaces.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
@@ -94,10 +91,10 @@ class FragmentSettings : Fragment(), ITabFragment {
         val activity = activity
         if (activity != null) {
             if (u != null) {
-                if (Signin.isMock()) {
+                if (Signin.isMock) {
                     u.addServerDataCallback({ user -> resolveUserMenuOnLogin(user, Prices()) })
                 } else
-                    NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices::class.java) { s, p ->
+                    NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices::class.java, IStateValueCallback { s, p ->
                         //todo check when server data are available
                         if (s.isSuccess) {
                             if (p == null)
@@ -106,7 +103,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                                 u.addServerDataCallback({ user -> resolveUserMenuOnLogin(user, p) })
                         } else
                             SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
-                    }
+                    })
             } else
                 SnackMaker(activity).showSnackbar(R.string.error_failed_signin)
         }
@@ -324,7 +321,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.DEFAULT_AUTO_UPLOAD_AT_MB,
                 Slider.IStringify { progress -> getString(R.string.settings_autoupload_at_value, progress) }, null)
 
-        setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, INonNullValueCallback{ value -> (seekAutoUploadAt.parent as ViewGroup).visibility = if (value) View.GONE else View.VISIBLE })
+        setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, INonNullValueCallback { value -> (seekAutoUploadAt.parent as ViewGroup).visibility = if (value) View.GONE else View.VISIBLE })
 
         if (Preferences.get(activity).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
             (seekAutoUploadAt.parent as ViewGroup).visibility = View.GONE
@@ -379,7 +376,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED,
                 rootView.findViewById(R.id.switchNotificationsUpload),
                 true,
-                INonNullValueCallback{ b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b)) })
+                INonNullValueCallback { b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b)) })
 
         rootView.findViewById<View>(R.id.other_clear_data).setOnClickListener { _ ->
             val alertDialogBuilder = AlertDialog.Builder(activity)
@@ -397,7 +394,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         }
 
         rootView.findViewById<View>(R.id.other_feedback).setOnClickListener { _ ->
-            if (Signin.isSignedIn())
+            if (Signin.isSignedIn)
                 startActivity(Intent(getActivity(), FeedbackActivity::class.java))
             else
                 SnackMaker(getActivity()).showSnackbar(R.string.feedback_error_not_signed_in)
@@ -424,7 +421,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             })
         }
 
-        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, IVerify{ file -> !file.name.startsWith("com.") && !file.isDirectory }) }
+        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, IVerify { file -> !file.name.startsWith("com.") && !file.isDirectory }) }
 
 
         rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { _ -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
@@ -645,7 +642,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             }
 
             if (u.networkInfo.hasMapAccess())
-                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { _, layerArray ->
+                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, IStateValueCallback { _, layerArray ->
                     if (layerArray != null && layerArray.isNotEmpty()) {
                         val sp = Preferences.get(activity)
                         val defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
@@ -686,7 +683,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                             mDOLayout.visibility = View.VISIBLE
                         }
                     }
-                }
+                })
         }
     }
 

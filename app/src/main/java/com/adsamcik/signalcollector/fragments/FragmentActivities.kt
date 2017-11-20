@@ -20,6 +20,7 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.SnackMaker
+import kotlinx.coroutines.experimental.launch
 
 class FragmentActivities : Fragment(), ITabFragment {
     private var listViewChallenges: ListView? = null
@@ -45,7 +46,8 @@ class FragmentActivities : Fragment(), ITabFragment {
         val isRefresh = refreshLayout != null && refreshLayout!!.isRefreshing
         val activity = activity
         val context = activity!!.applicationContext
-        ChallengeManager.getChallenges(activity, isRefresh) { source, challenges ->
+        launch {
+            val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
             if (!source.isSuccess)
                 SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
             else {
@@ -80,25 +82,25 @@ class FragmentActivities : Fragment(), ITabFragment {
         override fun getItemId(i: Int): Long = i.toLong()
 
         override fun getView(i: Int, view: View?, viewGroup: ViewGroup): View {
-            var view = view
-            if (view == null)
-                view = mInflater.inflate(R.layout.layout_challenge_small, viewGroup, false)
+            var fragmentView = view
+            if (fragmentView == null)
+                fragmentView = mInflater.inflate(R.layout.layout_challenge_small, viewGroup, false)
 
             val challenge = mDataSource[i]
-            (view!!.findViewById<View>(R.id.challenge_title) as TextView).text = challenge.title
-            (view.findViewById<View>(R.id.challenge_description) as TextView).text = challenge.description
+            (fragmentView!!.findViewById<View>(R.id.challenge_title) as TextView).text = challenge.title
+            (fragmentView.findViewById<View>(R.id.challenge_description) as TextView).text = challenge.description
 
-            val textViewDifficulty = view.findViewById<TextView>(R.id.challenge_difficulty)
+            val textViewDifficulty = fragmentView.findViewById<TextView>(R.id.challenge_difficulty)
             if (challenge.difficultyString == null)
                 textViewDifficulty.visibility = View.GONE
             else
                 textViewDifficulty.text = challenge.difficultyString
 
-            (view.findViewById<View>(R.id.challenge_progress) as TextView).text = getString(R.string.challenge_progress, (challenge.progress * 100).toInt())
+            (fragmentView.findViewById<View>(R.id.challenge_progress) as TextView).text = getString(R.string.challenge_progress, (challenge.progress * 100).toInt())
 
             val color = ContextCompat.getColor(context!!, R.color.background_success) and (Integer.MAX_VALUE shr 8) or ((challenge.progress * 255).toInt() shl 24)
-            view.setBackgroundColor(color)
-            return view
+            fragmentView.setBackgroundColor(color)
+            return fragmentView
         }
     }
 }

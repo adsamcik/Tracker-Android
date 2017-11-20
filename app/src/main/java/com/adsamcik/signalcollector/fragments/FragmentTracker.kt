@@ -181,7 +181,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_upload_24dp)
                 progressBar!!.visibility = View.GONE
                 fabUp!!.setOnClickListener { v ->
-                    if (Signin.isSignedIn()) {
+                    if (Signin.isSignedIn) {
                         val context = context
                         val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
                         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())

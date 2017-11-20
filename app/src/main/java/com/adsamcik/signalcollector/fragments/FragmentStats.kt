@@ -19,6 +19,7 @@ import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.AppendBehavior
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.interfaces.IStateValueCallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
@@ -97,17 +98,17 @@ class FragmentStats : Fragment(), ITabFragment {
                 activity.runOnUiThread { refreshLayout!!.isRefreshing = true }
         }, 100)
 
-        NetworkLoader.request<Array<Stat>>(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehavior.FirstLast) }
+        NetworkLoader.request(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java, IStateValueCallback { state, value -> handleResponse(activity, state, value, AppendBehavior.FirstLast) })
 
-        NetworkLoader.request<Array<Stat>>(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehavior.Any) }
+        NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, IStateValueCallback { state, value -> handleResponse(activity, state, value, AppendBehavior.Any) })
 
         if (Signin.getUserID(appContext) != null) {
             refreshingCount++
-            NetworkLoader.requestSigned<Array<Stat>>(Network.URL_USER_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java) { state, value ->
+            NetworkLoader.requestSigned(Network.URL_USER_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, IStateValueCallback { state, value ->
                 if (value != null && value.size == 1 && value[0].name.isEmpty())
                     value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
                 handleResponse(activity, state, value, AppendBehavior.First)
-            }
+            })
         }
     }
 
