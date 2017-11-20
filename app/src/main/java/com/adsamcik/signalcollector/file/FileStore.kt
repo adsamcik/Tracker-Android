@@ -116,11 +116,14 @@ object FileStore {
      * @return proper json array
      */
     fun loadAppendableJsonArray(file: File): String? {
-        val sb = StringBuilder(loadString(file))
-        if (sb.isNotEmpty()) {
-            if (sb[sb.length - 1] != ']')
-                sb.append(']')
-            return sb.toString()
+        val str = loadString(file)
+        if (str != null) {
+            val sb = StringBuilder(str)
+            if (sb.isNotEmpty()) {
+                if (sb[sb.length - 1] != ']')
+                    sb.append(']')
+                return sb.toString()
+            }
         }
         return null
     }

@@ -16,7 +16,7 @@ object CacheStore {
      */
     fun saveString(context: Context, fileName: String, data: String, append: Boolean): Boolean =
             FileStore.saveString(file(context, fileName), data, append)
-    
+
 
     /**
      * Converts loadStringAsBuilder to string and handles nulls
