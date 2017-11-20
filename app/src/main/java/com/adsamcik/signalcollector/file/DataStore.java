@@ -359,7 +359,7 @@ public class DataStore {
 	 */
 	public static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
 		String userID = Signin.Companion.getUserID(context);
-		if (UploadService.isUploading() || userID == null)
+		if (UploadService.isUploading || userID == null)
 			updateCurrentData(context, DataFile.FileType.CACHE, userID);
 		else
 			updateCurrentData(context, DataFile.FileType.STANDARD, userID);

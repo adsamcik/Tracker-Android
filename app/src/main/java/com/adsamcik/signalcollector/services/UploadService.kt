@@ -170,8 +170,8 @@ class UploadService : JobService() {
                 Signin.getUserAsync(context, IValueCallback{ value ->
                     lock.lock()
                     if (value != null) {
-                        token.string = value!!.token
-                        userID.string = value!!.id
+                        token.string = value.token
+                        userID.string = value.id
                     }
                     callbackReceived.signal()
                     lock.unlock()

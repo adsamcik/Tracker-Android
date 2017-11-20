@@ -32,6 +32,7 @@ class User(val id: String, val token: String) {
     }
 
     internal fun setServerData(wirelessPoints: Long, networkInfo: NetworkInfo, networkPreferences: NetworkPreferences) {
+        this.wirelessPoints = wirelessPoints
         this.networkInfo = networkInfo
         this.networkPreferences = networkPreferences
 
