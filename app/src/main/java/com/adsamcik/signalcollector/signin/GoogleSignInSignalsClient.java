@@ -80,7 +80,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 
 	@Override
 	public void signOut(@NonNull Context context) {
-		client.signOut().addOnCompleteListener(task -> Signin.onSignOut(context));
+		client.signOut().addOnCompleteListener(task -> Signin.Companion.onSignOut(context));
 	}
 
 	private User resolveUser(@NonNull Context context, @NonNull GoogleSignInAccount account) {
@@ -104,7 +104,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
 
-		NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
+		NetworkLoader.INSTANCE.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
 			if (state.isDataAvailable()) {
 				user.deserializeServerData(value);
 			}

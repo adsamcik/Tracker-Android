@@ -26,7 +26,7 @@ public class DataStoreTest {
 	@Before
 	public void clearAll() {
 		DataStore.clearAll(appContext);
-		Signin.getUserAsync(appContext, null);
+		Signin.Companion.getUserAsync(appContext, null);
 	}
 
 	@Test
@@ -37,7 +37,7 @@ public class DataStoreTest {
 				",\"version\":" + BuildConfig.VERSION_CODE + "," +
 				"\"data\":";
 
-		if(!Signin.isSignedIn()) {
+		if(!Signin.Companion.isSignedIn()) {
 			Log.w("SignalsTest","Please sign in before doing this test");
 			return;
 		}

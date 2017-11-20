@@ -328,7 +328,7 @@ public class UploadService extends JobService {
 				final StringWrapper token = new StringWrapper();
 				final StringWrapper userID = new StringWrapper();
 
-				Signin.getUserAsync(context, value -> {
+				Signin.Companion.getUserAsync(context, value -> {
 					lock.lock();
 					if (value != null) {
 						token.setString(value.token);

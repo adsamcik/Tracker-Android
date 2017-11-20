@@ -316,7 +316,7 @@ public class DataStore {
 
 	public static DataFile getCurrentDataFile(@NonNull Context context) {
 		if (currentDataFile == null) {
-			String userID = Signin.getUserID(context);
+			String userID = Signin.Companion.getUserID(context);
 			updateCurrentData(context, userID == null ? DataFile.FileType.CACHE : DataFile.FileType.STANDARD, userID);
 		}
 		return currentDataFile;
@@ -358,7 +358,7 @@ public class DataStore {
 	 * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
 	 */
 	public static SaveStatus saveData(@NonNull Context context, @NonNull RawData[] rawData) {
-		String userID = Signin.getUserID(context);
+		String userID = Signin.Companion.getUserID(context);
 		if (UploadService.isUploading() || userID == null)
 			updateCurrentData(context, DataFile.FileType.CACHE, userID);
 		else
@@ -367,7 +367,7 @@ public class DataStore {
 	}
 
 	private synchronized static void writeTempData(@NonNull Context context) {
-		String userId = Signin.getUserID(context);
+		String userId = Signin.Companion.getUserID(context);
 		if (currentDataFile.getType() != DataFile.FileType.STANDARD || userId == null)
 			return;
 

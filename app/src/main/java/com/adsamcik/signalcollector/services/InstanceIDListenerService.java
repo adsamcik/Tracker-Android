@@ -17,7 +17,7 @@ public class InstanceIDListenerService extends FirebaseInstanceIdService {
 	public void onTokenRefresh() {
 		String refreshedToken = FirebaseInstanceId.getInstance().getToken();
 		assert refreshedToken != null;
-		Signin.getUserAsync(this, user -> {
+		Signin.Companion.getUserAsync(this, user -> {
 			if (user != null)
 				Network.register(this, user.token, refreshedToken);
 		});

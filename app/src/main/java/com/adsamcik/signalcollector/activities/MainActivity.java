@@ -71,7 +71,7 @@ public class MainActivity extends FragmentActivity {
 			}
 		}
 
-		Signin.signin(this, null, true);
+		Signin.Companion.signin(this, null, true);
 
 		if (Assist.isPlayServiceAvailable(this))
 			ActivityService.requestAutoTracking(this, MainActivity.class);
@@ -199,8 +199,8 @@ public class MainActivity extends FragmentActivity {
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
-		if (requestCode == Signin.RC_SIGN_IN) {
-			Signin.onSignResult(this, resultCode, data);
+		if (requestCode == Signin.Companion.getRC_SIGN_IN()) {
+			Signin.Companion.onSignResult(this, resultCode, data);
 		}
 	}
 }

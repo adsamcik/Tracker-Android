@@ -135,7 +135,7 @@ public class IntroActivity extends AppIntro2 {
 						new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
 						dialog.dismiss();
 					} else {
-						Signin.signin(activity, (user) -> {
+						Signin.Companion.signin(activity, (user) -> {
 							if (user == null)
 								new SnackMaker(currentFragment.getView()).showSnackbar(R.string.error_failed_signin);
 							dialog.dismiss();
@@ -159,7 +159,7 @@ public class IntroActivity extends AppIntro2 {
 
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome_description), R.drawable.ic_intro_theme, Color.parseColor("#8B8B8B"), window, themeCallback));
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback));
-		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.isSignedIn() ? null : googleSigninSlideCallback));
+		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, Signin.Companion.isSignedIn() ? null : googleSigninSlideCallback));
 		addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_activites_title), r.getString(R.string.intro_activities_description), R.drawable.ic_intro_activites, Color.parseColor("#007b0c"), window, null));
 	}
 
@@ -246,8 +246,8 @@ public class IntroActivity extends AppIntro2 {
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
-		if (requestCode == Signin.RC_SIGN_IN) {
-			Signin.onSignResult(this, resultCode, data);
+		if (requestCode == Signin.Companion.getRC_SIGN_IN()) {
+			Signin.Companion.onSignResult(this, resultCode, data);
 		}
 	}
 }

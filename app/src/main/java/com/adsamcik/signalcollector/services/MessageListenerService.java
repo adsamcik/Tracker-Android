@@ -72,7 +72,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 							return;
 						}
 						final Challenge.ChallengeType cType = challengeType;
-						ChallengeManager.getChallenges(this, false, (source, challenges) -> {
+						ChallengeManager.INSTANCE.getChallenges(this, false, (source, challenges) -> {
 							if (source.isSuccess() && challenges != null) {
 								for (Challenge challenge : challenges) {
 									if (challenge.getType() == cType) {
@@ -86,7 +86,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 										break;
 									}
 								}
-								ChallengeManager.saveChallenges(this, challenges);
+								ChallengeManager.INSTANCE.saveChallenges(this, challenges);
 							}
 						});
 					}

@@ -37,7 +37,7 @@ public class FeedbackActivity extends DetailActivity {
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setTitle(R.string.feedback_title);
-		Signin.getUserAsync(this, value -> {
+		Signin.Companion.getUserAsync(this, value -> {
 			if(value == null) {
 				finish();
 				return;
@@ -137,7 +137,7 @@ public class FeedbackActivity extends DetailActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		Signin.removeOnSignedListeners();
+		Signin.Companion.removeOnSignedListeners();
 	}
 
 	private void updateType(View v, FeedbackType select) {
