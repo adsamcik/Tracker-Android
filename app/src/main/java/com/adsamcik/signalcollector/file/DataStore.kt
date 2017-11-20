@@ -103,7 +103,7 @@ object DataStore {
      * @return array of datafile names
      */
     fun getDataFiles(context: Context, @IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? =
-            getDir(context).listFiles { file, s -> s.startsWith(DATA_FILE) }
+            getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
 
     /**
      * Move file

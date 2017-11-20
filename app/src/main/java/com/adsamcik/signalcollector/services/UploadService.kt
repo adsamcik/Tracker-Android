@@ -219,7 +219,7 @@ class UploadService : JobService() {
             if (tempZipFile != null && !FileStore.delete(tempZipFile))
                 FirebaseCrash.report(IOException("Upload zip file was not deleted"))
 
-            callback?.callback(result!!)
+            callback?.callback(result)
         }
 
         override fun onCancelled() {

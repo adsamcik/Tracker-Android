@@ -68,7 +68,6 @@ object FileStore {
      * @throws MalformedJsonException Thrown when json array is in incorrect format
      */
     @Throws(MalformedJsonException::class)
-    @JvmOverloads
     fun saveAppendableJsonArray(file: File, data: String, append: Boolean, firstArrayItem: Boolean = false): Boolean {
         var data = data
         val sb = StringBuilder(data)

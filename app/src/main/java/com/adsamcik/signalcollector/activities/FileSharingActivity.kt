@@ -102,12 +102,12 @@ class FileSharingActivity : DetailActivity() {
             val bottomSheetMenu = BottomSheetMenu(layout)
             bottomSheetMenu.addItem(R.string.export_share_button, shareOnClickListener)
 
-            bottomSheetMenu.addItem(R.string.select_all) { v ->
+            bottomSheetMenu.addItem(R.string.select_all) { _ ->
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, true)
             }
 
-            bottomSheetMenu.addItem(R.string.deselect_all) { v ->
+            bottomSheetMenu.addItem(R.string.deselect_all) { _ ->
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, false)
             }

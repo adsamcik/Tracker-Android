@@ -114,7 +114,7 @@ class IntroActivity : AppIntro2() {
                         .setCancelable(true)
                         .create()
 
-                v.findViewById<View>(R.id.sign_in_button).setOnClickListener { x ->
+                v.findViewById<View>(R.id.sign_in_button).setOnClickListener { _ ->
                     dialog.getButton(DialogInterface.BUTTON_NEGATIVE).isEnabled = false
                     dialog.setMessage(getString(R.string.signin_connecting))
                     val activity = currentFragment!!.activity
