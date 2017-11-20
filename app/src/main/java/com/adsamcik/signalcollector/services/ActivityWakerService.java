@@ -44,7 +44,7 @@ public class ActivityWakerService extends Service {
 
 		startForeground(NOTIFICATION_ID, updateNotification());
 
-		ActivityService.requestAutoTracking(this, getClass());
+		ActivityService.Companion.requestAutoTracking(this, getClass());
 
 		thread = new Thread(() -> {
 			//Is not supposed to quit while, until service is stopped
@@ -70,7 +70,7 @@ public class ActivityWakerService extends Service {
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
-		ActivityService.removeAutoTracking(this, getClass());
+		ActivityService.Companion.removeAutoTracking(this, getClass());
 		instance = null;
 		thread.interrupt();
 	}

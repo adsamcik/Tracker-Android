@@ -131,7 +131,7 @@ class TrackerService : Service() {
             d.addCell(telephonyManager!!)
         }
 
-        val activityInfo = ActivityService.getLastActivity()
+        val activityInfo = ActivityService.lastActivity
 
         if (noiseTracker != null) {
             val MAX_NOISE_TRACKING_SPEED_M = (MAX_NOISE_TRACKING_SPEED_KM / 3.6).toFloat()

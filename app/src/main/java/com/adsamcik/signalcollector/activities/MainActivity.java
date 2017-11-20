@@ -71,7 +71,7 @@ public class MainActivity extends FragmentActivity {
 		Signin.Companion.signin(this, null, true);
 
 		if (Assist.isPlayServiceAvailable(this))
-			ActivityService.requestAutoTracking(this, MainActivity.class);
+			ActivityService.Companion.requestAutoTracking(this, MainActivity.class);
 		else
 			snackMaker.showSnackbar(R.string.error_play_services_not_available);
 

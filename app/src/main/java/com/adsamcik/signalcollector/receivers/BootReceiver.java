@@ -16,7 +16,7 @@ public class BootReceiver extends BroadcastReceiver {
 	public void onReceive(Context context, Intent intent) {
 		if (Objects.equals(intent.getAction(), Intent.ACTION_BOOT_COMPLETED)) {
 			ActivityWakerService.poke(context);
-			ActivityService.requestAutoTracking(context, MainActivity.class);
+			ActivityService.Companion.requestAutoTracking(context, MainActivity.class);
 		}
 	}
 }
