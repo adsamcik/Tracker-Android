@@ -30,7 +30,7 @@ object FileStore {
         if (!parent.isDirectory)
             throw InvalidParameterException("Parent must be directory")
 
-        val files = parent.listFiles { file, s -> s.startsWith(dataFileName) }
+        val files = parent.listFiles { _, s -> s.startsWith(dataFileName) }
         return if (files.size == 1) files[0] else File(parent, dataFileName)
     }
 
@@ -91,34 +91,6 @@ object FileStore {
         return saveString(file, data, append)
     }
 
-
-    /**
-     * Load string file as StringBuilder
-     *
-     * @param file file to load
-     * @return content of file as StringBuilder
-     */
-    fun loadStringAsBuilder(file: File): StringBuilder? {
-        if (!file.exists())
-            return null
-
-        return try {
-            val fis = FileInputStream(file)
-            val isr = InputStreamReader(fis)
-            val br = BufferedReader(isr)
-            val stringBuilder = StringBuilder()
-
-            br.buffered(BUFFER).use { line -> stringBuilder.append(line) }
-
-            isr.close()
-            stringBuilder
-        } catch (e: Exception) {
-            FirebaseCrash.report(e)
-            null
-        }
-
-    }
-
     /**
      * Converts loadStringAsBuilder to string and handles nulls
      *
@@ -126,8 +98,15 @@ object FileStore {
      * @return content of file (empty if file has no content or does not exists)
      */
     fun loadString(file: File): String? {
-        val sb = loadStringAsBuilder(file)
-        return sb?.toString()
+        if (!file.exists())
+            return null
+
+        return try {
+            return FileInputStream(file).bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            FirebaseCrash.report(e)
+            null
+        }
     }
 
     /**
@@ -137,8 +116,8 @@ object FileStore {
      * @return proper json array
      */
     fun loadAppendableJsonArray(file: File): String? {
-        val sb = loadStringAsBuilder(file)
-        if (sb != null && sb.isNotEmpty()) {
+        val sb = StringBuilder(loadString(file))
+        if (sb.isNotEmpty()) {
             if (sb[sb.length - 1] != ']')
                 sb.append(']')
             return sb.toString()
@@ -154,12 +133,12 @@ object FileStore {
      * @return last object of json array or null
      */
     fun <T> loadLastFromAppendableJsonArray(file: File, tClass: Class<T>): T? {
-        val sb = loadStringAsBuilder(file) ?: return null
-        (sb.length - 1 downTo 0)
-                .filter { sb[it] == '{' }
+        val str = loadString(file) ?: return null
+        (str.length - 1 downTo 0)
+                .filter { str[it] == '{' }
                 .forEach {
                     return try {
-                        Gson().fromJson(sb.substring(it), tClass)
+                        Gson().fromJson(str.substring(it), tClass)
                     } catch (e: JsonSyntaxException) {
                         FirebaseCrash.report(e)
                         null

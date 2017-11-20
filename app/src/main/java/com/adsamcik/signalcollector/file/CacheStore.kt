@@ -16,16 +16,7 @@ object CacheStore {
      */
     fun saveString(context: Context, fileName: String, data: String, append: Boolean): Boolean =
             FileStore.saveString(file(context, fileName), data, append)
-
-
-    /**
-     * Load string file as StringBuilder
-     *
-     * @param fileName file name
-     * @return content of file as StringBuilder
-     */
-    fun loadStringAsBuilder(context: Context, fileName: String): StringBuilder? =
-            FileStore.loadStringAsBuilder(file(context, fileName))
+    
 
     /**
      * Converts loadStringAsBuilder to string and handles nulls
