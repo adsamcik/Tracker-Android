@@ -47,8 +47,8 @@
 57587:46 support-compat
 57635:46 cardview-v7
 57683:46 constraint-layout
-57731:46 support-annotations
-57779:46 kotlin-stdlib-jre7
+57731:46 kotlin-stdlib-jre7
+57779:46 support-annotations
 57827:46 jsr305
 57875:46 runtime
 57923:46 constraint-layout-solver
