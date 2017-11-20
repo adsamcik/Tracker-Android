@@ -3,52 +3,31 @@ package com.adsamcik.signalcollector.signin;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentSender;
-import android.os.Build;
-import android.os.Bundle;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
-import android.support.v4.app.FragmentActivity;
 import android.view.View;
-import android.widget.Button;
 import android.widget.LinearLayout;
 
-import com.adsamcik.signalcollector.BuildConfig;
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.activities.MainActivity;
 import com.adsamcik.signalcollector.file.DataStore;
-import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.IContextValueCallback;
 import com.adsamcik.signalcollector.interfaces.IValueCallback;
 import com.adsamcik.signalcollector.network.Network;
-import com.adsamcik.signalcollector.network.NetworkLoader;
 import com.adsamcik.signalcollector.utility.Assist;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.auth.api.signin.GoogleSignInResult;
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.SignInButton;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.OptionalPendingResult;
-import com.google.firebase.crash.FirebaseCrash;
-import com.google.firebase.iid.FirebaseInstanceId;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.InstanceCreator;
-
-import junit.framework.Assert;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
 
 import static com.adsamcik.signalcollector.signin.Signin.SigninStatus.NOT_SIGNED;
 import static com.adsamcik.signalcollector.signin.Signin.SigninStatus.SIGNED;
@@ -164,7 +143,7 @@ public class Signin {
 		client.signInSilent(context, onSignInInternal);
 	}
 
-	public static void getUserAsync(@NonNull Context context, IValueCallback<User> callback) {
+	public static void getUserAsync(@NonNull Context context, @NonNull IValueCallback<User> callback) {
 		if (instance.user != null)
 			callback.callback(instance.user);
 		else
