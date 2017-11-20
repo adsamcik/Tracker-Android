@@ -48,25 +48,26 @@
 57635:46 cardview-v7
 57683:46 constraint-layout
 57731:46 kotlin-stdlib-jre7
-57779:46 support-annotations
-57827:46 jsr305
-57875:46 runtime
-57923:46 constraint-layout-solver
-57971:10695 Android Fragments Support Library
-68668:10691 Android Media Compat Support Library
-79361:11358 okhttp3
-90721:11358 Okio
-102081:10695 Android Compat Support Library
-112778:11358 v2964546_google
-124138:11342 flatbuffers
-135482:10691 Android Core Utils Support Library
-146175:10695 Android Core UI Support Library
-156872:16013 Android SDK
-172887:10695 Android Compatibility Library v4
-183584:10695 Android Annotations Support Library
-194281:46 kotlin-stdlib
-194377:46 common
-194425:46 kotlin-annotation-processing-gradle
-194473:46 kotlin-compiler-embeddable
-194521:46 kotlin-reflect
-194569:46 kotlin-script-runtime
+57779:46 kotlinx-coroutines-core
+57827:46 support-annotations
+57875:46 jsr305
+57923:46 runtime
+57971:46 constraint-layout-solver
+58019:10695 Android Fragments Support Library
+68716:10691 Android Media Compat Support Library
+79409:11358 okhttp3
+90769:11358 Okio
+102129:10695 Android Compat Support Library
+112826:11358 v2964546_google
+124186:11342 flatbuffers
+135530:10691 Android Core Utils Support Library
+146223:10695 Android Core UI Support Library
+156920:16013 Android SDK
+172935:10695 Android Compatibility Library v4
+183632:10695 Android Annotations Support Library
+194329:46 kotlin-stdlib
+194425:46 common
+194473:46 kotlin-annotation-processing-gradle
+194521:46 kotlin-compiler-embeddable
+194569:46 kotlin-reflect
+194617:46 kotlin-script-runtime
