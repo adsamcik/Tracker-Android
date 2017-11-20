@@ -1,0 +1,54 @@
+package com.adsamcik.signalcollector.utility
+
+import android.content.Context
+import com.adsamcik.signalcollector.data.Challenge
+import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.interfaces.IStateValueCallback
+import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.network.NetworkLoader
+import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import kotlinx.coroutines.experimental.launch
+import kotlin.coroutines.experimental.suspendCoroutine
+
+object ChallengeManager {
+    suspend fun getChallenges(ctx: Context, force: Boolean): Pair<NetworkLoader.Source, Array<Challenge>?> = suspendCoroutine { cont ->
+        val context = ctx.applicationContext
+        launch {
+            val str = NetworkLoader.requestStringSignedAsync(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST)
+            if (str.first.isSuccess) {
+                val gsonBuilder = GsonBuilder()
+                gsonBuilder.registerTypeAdapter(Challenge::class.java, ChallengeDeserializer())
+                val gson = gsonBuilder.create()
+                val challengeArray = gson.fromJson(str.second!!, Array<Challenge>::class.java)
+                for (challenge in challengeArray)
+                    challenge.generateTexts(context)
+                cont.resume(Pair(str.first, challengeArray))
+            } else {
+               cont.resume(Pair(str.first, null))
+            }
+        }
+    }
+
+    fun getChallenges(ctx: Context, force: Boolean, callback: IStateValueCallback<NetworkLoader.Source, Array<Challenge>?>) {
+        val context = ctx.applicationContext
+        NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, IStateValueCallback { source, jsonChallenges ->
+            if (!source.isSuccess)
+                callback.callback(source, null)
+            else {
+                val gsonBuilder = GsonBuilder()
+                gsonBuilder.registerTypeAdapter(Challenge::class.java, ChallengeDeserializer())
+                val gson = gsonBuilder.create()
+                val challengeArray = gson.fromJson(jsonChallenges, Array<Challenge>::class.java)
+                for (challenge in challengeArray)
+                    challenge.generateTexts(context)
+                callback.callback(source, challengeArray)
+            }
+        })
+    }
+
+    fun saveChallenges(context: Context, challenges: Array<Challenge>) {
+        DataStore.saveString(context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, Gson().toJson(challenges), false)
+    }
+}
