@@ -31,7 +31,7 @@ public class Shortcuts {
 	public static void initializeShortcuts(@NonNull Context context) {
 		ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
 		ArrayList<ShortcutInfo> shortcuts = new ArrayList<>(1);
-		if (!TrackerService.isRunning())
+		if (!TrackerService.Companion.isRunning())
 			shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_start_tracking), context.getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, ShortcutType.START_COLLECTION));
 		else
 			shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_stop_tracking), context.getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, ShortcutType.STOP_COLLECTION));

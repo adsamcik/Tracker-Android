@@ -33,7 +33,7 @@ public class ShortcutActivity extends Activity {
 						startService(serviceIntent);
 						break;
 					case STOP_COLLECTION:
-						if (TrackerService.isRunning())
+						if (TrackerService.Companion.isRunning())
 							stopService(serviceIntent);
 						break;
 					default:

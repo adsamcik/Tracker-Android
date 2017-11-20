@@ -303,7 +303,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 val bundle = Bundle()
                 bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings")
                 FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, bundle)
-                if (TrackerService.isRunning())
+                if (TrackerService.isRunning)
                     activity.stopService(Intent(activity, TrackerService::class.java))
             }
         })

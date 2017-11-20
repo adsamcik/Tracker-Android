@@ -136,13 +136,13 @@ class FragmentTracker : Fragment(), ITabFragment {
      * @param enable ensures intended action
      */
     private fun toggleCollecting(activity: Activity, enable: Boolean) {
-        if (TrackerService.isRunning() == enable)
+        if (TrackerService.isRunning == enable)
             return
 
         val requiredPermissions = Assist.checkTrackingPermissions(activity)
 
         if (requiredPermissions == null) {
-            if (!TrackerService.isRunning()) {
+            if (!TrackerService.isRunning) {
                 if (!Assist.isGNSSEnabled(activity)) {
                     SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable) { _ ->
                         val gpsOptionsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
@@ -315,18 +315,18 @@ class FragmentTracker : Fragment(), ITabFragment {
             playToPause = ContextCompat.getDrawable(activity, R.drawable.avd_pause_to_play) as AnimatedVectorDrawable?
         }
 
-        changeTrackerButton(if (TrackerService.isRunning()) 1 else 0, false)
+        changeTrackerButton(if (TrackerService.isRunning) 1 else 0, false)
         fabTrack!!.setOnClickListener { _ ->
-            if (TrackerService.isRunning() && TrackerService.isBackgroundActivated()) {
+            if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = TrackerService.setAutoLock()
                 SnackMaker(activity).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
             } else
-                toggleCollecting(activity, !TrackerService.isRunning())
+                toggleCollecting(activity, !TrackerService.isRunning)
         }
         DataStore.setOnDataChanged(ICallback { activity.runOnUiThread { setCollected(activity, DataStore.sizeOfData(activity), DataStore.collectionCount(activity)) } })
         DataStore.setOnUploadProgress(INonNullValueCallback { progress -> activity.runOnUiThread { updateUploadProgress(progress) } })
         TrackerService.onNewDataFound = ICallback { activity.runOnUiThread { this.updateData() } }
-        TrackerService.onServiceStateChange = ICallback { activity.runOnUiThread { changeTrackerButton(if (TrackerService.isRunning()) 1 else 0, true) } }
+        TrackerService.onServiceStateChange = ICallback { activity.runOnUiThread { changeTrackerButton(if (TrackerService.isRunning) 1 else 0, true) } }
 
         //TrackerService.rawDataEcho = new RawData(200).setActivity(1).addCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 

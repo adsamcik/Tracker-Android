@@ -175,14 +175,14 @@ public class ActivityService extends IntentService {
 		if (backgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
 			if (powerManager == null)
 				powerManager = (PowerManager) this.getSystemService(POWER_SERVICE);
-			if (TrackerService.isRunning()) {
+			if (TrackerService.Companion.isRunning()) {
 				if (TrackerService.isBackgroundActivated() && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
 					stopService(new Intent(this, TrackerService.class));
 					ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.getActivityName(), "stopped tracking");
 				} else {
 					ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.getActivityName(), null);
 				}
-			} else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackerService.isAutoLocked() && !powerManager.isPowerSaveMode() && Assist.canTrack(this)) {
+			} else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackerService.Companion.isAutoLocked() && !powerManager.isPowerSaveMode() && Assist.canTrack(this)) {
 				Intent trackerService = new Intent(this, TrackerService.class);
 				trackerService.putExtra("backTrack", true);
 				startService(trackerService);
@@ -206,7 +206,7 @@ public class ActivityService extends IntentService {
 	 * @return true if background tracking can be activated
 	 */
 	private static boolean canBackgroundTrack(@NonNull Context context, @ResolvedActivity int evalActivity) {
-		if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning() || Preferences.get(context).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
+		if (evalActivity == 3 || evalActivity == 0 || TrackerService.Companion.isRunning() || Preferences.get(context).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
 			return false;
 		int val = Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING);
 		return val != 0 && (val == evalActivity || val > evalActivity);

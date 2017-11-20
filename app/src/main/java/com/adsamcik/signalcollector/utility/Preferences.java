@@ -105,7 +105,7 @@ public class Preferences {
 	 */
 	public static void stopTillRecharge(@NonNull Context c) {
 		get(c).edit().putBoolean(PREF_STOP_TILL_RECHARGE, true).apply();
-		if (TrackerService.isRunning())
+		if (TrackerService.Companion.isRunning())
 			c.stopService(new Intent(c, TrackerService.class));
 	}
 
