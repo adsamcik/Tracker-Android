@@ -1,0 +1,183 @@
+package com.adsamcik.signalcollector.services
+
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.support.annotation.StringRes
+import android.support.v4.app.NotificationCompat
+import android.support.v4.content.ContextCompat
+import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.UploadReportsActivity
+import com.adsamcik.signalcollector.data.Challenge
+import com.adsamcik.signalcollector.data.UploadStats
+import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.interfaces.IStateValueCallback
+import com.adsamcik.signalcollector.utility.ChallengeManager
+import com.adsamcik.signalcollector.utility.Preferences
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+
+class MessageListenerService : FirebaseMessagingService() {
+
+    override fun onMessageReceived(message: RemoteMessage?) {
+
+        val sp = Preferences.get(this)
+
+        val data = message!!.data
+
+        val type = data[TYPE] ?: return
+
+        val typeInt = Integer.parseInt(type)
+        if (MessageType.values().size > typeInt) {
+            when (MessageType.values()[typeInt]) {
+                MessageListenerService.MessageType.UploadReport -> {
+                    DataStore.removeOldRecentUploads(this)
+                    val us = parseAndSaveUploadReport(applicationContext, message.sentTime, data)
+                    if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
+                        sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply()
+                    val resultIntent = Intent(this, UploadReportsActivity::class.java)
+
+                    if (Preferences.get(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+                        val r = resources
+                        sendNotification(MessageType.UploadReport, r.getString(R.string.new_upload_summary), us.generateNotificationText(resources), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT), message.sentTime)
+                    }
+                }
+                MessageListenerService.MessageType.Notification -> sendNotification(MessageType.Notification, data[TITLE]!!, data[MESSAGE]!!, null, message.sentTime)
+                MessageListenerService.MessageType.ChallengeReport -> {
+                    val isDone = java.lang.Boolean.parseBoolean(data["isDone"])
+                    if (isDone) {
+                        val challengeType: Challenge.ChallengeType
+                        try {
+                            challengeType = Challenge.ChallengeType.valueOf(data["challengeType"]!!)
+                        } catch (e: Exception) {
+                            sendNotification(MessageType.ChallengeReport, getString(R.string.notification_challenge_unknown_title), getString(R.string.notification_challenge_unknown_description), null, message.sentTime)
+                            return
+                        }
+
+                        ChallengeManager.getChallenges(this, false, IStateValueCallback{ source, challenges ->
+                            if (source.isSuccess && challenges != null) {
+                                for (challenge in challenges) {
+                                    if (challenge.type == challengeType) {
+                                        challenge.setDone()
+                                        challenge.generateTexts(this)
+                                        sendNotification(MessageType.ChallengeReport,
+                                                getString(R.string.notification_challenge_done_title, challenge.title),
+                                                getString(R.string.notification_challenge_done_description, challenge.title), null,
+                                                message.sentTime)
+                                        break
+                                    }
+                                }
+                                ChallengeManager.saveChallenges(this, challenges)
+                            }
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Create and show notification
+     *
+     * @param title         title
+     * @param message       message
+     * @param pendingIntent intent if special action is wanted
+     */
+    private fun sendNotification(messageType: MessageType, title: String, message: String, pendingIntent: PendingIntent?, time: Long) {
+        var pendingIntent = pendingIntent
+        val intent = Intent(this, MainActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        if (pendingIntent == null)
+            pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT)
+
+        @StringRes val channelId: Int = when (messageType) {
+            MessageListenerService.MessageType.UploadReport -> R.string.channel_upload_id
+            MessageListenerService.MessageType.ChallengeReport -> R.string.channel_challenges_id
+            MessageListenerService.MessageType.Notification -> R.string.channel_other_id
+            else -> R.string.channel_other_id
+        }
+
+        val notiColor = ContextCompat.getColor(applicationContext, R.color.color_accent)
+
+        val notiBuilder = NotificationCompat.Builder(this, getString(channelId))
+                .setSmallIcon(R.drawable.ic_signals)
+                .setTicker(title)
+                .setColor(notiColor)
+                .setLights(notiColor, 2000, 5000)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .setWhen(time)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        notificationManager.notify(notificationIndex++, notiBuilder.build())
+    }
+
+    enum class MessageType {
+        Notification,
+        UploadReport,
+        ChallengeReport
+    }
+
+    companion object {
+        private const val TITLE = "title"
+        private const val MESSAGE = "message"
+        private const val TYPE = "type"
+
+        private const val TAG = "SignalsMessageService"
+        internal var notificationIndex = 1
+
+        fun parseAndSaveUploadReport(context: Context, time: Long, data: Map<String, String>): UploadStats {
+            val WIFI = "wifi"
+            val NEW_WIFI = "newWifi"
+            val CELL = "cell"
+            val NEW_CELL = "newCell"
+            val NOISE = "noise"
+            val NEW_NOISE_LOCATIONS = "newNoiseLocations"
+            val COLLECTIONS = "collections"
+            val NEW_LOCATIONS = "newLocations"
+            val SIZE = "uploadSize"
+
+            var wifi = 0
+            var cell = 0
+            var noise = 0
+            var collections = 0
+            var newLocations = 0
+            var newWifi = 0
+            var newCell = 0
+            var newNoiseLocations = 0
+            var uploadSize: Long = 0
+            if (data.containsKey(WIFI))
+                wifi = Integer.parseInt(data[WIFI])
+            if (data.containsKey(NEW_WIFI))
+                newWifi = Integer.parseInt(data[NEW_WIFI])
+            if (data.containsKey(CELL))
+                cell = Integer.parseInt(data[CELL])
+            if (data.containsKey(NEW_CELL))
+                newCell = Integer.parseInt(data[NEW_CELL])
+            if (data.containsKey(NOISE))
+                noise = Integer.parseInt(data[NOISE])
+            if (data.containsKey(COLLECTIONS))
+                collections = Integer.parseInt(data[COLLECTIONS])
+            if (data.containsKey(NEW_LOCATIONS))
+                newLocations = Integer.parseInt(data[NEW_LOCATIONS])
+            if (data.containsKey(NEW_NOISE_LOCATIONS))
+                newNoiseLocations = Integer.parseInt(data[NEW_NOISE_LOCATIONS])
+            if (data.containsKey(SIZE))
+                uploadSize = java.lang.Long.parseLong(data[SIZE])
+
+            val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations)
+            DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)
+
+            Preferences.checkStatsDay(context)
+            val sp = Preferences.get(context)
+            sp.edit().putLong(Preferences.PREF_STATS_UPLOADED, sp.getLong(Preferences.PREF_STATS_UPLOADED, 0) + uploadSize).apply()
+            return us
+        }
+    }
+}

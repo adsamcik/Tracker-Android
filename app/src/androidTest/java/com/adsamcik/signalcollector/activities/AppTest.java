@@ -140,10 +140,10 @@ public class AppTest {
 		d.put(NEW_LOCATIONS, Integer.toString(us.newLocations));
 		d.put(SIZE, Long.toString(us.uploadSize));
 
-		MessageListenerService.parseAndSaveUploadReport(context, time, d);
+		MessageListenerService.Companion.parseAndSaveUploadReport(context, time, d);
 		Assert.assertEquals('[' + data, DataStore.INSTANCE.loadString(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE()));
 
-		MessageListenerService.parseAndSaveUploadReport(context, time, d);
+		MessageListenerService.Companion.parseAndSaveUploadReport(context, time, d);
 		Assert.assertEquals('[' + data + ',' + data, DataStore.INSTANCE.loadString(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE()));
 		DataStore.INSTANCE.delete(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE());
 	}
