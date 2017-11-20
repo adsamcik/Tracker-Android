@@ -197,7 +197,7 @@ class FragmentSettings : Fragment(), ITabFragment {
 
 
     private fun initializeVersionLicense(rootView: View, devView: View) {
-        rootView.findViewById<View>(R.id.open_source_licenses).setOnClickListener { v -> startActivity(Intent(activity, LicenseActivity::class.java)) }
+        rootView.findViewById<View>(R.id.open_source_licenses).setOnClickListener { _ -> startActivity(Intent(activity, LicenseActivity::class.java)) }
 
         val versionView = rootView.findViewById<TextView>(R.id.versionNum)
         try {
@@ -206,7 +206,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             Log.d(TAG, "Failed to set version")
         }
 
-        versionView.setOnLongClickListener { view ->
+        versionView.setOnLongClickListener { _ ->
             val setVisible = devView.visibility == View.GONE
             devView.visibility = if (setVisible) View.VISIBLE else View.GONE
             Preferences.get(rootView.context).edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply()
@@ -220,23 +220,23 @@ class FragmentSettings : Fragment(), ITabFragment {
         trackDesc = rootView.findViewById(R.id.tracking_description)
 
         trackingNone = rootView.findViewById(R.id.tracking_none)
-        trackingNone!!.setOnClickListener { v -> updateTracking(0) }
+        trackingNone!!.setOnClickListener { _ -> updateTracking(0) }
         setInactive(trackingNone!!)
         trackingOnFoot = rootView.findViewById(R.id.tracking_onfoot)
-        trackingOnFoot!!.setOnClickListener { v -> updateTracking(1) }
+        trackingOnFoot!!.setOnClickListener { _ -> updateTracking(1) }
         setInactive(trackingOnFoot!!)
         trackingAlways = rootView.findViewById(R.id.tracking_always)
-        trackingAlways!!.setOnClickListener { v -> updateTracking(2) }
+        trackingAlways!!.setOnClickListener { _ -> updateTracking(2) }
         setInactive(trackingAlways!!)
 
         autoupDisabled = rootView.findViewById(R.id.autoupload_disabled)
-        autoupDisabled!!.setOnClickListener { v -> updateAutoup(0) }
+        autoupDisabled!!.setOnClickListener { _ -> updateAutoup(0) }
         setInactive(autoupDisabled!!)
         autoupWifi = rootView.findViewById(R.id.autoupload_wifi)
-        autoupWifi!!.setOnClickListener { v -> updateAutoup(1) }
+        autoupWifi!!.setOnClickListener { _ -> updateAutoup(1) }
         setInactive(autoupWifi!!)
         autoupAlways = rootView.findViewById(R.id.autoupload_always)
-        autoupAlways!!.setOnClickListener { v -> updateAutoup(2) }
+        autoupAlways!!.setOnClickListener { _ -> updateAutoup(2) }
         setInactive(autoupAlways!!)
 
         devView = rootView.findViewById(R.id.dev_corner_layout)
@@ -351,7 +351,7 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         switchNoise = rootView.findViewById(R.id.switchTrackNoise)
         switchNoise!!.isChecked = Preferences.get(activity).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)
-        switchNoise!!.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+        switchNoise!!.setOnCheckedChangeListener { _: CompoundButton, b: Boolean ->
             if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(activity, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
                 activity.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQUEST_CODE_PERMISSIONS_MICROPHONE)
             else
@@ -360,13 +360,13 @@ class FragmentSettings : Fragment(), ITabFragment {
     }
 
     private fun initializeExportSection(rootView: View) {
-        rootView.findViewById<View>(R.id.export_share_button).setOnClickListener { v -> startActivity(Intent(activity, FileSharingActivity::class.java)) }
+        rootView.findViewById<View>(R.id.export_share_button).setOnClickListener { _ -> startActivity(Intent(activity, FileSharingActivity::class.java)) }
     }
 
     private fun initializeOtherSection(activity: Activity, rootView: View) {
         val darkThemeSwitch = rootView.findViewById<Switch>(R.id.switchDarkTheme)
         darkThemeSwitch.isChecked = Preferences.getTheme(activity) == R.style.AppThemeDark
-        darkThemeSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+        darkThemeSwitch.setOnCheckedChangeListener { _: CompoundButton, b: Boolean ->
             val theme = if (b) R.style.AppThemeDark else R.style.AppThemeLight
             Preferences.setTheme(activity, theme)
 
@@ -381,22 +381,22 @@ class FragmentSettings : Fragment(), ITabFragment {
                 true,
                 INonNullValueCallback{ b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b)) })
 
-        rootView.findViewById<View>(R.id.other_clear_data).setOnClickListener { v ->
+        rootView.findViewById<View>(R.id.other_clear_data).setOnClickListener { _ ->
             val alertDialogBuilder = AlertDialog.Builder(activity)
             alertDialogBuilder
-                    .setPositiveButton(resources.getText(R.string.yes)) { dialog, which -> DataStore.clearAllData(activity) }
-                    .setNegativeButton(resources.getText(R.string.no)) { dialog, which -> }
+                    .setPositiveButton(resources.getText(R.string.yes)) { _, _ -> DataStore.clearAllData(activity) }
+                    .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
                     .setMessage(resources.getText(R.string.alert_clear_text))
 
             alertDialogBuilder.show()
         }
 
-        rootView.findViewById<View>(R.id.other_reopen_tutorial).setOnClickListener { v ->
+        rootView.findViewById<View>(R.id.other_reopen_tutorial).setOnClickListener { _ ->
             startActivity(Intent(activity, IntroActivity::class.java))
             activity.finish()
         }
 
-        rootView.findViewById<View>(R.id.other_feedback).setOnClickListener { v ->
+        rootView.findViewById<View>(R.id.other_feedback).setOnClickListener { _ ->
             if (Signin.isSignedIn())
                 startActivity(Intent(getActivity(), FeedbackActivity::class.java))
             else
@@ -417,19 +417,19 @@ class FragmentSettings : Fragment(), ITabFragment {
             }, R.string.settings_cleared_all_upload_reports)
         }
 
-        rootView.findViewById<View>(R.id.dev_button_browse_files).setOnClickListener { v ->
+        rootView.findViewById<View>(R.id.dev_button_browse_files).setOnClickListener { _ ->
             createFileAlertDialog(activity, activity.filesDir, IVerify { file ->
                 val name = file.name
                 !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
             })
         }
 
-        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { v -> createFileAlertDialog(activity, activity.cacheDir, IVerify{ file -> !file.name.startsWith("com.") && !file.isDirectory }) }
+        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, IVerify{ file -> !file.name.startsWith("com.") && !file.isDirectory }) }
 
 
-        rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { v -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
+        rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { _ -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
 
-        rootView.findViewById<View>(R.id.dev_button_notification_dummy).setOnClickListener { v ->
+        rootView.findViewById<View>(R.id.dev_button_notification_dummy).setOnClickListener { _ ->
             val helloWorld = getString(R.string.dev_notification_dummy)
             val color = ContextCompat.getColor(activity, R.color.color_primary)
             val rng = Random(System.currentTimeMillis())
@@ -446,17 +446,17 @@ class FragmentSettings : Fragment(), ITabFragment {
             notificationManager.notify(dummyNotificationIndex++, notiBuilder.build())
         }
 
-        rootView.findViewById<View>(R.id.dev_button_activity_recognition).setOnClickListener { v -> startActivity(Intent(getActivity(), ActivityRecognitionActivity::class.java)) }
+        rootView.findViewById<View>(R.id.dev_button_activity_recognition).setOnClickListener { _ -> startActivity(Intent(getActivity(), ActivityRecognitionActivity::class.java)) }
     }
 
     private fun createClearDialog(context: Context, clearFunction: IValueCallback<Context>, @StringRes snackBarString: Int) {
         val alertDialogBuilder = AlertDialog.Builder(context)
         alertDialogBuilder
-                .setPositiveButton(resources.getText(R.string.yes)) { dialog, which ->
+                .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
                     SnackMaker(activity).showSnackbar(snackBarString)
                     clearFunction.callback(context)
                 }
-                .setNegativeButton(resources.getText(R.string.no)) { dialog, which -> }
+                .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
                 .setMessage(resources.getText(R.string.alert_confirm_generic))
 
         alertDialogBuilder.show()
@@ -502,12 +502,12 @@ class FragmentSettings : Fragment(), ITabFragment {
         slider.minValue = minValue
         slider.setTextView(title, textGenerationFuncton)
         if (valueCallback != null)
-            slider.setOnValueChangeListener { value, fromUser -> valueCallback.callback(slider.value!!) }
+            slider.setOnValueChangeListener { _, _ -> valueCallback.callback(slider.value!!) }
     }
 
     private fun setSwitchChangeListener(context: Context, name: String, s: Switch, defaultState: Boolean, callback: INonNullValueCallback<Boolean>?) {
         s.isChecked = Preferences.get(context).getBoolean(name, defaultState)
-        s.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+        s.setOnCheckedChangeListener { _: CompoundButton, b: Boolean ->
             Preferences.get(context).edit().putBoolean(name, b).apply()
             callback?.callback(b)
         }
@@ -554,10 +554,10 @@ class FragmentSettings : Fragment(), ITabFragment {
                                 val networkInfo = u.networkInfo
                                 u.networkPreferences.renewMap = b
                                 if (b) {
-                                    val body = response.body()
-                                    if (body != null) {
+                                    val rBody = response.body()
+                                    if (rBody != null) {
                                         val temp = networkInfo.mapAccessUntil
-                                        networkInfo.mapAccessUntil = java.lang.Long.parseLong(body.string())
+                                        networkInfo.mapAccessUntil = java.lang.Long.parseLong(rBody.string())
                                         if (temp != networkInfo.mapAccessUntil) {
                                             u.addWirelessPoints((-prices.PRICE_30DAY_MAP).toLong())
                                             activity.runOnUiThread {
@@ -610,10 +610,10 @@ class FragmentSettings : Fragment(), ITabFragment {
                                 val networkInfo = u.networkInfo
                                 u.networkPreferences.renewPersonalMap = b
                                 if (b) {
-                                    val body = response.body()
-                                    if (body != null) {
+                                    val rBody = response.body()
+                                    if (rBody != null) {
                                         val temp = networkInfo.personalMapAccessUntil
-                                        networkInfo.personalMapAccessUntil = java.lang.Long.parseLong(body.string())
+                                        networkInfo.personalMapAccessUntil = java.lang.Long.parseLong(rBody.string())
                                         if (temp != networkInfo.personalMapAccessUntil) {
                                             u.addWirelessPoints((-prices.PRICE_30DAY_PERSONAL_MAP).toLong())
                                             activity.runOnUiThread {
@@ -645,7 +645,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             }
 
             if (u.networkInfo.hasMapAccess())
-                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { state, layerArray ->
+                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { _, layerArray ->
                     if (layerArray != null && layerArray.isNotEmpty()) {
                         val sp = Preferences.get(activity)
                         val defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
@@ -664,7 +664,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                             val adapter = ArrayAdapter(activity, R.layout.spinner_item, MapLayer.toStringArray(layerArray))
                             adapter.setDropDownViewResource(R.layout.spinner_item)
                             mapOverlayButton.text = items[selectIndex]
-                            mapOverlayButton.setOnClickListener { v ->
+                            mapOverlayButton.setOnClickListener { _ ->
                                 val ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                                 val `in` = MapLayer.indexOf(layerArray, ov)
                                 val selectIn = if (`in` == -1) 0 else `in`
@@ -677,7 +677,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                                             mapOverlayButton.text = items[which]
                                             dialog.dismiss()
                                         }
-                                        .setNegativeButton(R.string.cancel) { dialog, which -> }
+                                        .setNegativeButton(R.string.cancel) { _, _ -> }
 
                                 alertDialogBuilder.create().show()
                             }
