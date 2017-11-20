@@ -13,6 +13,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.MainActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.IContextValueCallback
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.utility.Assist
@@ -128,20 +129,20 @@ class Signin {
                                 val a = activity
                                 if (a != null) {
                                     initializeClient()
-                                    client!!.signIn(a) { ctx, user ->
+                                    client!!.signIn(a, IContextValueCallback { ctx, user ->
                                         instance!!.user = user
                                         if (user != null) {
                                             if (user.isServerDataAvailable)
                                                 updateStatus(SIGNED, ctx)
                                             else {
                                                 updateStatus(SIGNED_NO_DATA, ctx)
-                                                user.addServerDataCallback { value ->
+                                                user.addServerDataCallback(INonNullValueCallback { value ->
                                                     instance!!.user = value
                                                     updateStatus(SIGNED, ctx)
-                                                }
+                                                })
                                             }
                                         }
-                                    }
+                                    })
                                 }
                             }
                             signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE

@@ -281,7 +281,7 @@ public class TrackerService extends Service {
 			if (result == DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
 					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
 					DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
-				UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
+				UploadService.Companion.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
 				FirebaseCrash.log("Requested upload from tracking");
 			}
 		}
@@ -405,7 +405,7 @@ public class TrackerService extends Service {
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION);
 		}
 
-		UploadService.cancelUploadSchedule(this);
+		UploadService.Companion.cancelUploadSchedule(this);
 	}
 
 	@Override
@@ -456,7 +456,7 @@ public class TrackerService extends Service {
 		}
 
 		if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
-			UploadService.requestUploadSchedule(this);
+			UploadService.Companion.requestUploadSchedule(this);
 	}
 
 	@Nullable

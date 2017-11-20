@@ -299,7 +299,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fabUp = fabTwo
         progressBar = (fabTwo.parent as ViewGroup).findViewById(R.id.progressBar)
 
-        if (UploadService.isUploading() || UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
+        if (UploadService.isUploading || UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
             updateUploadProgress(0)
         } else {
             progressBar!!.progress = 0

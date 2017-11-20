@@ -24,10 +24,7 @@ import android.widget.EditText
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback
-import com.adsamcik.signalcollector.interfaces.IString
-import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.interfaces.IValueCallback
+import com.adsamcik.signalcollector.interfaces.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
@@ -160,9 +157,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         Signin.getUserAsync(fActivity!!, IValueCallback { user ->
             if (fabTwo != null && user != null)
-                user.addServerDataCallback { u ->
+                user.addServerDataCallback( INonNullValueCallback{ u ->
                     if (fabTwo != null) {
-                        val networkInfo = u.networkInfo
+                        val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
                             menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity, mapLayerFilterRule, IString<MapLayer> { it.name })
                             menu!!.setCallback { value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } }
@@ -198,7 +195,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                 })
                         }
                     }
-                }
+                })
         })
 
         searchText = fragmentView!!.findViewById(R.id.map_search)

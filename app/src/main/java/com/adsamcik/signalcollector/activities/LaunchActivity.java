@@ -53,7 +53,7 @@ public class LaunchActivity extends Activity {
 
 			scheduler.cancelAll();
 		} else {
-			UploadService.UploadScheduleSource uss = UploadService.getUploadScheduled(this);
+			UploadService.UploadScheduleSource uss = UploadService.Companion.getUploadScheduled(this);
 			if (!uss.equals(UploadService.UploadScheduleSource.NONE)) {
 				List<JobInfo> jobs = scheduler.getAllPendingJobs();
 
@@ -65,9 +65,9 @@ public class LaunchActivity extends Activity {
 				}
 				if (found > 1) {
 					scheduler.cancelAll();
-					UploadService.requestUpload(this, uss);
+					UploadService.Companion.requestUpload(this, uss);
 				} else if (found == 0) {
-					UploadService.requestUpload(this, uss);
+					UploadService.Companion.requestUpload(this, uss);
 				}
 			}
 		}
