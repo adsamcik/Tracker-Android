@@ -331,8 +331,8 @@ public class UploadService extends JobService {
 				Signin.Companion.getUserAsync(context, value -> {
 					lock.lock();
 					if (value != null) {
-						token.setString(value.token);
-						userID.setString(value.id);
+						token.setString(value.getToken());
+						userID.setString(value.getId());
 					}
 					callbackReceived.signal();
 					lock.unlock();

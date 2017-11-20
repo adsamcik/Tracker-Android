@@ -86,10 +86,10 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 	private User resolveUser(@NonNull Context context, @NonNull GoogleSignInAccount account) {
 		User user = new User(account.getId(), account.getIdToken());
 
-		assert user.token != null;
-		assert user.id != null;
+		assert user.getToken() != null;
+		assert user.getId() != null;
 
-		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply();
+		Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.getId()).apply();
 
 		if (userValueCallback != null)
 			userValueCallback.callback(context, user);
@@ -99,7 +99,7 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
-			Network.INSTANCE.register(context, user.token, token);
+			Network.INSTANCE.register(context, user.getToken(), token);
 		else
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
