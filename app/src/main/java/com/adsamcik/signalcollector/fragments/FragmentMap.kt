@@ -132,21 +132,20 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         fabOne.show()
         fabOneVisible = true
-        fabOne.setOnClickListener { v ->
+        fabOne.setOnClickListener { _ ->
             if (checkLocationPermission(activity, true) && map != null)
                 locationListener!!.onMyPositionFabClick()
         }
 
 
         //fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
-        fabTwo.setOnClickListener { v -> menu!!.show(activity) }
+        fabTwo.setOnClickListener { _ -> menu!!.show(activity) }
 
         return Failure()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         fActivity = if (fActivity == null) activity else fActivity
-        assert(fActivity != null)
         if (Assist.isPlayServiceAvailable(fActivity!!) && container != null && hasPermissions)
             fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
         else {
@@ -170,7 +169,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                 menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
                             if (networkInfo.hasMapAccess())
-                                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { state, layerArray ->
+                                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { _, layerArray ->
                                     if (fabTwo != null && layerArray != null) {
                                         var savedOverlay = Preferences.get(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                                         if (!MapLayer.contains(layerArray, savedOverlay)) {
@@ -201,7 +200,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
 
         searchText = fragmentView!!.findViewById(R.id.map_search)
-        searchText!!.setOnEditorActionListener { v, actionId, event ->
+        searchText!!.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)
             try {
                 val addresses = geocoder.getFromLocationName(v.text.toString(), 1)
