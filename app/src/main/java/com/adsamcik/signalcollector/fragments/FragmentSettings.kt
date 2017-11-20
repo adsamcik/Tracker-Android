@@ -114,11 +114,10 @@ class FragmentSettings : Fragment(), ITabFragment {
 
 
     private fun updateTracking(select: Int) {
-        val selected: ImageView?
-        when (select) {
-            0 -> selected = trackingNone
-            1 -> selected = trackingOnFoot
-            2 -> selected = trackingAlways
+        val selected: ImageView? = when (select) {
+            0 -> trackingNone
+            1 -> trackingOnFoot
+            2 -> trackingAlways
             else -> return
         }
 
@@ -136,11 +135,10 @@ class FragmentSettings : Fragment(), ITabFragment {
     }
 
     private fun updateAutoup(select: Int) {
-        val selected: ImageView?
-        when (select) {
-            0 -> selected = autoupDisabled
-            1 -> selected = autoupWifi
-            2 -> selected = autoupAlways
+        val selected: ImageView? = when (select) {
+            0 -> autoupDisabled
+            1 -> autoupWifi
+            2 -> autoupAlways
             else -> return
         }
         FirebaseAssist.updateValue(context!!, FirebaseAssist.autoUploadString, autoupString!![select])
@@ -284,15 +282,14 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_ACTIVITY_UPDATE_RATE,
                 Preferences.DEFAULT_ACTIVITY_UPDATE_RATE,
                 Slider.IStringify setSeekbar@ { progress ->
-                    if (progress == 0)
-                        return@setSeekbar getString(R.string.frequency_asap)
-                    else if (progress < 60)
-                        return@setSeekbar getString(R.string.frequency_seconds, progress)
-                    else if (progress!! % 60 == 0)
-                        return@setSeekbar getString(R.string.frequency_minute, progress / 60)
-                    else {
-                        val minutes = progress / 60
-                        return@setSeekbar getString(R.string.frequency_minute_second, minutes, progress - minutes * 60)
+                    when {
+                        progress == 0 -> return@setSeekbar getString(R.string.frequency_asap)
+                        progress < 60 -> return@setSeekbar getString(R.string.frequency_seconds, progress)
+                        progress!! % 60 == 0 -> return@setSeekbar getString(R.string.frequency_minute, progress / 60)
+                        else -> {
+                            val minutes = progress / 60
+                            return@setSeekbar getString(R.string.frequency_minute_second, minutes, progress - minutes * 60)
+                        }
                     }
                 },
                 INonNullValueCallback { value ->
@@ -300,7 +297,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                     ActivityWakerService.poke(activity)
                 })
 
-        activityFrequencySlider.setItems(arrayOf(0, 5, 10, 30, 60, 120, 240, 300, 600))
+        activityFrequencySlider.items = arrayOf(0, 5, 10, 30, 60, 120, 240, 300, 600)
 
         setSwitchChangeListener(activity, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, INonNullValueCallback { b ->
             if (b) {
@@ -382,7 +379,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED,
                 rootView.findViewById(R.id.switchNotificationsUpload),
                 true,
-                INonNullValueCallback{ b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b!!)) })
+                INonNullValueCallback{ b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b)) })
 
         rootView.findViewById<View>(R.id.other_clear_data).setOnClickListener { v ->
             val alertDialogBuilder = AlertDialog.Builder(activity)
@@ -422,12 +419,12 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         rootView.findViewById<View>(R.id.dev_button_browse_files).setOnClickListener { v ->
             createFileAlertDialog(activity, activity.filesDir, IVerify { file ->
-                val name = file.getName()
+                val name = file.name
                 !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
             })
         }
 
-        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { v -> createFileAlertDialog(activity, activity.cacheDir, IVerify{ file -> !file.getName().startsWith("com.") && !file.isDirectory() }) }
+        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { v -> createFileAlertDialog(activity, activity.cacheDir, IVerify{ file -> !file.name.startsWith("com.") && !file.isDirectory }) }
 
 
         rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { v -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
@@ -467,12 +464,9 @@ class FragmentSettings : Fragment(), ITabFragment {
 
     private fun createFileAlertDialog(context: Context, directory: File, verifyFunction: IVerify<File>?) {
         val files = directory.listFiles()
-        val temp = ArrayList<String>()
-        for (file in files) {
-            if (verifyFunction == null || verifyFunction.verify(file)) {
-                temp.add(file.name + "|  " + Assist.humanReadableByteCount(file.length(), true))
-            }
-        }
+        val temp = files
+                .filter { verifyFunction == null || verifyFunction.verify(it) }
+                .map { it.name + "|  " + Assist.humanReadableByteCount(it.length(), true) }
 
         Collections.sort(temp) { obj, s -> obj.compareTo(s) }
 
@@ -652,7 +646,7 @@ class FragmentSettings : Fragment(), ITabFragment {
 
             if (u.networkInfo.hasMapAccess())
                 NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { state, layerArray ->
-                    if (layerArray != null && layerArray.size > 0) {
+                    if (layerArray != null && layerArray.isNotEmpty()) {
                         val sp = Preferences.get(activity)
                         val defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                         val index = MapLayer.indexOf(layerArray, defaultOverlay)
@@ -696,9 +690,8 @@ class FragmentSettings : Fragment(), ITabFragment {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
-        return Failure()
-    }
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> =
+            Failure()
 
     override fun onLeave(activity: FragmentActivity) {
         if (signin != null) {
