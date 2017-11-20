@@ -150,7 +150,7 @@ public class AppTest {
 
 	@Test
 	public void UploadFABTest() throws Exception {
-		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
+		Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_AVAILABLE);
 
 		Thread.sleep(Constants.SECOND_IN_MILLISECONDS);
 
@@ -197,7 +197,7 @@ public class AppTest {
 
 		DataStore.onUpload(context, 100);
 		DataStore.incData(context, 500, 25);
-		Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
+		Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_AVAILABLE);
 		Thread.sleep(4 * Constants.SECOND_IN_MILLISECONDS);
 		fabUpload.check(matches(isDisplayed()));
 		progressBar.check(doesNotExist());

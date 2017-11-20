@@ -99,12 +99,12 @@ public class GoogleSignInSignalsClient implements ISignInClient {
 		//if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
 		String token = FirebaseInstanceId.getInstance().getToken();
 		if (token != null)
-			Network.register(context, user.token, token);
+			Network.INSTANCE.register(context, user.token, token);
 		else
 			FirebaseCrash.report(new Throwable("Token is null"));
 		//}
 
-		NetworkLoader.INSTANCE.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
+		NetworkLoader.INSTANCE.requestStringSigned(Network.INSTANCE.getURL_USER_INFO(), 10, context, Preferences.PREF_USER_DATA, (state, value) -> {
 			if (state.isDataAvailable()) {
 				user.deserializeServerData(value);
 			}

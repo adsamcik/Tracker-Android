@@ -103,7 +103,7 @@ public class FeedbackActivity extends DetailActivity {
 					if (result.length() <= MIN_TEXT_LENGTH)
 						summaryTextLayout.setError(getString(R.string.feedback_error_spaces_summary));
 					else {
-						MultipartBody.Builder builder = Network.generateAuthBody(value.token).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType.ordinal()));
+						MultipartBody.Builder builder = Network.INSTANCE.generateAuthBody(value.token).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType.ordinal()));
 
 						TextInputLayout descriptionTextLayout = parent.findViewById(R.id.feedback_description_wrap);
 						EditText descriptionText = descriptionTextLayout.getEditText();
@@ -113,7 +113,7 @@ public class FeedbackActivity extends DetailActivity {
 						String description = descriptionText.getText().toString().trim();
 						builder.addFormDataPart("description", description.length() > 0 ? description : "");
 
-						Network.client(this, null).newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).enqueue(new Callback() {
+						Network.INSTANCE.client(this, null).newCall(Network.INSTANCE.requestPOST(Network.INSTANCE.getURL_FEEDBACK(), builder.build())).enqueue(new Callback() {
 							@Override
 							public void onFailure(@NonNull Call call, @NonNull IOException e) {
 								new SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed);

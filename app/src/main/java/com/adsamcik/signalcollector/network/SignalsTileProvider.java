@@ -28,7 +28,7 @@ public class SignalsTileProvider implements TileProvider {
 	private final int maxZoom;
 
 	public SignalsTileProvider(Context context, int maxZoom) {
-		client = Network.client(context, null);
+		client = Network.INSTANCE.client(context, null);
 		this.maxZoom = maxZoom;
 	}
 
@@ -58,7 +58,7 @@ public class SignalsTileProvider implements TileProvider {
 			return null;
 
 
-		String url = personal ? String.format(Locale.ENGLISH, Network.URL_PERSONAL_TILES, z, x, y) : String.format(Locale.ENGLISH, Network.URL_TILES, z, x, y, type);
+		String url = personal ? String.format(Locale.ENGLISH, Network.INSTANCE.getURL_PERSONAL_TILES(), z, x, y) : String.format(Locale.ENGLISH, Network.INSTANCE.getURL_TILES(), z, x, y, type);
 		Call c = client.newCall(new Request.Builder().url(url).build());
 		Response r = null;
 

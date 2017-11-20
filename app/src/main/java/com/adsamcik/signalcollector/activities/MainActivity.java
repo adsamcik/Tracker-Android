@@ -55,15 +55,15 @@ public class MainActivity extends FragmentActivity {
 		SnackMaker snackMaker = new SnackMaker(this);
 		Assist.initialize(this);
 
-		if (Network.cloudStatus == CloudStatus.UNKNOWN) {
+		if (Network.INSTANCE.getCloudStatus() == CloudStatus.UNKNOWN) {
 			UploadService.UploadScheduleSource scheduleSource = UploadService.getUploadScheduled(this);
 			switch (scheduleSource) {
 				case NONE:
-					Network.cloudStatus = DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED;
+					Network.INSTANCE.setCloudStatus(DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED);
 					break;
 				case BACKGROUND:
 				case USER:
-					Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+					Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_SCHEDULED);
 					break;
 			}
 		}

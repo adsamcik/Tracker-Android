@@ -97,7 +97,7 @@ public class UploadService extends JobService {
 				if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
 					return new Failure<>(context.getString(R.string.error_during_upload_scheduling));
 				updateUploadScheduleSource(context, source);
-				Network.cloudStatus = CloudStatus.SYNC_SCHEDULED;
+				Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_SCHEDULED);
 
 				scheduler.cancel(SCHEDULE_UPLOAD_JOB_ID);
 
@@ -259,10 +259,10 @@ public class UploadService extends JobService {
 
 			RequestBody formBody = new MultipartBody.Builder()
 					.setType(MultipartBody.FORM)
-					.addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
+					.addFormDataPart("file", Network.INSTANCE.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
 					.build();
 			try {
-				call = Network.client(context.get(), null).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody));
+				call = Network.INSTANCE.client(context.get(), null).newCall(Network.INSTANCE.requestPOST(Network.INSTANCE.getURL_DATA_UPLOAD(), formBody));
 				response = call.execute();
 				int code = response.code();
 				boolean isSuccessful = response.isSuccessful();

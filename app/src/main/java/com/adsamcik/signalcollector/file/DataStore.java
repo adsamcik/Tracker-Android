@@ -62,10 +62,10 @@ public class DataStore {
 	 * Call to invoke onDataChanged callback
 	 */
 	private static void onDataChanged(@NonNull final Context context) {
-		if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
-			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
-		else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
-			Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED;
+		if (Network.INSTANCE.getCloudStatus() == CloudStatus.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
+			Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_AVAILABLE);
+		else if (Network.INSTANCE.getCloudStatus() == CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
+			Network.INSTANCE.setCloudStatus(CloudStatus.NO_SYNC_REQUIRED);
 
 		if (onDataChanged != null)
 			onDataChanged.callback();
@@ -78,11 +78,11 @@ public class DataStore {
 	 */
 	public static void onUpload(@NonNull final Context context, final int progress) {
 		if (progress == 100)
-			Network.cloudStatus = sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED;
+			Network.INSTANCE.setCloudStatus(sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED);
 		else if (progress == -1 && sizeOfData(context) > 0)
-			Network.cloudStatus = CloudStatus.SYNC_AVAILABLE;
+			Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_AVAILABLE);
 		else
-			Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS;
+			Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_IN_PROGRESS);
 
 		if (onUploadProgress != null)
 			onUploadProgress.callback(progress);
