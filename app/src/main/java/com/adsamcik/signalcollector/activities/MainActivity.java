@@ -34,9 +34,6 @@ import com.adsamcik.signalcollector.utility.Constants;
 import com.adsamcik.signalcollector.utility.Failure;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
-import com.google.android.gms.auth.api.Auth;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.firebase.crash.FirebaseCrash;
 
 public class MainActivity extends FragmentActivity {
@@ -199,7 +196,7 @@ public class MainActivity extends FragmentActivity {
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
-		if (requestCode == Signin.Companion.getRC_SIGN_IN()) {
+		if (requestCode == Signin.RC_SIGN_IN) {
 			Signin.Companion.onSignResult(this, resultCode, data);
 		}
 	}

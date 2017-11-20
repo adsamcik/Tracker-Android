@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.activities;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -22,16 +21,12 @@ import android.view.WindowManager;
 
 import com.adsamcik.signalcollector.R;
 import com.adsamcik.signalcollector.fragments.FragmentIntro;
-import com.adsamcik.signalcollector.fragments.FragmentSettings;
 import com.adsamcik.signalcollector.interfaces.ICallback;
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback;
 import com.adsamcik.signalcollector.signin.Signin;
 import com.adsamcik.signalcollector.utility.Preferences;
 import com.adsamcik.signalcollector.utility.SnackMaker;
 import com.github.paolorotolo.appintro.AppIntro2;
-import com.google.android.gms.auth.api.Auth;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInResult;
 import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.ArrayList;
@@ -246,7 +241,7 @@ public class IntroActivity extends AppIntro2 {
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 
-		if (requestCode == Signin.Companion.getRC_SIGN_IN()) {
+		if (requestCode == Signin.RC_SIGN_IN) {
 			Signin.Companion.onSignResult(this, resultCode, data);
 		}
 	}

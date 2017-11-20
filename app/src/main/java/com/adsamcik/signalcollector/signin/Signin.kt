@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.support.annotation.IntDef
 import android.support.annotation.StringRes
+import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
 
@@ -37,7 +38,7 @@ class Signin {
 
     private val onSignedCallbackList = ArrayList<IValueCallback<User>>(2)
 
-    private val onSignInInternal = IContextValueCallback<Context, User>{ context, user ->
+    private val onSignInInternal = IContextValueCallback<Context, User> { context, user ->
         this.user = user
 
         when {
@@ -249,10 +250,8 @@ class Signin {
                 signin(context, callback)
         }
 
-        suspend fun getUserAsync(context: Context) : User? = suspendCoroutine { cont ->
-            getUserAsync(context, IValueCallback {
-                user -> cont.resume(user)
-            })
+        suspend fun getUserAsync(context: Context): User? = suspendCoroutine { cont ->
+            getUserAsync(context, IValueCallback { user -> cont.resume(user) })
         }
 
         fun getUserID(context: Context): String? =
@@ -293,7 +292,7 @@ class Signin {
                 return instance!!.client is MockSignInClient
             }
 
-        internal fun onSignOut(context: Context) {
+        fun onSignOut(context: Context) {
             instance!!.onSignedOut(context)
         }
     }
