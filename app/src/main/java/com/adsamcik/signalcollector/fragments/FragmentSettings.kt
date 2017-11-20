@@ -470,13 +470,13 @@ class FragmentSettings : Fragment(), ITabFragment {
         Collections.sort(temp) { obj, s -> obj.compareTo(s) }
 
         val alertDialogBuilder = AlertDialog.Builder(context)
-        val fileNames = arrayOfNulls<String>(temp.size)
+        val fileNames = temp.toTypedArray()
         alertDialogBuilder
                 .setTitle(getString(R.string.dev_browse_files))
-                .setItems(temp.toTypedArray()) { _, which ->
+                .setItems(fileNames) { _, which ->
                     val intent = Intent(activity, DebugFileActivity::class.java)
                     intent.putExtra("directory", directory.path)
-                    intent.putExtra("fileName", fileNames[which]?.substring(0, fileNames[which]?.lastIndexOf('|')!!))
+                    intent.putExtra("fileName", fileNames[which].substring(0, fileNames[which].lastIndexOf('|')))
                     startActivity(intent)
                 }
                 .setNegativeButton(R.string.cancel) { _, _ -> }
