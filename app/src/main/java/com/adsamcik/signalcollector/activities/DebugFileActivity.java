@@ -17,7 +17,7 @@ public class DebugFileActivity extends DetailActivity {
 		TextView tv = new TextView(this);
 		LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 		tv.setLayoutParams(layoutParams);
-		String content = FileStore.loadString(FileStore.file(directory, fileName));
+		String content = FileStore.INSTANCE.loadString(FileStore.INSTANCE.file(directory, fileName));
 		tv.setText(content);
 		createScrollableContentParent(true).addView(tv);
 	}

@@ -21,13 +21,13 @@ public class OnAppUpdateReceiver extends BroadcastReceiver {
 			Assist.initialize(context);
 
 			if(sp.getInt(Preferences.LAST_VERSION, 0) < 207) {
-				DataStore.setCollections(context, 0);
+				DataStore.INSTANCE.setCollections(context, 0);
 			}
 
-			int currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1);
-			if(currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile)) {
-				DataStore.getCurrentDataFile(context).close();
-				editor.putInt(DataStore.PREF_DATA_FILE_INDEX, ++currentDataFile);
+			int currentDataFile = sp.getInt(DataStore.INSTANCE.getPREF_DATA_FILE_INDEX(), -1);
+			if(currentDataFile >= 0 && DataStore.INSTANCE.exists(context, DataStore.INSTANCE.getDATA_FILE() + currentDataFile)) {
+				DataStore.INSTANCE.getCurrentDataFile(context).close();
+				editor.putInt(DataStore.INSTANCE.getPREF_DATA_FILE_INDEX(), ++currentDataFile);
 			}
 
 			try {

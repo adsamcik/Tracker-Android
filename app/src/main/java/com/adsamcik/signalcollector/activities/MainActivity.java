@@ -59,7 +59,7 @@ public class MainActivity extends FragmentActivity {
 			UploadService.UploadScheduleSource scheduleSource = UploadService.Companion.getUploadScheduled(this);
 			switch (scheduleSource) {
 				case NONE:
-					Network.INSTANCE.setCloudStatus(DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED);
+					Network.INSTANCE.setCloudStatus(DataStore.INSTANCE.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE ? CloudStatus.SYNC_AVAILABLE : CloudStatus.NO_SYNC_REQUIRED);
 					break;
 				case BACKGROUND:
 				case USER:

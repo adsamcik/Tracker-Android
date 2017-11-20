@@ -63,7 +63,7 @@ public class UploadReportsActivity extends DetailActivity {
 		super.onCreate(savedInstanceState);
 		setTitle(R.string.recent_uploads);
 
-		UploadStats[] recent = new Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), UploadStats[].class);
+		UploadStats[] recent = new Gson().fromJson(DataStore.INSTANCE.loadAppendableJsonArray(this, DataStore.INSTANCE.getRECENT_UPLOADS_FILE()), UploadStats[].class);
 		Arrays.sort(recent, (uploadStats, t1) -> (int) ((t1.time - uploadStats.time) / MINUTE_IN_MILLISECONDS));
 		if (recent.length > 0) {
 			LinearLayout parent = createContentParent(false);

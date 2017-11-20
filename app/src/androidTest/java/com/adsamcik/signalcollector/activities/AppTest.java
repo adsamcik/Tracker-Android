@@ -93,7 +93,7 @@ public class AppTest {
 
 	@Test
 	public void NotificationSavingTest() throws MalformedJsonException, InterruptedException {
-		final String testFileName = DataStore.RECENT_UPLOADS_FILE;
+		final String testFileName = DataStore.INSTANCE.getRECENT_UPLOADS_FILE();
 		Gson gson = new Gson();
 
 		long time = System.currentTimeMillis();
@@ -103,25 +103,25 @@ public class AppTest {
 		final String dataOld = gson.toJson(usOld);
 
 		Preferences.get(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
-		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
-		Assert.assertEquals(true, DataStore.exists(context, testFileName));
-		Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName));
-		Assert.assertEquals('[' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
+		Assert.assertEquals(true, DataStore.INSTANCE.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
+		Assert.assertEquals(true, DataStore.INSTANCE.exists(context, testFileName));
+		Assert.assertEquals('[' + data, DataStore.INSTANCE.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ']', DataStore.INSTANCE.loadAppendableJsonArray(context, testFileName));
 		//DataStore.removeOldRecentUploads();
-		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, us, true));
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
+		Assert.assertEquals(true, DataStore.INSTANCE.saveAppendableJsonArray(context, testFileName, us, true));
+		Assert.assertEquals('[' + data + ',' + data, DataStore.INSTANCE.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.INSTANCE.loadAppendableJsonArray(context, testFileName));
 
-		Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(usOld), true));
-		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.loadString(context, testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.loadAppendableJsonArray(context, testFileName));
-		DataStore.removeOldRecentUploads(context);
+		Assert.assertEquals(true, DataStore.INSTANCE.saveAppendableJsonArray(context, testFileName, gson.toJson(usOld), true));
+		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld, DataStore.INSTANCE.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ',' + dataOld + ']', DataStore.INSTANCE.loadAppendableJsonArray(context, testFileName));
+		DataStore.INSTANCE.removeOldRecentUploads(context);
 
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, testFileName));
-		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.loadAppendableJsonArray(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data, DataStore.INSTANCE.loadString(context, testFileName));
+		Assert.assertEquals('[' + data + ',' + data + ']', DataStore.INSTANCE.loadAppendableJsonArray(context, testFileName));
 
-		DataStore.delete(context, testFileName);
-		DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
+		DataStore.INSTANCE.delete(context, testFileName);
+		DataStore.INSTANCE.delete(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE());
 
 		final String WIFI = "wifi";
 		final String NEW_WIFI = "newWifi";
@@ -141,11 +141,11 @@ public class AppTest {
 		d.put(SIZE, Long.toString(us.uploadSize));
 
 		MessageListenerService.parseAndSaveUploadReport(context, time, d);
-		Assert.assertEquals('[' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE));
+		Assert.assertEquals('[' + data, DataStore.INSTANCE.loadString(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE()));
 
 		MessageListenerService.parseAndSaveUploadReport(context, time, d);
-		Assert.assertEquals('[' + data + ',' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE));
-		DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE);
+		Assert.assertEquals('[' + data + ',' + data, DataStore.INSTANCE.loadString(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE()));
+		DataStore.INSTANCE.delete(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE());
 	}
 
 	@Test
@@ -177,7 +177,7 @@ public class AppTest {
 
 		fabUpload.check(matches(isDisplayed()));
 
-		DataStore.onUpload(context, 25);
+		DataStore.INSTANCE.onUpload(context, 25);
 		Thread.sleep(500);
 
 		ViewInteraction progressBar = onView(
@@ -192,11 +192,11 @@ public class AppTest {
 						isDisplayed()));
 		progressBar.check(matches(isDisplayed()));
 
-		DataStore.onUpload(context, 50);
+		DataStore.INSTANCE.onUpload(context, 50);
 		Thread.sleep(Constants.SECOND_IN_MILLISECONDS / 2);
 
-		DataStore.onUpload(context, 100);
-		DataStore.incData(context, 500, 25);
+		DataStore.INSTANCE.onUpload(context, 100);
+		DataStore.INSTANCE.incData(context, 500, 25);
 		Network.INSTANCE.setCloudStatus(CloudStatus.SYNC_AVAILABLE);
 		Thread.sleep(4 * Constants.SECOND_IN_MILLISECONDS);
 		fabUpload.check(matches(isDisplayed()));

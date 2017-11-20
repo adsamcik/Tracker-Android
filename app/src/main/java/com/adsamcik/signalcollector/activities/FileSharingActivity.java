@@ -40,7 +40,7 @@ public class FileSharingActivity extends DetailActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		files = DataStore.getDir(this).listFiles((dir1, name) -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE));
+		files = DataStore.INSTANCE.getDir(this).listFiles((dir1, name) -> name.startsWith(DataStore.INSTANCE.getDATA_FILE()) || name.startsWith(DataStore.INSTANCE.getDATA_CACHE_FILE()));
 		if (files.length == 0) {
 			TextView tv = new TextView(this);
 			tv.setText(R.string.share_nothing_to_share);
@@ -64,7 +64,7 @@ public class FileSharingActivity extends DetailActivity {
 				for (int i = 0; i < fileNames.length; i++)
 					if (sba.get(i)) {
 						temp.add(fileNames[i]);
-						new DataFile(DataStore.file(this, fileNames[i]), null, Signin.Companion.getUserID(this), DataFile.FileType.STANDARD).close();
+						new DataFile(DataStore.INSTANCE.file(this, fileNames[i]), null, Signin.Companion.getUserID(this), DataFile.FileType.Companion.getSTANDARD()).close();
 					}
 
 				if (temp.size() == 0)
@@ -74,7 +74,7 @@ public class FileSharingActivity extends DetailActivity {
 					temp.toArray(arr);
 					Compress compress;
 					try {
-						compress = new Compress(DataStore.file(this, String.valueOf(System.currentTimeMillis())));
+						compress = new Compress(DataStore.INSTANCE.file(this, String.valueOf(System.currentTimeMillis())));
 					} catch (FileNotFoundException e) {
 						FirebaseCrash.report(e);
 						new SnackMaker(v).showSnackbar(R.string.error_general);
@@ -82,7 +82,7 @@ public class FileSharingActivity extends DetailActivity {
 					}
 
 					for (String fileName : temp)
-						if (!compress.add(DataStore.file(this, fileName))) {
+						if (!compress.add(DataStore.INSTANCE.file(this, fileName))) {
 							new SnackMaker(v).showSnackbar(R.string.error_general);
 							return;
 						}
@@ -140,7 +140,7 @@ public class FileSharingActivity extends DetailActivity {
 		super.onActivityResult(requestCode, resultCode, data);
 
 		if (requestCode == SHARE_RESULT)
-			DataStore.recursiveDelete(shareableDir);
+			DataStore.INSTANCE.recursiveDelete(shareableDir);
 
 		finish();
 	}

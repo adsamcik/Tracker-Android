@@ -47,7 +47,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 		if (MessageType.values().length > typeInt) {
 			switch (MessageType.values()[typeInt]) {
 				case UploadReport:
-					DataStore.removeOldRecentUploads(this);
+					DataStore.INSTANCE.removeOldRecentUploads(this);
 					UploadStats us = parseAndSaveUploadReport(getApplicationContext(), message.getSentTime(), data);
 					if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
 						sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply();
@@ -128,7 +128,7 @@ public class MessageListenerService extends FirebaseMessagingService {
 			uploadSize = Long.parseLong(data.get(SIZE));
 
 		UploadStats us = new UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations);
-		DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true);
+		DataStore.INSTANCE.saveAppendableJsonArray(context, DataStore.INSTANCE.getRECENT_UPLOADS_FILE(), us, true);
 
 		Preferences.checkStatsDay(context);
 		SharedPreferences sp = Preferences.get(context);

@@ -65,7 +65,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 	private static void addLine(@NonNull Context context, @NonNull String activity, @Nullable String action) {
 		String time = getDateTimeInstance().format(System.currentTimeMillis());
 		String line = time + '\t' + activity + '\t' + (action != null ? action + '\n' : '\n');
-		DataStore.saveString(context, FILE, line, true);
+		DataStore.INSTANCE.saveString(context, FILE, line, true);
 		if (instance != null && instance.get() != null) {
 			final ActivityRecognitionActivity _this = instance.get();
 			_this.runOnUiThread(() -> {
@@ -147,7 +147,7 @@ public class ActivityRecognitionActivity extends DetailActivity {
 
 		findViewById(R.id.dev_activity_recognition_clear).setOnClickListener(f -> {
 			adapter.clear();
-			DataStore.delete(this, FILE);
+			DataStore.INSTANCE.delete(this, FILE);
 		});
 	}
 }

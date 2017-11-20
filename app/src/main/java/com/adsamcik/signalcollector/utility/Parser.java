@@ -37,7 +37,7 @@ public class Parser {
 
 
 	public static ArrayList<String[]> parseTSVFromFile(@NonNull Context context, @NonNull String fileName) {
-		if (DataStore.exists(context, fileName)) {
+		if (DataStore.INSTANCE.exists(context, fileName)) {
 			ArrayList<String[]> items = new ArrayList<>();
 			try (FileInputStream fis = context.openFileInput(fileName)) {
 				InputStreamReader isr = new InputStreamReader(fis);

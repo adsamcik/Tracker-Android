@@ -25,7 +25,7 @@ public class DataStoreTest {
 
 	@Before
 	public void clearAll() {
-		DataStore.clearAll(appContext);
+		DataStore.INSTANCE.clearAll(appContext);
 		Signin.Companion.getUserAsync(appContext, null);
 	}
 
@@ -46,8 +46,7 @@ public class DataStoreTest {
 		rawData[0] = new RawData(System.currentTimeMillis());
 		rawData[1] = new RawData(System.currentTimeMillis() + Constants.MINUTE_IN_MILLISECONDS);
 
-		assertEquals(DataStore.SaveStatus.SAVE_SUCCESS, DataStore.saveData(appContext, rawData));
-		String loadedData = DataStore.loadAppendableJsonArray(appContext, DataStore.DATA_FILE + 0 + DataFile.SEPARATOR + 2);
+		assertEquals(DataStore.INSTANCE.SaveStatus.SAVE_SUCCESS, DataStore.INSTANCE.saveData(appContext, rawData));
 		int firstComma = loadedData.indexOf(',');
 		assertEquals(fileHeader + gson.toJson(rawData), loadedData.substring(firstComma + 1));
 	}
