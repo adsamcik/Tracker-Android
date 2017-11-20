@@ -189,9 +189,9 @@ class TrackerService : Service() {
         locations = sp.getInt(Preferences.PREF_STATS_LOCATIONS_FOUND, 0)
         for (d in data) {
             if (d.wifi != null)
-                wifiCount += d.wifi.size
+                wifiCount += d.wifi!!.size
             if (d.cellCount != null)
-                cellCount += d.cellCount
+                cellCount += d.cellCount!!
         }
 
         val result = DataStore.saveData(this, data.toTypedArray())
@@ -249,9 +249,9 @@ class TrackerService : Service() {
         val df = DecimalFormat("#.#")
         df.roundingMode = RoundingMode.HALF_UP
         if (d!!.wifi != null)
-            sb.append(d.wifi.size).append(" wifi ")
+            sb.append(d.wifi!!.size).append(" wifi ")
         if (d.cellCount != null)
-            sb.append(d.cellCount).append(" cell ")
+            sb.append(d.cellCount!!).append(" cell ")
         if (d.noise > 0)
             sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ")
         if (sb.isNotEmpty())

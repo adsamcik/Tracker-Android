@@ -372,63 +372,61 @@ class FragmentTracker : Fragment(), ITabFragment {
             updateUploadButton()
         }
 
-        if (d != null) {
-            textTime!!.visibility = View.VISIBLE
-            textTime!!.text = res.getString(R.string.main_last_update, DateFormat.format("HH:mm:ss", d.time))
+        textTime!!.visibility = View.VISIBLE
+        textTime!!.text = res.getString(R.string.main_last_update, DateFormat.format("HH:mm:ss", d.time))
 
-            if (d.accuracy != null) {
-                textAccuracy!!.visibility = View.VISIBLE
-                textAccuracy!!.text = res.getString(R.string.main_accuracy, d.accuracy.toInt())
+        if (d.accuracy != null) {
+            textAccuracy!!.visibility = View.VISIBLE
+            textAccuracy!!.text = res.getString(R.string.main_accuracy, d.accuracy)
+        } else
+            textAccuracy!!.visibility = View.GONE
+
+        if (d.latitude != null && d.longitude != null) {
+            textPosition!!.visibility = View.VISIBLE
+            textPosition!!.text = String.format(res.getString(R.string.main_position),
+                    Assist.coordsToString(d.latitude!!),
+                    Assist.coordsToString(d.longitude!!),
+                    d.altitude!!)
+        } else
+            textPosition!!.visibility = View.GONE
+
+        when {
+            d.wifi != null -> {
+                textWifiCount!!.text = res.getString(R.string.main_wifi_count, d.wifi!!.size)
+                textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
+                lastWifiTime = d.time
+                layoutWifi!!.visibility = View.VISIBLE
+            }
+            lastWifiTime - d.time < 10000 -> textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
+            else -> layoutWifi!!.visibility = View.GONE
+        }
+
+        if (d.cellCount != null) {
+            val active = d.registeredCells
+            if (active != null && active.isNotEmpty()) {
+                textCurrentCell!!.visibility = View.VISIBLE
+                textCurrentCell!!.text = res.getString(R.string.main_cell_current, active[0].getType(), active[0].dbm, active[0].asu)
             } else
-                textAccuracy!!.visibility = View.GONE
-
-            if (d.latitude != null && d.longitude != null) {
-                textPosition!!.visibility = View.VISIBLE
-                textPosition!!.text = String.format(res.getString(R.string.main_position),
-                        Assist.coordsToString(d.latitude),
-                        Assist.coordsToString(d.longitude),
-                        d.altitude.toInt())
-            } else
-                textPosition!!.visibility = View.GONE
-
-            when {
-                d.wifi != null -> {
-                    textWifiCount!!.text = res.getString(R.string.main_wifi_count, d.wifi.size)
-                    textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
-                    lastWifiTime = d.time
-                    layoutWifi!!.visibility = View.VISIBLE
-                }
-                lastWifiTime - d.time < 10000 -> textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
-                else -> layoutWifi!!.visibility = View.GONE
-            }
-
-            if (d.cellCount != null) {
-                val active = d.registeredCells
-                if (active != null && active.isNotEmpty()) {
-                    textCurrentCell!!.visibility = View.VISIBLE
-                    textCurrentCell!!.text = res.getString(R.string.main_cell_current, active[0].getType(), active[0].dbm, active[0].asu)
-                } else
-                    textCurrentCell!!.visibility = View.GONE
-                textCellCount!!.text = res.getString(R.string.main_cell_count, d.cellCount)
-                layoutCell!!.visibility = View.VISIBLE
-            } else {
-                layoutCell!!.visibility = View.GONE
-            }
+                textCurrentCell!!.visibility = View.GONE
+            textCellCount!!.text = res.getString(R.string.main_cell_count, d.cellCount)
+            layoutCell!!.visibility = View.VISIBLE
+        } else {
+            layoutCell!!.visibility = View.GONE
+        }
 
 
-            /*if (d.noise > 0) {
-				textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
-			} else if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
-				textNoise.setText(res.getString(R.string.main_noise_not_collected));
-			} else
-				textNoise.setText(res.getString(R.string.main_noise_disabled));*/
+        /*if (d.noise > 0) {
+            textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
+        } else if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
+            textNoise.setText(res.getString(R.string.main_noise_not_collected));
+        } else
+            textNoise.setText(res.getString(R.string.main_noise_disabled));*/
 
-            if (d.activity != null) {
-                textActivity!!.text = String.format(res.getString(R.string.main_activity), ActivityInfo.getResolvedActivityName(context, d.activity))
-                textActivity!!.visibility = View.VISIBLE
-            } else {
-                textActivity!!.visibility = View.GONE
-            }
+        if (d.activity != null) {
+            textActivity!!.text = String.format(res.getString(R.string.main_activity), ActivityInfo.getResolvedActivityName(context, d.activity!!))
+            textActivity!!.visibility = View.VISIBLE
+        } else {
+            textActivity!!.visibility = View.GONE
         }
     }
 

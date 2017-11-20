@@ -26,6 +26,8 @@ import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 
 class FragmentStats : Fragment(), ITabFragment {
     private var fragmentView: View? = null
@@ -117,11 +119,11 @@ class FragmentStats : Fragment(), ITabFragment {
             SnackMaker(activity).showSnackbar(state.toString(activity))
         refreshingCount--
         if (state.isDataAvailable)
-            activity.runOnUiThread {
+            launch(UI) {
                 addStatsTable(value!!, appendBehavior)
                 adapter!!.sort()
-                if (refreshingCount == 0 && refreshLayout != null)
-                    refreshLayout!!.isRefreshing = false
+                if (refreshingCount == 0)
+                    refreshLayout?.isRefreshing = false
             }
     }
 
