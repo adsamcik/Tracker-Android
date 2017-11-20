@@ -20,6 +20,9 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.common.SignInButton
+import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
 import java.util.ArrayList
 import kotlin.coroutines.experimental.suspendCoroutine
@@ -105,46 +108,48 @@ class Signin {
             val signInButton = this.signInButton!!.get()
             val signedMenu = this.signedInMenu!!.get()
             if (signInButton != null && signedMenu != null) {
-                when (status) {
-                    SIGNED -> {
-                        signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
-                        signedMenu.visibility = View.VISIBLE
-                        signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
-                        signInButton.visibility = View.GONE
-                    }
-                    SIGNED_NO_DATA -> {
-                        signedMenu.visibility = View.VISIBLE
-                        signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
-                        signInButton.visibility = View.GONE
-                    }
-                    SIGNIN_FAILED, SILENT_SIGNIN_FAILED, NOT_SIGNED -> {
-                        signInButton.visibility = View.VISIBLE
-                        signedMenu.visibility = View.GONE
-                        signInButton.setOnClickListener { _ ->
-                            val a = activity
-                            if (a != null) {
-                                initializeClient()
-                                client!!.signIn(a) { ctx, user ->
-                                    this.user = user
-                                    if (user != null) {
-                                        if (user.isServerDataAvailable)
-                                            updateStatus(SIGNED, ctx)
-                                        else {
-                                            updateStatus(SIGNED_NO_DATA, ctx)
-                                            user.addServerDataCallback { value ->
-                                                this.user = value
+                launch(UI) {
+                    when (status) {
+                        SIGNED -> {
+                            signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
+                            signedMenu.visibility = View.VISIBLE
+                            signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
+                            signInButton.visibility = View.GONE
+                        }
+                        SIGNED_NO_DATA -> {
+                            signedMenu.visibility = View.VISIBLE
+                            signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
+                            signInButton.visibility = View.GONE
+                        }
+                        SIGNIN_FAILED, SILENT_SIGNIN_FAILED, NOT_SIGNED -> {
+                            signInButton.visibility = View.VISIBLE
+                            signedMenu.visibility = View.GONE
+                            signInButton.setOnClickListener { _ ->
+                                val a = activity
+                                if (a != null) {
+                                    initializeClient()
+                                    client!!.signIn(a) { ctx, user ->
+                                        instance!!.user = user
+                                        if (user != null) {
+                                            if (user.isServerDataAvailable)
                                                 updateStatus(SIGNED, ctx)
+                                            else {
+                                                updateStatus(SIGNED_NO_DATA, ctx)
+                                                user.addServerDataCallback { value ->
+                                                    instance!!.user = value
+                                                    updateStatus(SIGNED, ctx)
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+                            signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
                         }
-                        signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
-                    }
-                    SIGNIN_IN_PROGRESS -> {
-                        signInButton.visibility = View.GONE
-                        signedMenu.visibility = View.GONE
+                        SIGNIN_IN_PROGRESS -> {
+                            signInButton.visibility = View.GONE
+                            signedMenu.visibility = View.GONE
+                        }
                     }
                 }
             }
