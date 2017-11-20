@@ -149,7 +149,7 @@ class UploadService : JobService() {
             } else {
                 val uploadTrace = FirebasePerformance.getInstance().newTrace("upload")
                 uploadTrace.start()
-                DataStore.getCurrentDataFile(context).close()
+                DataStore.getCurrentDataFile(context)!!.close()
                 val zipName = "up" + System.currentTimeMillis()
                 try {
                     val compress = Compress(DataStore.file(context, zipName))

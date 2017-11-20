@@ -27,6 +27,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ICallback
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
@@ -322,8 +323,8 @@ class FragmentTracker : Fragment(), ITabFragment {
             } else
                 toggleCollecting(activity, !TrackerService.isRunning())
         }
-        DataStore.setOnDataChanged { activity.runOnUiThread { setCollected(activity, DataStore.sizeOfData(activity), DataStore.collectionCount(activity)) } }
-        DataStore.setOnUploadProgress { progress -> activity.runOnUiThread { updateUploadProgress(progress) } }
+        DataStore.setOnDataChanged(ICallback { activity.runOnUiThread { setCollected(activity, DataStore.sizeOfData(activity), DataStore.collectionCount(activity)) } })
+        DataStore.setOnUploadProgress(INonNullValueCallback { progress -> activity.runOnUiThread { updateUploadProgress(progress) } })
         TrackerService.onNewDataFound = ICallback { activity.runOnUiThread { this.updateData() } }
         TrackerService.onServiceStateChange = ICallback { activity.runOnUiThread { changeTrackerButton(if (TrackerService.isRunning()) 1 else 0, true) } }
 

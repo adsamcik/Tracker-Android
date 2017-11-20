@@ -47,6 +47,7 @@ public class DataStoreTest {
 		rawData[1] = new RawData(System.currentTimeMillis() + Constants.MINUTE_IN_MILLISECONDS);
 
 		assertEquals(DataStore.INSTANCE.SaveStatus.SAVE_SUCCESS, DataStore.INSTANCE.saveData(appContext, rawData));
+		String loadedData = DataStore.INSTANCE.loadAppendableJsonArray(appContext, DataStore.INSTANCE.getDATA_FILE() + 0 + DataFile.Companion.getSEPARATOR() + 2);
 		int firstComma = loadedData.indexOf(',');
 		assertEquals(fileHeader + gson.toJson(rawData), loadedData.substring(firstComma + 1));
 	}

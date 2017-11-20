@@ -82,7 +82,7 @@ object DataStore {
      *
      * @param callback callback
      */
-    fun setOnDataChanged(callback: ICallback) {
+    fun setOnDataChanged(callback: ICallback?) {
         onDataChanged = callback
     }
 
@@ -91,7 +91,7 @@ object DataStore {
      *
      * @param callback callback
      */
-    fun setOnUploadProgress(callback: INonNullValueCallback<Int>) {
+    fun setOnUploadProgress(callback: INonNullValueCallback<Int>?) {
         onUploadProgress = callback
     }
 
@@ -298,24 +298,24 @@ object DataStore {
     fun getCurrentDataFile(context: Context): DataFile? {
         if (currentDataFile == null) {
             val userID = Signin.getUserID(context)
-            updateCurrentData(context, if (userID == null) DataFile.FileType.CACHE else DataFile.FileType.STANDARD, userID)
+            updateCurrentData(context, if (userID == null) DataFile.CACHE else DataFile.STANDARD, userID)
         }
         return currentDataFile
     }
 
-    @Synchronized private fun updateCurrentData(context: Context, @DataFile.FileType type: Int, userID: String?) {
+    @Synchronized private fun updateCurrentData(context: Context, @DataFile.FileType type: Long, userID: String?) {
         val dataFile: String
         val preference: String
 
-        if (type == DataFile.FileType.STANDARD && userID == null)
+        if (type == DataFile.STANDARD && userID == null)
             throw RuntimeException("Type should be cache")
 
         when (type) {
-            DataFile.FileType.CACHE -> {
+            DataFile.CACHE -> {
                 dataFile = DATA_CACHE_FILE
                 preference = PREF_CACHE_FILE_INDEX
             }
-            DataFile.FileType.STANDARD -> {
+            DataFile.STANDARD -> {
                 dataFile = DATA_FILE
                 preference = PREF_DATA_FILE_INDEX
             }
@@ -325,7 +325,7 @@ object DataStore {
             }
         }
 
-        if (currentDataFile == null || currentDataFile!!.type != type || currentDataFile!!.isFull) {
+        if (currentDataFile?.type != type || currentDataFile!!.isFull) {
             val template = dataFile + Preferences.get(context).getInt(preference, 0)
             currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type)
         }
@@ -340,15 +340,15 @@ object DataStore {
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
         val userID = Signin.getUserID(context)
         if (UploadService.isUploading || userID == null)
-            updateCurrentData(context, DataFile.FileType.CACHE, userID)
+            updateCurrentData(context, DataFile.CACHE, userID)
         else
-            updateCurrentData(context, DataFile.FileType.STANDARD, userID)
+            updateCurrentData(context, DataFile.STANDARD, userID)
         return saveData(context, currentDataFile, rawData)
     }
 
     @Synchronized private fun writeTempData(context: Context) {
         val userId = Signin.getUserID(context)
-        if (currentDataFile!!.type != DataFile.FileType.STANDARD || userId == null)
+        if (currentDataFile!!.type != DataFile.STANDARD || userId == null)
             return
 
         val files = getDir(context).listFiles { _, s -> s.startsWith(DATA_CACHE_FILE) }
@@ -383,7 +383,7 @@ object DataStore {
                 while (i < files.size) {
                     val data = FileStore.loadString(files[0])!!
                     val nameTemplate = DATA_FILE + (currentDataIndex + i)
-                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.FileType.STANDARD)
+                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD)
                     if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
                         throw RuntimeException()
 
@@ -402,7 +402,7 @@ object DataStore {
     @Synchronized private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
         val prevSize = file!!.size()
 
-        if (file.type == DataFile.FileType.STANDARD)
+        if (file.type == DataFile.STANDARD)
             writeTempData(context)
 
         if (file.addData(rawData)) {

@@ -266,7 +266,7 @@ public class TrackerService extends Service {
 		}
 
 		DataStore.SaveStatus result = DataStore.INSTANCE.saveData(this, data.toArray(new RawData[data.size()]));
-		if (result == DataStore.INSTANCE.SaveStatus.SAVE_FAILED) {
+		if (result == DataStore.SaveStatus.SAVE_FAILED) {
 			saveAttemptsFailed++;
 			if (saveAttemptsFailed >= 5)
 				stopSelf();
@@ -278,7 +278,7 @@ public class TrackerService extends Service {
 					.putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, sp.getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) + data.size())
 					.apply();
 			data.clear();
-			if (result == DataStore.INSTANCE.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
+			if (result == DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
 					!Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
 					DataStore.INSTANCE.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
 				UploadService.Companion.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND);
