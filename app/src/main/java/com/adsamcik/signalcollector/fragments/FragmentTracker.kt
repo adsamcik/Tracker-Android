@@ -22,11 +22,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
-
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.data.CellData
-import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ICallback
@@ -35,13 +32,7 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.services.UploadService
 import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.utility.ActivityInfo
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Failure
-import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.crash.FirebaseCrash
 
@@ -245,57 +236,61 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (handler == null)
             handler = Handler()
 
-        if (percentage == 0) {
-            progressBar!!.isIndeterminate = true
-            updateUploadButton()
-        } else if (percentage == -1) {
-            progressBar!!.animate().alpha(0f).setDuration(400).start()
-            fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error))
-            fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
-            fabUp!!.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp))
-            handler!!.postDelayed({
-                fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
-                fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
+        when (percentage) {
+            0 -> {
+                progressBar!!.isIndeterminate = true
                 updateUploadButton()
-                resetFabElevation(fabUp, resources)
-            }, 3000)
-        } else {
-            progressBar!!.isIndeterminate = false
-            val animation = ObjectAnimator.ofInt(progressBar, "progress", percentage)
-            animation.duration = 400
-            if (percentage == 100) {
-                handler!!.postDelayed(handler@ {
-                    if (fabUp == null)
-                        return@handler
-                    fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
-                    fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
-                    fabUp!!.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp))
+            }
+            -1 -> {
+                progressBar!!.animate().alpha(0f).setDuration(400).start()
+                fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error))
+                fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
+                fabUp!!.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp))
+                handler!!.postDelayed({
+                    fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
+                    fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
+                    updateUploadButton()
+                    resetFabElevation(fabUp, resources)
+                }, 3000)
+            }
+            else -> {
+                progressBar!!.isIndeterminate = false
+                val animation = ObjectAnimator.ofInt(progressBar, "progress", percentage)
+                animation.duration = 400
+                if (percentage == 100) {
+                    handler!!.postDelayed(handler@ {
+                        if (fabUp == null)
+                            return@handler
+                        fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
+                        fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
+                        fabUp!!.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp))
 
-                    progressBar!!.animate().alpha(0f).setDuration(400).start()
+                        progressBar!!.animate().alpha(0f).setDuration(400).start()
 
-                    handler!!.postDelayed({
-                        progressBar!!.visibility = View.GONE
-                        if (DataStore.sizeOfData(context) > 0) {
-                            fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
-                            fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
-                            resetFabElevation(fabUp, resources)
-                            updateUploadButton()
-                        } else {
-                            fabUp!!.hide()
-                            handler!!.postDelayed({
+                        handler!!.postDelayed({
+                            progressBar!!.visibility = View.GONE
+                            if (DataStore.sizeOfData(context) > 0) {
                                 fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
                                 fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
                                 resetFabElevation(fabUp, resources)
-                            }, 300)
-                        }
-                    }, 1000)
-                }, 600)
+                                updateUploadButton()
+                            } else {
+                                fabUp!!.hide()
+                                handler!!.postDelayed({
+                                    fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
+                                    fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
+                                    resetFabElevation(fabUp, resources)
+                                }, 300)
+                            }
+                        }, 1000)
+                    }, 600)
+                }
+                animation.start()
             }
-            animation.start()
         }
     }
 
-    internal fun resetFabElevation(fab: FloatingActionButton?, resources: Resources) {
+    private fun resetFabElevation(fab: FloatingActionButton?, resources: Resources) {
         fab!!.elevation = 6 * resources.displayMetrics.density
     }
 
@@ -395,20 +390,20 @@ class FragmentTracker : Fragment(), ITabFragment {
             } else
                 textPosition!!.visibility = View.GONE
 
-            if (d.wifi != null) {
-                textWifiCount!!.text = res.getString(R.string.main_wifi_count, d.wifi.size)
-                textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
-                lastWifiTime = d.time
-                layoutWifi!!.visibility = View.VISIBLE
-            } else if (lastWifiTime - d.time < 10000) {
-                textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
-            } else {
-                layoutWifi!!.visibility = View.GONE
+            when {
+                d.wifi != null -> {
+                    textWifiCount!!.text = res.getString(R.string.main_wifi_count, d.wifi.size)
+                    textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
+                    lastWifiTime = d.time
+                    layoutWifi!!.visibility = View.VISIBLE
+                }
+                lastWifiTime - d.time < 10000 -> textWifiCollection!!.text = res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi)
+                else -> layoutWifi!!.visibility = View.GONE
             }
 
             if (d.cellCount != null) {
                 val active = d.registeredCells
-                if (active != null && active.size > 0) {
+                if (active != null && active.isNotEmpty()) {
                     textCurrentCell!!.visibility = View.VISIBLE
                     textCurrentCell!!.text = res.getString(R.string.main_cell_current, active[0].getType(), active[0].dbm, active[0].asu)
                 } else
