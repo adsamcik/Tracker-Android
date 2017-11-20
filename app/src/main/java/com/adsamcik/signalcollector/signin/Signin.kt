@@ -269,7 +269,6 @@ class Signin {
         fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
             val result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent)
             if (result.isSuccess) {
-                val acct = result.signInAccount!!
                 instance!!.client!!.onSignInResult(activity, resultCode, intent)
             } else {
                 SnackMaker(activity).showSnackbar(activity.getString(R.string.error_failed_signin))
