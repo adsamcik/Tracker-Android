@@ -75,7 +75,7 @@ class ActivityWakerService : Service() {
                 .setColor(ContextCompat.getColor(this, R.color.color_accent))
 
         builder.setContentTitle(getString(R.string.notification_activity_watcher))
-        builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getActivityName(), activityInfo.confidence))
+        builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.activityName, activityInfo.confidence))
         when (activityInfo.resolvedActivity) {
             ResolvedActivity.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
             ResolvedActivity.ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
