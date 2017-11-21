@@ -40,13 +40,13 @@ class ActivityRecognitionActivity : DetailActivity() {
 
         listView = v.findViewById(R.id.dev_activity_list_view)
 
-        if (Preferences.get(this).getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
+        if (Preferences[this].getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
             startStopButton!!.text = getString(R.string.stop)
         else
             startStopButton!!.text = getString(R.string.start)
 
         startStopButton!!.setOnClickListener { _ ->
-            val sp = Preferences.get(this)
+            val sp = Preferences[this]
             val setEnabled = !sp.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)
             val editor = sp.edit()
             editor.putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, setEnabled)
@@ -100,7 +100,7 @@ class ActivityRecognitionActivity : DetailActivity() {
          * @param action Action that this activity resulted in
          */
         fun addLineIfDebug(context: Context, activity: String, action: String?) {
-            val preferences = Preferences.get(context)
+            val preferences = Preferences[context]
             if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
                 if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / DAY_IN_MILLISECONDS > 0) {
                     preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply()
