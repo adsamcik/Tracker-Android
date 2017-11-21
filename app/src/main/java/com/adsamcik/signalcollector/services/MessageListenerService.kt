@@ -96,7 +96,6 @@ class MessageListenerService : FirebaseMessagingService() {
             MessageListenerService.MessageType.UploadReport -> R.string.channel_upload_id
             MessageListenerService.MessageType.ChallengeReport -> R.string.channel_challenges_id
             MessageListenerService.MessageType.Notification -> R.string.channel_other_id
-            else -> R.string.channel_other_id
         }
 
         val notiColor = ContextCompat.getColor(applicationContext, R.color.color_accent)

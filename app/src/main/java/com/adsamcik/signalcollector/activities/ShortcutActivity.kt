@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import android.support.annotation.RequiresApi
 import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.utility.NotYetImplementedException
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType
 import com.google.firebase.crash.FirebaseCrash
@@ -30,7 +29,6 @@ class ShortcutActivity : Activity() {
                     }
                     Shortcuts.ShortcutType.STOP_COLLECTION -> if (TrackerService.isRunning)
                         stopService(serviceIntent)
-                    else -> throw NotYetImplementedException(type.name + " is not implemented.")
                 }
             } else {
                 FirebaseCrash.report(Throwable("Invalid value " + value))
