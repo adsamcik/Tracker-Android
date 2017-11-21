@@ -17,9 +17,9 @@ public class ExtensionTest {
 	@Test
 	public void average() throws Exception {
 		short[] arr = {3, 5, 9, 13};
-		Assert.assertEquals(7, EArray.avg(arr));
+		Assert.assertEquals(7, EArray.INSTANCE.avg(arr));
 
-		short[] result = EArray.avgEvery(arr, 2);
+		short[] result = EArray.INSTANCE.avgEvery(arr, 2);
 		short[] target = new short[]{4, 11};
 		Assert.assertEquals(target.length, result.length);
 		for (int i = 0; i < target.length; i++) {
@@ -28,6 +28,6 @@ public class ExtensionTest {
 
 
 		short[] arr2 = {0, 1, 3, 4};
-		Assert.assertEquals(2, EArray.avg(arr2));
+		Assert.assertEquals(2, EArray.INSTANCE.avg(arr2));
 	}
 }

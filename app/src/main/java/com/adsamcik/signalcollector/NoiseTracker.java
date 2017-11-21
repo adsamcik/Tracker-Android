@@ -203,7 +203,7 @@ public class NoiseTracker implements SensorEventListener {
 				return -1;
 			}
 
-			return EArray.avgAbs(temp);
+			return EArray.INSTANCE.avgAbs(temp);
 
 
 
