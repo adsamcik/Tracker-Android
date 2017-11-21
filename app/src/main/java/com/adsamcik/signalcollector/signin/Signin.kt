@@ -233,7 +233,7 @@ class Signin {
             return instance!!
         }
 
-        private fun signin(context: Context, callback: IValueCallback<User>?): Signin? {
+        fun signin(context: Context, callback: IValueCallback<User>?): Signin? {
             if (instance == null)
             //instance is assigned in constructor to make it sooner available
                 Signin(context, callback)
