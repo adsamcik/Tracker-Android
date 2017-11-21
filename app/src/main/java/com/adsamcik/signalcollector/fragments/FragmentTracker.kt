@@ -144,10 +144,10 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (requiredPermissions == null) {
             if (!TrackerService.isRunning) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable) { _ ->
+                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener{ _ ->
                         val gpsOptionsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(gpsOptionsIntent)
-                    }
+                    })
                 } else if (!Assist.canTrack(activity)) {
                     SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
                 } else {
@@ -187,13 +187,13 @@ class FragmentTracker : Fragment(), ITabFragment {
                         val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
                         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                         if (failure.hasFailed())
-                            SnackMaker(activity).showSnackbar(failure.value!!)
+                            SnackMaker(activity!!).showSnackbar(failure.value!!)
                         else {
                             updateUploadProgress(0)
                             updateUploadButton()
                         }
                     } else {
-                        SnackMaker(activity).showSnackbar(R.string.sign_in_required)
+                        SnackMaker(activity!!).showSnackbar(R.string.sign_in_required)
                     }
                 }
                 fabUp!!.show()
@@ -205,7 +205,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                     val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
                     FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (failure.hasFailed())
-                        SnackMaker(activity).showSnackbar(failure.value!!)
+                        SnackMaker(activity!!).showSnackbar(failure.value!!)
                     else {
                         updateUploadButton()
                     }

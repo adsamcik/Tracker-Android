@@ -397,9 +397,9 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         rootView.findViewById<View>(R.id.other_feedback).setOnClickListener { _ ->
             if (Signin.isSignedIn)
-                startActivity(Intent(getActivity(), FeedbackActivity::class.java))
+                startActivity(Intent(activity, FeedbackActivity::class.java))
             else
-                SnackMaker(getActivity()).showSnackbar(R.string.feedback_error_not_signed_in)
+                SnackMaker(activity).showSnackbar(R.string.feedback_error_not_signed_in)
         }
     }
 
@@ -452,7 +452,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         val alertDialogBuilder = AlertDialog.Builder(context)
         alertDialogBuilder
                 .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
-                    SnackMaker(activity).showSnackbar(snackBarString)
+                    SnackMaker(activity!!).showSnackbar(snackBarString)
                     clearFunction.callback(context)
                 }
                 .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }

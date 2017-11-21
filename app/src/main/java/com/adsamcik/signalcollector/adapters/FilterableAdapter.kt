@@ -63,7 +63,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
 
     override fun getItemId(position: Int): Long = position.toLong()
 
-    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
         var convertView = convertView
         // A ViewHolder keeps references to children views to avoid unnecessary calls
         // to findViewById() on each row.
