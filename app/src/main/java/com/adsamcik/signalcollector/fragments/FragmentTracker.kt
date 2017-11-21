@@ -187,7 +187,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                         val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
                         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                         if (failure.hasFailed())
-                            SnackMaker(activity).showSnackbar(failure.value)
+                            SnackMaker(activity).showSnackbar(failure.value!!)
                         else {
                             updateUploadProgress(0)
                             updateUploadButton()
@@ -205,7 +205,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                     val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
                     FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (failure.hasFailed())
-                        SnackMaker(activity).showSnackbar(failure.value)
+                        SnackMaker(activity).showSnackbar(failure.value!!)
                     else {
                         updateUploadButton()
                     }

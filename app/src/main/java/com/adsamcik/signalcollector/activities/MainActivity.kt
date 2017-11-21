@@ -137,7 +137,7 @@ class MainActivity : FragmentActivity() {
             fragmentTransaction.commit()
 
             if (state.hasFailed())
-                SnackMaker(this).showSnackbar(state.value)
+                SnackMaker(this).showSnackbar(state.value!!)
         }
     }
 

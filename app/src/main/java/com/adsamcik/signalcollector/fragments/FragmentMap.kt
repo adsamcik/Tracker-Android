@@ -161,8 +161,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     if (fabTwo != null) {
                         val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
-                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity, mapLayerFilterRule, IString<MapLayer> { it.name })
-                            menu!!.setCallback { value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } }
+                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, IString<MapLayer> { it.name })
+                            menu!!.setCallback(INonNullValueCallback{ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
 
                             if (networkInfo.hasPersonalMapAccess())
                                 menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
@@ -183,7 +183,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                                 changeMapOverlay(defaultOverlay!!)
 
                                             for (layer in layerArray)
-                                                menu!!.addItem(layer, fActivity)
+                                                menu!!.addItem(layer, fActivity!!)
 
                                             //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
                                             if (fabOneVisible) {
