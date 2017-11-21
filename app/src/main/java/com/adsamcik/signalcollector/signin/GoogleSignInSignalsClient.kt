@@ -81,6 +81,7 @@ class GoogleSignInSignalsClient : ISignInClient {
     private fun resolveUser(context: Context, account: GoogleSignInAccount): User {
         val user = User(account.id!!, account.idToken!!)
 
+        //todo move to Signin
         Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
 
         if (userValueCallback != null)
