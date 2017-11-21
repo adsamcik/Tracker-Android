@@ -27,21 +27,24 @@ class DataStoreTest {
     @Test
     @Throws(Exception::class)
     fun saveArraySigned() {
-        val fileHeader = "\"model\":\"" + Build.MODEL +
-                "\",\"manufacturer\":\"" + Build.MANUFACTURER +
-                "\",\"api\":" + Build.VERSION.SDK_INT +
-                ",\"version\":" + BuildConfig.VERSION_CODE + "," +
-                "\"data\":"
+        Signin.signin(appContext, null)
 
         if (!Signin.isSignedIn) {
             Log.w("SignalsTest", "Please sign in before doing this test")
             return
         }
 
+        val fileHeader = "\"model\":\"" + Build.MODEL +
+                "\",\"manufacturer\":\"" + Build.MANUFACTURER +
+                "\",\"api\":" + Build.VERSION.SDK_INT +
+                ",\"version\":" + BuildConfig.VERSION_CODE + "," +
+                "\"data\":"
+
         val rawData = arrayOf(RawData(System.currentTimeMillis()),
                 RawData(System.currentTimeMillis() + Constants.MINUTE_IN_MILLISECONDS))
 
         assertEquals(DataStore.SaveStatus.SAVE_SUCCESS, DataStore.saveData(appContext, rawData))
+        assertEquals(DataStore.PREF_DATA_FILE_INDEX, DataStore.currentDataFile!!.preference)
         val loadedData = DataStore.loadAppendableJsonArray(appContext, DataStore.currentDataFile!!.file.name)
         val firstComma = loadedData!!.indexOf(',')
         assertEquals(fileHeader + gson.toJson(rawData), loadedData.substring(firstComma + 1))
