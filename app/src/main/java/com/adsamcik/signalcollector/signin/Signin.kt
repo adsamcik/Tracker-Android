@@ -248,7 +248,7 @@ class Signin {
         }
 
         fun getUserAsync(context: Context, callback: IValueCallback<User>) {
-            if (instance!!.user != null)
+            if (instance?.user != null)
                 callback.callback(instance!!.user)
             else
                 signin(context, callback)
