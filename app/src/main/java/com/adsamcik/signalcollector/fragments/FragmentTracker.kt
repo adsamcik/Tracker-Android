@@ -377,16 +377,16 @@ class FragmentTracker : Fragment(), ITabFragment {
 
         if (d.accuracy != null) {
             textAccuracy!!.visibility = View.VISIBLE
-            textAccuracy!!.text = res.getString(R.string.main_accuracy, d.accuracy)
+            textAccuracy!!.text = res.getString(R.string.main_accuracy, d.accuracy!!.toInt())
         } else
             textAccuracy!!.visibility = View.GONE
 
         if (d.latitude != null && d.longitude != null) {
             textPosition!!.visibility = View.VISIBLE
-            textPosition!!.text = String.format(res.getString(R.string.main_position),
+            textPosition!!.text = res.getString(R.string.main_position,
                     Assist.coordsToString(d.latitude!!),
                     Assist.coordsToString(d.longitude!!),
-                    d.altitude!!)
+                    d.altitude!!.toInt())
         } else
             textPosition!!.visibility = View.GONE
 
