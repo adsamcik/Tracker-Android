@@ -62,6 +62,10 @@ class StatDay {
         return age
     }
 
+    operator fun plusAssign(days: MutableList<StatDay>) {
+        for (d in days) add(d)
+    }
+
     //STAG CONSTRUCTOR AND GETTERS AND SETTERS//
 
     internal constructor() {}

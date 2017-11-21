@@ -181,7 +181,7 @@ public class Table {
 
 		CardView cardView = null;
 		FrameLayout frameLayout = null;
-		@StyleRes int theme =  Preferences.getTheme(context);
+		@StyleRes int theme =  Preferences.INSTANCE.getTheme(context);
 
 		if (recycle != null) {
 			if (recycle instanceof CardView) {

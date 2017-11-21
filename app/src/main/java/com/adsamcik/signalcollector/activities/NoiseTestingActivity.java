@@ -31,7 +31,7 @@ public class NoiseTestingActivity extends DetailActivity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		Preferences.setTheme(this);
+		Preferences.INSTANCE.setTheme(this);
 		super.onCreate(savedInstanceState);
 
 		View v = getLayoutInflater().inflate(R.layout.layout_noise_testing, createContentParent(false));

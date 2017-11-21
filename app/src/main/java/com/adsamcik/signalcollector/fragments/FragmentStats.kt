@@ -43,12 +43,12 @@ class FragmentStats : Fragment(), ITabFragment {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
-        val activity = activity
+        val activity = activity!!
 
         if (adapter == null)
-            adapter = TableAdapter(activity!!, CARD_LIST_MARGIN)
+            adapter = TableAdapter(activity, CARD_LIST_MARGIN)
 
-        Thread { DataStore.removeOldRecentUploads(activity!!) }.start()
+        Thread { DataStore.removeOldRecentUploads(activity) }.start()
 
         Preferences.checkStatsDay(activity)
 
@@ -57,7 +57,7 @@ class FragmentStats : Fragment(), ITabFragment {
         refreshLayout = fragmentView!!.findViewById(R.id.statsSwipeRefresh)
         refreshLayout!!.setOnRefreshListener({ this.updateStats() })
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
-        refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity!!, 40))
+        refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40))
 
         val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
         listView.adapter = adapter

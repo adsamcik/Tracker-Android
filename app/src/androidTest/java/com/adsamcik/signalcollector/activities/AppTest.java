@@ -102,7 +102,7 @@ public class AppTest {
 		final String data = gson.toJson(us);
 		final String dataOld = gson.toJson(usOld);
 
-		Preferences.get(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply();
+		Preferences.INSTANCE.get(context).edit().putLong(Preferences.INSTANCE.getPREF_OLDEST_RECENT_UPLOAD(), 20).apply();
 		Assert.assertEquals(true, DataStore.INSTANCE.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
 		Assert.assertEquals(true, DataStore.INSTANCE.exists(context, testFileName));
 		Assert.assertEquals('[' + data, DataStore.INSTANCE.loadString(context, testFileName));
