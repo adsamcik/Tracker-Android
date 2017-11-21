@@ -24,14 +24,15 @@ class TranslateableString {
     }
 
     fun getString(context: Context): String {
-        var id = identifierResolver?.resolve(identifier!!)
+        val identifier = identifier!!
+        var id = identifierResolver?.resolve(identifier)
         if (id == 0) {
-            id = getId(identifier!!, context)
+            id = getId(identifier, context)
             if (id == 0) {
                 if (defaultString == null)
-                    throw RuntimeException("Translation not found and default string is null for identifier " + identifier!!)
+                    throw RuntimeException("Translation not found and default string is null for identifier " + identifier)
                 else
-                    FirebaseCrash.report(RuntimeException("Missing translation for " + identifier!!))
+                    FirebaseCrash.report(RuntimeException("Missing translation for " + identifier))
 
                 return defaultString!!
             }

@@ -25,7 +25,10 @@ class TranslateableStringTest {
 
     @Test
     fun basicValueTest() {
-        val target = TranslateableString(identifier, defaultString) { _ -> identifierInt }
+        val target = TranslateableString(identifier, defaultString,
+                object : TranslateableString.IIdentifierResolver {
+                    override fun resolve(identifier: String): Int = identifierInt
+                })
 
         Assert.assertEquals(defaultString, target.defaultString)
         Assert.assertEquals(identifier, target.identifier)
