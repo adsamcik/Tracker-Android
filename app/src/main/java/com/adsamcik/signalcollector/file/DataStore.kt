@@ -40,7 +40,9 @@ object DataStore {
     @Volatile private var approxSize: Long = -1
     @Volatile private var collectionsOnDevice = -1
 
-    private var currentDataFile: DataFile? = null
+    var currentDataFile: DataFile? = null
+        private set
+
     private val collectionInDataFile = 0
 
     fun getDir(context: Context): File = context.filesDir

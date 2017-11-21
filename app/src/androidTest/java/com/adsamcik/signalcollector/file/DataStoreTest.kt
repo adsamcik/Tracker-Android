@@ -42,7 +42,7 @@ class DataStoreTest {
                 RawData(System.currentTimeMillis() + Constants.MINUTE_IN_MILLISECONDS))
 
         assertEquals(DataStore.SaveStatus.SAVE_SUCCESS, DataStore.saveData(appContext, rawData))
-        val loadedData = DataStore.loadAppendableJsonArray(appContext, DataStore.DATA_FILE + 0 + DataFile.SEPARATOR + 2)
+        val loadedData = DataStore.loadAppendableJsonArray(appContext, DataStore.currentDataFile!!.file.name)
         val firstComma = loadedData!!.indexOf(',')
         assertEquals(fileHeader + gson.toJson(rawData), loadedData.substring(firstComma + 1))
     }

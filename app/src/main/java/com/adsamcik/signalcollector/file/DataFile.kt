@@ -17,7 +17,10 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(private var file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long) {
+class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long) {
+    var file: File = file
+        private set
+
     private val gson = Gson()
     private var collectionCount: Int = 0
     /**

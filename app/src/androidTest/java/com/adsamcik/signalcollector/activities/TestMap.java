@@ -103,7 +103,6 @@ public class TestMap {
 			mDevice.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), LAUNCH_TIMEOUT);
 
 			Assert.assertEquals(mDevice.getCurrentPackageName(), PACKAGE);
-
 		}
 	}
 
