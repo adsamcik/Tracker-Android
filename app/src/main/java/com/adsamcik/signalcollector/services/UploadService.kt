@@ -47,7 +47,7 @@ class UploadService : JobService() {
 
         DataStore.onUpload(this, 0)
         val context = applicationContext
-        if (!Assist.isInitialized())
+        if (!Assist.isInitialized)
             Assist.initialize(context)
 
         isUploading = true

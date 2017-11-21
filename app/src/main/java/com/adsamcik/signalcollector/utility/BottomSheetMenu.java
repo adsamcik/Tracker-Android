@@ -42,7 +42,7 @@ public class BottomSheetMenu {
 		LayoutInflater.from(context).inflate(R.layout.bottom_sheet_menu, root);
 		menuRoot = (LinearLayout) root.getChildAt(root.getChildCount() - 1);
 		bottomSheetBehavior = BottomSheetBehavior.from(menuRoot);
-		bottomSheetBehavior.setPeekHeight(Assist.dpToPx(context, 54));
+		bottomSheetBehavior.setPeekHeight(Assist.INSTANCE.dpToPx(context, 54));
 		bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
 
 		menuItems = new ArrayList<>();

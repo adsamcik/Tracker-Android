@@ -44,7 +44,7 @@ class User(val id: String, val token: String) {
     }
 
     internal fun mockServerData() {
-        if (!Assist.isEmulator() && !BuildConfig.DEBUG)
+        if (!Assist.isEmulator && !BuildConfig.DEBUG)
             throw RuntimeException("Cannot mock server data on production version")
         wirelessPoints = Math.abs(System.currentTimeMillis() * System.currentTimeMillis() % 64546)
         networkPreferences = NetworkPreferences()

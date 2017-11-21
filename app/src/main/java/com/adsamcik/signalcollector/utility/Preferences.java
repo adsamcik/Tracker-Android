@@ -155,7 +155,7 @@ public class Preferences {
 			else
 				sharedPreferences = get(context);
 		}
-		long todayUTC = Assist.getDayInUTC();
+		long todayUTC = Assist.INSTANCE.getDayInUTC();
 		int dayDiff = (int) (todayUTC - sharedPreferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)) / DAY_IN_MILLISECONDS;
 		if (dayDiff > 0) {
 			Set<String> stringStats = sharedPreferences.getStringSet(PREF_STATS_LAST_7_DAYS, null);

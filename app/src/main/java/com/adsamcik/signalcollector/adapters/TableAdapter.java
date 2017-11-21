@@ -24,7 +24,7 @@ public class TableAdapter extends BaseAdapter {
 	public TableAdapter(@NonNull Context context, int itemMarginDp) {
 		tables = new ArrayList<>();
 		this.context = context.getApplicationContext();
-		itemMarginPx = itemMarginDp == 0 ? 0 : Assist.dpToPx(context, itemMarginDp);
+		itemMarginPx = itemMarginDp == 0 ? 0 : Assist.INSTANCE.dpToPx(context, itemMarginDp);
 	}
 
 	public void add(Table table) {

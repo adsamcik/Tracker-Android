@@ -66,7 +66,7 @@ public class TestMap {
 
 	@org.junit.Test
 	public void StabilityTest() throws InterruptedException {
-		if(!Assist.isPlayServiceAvailable(context)) {
+		if(!Assist.INSTANCE.isPlayServiceAvailable(context)) {
 			Log.w("SignalsTest", "Skipping stability test because play services are not available or up-to-date.");
 			return;
 		}

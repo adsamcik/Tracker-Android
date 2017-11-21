@@ -114,7 +114,7 @@ public class Table {
 			DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
 			TableRow row = new TableRow(context);
 			TableLayout.LayoutParams lp = new TableLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-			lp.topMargin = Assist.dpToPx(displayMetrics, 4);
+			lp.topMargin = Assist.INSTANCE.dpToPx(displayMetrics, 4);
 			row.setLayoutParams(lp);
 
 			for (int i = 0; i < buttons.size(); i++)
@@ -126,15 +126,15 @@ public class Table {
 
 	private TextView generateButton(@NonNull Context context, DisplayMetrics displayMetrics, int index, @StyleRes int theme) {
 		Button button = new Button(context, null, theme);
-		button.setMinWidth(Assist.dpToPx(displayMetrics, 48));
-		button.setPadding(Assist.dpToPx(displayMetrics, 16), 0, Assist.dpToPx(displayMetrics, 16), 0);
-		button.setHeight(Assist.dpToPx(displayMetrics, 48));
+		button.setMinWidth(Assist.INSTANCE.dpToPx(displayMetrics, 48));
+		button.setPadding(Assist.INSTANCE.dpToPx(displayMetrics, 16), 0, Assist.INSTANCE.dpToPx(displayMetrics, 16), 0);
+		button.setHeight(Assist.INSTANCE.dpToPx(displayMetrics, 48));
 		button.setText(buttons.get(index).first.toUpperCase());
 		button.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
 		button.setOnClickListener(buttons.get(index).second);
 		button.setTextSize(16);
 		button.setGravity(Gravity.CENTER);
-		button.setBackground(Assist.getPressedColorRippleDrawable(0, ContextCompat.getColor(context, R.color.color_accent), context.getDrawable(R.drawable.rectangle)));
+		button.setBackground(Assist.INSTANCE.getPressedColorRippleDrawable(0, ContextCompat.getColor(context, R.color.color_accent), context.getDrawable(R.drawable.rectangle)));
 		return button;
 	}
 
@@ -157,7 +157,7 @@ public class Table {
 		TextView textValue = new TextView(context, null, theme);
 		String value = data.get(index).second;
 		try {
-			textValue.setText(Assist.formatNumber(Integer.parseInt(value)));
+			textValue.setText(Assist.INSTANCE.formatNumber(Integer.parseInt(value)));
 		} catch (NumberFormatException e) {
 			textValue.setText(value);
 		}
@@ -236,7 +236,7 @@ public class Table {
 
 			if (marginDp != 0) {
 				FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-				int margin = Assist.dpToPx(context, this.marginDp);
+				int margin = Assist.INSTANCE.dpToPx(context, this.marginDp);
 				layoutParams.setMargins(margin, margin, margin, margin);
 				cardView.setLayoutParams(layoutParams);
 			}

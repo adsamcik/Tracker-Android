@@ -62,7 +62,7 @@ class Signin {
 
     private fun initializeClient() {
         if (client == null) {
-            client = if (Assist.isEmulator())
+            client = if (Assist.isEmulator)
                 MockSignInClient()
             else
                 GoogleSignInSignalsClient()

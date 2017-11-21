@@ -89,7 +89,7 @@ public class FabMenu<T> {
 		if (boundsCalculated)
 			return;
 
-		final int dp16px = Assist.dpToPx(context, 16);
+		final int dp16px = Assist.INSTANCE.dpToPx(context, 16);
 
 		int maxHeight = wrapper.getHeight() / 2;
 		int height;
@@ -125,7 +125,7 @@ public class FabMenu<T> {
 		int halfHeight = height / 2;
 		int offset = halfHeight;
 		int botY = fabPos[1] + halfHeight;
-		int maxY = wrapperPos[1] + wrapper.getHeight() - dp16px - Assist.dpToPx(context, 56);
+		int maxY = wrapperPos[1] + wrapper.getHeight() - dp16px - Assist.INSTANCE.dpToPx(context, 56);
 		if (botY > maxY)
 			offset += (botY - maxY);
 

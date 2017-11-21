@@ -92,7 +92,7 @@ object Network {
     }
 
     fun register(context: Context, userToken: String, token: String) {
-        if (!Assist.isEmulator())
+        if (!Assist.isEmulator)
             register(context, userToken, "token", token, Preferences.PREF_SENT_TOKEN_TO_SERVER, Server.URL_TOKEN_REGISTRATION)
     }
 
