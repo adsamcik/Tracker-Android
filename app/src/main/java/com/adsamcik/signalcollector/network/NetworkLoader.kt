@@ -58,7 +58,7 @@ object NetworkLoader {
                         context,
                         preferenceString, IStateValueCallback { src, value -> callback.callback(src, Parser.tryFromJson(value, tClass)) })
             else
-                callback.callback(Source.no_data_sign_in_failed, null)
+                callback.callback(Source.NO_DATA_FAILED_SIGNIN, null)
         })
     }
 
@@ -82,7 +82,7 @@ object NetworkLoader {
                     cont.resume(Pair(source, string))
                 })
             else
-                cont.resume(Pair(Source.no_data_sign_in_failed, null))
+                cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
         }
     }
 
@@ -100,16 +100,16 @@ object NetworkLoader {
             if (user != null)
                 requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
             else
-                callback.callback(Source.no_data_sign_in_failed, null)
+                callback.callback(Source.NO_DATA_FAILED_SIGNIN, null)
         })
     }
 
     private fun callbackNoData(context: Context, preferenceString: String, callback: IStateValueCallback<Source, String>, lastUpdate: Long, returnCode: Int) {
         when {
-            returnCode == 403 -> callback.callback(Source.no_data_sign_in_failed, null)
-            lastUpdate == -1L -> callback.callback(Source.no_data, null)
-            returnCode < 0 -> callback.callback(Source.cache_no_internet, CacheStore.loadString(context, preferenceString))
-            else -> callback.callback(Source.cache_invalid_data, CacheStore.loadString(context, preferenceString))
+            returnCode == 403 -> callback.callback(Source.NO_DATA_FAILED_SIGNIN, null)
+            lastUpdate == -1L -> callback.callback(Source.NO_DATA, null)
+            returnCode < 0 -> callback.callback(Source.CACHE_NO_INTERNET, CacheStore.loadString(context, preferenceString))
+            else -> callback.callback(Source.CACHE_INVALID_DATA, CacheStore.loadString(context, preferenceString))
         }
     }
 
@@ -160,22 +160,22 @@ object NetworkLoader {
                     } else {
                         Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply()
                         CacheStore.saveString(context, preferenceString, json, false)
-                        callback.callback(Source.network, json)
+                        callback.callback(Source.NETWORK, json)
                     }
                 }
             })
         } else
-            callback.callback(Source.cache, CacheStore.loadString(context, preferenceString))
+            callback.callback(Source.CACHE, CacheStore.loadString(context, preferenceString))
     }
 
     enum class Source {
-        cache,
-        network,
-        cache_no_internet,
-        cache_connection_failed,
-        cache_invalid_data,
-        no_data,
-        no_data_sign_in_failed;
+        CACHE,
+        NETWORK,
+        CACHE_NO_INTERNET,
+        CACHE_CONNECTION_FAILED,
+        CACHE_INVALID_DATA,
+        NO_DATA,
+        NO_DATA_FAILED_SIGNIN;
 
         val isSuccess: Boolean
             get() = this.ordinal <= 1
@@ -184,11 +184,11 @@ object NetworkLoader {
             get() = this.ordinal <= 4
 
         fun toString(context: Context): String = when (this) {
-            cache_connection_failed -> context.getString(R.string.error_connection_failed)
-            cache_no_internet -> context.getString(R.string.error_no_internet)
-            cache_invalid_data -> context.getString(R.string.error_invalid_data)
-            no_data -> context.getString(R.string.error_no_data)
-            no_data_sign_in_failed -> context.getString(R.string.error_failed_signin)
+            CACHE_CONNECTION_FAILED -> context.getString(R.string.error_connection_failed)
+            CACHE_NO_INTERNET -> context.getString(R.string.error_no_internet)
+            CACHE_INVALID_DATA -> context.getString(R.string.error_invalid_data)
+            NO_DATA -> context.getString(R.string.error_no_data)
+            NO_DATA_FAILED_SIGNIN -> context.getString(R.string.error_failed_signin)
             else -> "---"
         }
     }

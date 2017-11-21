@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.support.annotation.IntDef
 import android.support.annotation.StringRes
-import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
 
@@ -21,7 +20,6 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.common.SignInButton
-import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
@@ -277,7 +275,6 @@ class Signin {
             if (result.isSuccess) {
                 instance!!.client!!.onSignInResult(activity, resultCode, intent)
             } else {
-                SnackMaker(activity).showSnackbar(activity.getString(R.string.error_failed_signin))
                 onSignedInFailed(activity, result.status.statusCode)
             }
 
@@ -286,7 +283,7 @@ class Signin {
         private fun onSignedInFailed(context: Context, statusCode: Int) {
             val signin = signin(context, null)
             signin!!.onSignInFailed(context)
-            signin.showSnackbar(context.getString(R.string.error_failed_signin, statusCode))
+            signin.showSnackbar(context.getString(R.string.error_failed_signin_errorcode, statusCode))
         }
 
         val isMock: Boolean
