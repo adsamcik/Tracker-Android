@@ -172,7 +172,7 @@ public class FabMenu<T> {
 		isVisible = false;
 		wrapper.setOnClickListener(null);
 		final int pos[] = calculateRevealCenter();
-		Animate.RevealHide(listView, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
+		Animate.INSTANCE.revealHide(listView, pos[0], pos[1], 0, () -> wrapper.setVisibility(View.INVISIBLE));
 	}
 
 	public void hideAndDestroy(@NonNull FragmentActivity activity) {
@@ -182,7 +182,7 @@ public class FabMenu<T> {
 			isVisible = false;
 			wrapper.setOnClickListener(null);
 			final int pos[] = calculateRevealCenter();
-			Animate.RevealHide(listView, pos[0], pos[1], 0, () -> destroy(activity));
+			Animate.INSTANCE.revealHide(listView, pos[0], pos[1], 0, () -> destroy(activity));
 		}
 	}
 
@@ -203,7 +203,7 @@ public class FabMenu<T> {
 			fab.getLocationOnScreen(fabPos);
 
 			final int pos[] = calculateRevealCenter();
-			Animate.RevealShow(listView, pos[0], pos[1], 0);
+			Animate.INSTANCE.revealShow(listView, pos[0], pos[1], 0);
 			wrapper.setOnClickListener(closeClickListener);
 		});
 	}
