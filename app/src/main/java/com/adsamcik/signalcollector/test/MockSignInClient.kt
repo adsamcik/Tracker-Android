@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.signin
+package com.adsamcik.signalcollector.test
 
 import android.app.Activity
 import android.content.Context
@@ -7,6 +7,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.adsamcik.signalcollector.interfaces.IContextValueCallback
+import com.adsamcik.signalcollector.signin.ISignInClient
+import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Preferences
 
 

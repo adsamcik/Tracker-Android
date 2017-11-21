@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.interfaces.IContextValueCallback
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.test.MockSignInClient
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
