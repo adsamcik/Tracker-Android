@@ -314,20 +314,21 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             changeMapOverlay(type!!)
 
         map.setOnMapClickListener { _ ->
+            val searchText = searchText
             when {
                 searchText!!.hasFocus() -> {
-                    Assist.hideSoftKeyboard(fActivity, searchText)
-                    searchText!!.clearFocus()
+                    Assist.hideSoftKeyboard(fActivity!!, searchText)
+                    searchText.clearFocus()
                 }
-                searchText!!.visibility == View.VISIBLE -> {
-                    searchText!!.visibility = View.INVISIBLE
+                searchText.visibility == View.VISIBLE -> {
+                    searchText.visibility = View.INVISIBLE
                     if (showFabTwo)
                         fabTwo!!.hide()
                     fabOneVisible = false
                     fabOne!!.hide()
                 }
                 else -> {
-                    searchText!!.visibility = View.VISIBLE
+                    searchText.visibility = View.VISIBLE
                     if (showFabTwo)
                         fabTwo!!.show()
                     fabOneVisible = true
