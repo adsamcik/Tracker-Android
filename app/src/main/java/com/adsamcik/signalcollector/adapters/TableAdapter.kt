@@ -13,14 +13,9 @@ import java.util.*
 
 class TableAdapter(context: Context, itemMarginDp: Int) : BaseAdapter() {
     private val tables: ArrayList<Table> = ArrayList()
-    private val context: Context
+    private val context: Context = context.applicationContext
 
-    private val itemMarginPx: Int
-
-    init {
-        this.context = context.applicationContext
-        itemMarginPx = if (itemMarginDp == 0) 0 else Assist.dpToPx(context, itemMarginDp)
-    }
+    private val itemMarginPx: Int = if (itemMarginDp == 0) 0 else Assist.dpToPx(context, itemMarginDp)
 
     fun add(table: Table) {
         tables.add(table)
