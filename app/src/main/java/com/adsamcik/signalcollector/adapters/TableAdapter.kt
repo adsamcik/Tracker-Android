@@ -51,7 +51,7 @@ class TableAdapter(context: Context, itemMarginDp: Int) : BaseAdapter() {
 
     override fun getItemId(i: Int): Long = i.toLong()
 
-    override fun getView(i: Int, view: View, viewGroup: ViewGroup): View {
+    override fun getView(i: Int, view: View?, viewGroup: ViewGroup): View {
         val v = tables[i].getView(context, view, true) as ViewGroup
 
         val lp = v.getChildAt(0).layoutParams as FrameLayout.LayoutParams
