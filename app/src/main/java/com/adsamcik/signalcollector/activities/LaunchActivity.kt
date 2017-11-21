@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.services.UploadService
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.adsamcik.signalcollector.utility.NotificationTools
 import com.adsamcik.signalcollector.utility.Preferences
@@ -22,18 +23,6 @@ import com.google.firebase.iid.FirebaseInstanceId
 import com.google.firebase.perf.FirebasePerformance
 
 class LaunchActivity : Activity() {
-
-    private val isTestMode: Boolean
-        get() {
-            return try {
-                Class.forName("com.adsamcik.signalcollector.activities.AppTest")
-                true
-            } catch (e: Exception) {
-                false
-            }
-
-        }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Preferences.setTheme(this)
@@ -72,7 +61,7 @@ class LaunchActivity : Activity() {
             }
         }
 
-        if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || isTestMode)
+        if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || useMock)
             startActivity(Intent(this, MainActivity::class.java))
         else
             startActivity(Intent(this, IntroActivity::class.java))
