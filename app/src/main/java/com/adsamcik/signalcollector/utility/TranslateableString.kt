@@ -26,7 +26,7 @@ class TranslateableString {
     fun getString(context: Context): String {
         val identifier = identifier!!
         var id = identifierResolver?.resolve(identifier)
-        if (id == 0) {
+        if (id == null || id == 0) {
             id = getId(identifier, context)
             if (id == 0) {
                 if (defaultString == null)
@@ -38,7 +38,7 @@ class TranslateableString {
             }
         }
 
-        return context.getString(id!!)
+        return context.getString(id)
     }
 
     private fun getId(identifier: String, context: Context): Int = context.resources.getIdentifier(identifier, "string", context.packageName)
