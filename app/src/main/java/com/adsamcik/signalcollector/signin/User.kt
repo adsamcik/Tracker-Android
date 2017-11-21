@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.signin
 
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.test.useMock
 import com.google.gson.*
 import java.lang.reflect.Type
 import java.util.*
@@ -44,7 +44,7 @@ class User(val id: String, val token: String) {
     }
 
     internal fun mockServerData() {
-        if (!Assist.isEmulator && !BuildConfig.DEBUG)
+        if (useMock && !BuildConfig.DEBUG)
             throw RuntimeException("Cannot mock server data on production version")
         wirelessPoints = Math.abs(System.currentTimeMillis() * System.currentTimeMillis() % 64546)
         networkPreferences = NetworkPreferences()

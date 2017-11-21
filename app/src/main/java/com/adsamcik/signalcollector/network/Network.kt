@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.network
 import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.franmontiel.persistentcookiejar.PersistentCookieJar
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache
@@ -92,7 +92,7 @@ object Network {
     }
 
     fun register(context: Context, userToken: String, token: String) {
-        if (!Assist.isEmulator)
+        if (!useMock)
             register(context, userToken, "token", token, Preferences.PREF_SENT_TOKEN_TO_SERVER, Server.URL_TOKEN_REGISTRATION)
     }
 
