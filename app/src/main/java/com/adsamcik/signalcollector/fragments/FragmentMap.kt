@@ -157,7 +157,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         Signin.getUserAsync(fActivity!!, IValueCallback { user ->
             if (fabTwo != null && user != null)
-                user.addServerDataCallback( INonNullValueCallback{ u ->
+                user.addServerDataCallback(INonNullValueCallback { u ->
                     if (fabTwo != null) {
                         val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
@@ -389,7 +389,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         private var followMyPosition = false
         internal var useGyroscope = false
 
-        private val rotationVector: Sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        private val rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
         private var lastUserPos: LatLng? = null
         var targetPosition: LatLng? = null
@@ -488,7 +488,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 if (useGyroscope) {
                     fab!!.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
                     stopUsingGyroscope(true)
-                } else {
+                } else if (rotationVector != null) {
                     useGyroscope = true
                     sensorManager.registerListener(this, rotationVector,
                             SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
