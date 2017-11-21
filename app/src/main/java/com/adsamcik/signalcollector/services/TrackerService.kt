@@ -147,7 +147,7 @@ class TrackerService : Service() {
             }
         }
 
-        if (Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
+        if (Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
             d.setLocation(location).setActivity(activityInfo.resolvedActivity)
 
         data.add(d)
@@ -177,7 +177,7 @@ class TrackerService : Service() {
     private fun saveData() {
         if (data.size == 0) return
 
-        val sp = Preferences.get(this)
+        val sp = Preferences.getPref(this)
         Preferences.checkStatsDay(this)
 
         var wifiCount: Int
@@ -208,8 +208,8 @@ class TrackerService : Service() {
                     .apply()
             data.clear()
             if (result === DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
-                    !Preferences.get(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
-                    DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.get(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
+                    !Preferences.getPref(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
+                    DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
                 UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND)
                 FirebaseCrash.log("Requested upload from tracking")
             }
@@ -265,7 +265,7 @@ class TrackerService : Service() {
     override fun onCreate() {
         service = WeakReference(this)
         Assist.initialize(this)
-        val sp = Preferences.get(this)
+        val sp = Preferences.getPref(this)
 
         ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
 
@@ -342,7 +342,7 @@ class TrackerService : Service() {
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
         if (onServiceStateChange != null)
             onServiceStateChange!!.callback()
-        if (NOISE_ENABLED && Preferences.get(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
+        if (NOISE_ENABLED && Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
             noiseTracker = NoiseTracker(this).start()
         return super.onStartCommand(intent, flags, startId)
     }
@@ -373,7 +373,7 @@ class TrackerService : Service() {
                 wifiManager!!.isWifiEnabled = false
         }
 
-        val sp = Preferences.get(this)
+        val sp = Preferences.getPref(this)
         sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt()).apply()
 
         if (android.os.Build.VERSION.SDK_INT >= 25) {

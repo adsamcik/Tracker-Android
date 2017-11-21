@@ -190,7 +190,7 @@ class Signin {
             user = null
             updateStatus(NOT_SIGNED, context)
             Network.clearCookieJar(context)
-            Preferences.get(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
+            Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
             DataStore.delete(context, Preferences.PREF_USER_DATA)
             DataStore.delete(context, Preferences.PREF_USER_STATS)
             callOnSigninCallbacks()
@@ -259,7 +259,7 @@ class Signin {
         }
 
         fun getUserID(context: Context): String? =
-                Preferences.get(context).getString(Preferences.PREF_USER_ID, null)
+                Preferences.getPref(context).getString(Preferences.PREF_USER_ID, null)
 
         fun removeOnSignedListeners() {
             if (instance == null)

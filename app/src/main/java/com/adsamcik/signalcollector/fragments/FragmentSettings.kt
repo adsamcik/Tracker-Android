@@ -149,7 +149,7 @@ class FragmentSettings : Fragment(), ITabFragment {
 
     private fun updateState(selected: ImageView?, select: ImageView, preference: String, index: Int) {
         val context = context!!
-        Preferences.get(context).edit().putInt(preference, index).apply()
+        Preferences.getPref(context).edit().putInt(preference, index).apply()
 
         if (selected != null)
             setInactive(selected)
@@ -166,7 +166,7 @@ class FragmentSettings : Fragment(), ITabFragment {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         rootView = inflater.inflate(R.layout.fragment_settings, container, false)
         val activity = activity!!
-        val sharedPreferences = Preferences.get(activity)
+        val sharedPreferences = Preferences.getPref(activity)
 
         initializeClassVariables(activity)
 
@@ -208,8 +208,8 @@ class FragmentSettings : Fragment(), ITabFragment {
         versionView.setOnLongClickListener { _ ->
             val setVisible = devView.visibility == View.GONE
             devView.visibility = if (setVisible) View.VISIBLE else View.GONE
-            Preferences.get(rootView.context).edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply()
-            SnackMaker(activity).showSnackbar(getString(if (setVisible) R.string.dev_join else R.string.dev_leave))
+            Preferences.getPref(rootView.context).edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply()
+            SnackMaker(activity!!).showSnackbar(getString(if (setVisible) R.string.dev_join else R.string.dev_leave))
             true
         }
     }
@@ -325,7 +325,7 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, INonNullValueCallback { value -> (seekAutoUploadAt.parent as ViewGroup).visibility = if (value) View.GONE else View.VISIBLE })
 
-        if (Preferences.get(activity).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
+        if (Preferences.getPref(activity).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
             (seekAutoUploadAt.parent as ViewGroup).visibility = View.GONE
         }
     }
@@ -349,12 +349,12 @@ class FragmentSettings : Fragment(), ITabFragment {
         })
 
         switchNoise = rootView.findViewById(R.id.switchTrackNoise)
-        switchNoise!!.isChecked = Preferences.get(activity).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)
+        switchNoise!!.isChecked = Preferences.getPref(activity).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)
         switchNoise!!.setOnCheckedChangeListener { _: CompoundButton, b: Boolean ->
             if (b && Build.VERSION.SDK_INT > 22 && ContextCompat.checkSelfPermission(activity, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
                 activity.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQUEST_CODE_PERMISSIONS_MICROPHONE)
             else
-                Preferences.get(activity).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply()
+                Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, b).apply()
         }
     }
 
@@ -404,7 +404,7 @@ class FragmentSettings : Fragment(), ITabFragment {
     }
 
     private fun initializeDevSection(activity: Activity, rootView: View) {
-        val isDevEnabled = Preferences.get(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
+        val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
         devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE
 
         rootView.findViewById<View>(R.id.dev_button_cache_clear).setOnClickListener { _ -> createClearDialog(activity, IValueCallback { CacheStore.clearAll(it!!) }, R.string.settings_cleared_all_cache_files) }
@@ -412,7 +412,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         rootView.findViewById<View>(R.id.dev_button_upload_reports_clear).setOnClickListener { _ ->
             createClearDialog(activity, IValueCallback { _ ->
                 DataStore.delete(activity, DataStore.RECENT_UPLOADS_FILE)
-                Preferences.get(activity).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
+                Preferences.getPref(activity).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
             }, R.string.settings_cleared_all_upload_reports)
         }
 
@@ -495,7 +495,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                            textGenerationFuncton: Slider.IStringify<Int>,
                            valueCallback: INonNullValueCallback<Int>?) {
         slider.maxValue = maxValue
-        val previousProgress = Preferences.get(context).getInt(preference, defaultValue) - minValue
+        val previousProgress = Preferences.getPref(context).getInt(preference, defaultValue) - minValue
         slider.setProgressValue(previousProgress)
         slider.step = step
         slider.minValue = minValue
@@ -505,9 +505,9 @@ class FragmentSettings : Fragment(), ITabFragment {
     }
 
     private fun setSwitchChangeListener(context: Context, name: String, s: Switch, defaultState: Boolean, callback: INonNullValueCallback<Boolean>?) {
-        s.isChecked = Preferences.get(context).getBoolean(name, defaultState)
+        s.isChecked = Preferences.getPref(context).getBoolean(name, defaultState)
         s.setOnCheckedChangeListener { _: CompoundButton, b: Boolean ->
-            Preferences.get(context).edit().putBoolean(name, b).apply()
+            Preferences.getPref(context).edit().putBoolean(name, b).apply()
             callback?.callback(b)
         }
     }
@@ -644,7 +644,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         if (u.networkInfo!!.hasMapAccess())
             NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, IStateValueCallback { _, layerArray ->
                 if (layerArray != null && layerArray.isNotEmpty()) {
-                    val sp = Preferences.get(activity)
+                    val sp = Preferences.getPref(activity)
                     val defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                     val index = MapLayer.indexOf(layerArray, defaultOverlay)
                     val selectIndex = if (index == -1) 0 else index
@@ -670,7 +670,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                             alertDialogBuilder
                                     .setTitle(getString(R.string.settings_default_map_overlay))
                                     .setSingleChoiceItems(items, selectIn) { dialog, which ->
-                                        Preferences.get(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply()
+                                        Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply()
                                         mapOverlayButton.text = items[which]
                                         dialog.dismiss()
                                     }
@@ -698,7 +698,7 @@ class FragmentSettings : Fragment(), ITabFragment {
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         when (requestCode) {
             REQUEST_CODE_PERMISSIONS_MICROPHONE -> if (success)
-                Preferences.get(context!!).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, true).apply()
+                Preferences.getPref(context!!).edit().putBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, true).apply()
             else
                 switchNoise!!.isChecked = false
             else -> throw UnsupportedOperationException("Permissions with requestPOST code $requestCode has no defined behavior")

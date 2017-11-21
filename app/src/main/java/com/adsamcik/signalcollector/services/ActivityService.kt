@@ -85,7 +85,7 @@ class ActivityService : IntentService("ActivityService") {
          * @return true if success
          */
         fun requestActivity(context: Context, tClass: Class<*>): Boolean {
-            return requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false)
+            return requestActivity(context, tClass.hashCode(), Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false)
         }
 
         private fun requestActivity(context: Context, hash: Int, updateRate: Int, backgroundTracking: Boolean): Boolean {
@@ -103,8 +103,8 @@ class ActivityService : IntentService("ActivityService") {
         }
 
         fun requestAutoTracking(context: Context, tClass: Class<*>): Boolean {
-            if (!backgroundTracking && Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) > 0) {
-                if (requestActivity(context, tClass.hashCode(), Preferences.get(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), true)) {
+            if (!backgroundTracking && Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) > 0) {
+                if (requestActivity(context, tClass.hashCode(), Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), true)) {
                     backgroundTracking = true
                     return true
                 }
@@ -181,7 +181,7 @@ class ActivityService : IntentService("ActivityService") {
          */
         private fun getActivityDetectionPendingIntent(context: Context): PendingIntent {
             val intent = Intent(context.applicationContext, ActivityService::class.java)
-            // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
+            // We use FLAG_UPDATE_CURRENT so that we getPref the same pending intent back when calling
             // requestActivityUpdates() and removeActivityUpdates().
             return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent, PendingIntent.FLAG_UPDATE_CURRENT)
         }
@@ -193,9 +193,9 @@ class ActivityService : IntentService("ActivityService") {
          * @return true if background tracking can be activated
          */
         private fun canBackgroundTrack(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
-            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.get(context).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
+            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
                 return false
-            val `val` = Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
+            val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
             return `val` != 0 && (`val` == evalActivity || `val` > evalActivity)
         }
 
@@ -208,7 +208,7 @@ class ActivityService : IntentService("ActivityService") {
         private fun canContinueBackgroundTracking(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
             if (evalActivity == 0)
                 return false
-            val `val` = Preferences.get(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
+            val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
             return `val` == 2 || `val` == 1 && (evalActivity == 1 || evalActivity == 3)
         }
     }

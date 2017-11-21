@@ -13,7 +13,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         if (action != null && action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-            val sp = Preferences.get(context)
+            val sp = Preferences.getPref(context)
             val editor = sp.edit()
             Assist.initialize(context)
 

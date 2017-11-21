@@ -170,10 +170,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                             if (networkInfo.hasMapAccess())
                                 NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, IStateValueCallback { _, layerArray ->
                                     if (fabTwo != null && layerArray != null) {
-                                        var savedOverlay = Preferences.get(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                        var savedOverlay = Preferences.getPref(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                                         if (!MapLayer.contains(layerArray, savedOverlay)) {
                                             savedOverlay = layerArray[0].name
-                                            Preferences.get(fActivity!!).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
+                                            Preferences.getPref(fActivity!!).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
                                         }
 
                                         val defaultOverlay = savedOverlay
@@ -212,7 +212,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 }
 
             } catch (e: IOException) {
-                SnackMaker(fragmentView).showSnackbar(R.string.error_general)
+                SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
             }
 
             true
@@ -536,7 +536,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
                 // calculate th rotation matrix
                 SensorManager.getRotationMatrixFromVector(rMat, event.values)
-                // get the azimuth value (orientation[0]) in degree
+                // getPref the azimuth value (orientation[0]) in degree
                 updateRotation((Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0].toDouble()) + 360).toInt() % 360)
             }
         }

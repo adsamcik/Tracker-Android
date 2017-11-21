@@ -88,7 +88,7 @@ class IntroActivity : AppIntro2() {
 
 
         val uploadSetCallback = INonNullValueCallback<Int> { value ->
-            Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply()
+            Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply()
             nextSlide(1)
         }
 
@@ -110,22 +110,23 @@ class IntroActivity : AppIntro2() {
                 val v = layoutInflater.inflate(R.layout.intro_dialog_signin, null)
                 val dialog = AlertDialog.Builder(this)
                         .setTitle(R.string.signin)
-                        .setNegativeButton(R.string.cancel) { _, _ -> Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply() }
+                        .setNegativeButton(R.string.cancel) { _, _ -> Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, 0).apply() }
                         .setCancelable(true)
                         .create()
 
                 v.findViewById<View>(R.id.sign_in_button).setOnClickListener { _ ->
+                    val currentFragment = currentFragment!!
                     dialog.getButton(DialogInterface.BUTTON_NEGATIVE).isEnabled = false
                     dialog.setMessage(getString(R.string.signin_connecting))
-                    val activity = currentFragment!!.activity
+                    val activity = currentFragment.activity
                     if (activity == null) {
                         FirebaseCrash.report(Throwable("Activity was null during Intro"))
-                        SnackMaker(currentFragment!!.view).showSnackbar(R.string.error_failed_signin)
+                        SnackMaker(currentFragment.view!!).showSnackbar(R.string.error_failed_signin)
                         dialog.dismiss()
                     } else {
                         Signin.signin(activity, IValueCallback { user ->
                             if (user == null)
-                                SnackMaker(currentFragment!!.view).showSnackbar(R.string.error_failed_signin)
+                                SnackMaker(currentFragment.view!!).showSnackbar(R.string.error_failed_signin)
                             dialog.dismiss()
                         }, false)
                     }
@@ -156,7 +157,7 @@ class IntroActivity : AppIntro2() {
             requestedTracking = option
             requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), LOCATION_PERMISSION_REQUEST_CODE)
         } else {
-            Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, option).apply()
+            Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, option).apply()
             autoUploadDialog!!.show()
         }
     }
@@ -202,7 +203,7 @@ class IntroActivity : AppIntro2() {
     }
 
     override fun onDonePressed(currentFragment: Fragment?) {
-        Preferences.get(this).edit().putBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, true).apply()
+        Preferences.getPref(this).edit().putBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, true).apply()
         if (isTaskRoot)
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
         finish()
@@ -211,7 +212,7 @@ class IntroActivity : AppIntro2() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             val success = grantResults[0] == PackageManager.PERMISSION_GRANTED
-            Preferences.get(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, if (success) requestedTracking else 0).apply()
+            Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_TRACKING, if (success) requestedTracking else 0).apply()
 
             autoUploadDialog!!.show()
         }

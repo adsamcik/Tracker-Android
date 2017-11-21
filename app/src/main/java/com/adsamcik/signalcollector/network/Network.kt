@@ -109,7 +109,7 @@ object Network {
 
             @Throws(IOException::class)
             override fun onResponse(call: Call, response: Response) {
-                Preferences.get(context).edit().putBoolean(preferencesName, true).apply()
+                Preferences.getPref(context).edit().putBoolean(preferencesName, true).apply()
                 response.close()
             }
         })

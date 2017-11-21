@@ -85,7 +85,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
 
             convertView!!.tag = holder
         } else {
-            // Get the ViewHolder back to get fast access to the TextView
+            // Get the ViewHolder back to getPref fast access to the TextView
             // and the ImageView.
             holder = convertView.tag as ViewHolder
         }

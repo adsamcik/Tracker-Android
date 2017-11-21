@@ -102,7 +102,7 @@ public class AppTest {
 		final String data = gson.toJson(us);
 		final String dataOld = gson.toJson(usOld);
 
-		Preferences.INSTANCE.get(context).edit().putLong(Preferences.INSTANCE.getPREF_OLDEST_RECENT_UPLOAD(), 20).apply();
+		Preferences.INSTANCE.getPref(context).edit().putLong(Preferences.INSTANCE.getPREF_OLDEST_RECENT_UPLOAD(), 20).apply();
 		Assert.assertEquals(true, DataStore.INSTANCE.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false));
 		Assert.assertEquals(true, DataStore.INSTANCE.exists(context, testFileName));
 		Assert.assertEquals('[' + data, DataStore.INSTANCE.loadString(context, testFileName));
@@ -232,7 +232,7 @@ public class AppTest {
 		final Intent intent = new Intent(Intent.ACTION_MAIN);
 		intent.addCategory(Intent.CATEGORY_HOME);
 
-		// Use PackageManager to get the launcher package name
+		// Use PackageManager to getPref the launcher package name
 		PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();
 		ResolveInfo resolveInfo = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
 		return resolveInfo.activityInfo.packageName;

@@ -41,7 +41,7 @@ class ActivityWakerService : Service() {
 
             while (!Thread.currentThread().isInterrupted) {
                 try {
-                    Thread.sleep((500 + Preferences.get(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS)).toLong())
+                    Thread.sleep((500 + Preferences.getPref(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS)).toLong())
                     val newActivityInfo = ActivityService.lastActivity
                     if (newActivityInfo != activityInfo) {
                         activityInfo = newActivityInfo
@@ -96,7 +96,7 @@ class ActivityWakerService : Service() {
          */
         @Synchronized
         fun poke(context: Context) {
-            if (Preferences.get(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
+            if (Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
                 if (instance == null)
                     Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
             } else if (instance != null) {

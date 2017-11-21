@@ -156,7 +156,7 @@ object DataStore {
         for (item in renamedFiles)
             rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(tmpName.length))
 
-        Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, if (renamedFiles.size == 0) 0 else renamedFiles.size - 1).apply()
+        Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, if (renamedFiles.size == 0) 0 else renamedFiles.size - 1).apply()
         currentDataFile = null
     }
 
@@ -174,7 +174,7 @@ object DataStore {
             collectionsOnDevice += DataFile.getCollectionCount(file)
         }
 
-        Preferences.get(context).edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply()
+        Preferences.getPref(context).edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply()
         if (onDataChanged != null && approxSize != size)
             onDataChanged(context)
         approxSize = size
@@ -186,8 +186,8 @@ object DataStore {
      */
     private fun initSizeOfData(context: Context) {
         if (approxSize == -1L) {
-            approxSize = Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0)
-            collectionsOnDevice = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
+            approxSize = Preferences.getPref(context).getLong(PREF_COLLECTED_DATA_SIZE, 0)
+            collectionsOnDevice = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
         }
     }
 
@@ -200,7 +200,7 @@ object DataStore {
      * @param count   count of collections
      */
     fun setCollections(context: Context, count: Int) {
-        Preferences.get(context).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, count).apply()
+        Preferences.getPref(context).edit().putInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, count).apply()
         collectionsOnDevice = count
     }
 
@@ -247,7 +247,7 @@ object DataStore {
      */
     fun clearAllData(context: Context) {
         currentDataFile = null
-        val sp = Preferences.get(context)
+        val sp = Preferences.getPref(context)
         sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
         approxSize = 0
         collectionsOnDevice = 0
@@ -269,7 +269,7 @@ object DataStore {
     fun clearAll(context: Context) {
         currentDataFile = null
         FileStore.clearFolder(getDir(context))
-        Preferences.get(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
+        Preferences.getPref(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
         approxSize = 0
         collectionsOnDevice = 0
 
@@ -328,7 +328,7 @@ object DataStore {
         }
 
         if (currentDataFile?.type != type || currentDataFile!!.isFull) {
-            val template = dataFile + Preferences.get(context).getInt(preference, 0)
+            val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
             currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type)
         }
     }
@@ -356,7 +356,7 @@ object DataStore {
         val files = getDir(context).listFiles { _, s -> s.startsWith(DATA_CACHE_FILE) }
         if (files.isNotEmpty()) {
             var newFileCount = files.size
-            var i = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)
+            var i = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
 
             if (files[0].length() + currentDataFile!!.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
                 val tempFileName = files[0].name
@@ -379,8 +379,8 @@ object DataStore {
             }
 
             if (files.size > 1) {
-                val currentDataIndex = Preferences.get(context).getInt(PREF_DATA_FILE_INDEX, 0)
-                Preferences.get(context).edit().putInt(PREF_DATA_FILE_INDEX, i + newFileCount).putInt(PREF_CACHE_FILE_INDEX, 0).apply()
+                val currentDataIndex = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
+                Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, i + newFileCount).putInt(PREF_CACHE_FILE_INDEX, 0).apply()
                 var dataFile: DataFile
                 while (i < files.size) {
                     val data = FileStore.loadString(files[0])!!
@@ -409,12 +409,12 @@ object DataStore {
 
         if (file.addData(rawData)) {
             val currentSize = file.size()
-            val editor = Preferences.get(context).edit()
-            editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.get(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + currentSize - prevSize)
+            val editor = Preferences.getPref(context).edit()
+            editor.putLong(PREF_COLLECTED_DATA_SIZE, Preferences.getPref(context).getLong(PREF_COLLECTED_DATA_SIZE, 0) + currentSize - prevSize)
 
             if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
                 file.close()
-                editor.putInt(file.preference, Preferences.get(context).getInt(file.preference, 0) + 1).apply()
+                editor.putInt(file.preference, Preferences.getPref(context).getInt(file.preference, 0) + 1).apply()
                 return SaveStatus.SAVE_SUCCESS_FILE_DONE
             }
 
@@ -429,7 +429,7 @@ object DataStore {
      */
     @Synchronized
     fun removeOldRecentUploads(context: Context) {
-        val sp = Preferences.get(context)
+        val sp = Preferences.getPref(context)
         val oldestUpload = sp.getLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, -1)
         if (oldestUpload != -1L) {
             val days = Assist.getAgeInDays(oldestUpload).toLong()

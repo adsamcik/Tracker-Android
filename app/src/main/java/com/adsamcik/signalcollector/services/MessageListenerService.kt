@@ -23,7 +23,7 @@ class MessageListenerService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage?) {
 
-        val sp = Preferences.get(this)
+        val sp = Preferences.getPref(this)
 
         val data = message!!.data
 
@@ -39,7 +39,7 @@ class MessageListenerService : FirebaseMessagingService() {
                         sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply()
                     val resultIntent = Intent(this, UploadReportsActivity::class.java)
 
-                    if (Preferences.get(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+                    if (Preferences.getPref(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
                         val r = resources
                         sendNotification(MessageType.UploadReport, r.getString(R.string.new_upload_summary), us.generateNotificationText(resources), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT), message.sentTime)
                     }
@@ -174,7 +174,7 @@ class MessageListenerService : FirebaseMessagingService() {
             DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)
 
             Preferences.checkStatsDay(context)
-            val sp = Preferences.get(context)
+            val sp = Preferences.getPref(context)
             sp.edit().putLong(Preferences.PREF_STATS_UPLOADED, sp.getLong(Preferences.PREF_STATS_UPLOADED, 0) + uploadSize).apply()
             return us
         }

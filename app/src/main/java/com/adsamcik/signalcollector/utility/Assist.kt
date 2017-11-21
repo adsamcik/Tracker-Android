@@ -201,7 +201,7 @@ object Assist {
             //if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
             //permissions.add(android.Manifest.permission.READ_PHONE_STATE);
 
-            if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+            if (Preferences.getPref(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
                 permissions.add(android.Manifest.permission.RECORD_AUDIO)
 
             return if (permissions.size == 0) null else permissions.toTypedArray()
@@ -282,7 +282,7 @@ object Assist {
      * @return true if at least one fo location, cell and wifi tracking is enabled
      */
     fun canTrack(context: Context): Boolean {
-        val preferences = Preferences.get(context)
+        val preferences = Preferences.getPref(context)
         return preferences.getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED) ||
                 preferences.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, Preferences.DEFAULT_TRACKING_CELL_ENABLED) ||
                 preferences.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED)

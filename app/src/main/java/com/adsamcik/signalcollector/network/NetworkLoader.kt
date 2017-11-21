@@ -124,7 +124,7 @@ object NetworkLoader {
      */
     private fun requestString(client: OkHttpClient, request: Request, updateTimeInMinutes: Int, ctx: Context, preferenceString: String, callback: IStateValueCallback<Source, String>) {
         val context = ctx.applicationContext
-        val lastUpdate = Preferences.get(context).getLong(preferenceString, -1)
+        val lastUpdate = Preferences.getPref(context).getLong(preferenceString, -1)
         if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * MINUTE_IN_MILLISECONDS || lastUpdate == -1L || !CacheStore.exists(context, preferenceString)) {
             if (!Assist.hasNetwork(context)) {
                 callbackNoData(context, preferenceString, callback, lastUpdate, -1)
@@ -158,7 +158,7 @@ object NetworkLoader {
                     if (json.isEmpty()) {
                         callbackNoData(context, preferenceString, callback, lastUpdate, returnCode)
                     } else {
-                        Preferences.get(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply()
+                        Preferences.getPref(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply()
                         CacheStore.saveString(context, preferenceString, json, false)
                         callback.callback(Source.NETWORK, json)
                     }

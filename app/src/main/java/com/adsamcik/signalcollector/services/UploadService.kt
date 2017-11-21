@@ -37,7 +37,7 @@ class UploadService : JobService() {
     private var worker: JobWorker? = null
 
     override fun onStartJob(jobParameters: JobParameters): Boolean {
-        Preferences.get(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal).apply()
+        Preferences.getPref(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal).apply()
         val scheduleSource = UploadScheduleSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
         if (scheduleSource == UploadScheduleSource.NONE)
             throw RuntimeException("Source cannot be null")
@@ -51,10 +51,10 @@ class UploadService : JobService() {
             Assist.initialize(context)
 
         isUploading = true
-        val collectionsToUpload = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
+        val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
         worker = JobWorker(context, INonNullValueCallback{ success ->
             if (success) {
-                var collectionCount = Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
+                var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
                 if (collectionCount < collectionsToUpload) {
                     collectionCount = 0
                     FirebaseCrash.report(Throwable("There are less collections than thought"))
@@ -251,7 +251,7 @@ class UploadService : JobService() {
             private set
 
         fun getUploadScheduled(context: Context): UploadScheduleSource =
-                UploadScheduleSource.values()[Preferences.get(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)]
+                UploadScheduleSource.values()[Preferences.getPref(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)]
 
         private fun scheduler(context: Context): JobScheduler =
                 context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
@@ -269,7 +269,7 @@ class UploadService : JobService() {
             else if (isUploading)
                 return Failure(context.getString(R.string.error_upload_in_progress))
 
-            val sp = Preferences.get(context)
+            val sp = Preferences.getPref(context)
             if (hasEnoughData(context, source)) {
                 val autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD)
                 if (autoUpload != 0 || source == UploadScheduleSource.USER) {
@@ -297,7 +297,7 @@ class UploadService : JobService() {
          * @param context context
          */
         fun requestUploadSchedule(context: Context) {
-            if (hasEnoughData(context, UploadScheduleSource.BACKGROUND) && Preferences.get(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
+            if (hasEnoughData(context, UploadScheduleSource.BACKGROUND) && Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
                 val scheduler = scheduler(context)
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND)
@@ -331,7 +331,7 @@ class UploadService : JobService() {
             if (source == UploadScheduleSource.USER) {
                 jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
             } else {
-                if (Preferences.get(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD) == 2) {
+                if (Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD) == 2) {
                     //todo improve roaming handling
                     if (Build.VERSION.SDK_INT >= 24)
                         jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING)
@@ -351,7 +351,7 @@ class UploadService : JobService() {
         }
 
         private fun updateUploadScheduleSource(context: Context, uss: UploadScheduleSource) {
-            Preferences.get(context).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal).apply()
+            Preferences.getPref(context).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal).apply()
         }
 
         fun cancelUploadSchedule(context: Context) {

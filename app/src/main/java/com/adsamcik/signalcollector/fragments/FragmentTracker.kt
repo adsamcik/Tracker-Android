@@ -151,7 +151,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 } else if (!Assist.canTrack(activity)) {
                     SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
                 } else {
-                    Preferences.get(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply()
+                    Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply()
                     val trackerService = Intent(activity, TrackerService::class.java)
                     trackerService.putExtra("backTrack", false)
                     activity.startService(trackerService)
@@ -417,7 +417,7 @@ class FragmentTracker : Fragment(), ITabFragment {
 
         /*if (d.noise > 0) {
             textNoise.setText(String.format(res.getString(R.string.main_noise), (int) d.noise, (int) Assist.amplitudeToDbm(d.noise)));
-        } else if (Preferences.get(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
+        } else if (Preferences.getPref(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false)) {
             textNoise.setText(res.getString(R.string.main_noise_not_collected));
         } else
             textNoise.setText(res.getString(R.string.main_noise_disabled));*/

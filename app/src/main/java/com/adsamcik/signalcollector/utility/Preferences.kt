@@ -96,7 +96,7 @@ object Preferences {
      * @param c context
      */
     fun stopTillRecharge(c: Context) {
-        get(c).edit().putBoolean(PREF_STOP_TILL_RECHARGE, true).apply()
+        getPref(c).edit().putBoolean(PREF_STOP_TILL_RECHARGE, true).apply()
         if (TrackerService.isRunning)
             c.stopService(Intent(c, TrackerService::class.java))
     }
@@ -108,16 +108,16 @@ object Preferences {
      * @param c Non-null context
      * @return Shared preferences
      */
-    operator fun get(c: Context): SharedPreferences {
+    fun getPref(c: Context): SharedPreferences {
         if (sharedPreferences == null)
             sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.applicationContext)
         return sharedPreferences!!
     }
 
-    fun getTheme(context: Context): Int = get(context).getInt(PREF_THEME, DEFAULT_THEME)
+    fun getTheme(context: Context): Int = getPref(context).getInt(PREF_THEME, DEFAULT_THEME)
 
     fun setTheme(context: Context, theme: Int) {
-        get(context).edit().putInt(PREF_THEME, theme).apply()
+        getPref(context).edit().putInt(PREF_THEME, theme).apply()
         context.setTheme(theme)
     }
 
@@ -139,7 +139,7 @@ object Preferences {
      * @param context context
      */
     fun checkStatsDay(context: Context) {
-        val preferences = get(context)
+        val preferences = getPref(context)
 
         val todayUTC = Assist.dayInUTC
         val dayDiff = (todayUTC - preferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
@@ -175,7 +175,7 @@ object Preferences {
      * @return sum of all StatDays
      */
     fun countStats(context: Context): StatDay {
-        val sp = get(context)
+        val sp = getPref(context)
         val result = getCurrent(sp)
         val set = fromJson(sp.getStringSet(PREF_STATS_LAST_7_DAYS, null), 0)
 

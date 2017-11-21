@@ -82,13 +82,13 @@ class GoogleSignInSignalsClient : ISignInClient {
         val user = User(account.id!!, account.idToken!!)
 
         //todo move to Signin
-        Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
+        Preferences.getPref(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
 
         if (userValueCallback != null)
             userValueCallback!!.callback(context, user)
 
         //todo uncomment this when server is ready
-        //SharedPreferences sp = Preferences.get(context);
+        //SharedPreferences sp = Preferences.getPref(context);
         //if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
         val token = FirebaseInstanceId.getInstance().token
         if (token != null)

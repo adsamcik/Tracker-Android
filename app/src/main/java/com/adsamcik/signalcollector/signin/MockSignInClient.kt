@@ -31,7 +31,7 @@ class MockSignInClient : ISignInClient {
         }
 
         val user = User("MOCKED", "BLEH")
-        Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
+        Preferences.getPref(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
         when (left) {
             0 -> user.mockServerData()
             1 -> {
