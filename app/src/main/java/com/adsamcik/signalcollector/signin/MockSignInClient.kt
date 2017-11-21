@@ -37,7 +37,7 @@ class MockSignInClient : ISignInClient {
             1 -> {
                 //server data received later on
                 Looper.prepare()
-                Handler().postDelayed({ u!!.mockServerData() }, 2000 + System.currentTimeMillis() % 6000)
+                Handler().postDelayed({ user.mockServerData() }, 2000 + System.currentTimeMillis() % 6000)
             }
             3 -> {
             }
