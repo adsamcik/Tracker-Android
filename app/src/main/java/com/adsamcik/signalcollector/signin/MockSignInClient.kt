@@ -4,8 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
+import android.os.Looper
 import android.util.Log
-
 import com.adsamcik.signalcollector.interfaces.IContextValueCallback
 import com.adsamcik.signalcollector.utility.Preferences
 
@@ -34,9 +34,11 @@ class MockSignInClient : ISignInClient {
         Preferences.get(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
         when (left) {
             0 -> user.mockServerData()
-            1 ->
+            1 -> {
                 //server data received later on
+                Looper.prepare()
                 Handler().postDelayed({ u!!.mockServerData() }, 2000 + System.currentTimeMillis() % 6000)
+            }
             3 -> {
             }
         }//no server data received
