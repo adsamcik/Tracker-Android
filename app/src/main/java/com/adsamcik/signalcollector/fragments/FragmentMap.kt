@@ -67,12 +67,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     private var hasPermissions = false
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
-        if (requestCode == PERMISSION_LOCATION_CODE && success && activity != null) {
-            val fragmentTransaction = activity!!.supportFragmentManager.beginTransaction()
+        if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
+            val fragmentTransaction = fActivity!!.supportFragmentManager.beginTransaction()
             val newFrag = FragmentMap()
             fragmentTransaction.replace(R.id.container, newFrag, getString(R.string.menu_map))
             newFrag.onEnter(fActivity!!, fabOne!!, fabTwo!!)
-            fragmentTransaction.commit()
+            fragmentTransaction.commitAllowingStateLoss()
         }
     }
 
