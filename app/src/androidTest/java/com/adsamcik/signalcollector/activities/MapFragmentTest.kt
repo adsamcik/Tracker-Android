@@ -1,6 +1,9 @@
 package com.adsamcik.signalcollector.activities
 
 
+import android.content.pm.PackageManager
+import android.os.Build
+import android.support.test.InstrumentationRegistry
 import android.support.test.espresso.Espresso.onView
 import android.support.test.espresso.action.ViewActions.*
 import android.support.test.espresso.assertion.ViewAssertions.matches
@@ -8,6 +11,7 @@ import android.support.test.espresso.matcher.ViewMatchers.*
 import android.support.test.filters.LargeTest
 import android.support.test.rule.ActivityTestRule
 import android.support.test.runner.AndroidJUnit4
+import android.support.v4.content.ContextCompat
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
@@ -25,7 +29,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MapFragmentTest {
 
-    @Rule @JvmField
+    @Rule
+    @JvmField
     val mActivityTestRule = ActivityTestRule(MainActivity::class.java)
 
     @Test
@@ -44,21 +49,24 @@ class MapFragmentTest {
 
         sleep(500)
 
-        handlePermissions(false)
+        if (Build.VERSION.SDK_INT >= 23 && ContextCompat.checkSelfPermission(InstrumentationRegistry.getTargetContext(), android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED) {
 
-        sleep(300)
+            handlePermissions(false)
 
-        val textView = onView(
-                allOf(withId(R.id.activity_error_text), withText("App does not have required permission"),
-                        childAtPosition(
-                                childAtPosition(
-                                        withId(R.id.container),
-                                        0),
-                                0),
-                        isDisplayed()))
-        textView.check(matches(isDisplayed()))
+            sleep(300)
 
-        sleep(100)
+            val textView = onView(
+                    allOf(withId(R.id.activity_error_text), withText("App does not have required permission"),
+                            childAtPosition(
+                                    childAtPosition(
+                                            withId(R.id.container),
+                                            0),
+                                    0),
+                            isDisplayed()))
+            textView.check(matches(isDisplayed()))
+
+            sleep(100)
+        }
 
         val bottomNavigationItemView2 = onView(
                 allOf(withId(R.id.action_tracker),
@@ -110,7 +118,7 @@ class MapFragmentTest {
                         isDisplayed()))
         editText2.perform(pressImeActionButton())
 
-        sleep(1000)
+        sleep(2000)
 
         val floatingActionButton = onView(
                 allOf(withId(R.id.fabOne),
