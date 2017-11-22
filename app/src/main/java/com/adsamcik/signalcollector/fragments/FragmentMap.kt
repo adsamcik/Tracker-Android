@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.fragments
 
 
 import android.Manifest
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -123,7 +124,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         this.fabOne = fabOne
         this.fActivity = activity
 
-        if (!Assist.isPlayServiceAvailable(activity))
+        if (!Assist.checkPlayServices(activity))
             return Failure(activity.getString(R.string.error_play_services_not_available))
 
         initializeLocationListener(activity)
@@ -144,8 +145,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        fActivity = if (fActivity == null) activity else fActivity
-        if (Assist.isPlayServiceAvailable(fActivity!!) && container != null && hasPermissions)
+        if(fActivity == null)
+            fActivity = activity
+        if (Assist.checkPlayServices(fActivity!!) && container != null && hasPermissions)
             fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
         else {
             fragmentView = inflater.inflate(R.layout.layout_error, container, false)

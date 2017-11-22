@@ -53,7 +53,7 @@ class MainActivity : FragmentActivity() {
 
         Signin.signin(this, null, true)
 
-        if (Assist.isPlayServiceAvailable(this))
+        if (Assist.checkPlayServices(this))
             ActivityService.requestAutoTracking(this, MainActivity::class.java)
         else
             snackMaker.showSnackbar(R.string.error_play_services_not_available)

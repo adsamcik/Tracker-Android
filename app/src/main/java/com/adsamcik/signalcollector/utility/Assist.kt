@@ -282,15 +282,24 @@ object Assist {
     fun getAgeInDays(time: Long): Int =
             ((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS).toInt()
 
+    
     /**
      * Checks if play services are available
      *
      * @param context context
      * @return true if available
      */
-    fun isPlayServiceAvailable(context: Context): Boolean {
-        val gaa = GoogleApiAvailability.getInstance()
-        return gaa != null && gaa.isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
+    fun checkPlayServices(context: Context): Boolean {
+        val playServicesResolutionRequest = 9000
+        val api = GoogleApiAvailability.getInstance()
+        val resultCode = api.isGooglePlayServicesAvailable(context)
+        if (resultCode != ConnectionResult.SUCCESS) {
+            if (api.isUserResolvableError(resultCode))
+                api.getErrorDialog(context as Activity, resultCode, playServicesResolutionRequest).show()
+
+            return false
+        }
+        return true
     }
 
     /**
