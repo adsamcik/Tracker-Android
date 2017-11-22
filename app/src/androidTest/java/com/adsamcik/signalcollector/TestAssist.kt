@@ -12,7 +12,7 @@ val device get() = UiDevice.getInstance(getInstrumentation())!!
 fun handlePermissions(accept: Boolean) {
     if (Build.VERSION.SDK_INT >= 23) {
         var value = if (accept) "Allow" else "Deny"
-        if(Build.VERSION.SDK_INT >= 26)
+        if (Build.VERSION.SDK_INT >= 26)
             value = value.toUpperCase()
         val allowPermissions = device.findObject(UiSelector().text(value))
         if (allowPermissions.exists()) {
@@ -26,9 +26,9 @@ fun handlePermissions(accept: Boolean) {
     }
 }
 
-fun sleep(milliseconds: Int) {
+fun sleep(milliseconds: Long) {
     try {
-        Thread.sleep(400)
+        Thread.sleep(milliseconds)
     } catch (e: InterruptedException) {
         e.printStackTrace()
     }
