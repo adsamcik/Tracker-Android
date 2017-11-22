@@ -16,6 +16,7 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.IValueCallback
+import com.adsamcik.signalcollector.jobs.scheduler
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -52,7 +53,7 @@ class UploadService : JobService() {
 
         isUploading = true
         val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
-        worker = JobWorker(context, INonNullValueCallback{ success ->
+        worker = JobWorker(context, INonNullValueCallback { success ->
             if (success) {
                 var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
                 if (collectionCount < collectionsToUpload) {
@@ -71,8 +72,7 @@ class UploadService : JobService() {
     }
 
     override fun onStopJob(jobParameters: JobParameters): Boolean {
-        if (worker != null)
-            worker!!.cancel(true)
+        worker?.cancel(true)
         isUploading = false
         return true
     }
@@ -167,7 +167,7 @@ class UploadService : JobService() {
                 val token = StringWrapper()
                 val userID = StringWrapper()
 
-                Signin.getUserAsync(context, IValueCallback{ value ->
+                Signin.getUserAsync(context, IValueCallback { value ->
                     lock.lock()
                     if (value != null) {
                         token.string = value.token
@@ -252,9 +252,6 @@ class UploadService : JobService() {
 
         fun getUploadScheduled(context: Context): UploadScheduleSource =
                 UploadScheduleSource.values()[Preferences.getPref(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)]
-
-        private fun scheduler(context: Context): JobScheduler =
-                context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
 
         /**
          * Requests upload

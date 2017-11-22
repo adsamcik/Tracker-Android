@@ -2,12 +2,10 @@ package com.adsamcik.signalcollector.utility
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.StatDay
-import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.gson.Gson
 import java.util.*
@@ -91,17 +89,6 @@ object Preferences {
     private var sharedPreferences: SharedPreferences? = null
 
     /**
-     * Will stop tracking until phone is connected to charger
-     *
-     * @param c context
-     */
-    fun stopTillRecharge(c: Context) {
-        getPref(c).edit().putBoolean(PREF_STOP_TILL_RECHARGE, true).apply()
-        if (TrackerService.isRunning)
-            c.stopService(Intent(c, TrackerService::class.java))
-    }
-
-    /**
      * Get shared preferences
      * This function should never crash. Initializes preferences if needed.
      *
@@ -116,13 +103,9 @@ object Preferences {
 
     fun getTheme(context: Context): Int = getPref(context).getInt(PREF_THEME, DEFAULT_THEME)
 
-    fun setTheme(context: Context, theme: Int) {
-        getPref(context).edit().putInt(PREF_THEME, theme).apply()
-        context.setTheme(theme)
-    }
-
     fun setTheme(activity: Activity, theme: Int) {
-        setTheme(activity as Context, theme)
+        getPref(activity).edit().putInt(PREF_THEME, theme).apply()
+        activity.setTheme(theme)
         //This ensures that all components use the proper theme
         activity.applicationContext.setTheme(theme)
     }

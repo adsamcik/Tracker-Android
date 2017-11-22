@@ -28,12 +28,12 @@ import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.*
+import com.adsamcik.signalcollector.jobs.RechargeConnectedJob
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.*
@@ -41,7 +41,6 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
 import com.adsamcik.slider.Slider
 import com.google.android.gms.common.SignInButton
-import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.crash.FirebaseCrash
 import com.google.gson.Gson
 import kotlinx.coroutines.experimental.android.UI
@@ -298,15 +297,16 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         activityFrequencySlider.items = arrayOf(0, 5, 10, 30, 60, 120, 240, 300, 600)
 
-        setSwitchChangeListener(activity, Preferences.PREF_STOP_TILL_RECHARGE, rootView.findViewById(R.id.switchDisableTrackingTillRecharge), false, INonNullValueCallback { b ->
+        val disableTrackingSwitch = rootView.findViewById<Switch>(R.id.switchDisableTrackingTillRecharge)
+        disableTrackingSwitch.isChecked = Preferences.getPref(activity).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false)
+        disableTrackingSwitch.setOnCheckedChangeListener { button, b ->
             if (b) {
-                val bundle = Bundle()
-                bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings")
-                FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, bundle)
-                if (TrackerService.isRunning)
-                    activity.stopService(Intent(activity, TrackerService::class.java))
-            }
-        })
+                if (!RechargeConnectedJob.stopTillRecharge(activity))
+                    button.isChecked = false
+            } else
+                RechargeConnectedJob.enableTracking(activity)
+        }
+
     }
 
     private fun initializeAutoUploadSection(activity: Activity, rootView: View) {
@@ -590,49 +590,49 @@ class FragmentSettings : Fragment(), ITabFragment {
 
             userMapAccessSwitch.text = activity.getString(R.string.user_renew_personal_map)
             userMapAccessSwitch.isChecked = u.networkPreferences!!.renewPersonalMap
-                    userMapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
-                        compoundButton.isEnabled = false
-                        val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
-                        Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(object : Callback {
-                            override fun onFailure(call: Call, e: IOException) {
-                                activity.runOnUiThread {
-                                    compoundButton.isEnabled = true
-                                    compoundButton.isChecked = !b
-                                }
-                            }
-
-                            @Throws(IOException::class)
-                            override fun onResponse(call: Call, response: Response) {
-                                if (response.isSuccessful) {
-                                    val networkInfo = u.networkInfo
-                                    u.networkPreferences!!.renewPersonalMap = b
-                                    if (b) {
-                                        val rBody = response.body()
-                                        if (rBody != null) {
-                                            val temp = networkInfo!!.personalMapAccessUntil
-                                            networkInfo.personalMapAccessUntil = java.lang.Long.parseLong(rBody.string())
-                                            if (temp != networkInfo.personalMapAccessUntil) {
-                                                u.addWirelessPoints((-prices.PRICE_30DAY_PERSONAL_MAP).toLong())
-                                                activity.runOnUiThread {
-                                                    wPointsTextView.text = activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))
-                                                    personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.personalMapAccessUntil)))
-                                                    personalMapAccessTimeTextView.visibility = View.VISIBLE
-                                                }
-                                            }
-
-                                        } else
-                                            FirebaseCrash.report(Throwable("Body is null"))
-                                    }
-                                    DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
-                                } else {
-                                    activity.runOnUiThread { compoundButton.isChecked = !b }
-                                    SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp)
-                                }
-                                activity.runOnUiThread { compoundButton.isEnabled = true }
-                                response.close()
-                            }
-                        })
+            userMapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+                compoundButton.isEnabled = false
+                val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
+                Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        activity.runOnUiThread {
+                            compoundButton.isEnabled = true
+                            compoundButton.isChecked = !b
+                        }
                     }
+
+                    @Throws(IOException::class)
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            val networkInfo = u.networkInfo
+                            u.networkPreferences!!.renewPersonalMap = b
+                            if (b) {
+                                val rBody = response.body()
+                                if (rBody != null) {
+                                    val temp = networkInfo!!.personalMapAccessUntil
+                                    networkInfo.personalMapAccessUntil = java.lang.Long.parseLong(rBody.string())
+                                    if (temp != networkInfo.personalMapAccessUntil) {
+                                        u.addWirelessPoints((-prices.PRICE_30DAY_PERSONAL_MAP).toLong())
+                                        activity.runOnUiThread {
+                                            wPointsTextView.text = activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))
+                                            personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.personalMapAccessUntil)))
+                                            personalMapAccessTimeTextView.visibility = View.VISIBLE
+                                        }
+                                    }
+
+                                } else
+                                    FirebaseCrash.report(Throwable("Body is null"))
+                            }
+                            DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
+                        } else {
+                            activity.runOnUiThread { compoundButton.isChecked = !b }
+                            SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp)
+                        }
+                        activity.runOnUiThread { compoundButton.isEnabled = true }
+                        response.close()
+                    }
+                })
+            }
 
             if (u.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
                 personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date()))

@@ -398,10 +398,10 @@ class TrackerService : Service() {
 
     companion object {
         //Constants
-        private val TAG = "SignalsTracker"
-        private val LOCK_TIME_IN_MINUTES = 30
-        private val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
-        private val NOTIFICATION_ID_SERVICE = 7643
+        private const val TAG = "SignalsTracker"
+        private const val LOCK_TIME_IN_MINUTES = 30
+        private const val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
+        private const val NOTIFICATION_ID_SERVICE = 7643
 
         val UPDATE_TIME_SEC = 2
 

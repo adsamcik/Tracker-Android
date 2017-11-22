@@ -113,19 +113,9 @@
             android:parentActivityName=".activities.MainActivity"
             android:screenOrientation="portrait"/>
 
-        <receiver android:name=".receivers.BatteryStateReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.ACTION_BATTERY_LOW"/>
-            </intent-filter>
-        </receiver>
         <receiver android:name=".receivers.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
-            </intent-filter>
-        </receiver>
-        <receiver android:name=".receivers.ChargingReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
             </intent-filter>
         </receiver>
         <receiver android:name=".receivers.NotificationReceiver">
@@ -163,6 +153,11 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWakerService"/>
+
+        <service
+            android:name=".jobs.RechargeConnectedJob"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
