@@ -11,7 +11,10 @@ val device get() = UiDevice.getInstance(getInstrumentation())!!
 
 fun handlePermissions(accept: Boolean) {
     if (Build.VERSION.SDK_INT >= 23) {
-        val allowPermissions = device.findObject(UiSelector().text(if (accept) "ALLOW" else "DENY"))
+        var value = if (accept) "Allow" else "Deny"
+        if(Build.VERSION.SDK_INT >= 26)
+            value = value.toUpperCase()
+        val allowPermissions = device.findObject(UiSelector().text(value))
         if (allowPermissions.exists()) {
             try {
                 allowPermissions.click()
