@@ -232,18 +232,19 @@ class FragmentTracker : Fragment(), ITabFragment {
             return
 
         val context = activity!!.applicationContext
-        progressBar!!.visibility = View.VISIBLE
+        val progressBar = progressBar!!
+        progressBar.visibility = View.VISIBLE
         fabUp!!.elevation = 0f
         if (handler == null)
             handler = Handler()
 
         when (percentage) {
             0 -> {
-                progressBar!!.isIndeterminate = true
+                progressBar.isIndeterminate = true
                 updateUploadButton()
             }
             -1 -> {
-                progressBar!!.animate().alpha(0f).setDuration(400).start()
+                progressBar.animate().alpha(0f).setDuration(400).start()
                 fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.error))
                 fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
                 fabUp!!.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_close_black_24dp))
@@ -255,7 +256,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 }, 3000)
             }
             else -> {
-                progressBar!!.isIndeterminate = false
+                progressBar.isIndeterminate = false
                 val animation = ObjectAnimator.ofInt(progressBar, "progress", percentage)
                 animation.duration = 400
                 if (percentage == 100) {
@@ -266,10 +267,10 @@ class FragmentTracker : Fragment(), ITabFragment {
                         fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
                         fabUp!!.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_check_black_24dp))
 
-                        progressBar!!.animate().alpha(0f).setDuration(400).start()
+                        progressBar.animate().alpha(0f).setDuration(400).start()
 
                         handler!!.postDelayed({
-                            progressBar!!.visibility = View.GONE
+                            progressBar.visibility = View.GONE
                             if (DataStore.sizeOfData(context) > 0) {
                                 fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
                                 fabUp!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
