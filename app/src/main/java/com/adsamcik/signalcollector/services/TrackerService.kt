@@ -31,6 +31,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ICallback
+import com.adsamcik.signalcollector.jobs.UploadService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants

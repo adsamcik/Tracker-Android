@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.services
+package com.adsamcik.signalcollector.jobs
 
 import android.app.job.JobInfo
 import android.app.job.JobParameters
@@ -16,7 +16,6 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.IValueCallback
-import com.adsamcik.signalcollector.jobs.scheduler
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -341,8 +340,8 @@ class UploadService : JobService() {
 
         private fun hasEnoughData(context: Context, source: UploadScheduleSource): Boolean {
             return when (source) {
-                UploadService.UploadScheduleSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
-                UploadService.UploadScheduleSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
+                UploadScheduleSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
+                UploadScheduleSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
                 else -> false
             }
         }

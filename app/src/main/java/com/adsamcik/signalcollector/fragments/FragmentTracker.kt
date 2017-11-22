@@ -31,7 +31,7 @@ import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.services.UploadService
+import com.adsamcik.signalcollector.jobs.UploadService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics

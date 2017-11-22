@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.services.UploadService
+import com.adsamcik.signalcollector.jobs.UploadService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
