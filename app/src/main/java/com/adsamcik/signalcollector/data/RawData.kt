@@ -74,7 +74,7 @@ class RawData : Serializable {
     /**
      * Stag constructor
      */
-    internal constructor() {}
+    internal constructor()
 
     /**
      * RawData constructor

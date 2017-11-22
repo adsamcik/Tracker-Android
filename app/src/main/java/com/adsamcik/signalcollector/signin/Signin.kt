@@ -198,7 +198,7 @@ class Signin {
         }
     }
 
-    @IntDef(NOT_SIGNED, SIGNIN_IN_PROGRESS, SIGNED, SIGNED_NO_DATA, SILENT_SIGNIN_FAILED, SIGNIN_FAILED)
+    @IntDef(SIGNIN_FAILED, SILENT_SIGNIN_FAILED, NOT_SIGNED, SIGNIN_IN_PROGRESS, SIGNED, SIGNED_NO_DATA)
     @Retention(AnnotationRetention.SOURCE)
     annotation class SigninStatus
 
@@ -209,8 +209,8 @@ class Signin {
         const val SIGNED = 2L
         const val SIGNED_NO_DATA = 3L
 
-        const val SILENT_SIGNIN_FAILED = -1L
-        const val SIGNIN_FAILED = -2L
+        const val SILENT_SIGNIN_FAILED = 4L
+        const val SIGNIN_FAILED = 5L
 
         const val RC_SIGN_IN = 4654
         private const val ERROR_REQUEST_CODE = 3543

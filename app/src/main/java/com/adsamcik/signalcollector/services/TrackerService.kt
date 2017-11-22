@@ -135,15 +135,15 @@ class TrackerService : Service() {
 
         if (noiseTracker != null) {
             val MAX_NOISE_TRACKING_SPEED_M = (MAX_NOISE_TRACKING_SPEED_KM / 3.6).toFloat()
-            if ((activityInfo.resolvedActivity == ResolvedActivity.ON_FOOT || noiseActive && activityInfo.resolvedActivity == ResolvedActivity.UNKNOWN) && location.speed < MAX_NOISE_TRACKING_SPEED_M) {
+            noiseActive = if ((activityInfo.resolvedActivity == ResolvedActivity.ON_FOOT || noiseActive && activityInfo.resolvedActivity == ResolvedActivity.UNKNOWN) && location.speed < MAX_NOISE_TRACKING_SPEED_M) {
                 noiseTracker!!.start()
                 val value = noiseTracker!!.getSample(10)
                 if (value >= 0)
                     d.setNoise(value)
-                noiseActive = true
+                true
             } else {
                 noiseTracker!!.stop()
-                noiseActive = false
+                false
             }
         }
 
@@ -321,10 +321,10 @@ class TrackerService : Service() {
         //Cell tracking setup
         if (sp.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, true)) {
             telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-            if (Build.VERSION.SDK_INT >= 22)
-                subscriptionManager = SubscriptionManager.from(this)
+            subscriptionManager = if (Build.VERSION.SDK_INT >= 22)
+                SubscriptionManager.from(this)
             else
-                subscriptionManager = null
+                null
         }
 
         //Shortcut setup

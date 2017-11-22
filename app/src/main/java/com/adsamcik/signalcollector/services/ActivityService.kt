@@ -73,9 +73,8 @@ class ActivityService : IntentService("ActivityService") {
          * @param updateRate update rate in seconds
          * @return true if success
          */
-        fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int): Boolean {
-            return requestActivity(context, tClass.hashCode(), updateRate, false)
-        }
+        fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int): Boolean =
+                requestActivity(context, tClass.hashCode(), updateRate, false)
 
         /**
          * Request activity updates
@@ -84,9 +83,8 @@ class ActivityService : IntentService("ActivityService") {
          * @param tClass  class that requests update
          * @return true if success
          */
-        fun requestActivity(context: Context, tClass: Class<*>): Boolean {
-            return requestActivity(context, tClass.hashCode(), Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false)
-        }
+        fun requestActivity(context: Context, tClass: Class<*>): Boolean =
+                requestActivity(context, tClass.hashCode(), Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false)
 
         private fun requestActivity(context: Context, hash: Int, updateRate: Int, backgroundTracking: Boolean): Boolean {
             setMinUpdateRate(context, updateRate)
@@ -166,13 +164,13 @@ class ActivityService : IntentService("ActivityService") {
         }
 
         private fun initializeActivityClient(context: Context, delayInS: Int): Boolean {
-            if (Assist.checkPlayServices(context)) {
+            return if (Assist.checkPlayServices(context)) {
                 val activityRecognitionClient = ActivityRecognition.getClient(context)
                 task = activityRecognitionClient.requestActivityUpdates((delayInS * Constants.SECOND_IN_MILLISECONDS).toLong(), getActivityDetectionPendingIntent(context))
-                return true
+                true
             } else {
                 FirebaseCrash.report(Throwable("Unavailable play services"))
-                return false
+                false
             }
         }
 

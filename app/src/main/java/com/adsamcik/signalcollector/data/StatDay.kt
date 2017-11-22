@@ -68,7 +68,7 @@ class StatDay {
 
     //STAG CONSTRUCTOR AND GETTERS AND SETTERS//
 
-    internal constructor() {}
+    internal constructor()
 
     internal fun getUpload(): Long = uploaded
 

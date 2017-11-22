@@ -311,10 +311,10 @@ class UploadService : JobService() {
         }
 
         private fun hasJobWithID(jobScheduler: JobScheduler, id: Int): Boolean {
-            if (Build.VERSION.SDK_INT >= 24)
-                return jobScheduler.getPendingJob(id) != null
+            return if (Build.VERSION.SDK_INT >= 24)
+                jobScheduler.getPendingJob(id) != null
             else {
-                return jobScheduler.allPendingJobs.any { it.id == id }
+                jobScheduler.allPendingJobs.any { it.id == id }
             }
         }
 
@@ -343,10 +343,10 @@ class UploadService : JobService() {
         }
 
         private fun hasEnoughData(context: Context, source: UploadScheduleSource): Boolean {
-            when (source) {
-                UploadService.UploadScheduleSource.BACKGROUND -> return DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
-                UploadService.UploadScheduleSource.USER -> return DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
-                else -> return false
+            return when (source) {
+                UploadService.UploadScheduleSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
+                UploadService.UploadScheduleSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
+                else -> false
             }
         }
 

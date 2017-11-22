@@ -163,7 +163,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     if (fabTwo != null) {
                         val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
-                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, IString<MapLayer> { it.name })
+                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, IString { it.name })
                             menu!!.setCallback(INonNullValueCallback{ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
 
                             if (networkInfo.hasPersonalMapAccess())

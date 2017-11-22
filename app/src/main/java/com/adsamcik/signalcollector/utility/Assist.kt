@@ -282,7 +282,7 @@ object Assist {
     fun getAgeInDays(time: Long): Int =
             ((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS).toInt()
 
-    
+
     /**
      * Checks if play services are available
      *
@@ -373,5 +373,5 @@ object Assist {
      * @return array of color states
      */
     fun getSelectionStateLists(resources: Resources, theme: Resources.Theme): Array<ColorStateList> =
-            arrayOf<ColorStateList>(ResourcesCompat.getColorStateList(resources, R.color.default_value, theme)!!.withAlpha(resources.getInteger(R.integer.inactive_alpha)), ResourcesCompat.getColorStateList(resources, R.color.selected_value, theme)!!)
+            arrayOf(ResourcesCompat.getColorStateList(resources, R.color.default_value, theme)!!.withAlpha(resources.getInteger(R.integer.inactive_alpha)), ResourcesCompat.getColorStateList(resources, R.color.selected_value, theme)!!)
 }

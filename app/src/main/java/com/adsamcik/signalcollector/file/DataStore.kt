@@ -467,11 +467,11 @@ object DataStore {
             saveAppendableJsonArray(context, fileName, Gson().toJson(data), append)
 
     fun saveAppendableJsonArray(context: Context, fileName: String, data: String, append: Boolean): Boolean {
-        try {
-            return FileStore.saveAppendableJsonArray(file(context, fileName), data, append)
+        return try {
+            FileStore.saveAppendableJsonArray(file(context, fileName), data, append)
         } catch (e: MalformedJsonException) {
             FirebaseCrash.report(e)
-            return false
+            false
         }
 
     }
