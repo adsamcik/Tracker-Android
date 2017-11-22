@@ -12,7 +12,7 @@ import android.util.Log
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.Preferences
 
-class RechargeConnectedJob : JobService() {
+class DisableTillRechargeJob : JobService() {
     override fun onStartJob(jobParameters: JobParameters): Boolean {
         Log.d("Signals", "plugged")
         updatePreference(this, false)
@@ -30,7 +30,7 @@ class RechargeConnectedJob : JobService() {
 
         fun stopTillRecharge(context: Context) : Boolean {
             val scheduler = scheduler(context)
-            val jobBuilder = JobInfo.Builder(JOB_DISABLE_TILL_RECHARGE_ID, ComponentName(context, RechargeConnectedJob::class.java))
+            val jobBuilder = JobInfo.Builder(JOB_DISABLE_TILL_RECHARGE_ID, ComponentName(context, DisableTillRechargeJob::class.java))
             jobBuilder.setPersisted(true).setRequiresCharging(true).setRequiresDeviceIdle(false)
             if(scheduler.schedule(jobBuilder.build()) == RESULT_SUCCESS) {
                 updatePreference(context, true)

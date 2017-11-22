@@ -155,7 +155,7 @@
         <service android:name=".services.ActivityWakerService"/>
 
         <service
-            android:name=".jobs.RechargeConnectedJob"
+            android:name=".jobs.DisableTillRechargeJob"
             android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 

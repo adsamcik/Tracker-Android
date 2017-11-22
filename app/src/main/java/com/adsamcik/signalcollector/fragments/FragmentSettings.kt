@@ -28,7 +28,7 @@ import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.*
-import com.adsamcik.signalcollector.jobs.RechargeConnectedJob
+import com.adsamcik.signalcollector.jobs.DisableTillRechargeJob
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
@@ -301,10 +301,10 @@ class FragmentSettings : Fragment(), ITabFragment {
         disableTrackingSwitch.isChecked = Preferences.getPref(activity).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false)
         disableTrackingSwitch.setOnCheckedChangeListener { button, b ->
             if (b) {
-                if (!RechargeConnectedJob.stopTillRecharge(activity))
+                if (!DisableTillRechargeJob.stopTillRecharge(activity))
                     button.isChecked = false
             } else
-                RechargeConnectedJob.enableTracking(activity)
+                DisableTillRechargeJob.enableTracking(activity)
         }
 
     }
