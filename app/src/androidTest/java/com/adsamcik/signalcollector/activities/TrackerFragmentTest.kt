@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.handlePermissions
 import com.adsamcik.signalcollector.sleep
+import com.adsamcik.signalcollector.test.isTestMode
 import org.hamcrest.Description
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
@@ -31,6 +32,8 @@ class TrackerFragmentTest {
 
     @Test
     fun trackerFragmentTest() {
+        if(isTestMode)
+            return
         sleep(3000)
 
         val floatingActionButton = onView(

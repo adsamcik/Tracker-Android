@@ -5,7 +5,7 @@ import android.os.Build
 
 val useMock: Boolean = isEmulator || isTestMode
 
-private val isTestMode: Boolean
+val isTestMode: Boolean
     get() {
         return try {
             Class.forName("com.adsamcik.signalcollector.activities.AppTest")
@@ -13,7 +13,6 @@ private val isTestMode: Boolean
         } catch (e: Exception) {
             false
         }
-
     }
 
 /**
