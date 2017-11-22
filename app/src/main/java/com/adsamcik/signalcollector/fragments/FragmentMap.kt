@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments
 
 
 import android.Manifest
-import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -145,7 +144,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        if(fActivity == null)
+        if (fActivity == null)
             fActivity = activity
         if (Assist.checkPlayServices(fActivity!!) && container != null && hasPermissions)
             fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
@@ -164,7 +163,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                         val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
                             menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, IString { it.name })
-                            menu!!.setCallback(INonNullValueCallback{ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
+                            menu!!.setCallback(INonNullValueCallback { value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
 
                             if (networkInfo.hasPersonalMapAccess())
                                 menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
@@ -384,8 +383,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     override fun onCameraIdle() {
-        val bounds = map!!.projection.visibleRegion.latLngBounds
-        mapLayerFilterRule!!.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
+        if (map != null) {
+            val bounds = map!!.projection.visibleRegion.latLngBounds
+            mapLayerFilterRule!!.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
+        }
     }
 
     private inner class UpdateLocationListener(private val sensorManager: SensorManager) : LocationListener, SensorEventListener {
