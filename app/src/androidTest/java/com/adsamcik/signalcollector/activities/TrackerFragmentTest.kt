@@ -31,7 +31,7 @@ class TrackerFragmentTest {
 
     @Test
     fun trackerFragmentTest() {
-        sleep(1000)
+        sleep(3000)
 
         val floatingActionButton = onView(
                 allOf(withId(R.id.fabOne),

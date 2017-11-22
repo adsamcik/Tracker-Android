@@ -35,7 +35,7 @@ class MapFragmentTest {
 
     @Test
     fun mapFragmentTest() {
-        sleep(500)
+        sleep(3000)
 
         val bottomNavigationItemView = onView(
                 allOf(withId(R.id.action_map),
