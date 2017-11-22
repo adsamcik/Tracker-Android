@@ -6,7 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import com.adsamcik.signalcollector.jobs.DisableTillRechargeJob
+import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -20,7 +20,7 @@ class NotificationReceiver : BroadcastReceiver() {
         params.putString(FirebaseAssist.PARAM_SOURCE, "notification")
         when (value) {
             0 -> {
-                DisableTillRechargeJob.stopTillRecharge(context)
+                DisableTillRechargeJobService.stopTillRecharge(context)
                 FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, params)
             }
             1 -> {

@@ -149,13 +149,13 @@
             </intent-filter>
         </service>
         <service
-            android:name=".jobs.UploadService"
+            android:name=".jobs.UploadJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWakerService"/>
 
         <service
-            android:name=".jobs.DisableTillRechargeJob"
+            android:name=".jobs.DisableTillRechargeJobService"
             android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 

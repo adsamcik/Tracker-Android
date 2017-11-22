@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.jobs.UploadService
+import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -341,7 +341,7 @@ object DataStore {
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
         val userID = Signin.getUserID(context)
-        if (UploadService.isUploading || userID == null)
+        if (UploadJobService.isUploading || userID == null)
             updateCurrentData(context, DataFile.CACHE, userID)
         else
             updateCurrentData(context, DataFile.STANDARD, userID)

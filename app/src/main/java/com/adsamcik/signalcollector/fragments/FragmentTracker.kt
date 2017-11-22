@@ -31,7 +31,7 @@ import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.jobs.UploadService
+import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -184,7 +184,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 fabUp!!.setOnClickListener { _ ->
                     if (Signin.isSignedIn) {
                         val context = context
-                        val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
+                        val failure = UploadJobService.requestUpload(context!!, UploadJobService.UploadScheduleSource.USER)
                         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                         if (failure.hasFailed())
                             SnackMaker(activity!!).showSnackbar(failure.value!!)
@@ -202,7 +202,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
                 fabUp!!.setOnClickListener { _ ->
                     val context = context
-                    val failure = UploadService.requestUpload(context!!, UploadService.UploadScheduleSource.USER)
+                    val failure = UploadJobService.requestUpload(context!!, UploadJobService.UploadScheduleSource.USER)
                     FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (failure.hasFailed())
                         SnackMaker(activity!!).showSnackbar(failure.value!!)
@@ -301,7 +301,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fabUp = fabTwo
         progressBar = (fabTwo.parent as ViewGroup).findViewById(R.id.progressBar)
 
-        if (UploadService.isUploading || UploadService.getUploadScheduled(activity) == UploadService.UploadScheduleSource.USER) {
+        if (UploadJobService.isUploading || UploadJobService.getUploadScheduled(activity) == UploadJobService.UploadScheduleSource.USER) {
             updateUploadProgress(0)
         } else {
             progressBar!!.progress = 0

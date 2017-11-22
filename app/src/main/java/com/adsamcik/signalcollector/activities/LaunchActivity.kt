@@ -11,7 +11,7 @@ import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.jobs.UploadService
+import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.adsamcik.signalcollector.utility.NotificationTools
@@ -47,16 +47,16 @@ class LaunchActivity : Activity() {
 
             scheduler.cancelAll()
         } else {
-            val uss = UploadService.getUploadScheduled(this)
-            if (uss != UploadService.UploadScheduleSource.NONE) {
+            val uss = UploadJobService.getUploadScheduled(this)
+            if (uss != UploadJobService.UploadScheduleSource.NONE) {
                 val jobs = scheduler.allPendingJobs
 
-                val found = jobs.count { it.service.className == "UploadService" }
+                val found = jobs.count { it.service.className == "UploadJobService" }
                 if (found > 1) {
                     scheduler.cancelAll()
-                    UploadService.requestUpload(this, uss)
+                    UploadJobService.requestUpload(this, uss)
                 } else if (found == 0) {
-                    UploadService.requestUpload(this, uss)
+                    UploadJobService.requestUpload(this, uss)
                 }
             }
         }

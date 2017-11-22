@@ -31,7 +31,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ICallback
-import com.adsamcik.signalcollector.jobs.UploadService
+import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -211,7 +211,7 @@ class TrackerService : Service() {
             if (result === DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
                     !Preferences.getPref(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
                     DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
-                UploadService.requestUpload(this, UploadService.UploadScheduleSource.BACKGROUND)
+                UploadJobService.requestUpload(this, UploadJobService.UploadScheduleSource.BACKGROUND)
                 FirebaseCrash.log("Requested upload from tracking")
             }
         }
@@ -334,7 +334,7 @@ class TrackerService : Service() {
             Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION)
         }
 
-        UploadService.cancelUploadSchedule(this)
+        UploadJobService.cancelUploadSchedule(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -383,7 +383,7 @@ class TrackerService : Service() {
         }
 
         if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
-            UploadService.requestUploadSchedule(this)
+            UploadJobService.requestUploadSchedule(this)
     }
 
     override fun onBind(intent: Intent): IBinder? = null

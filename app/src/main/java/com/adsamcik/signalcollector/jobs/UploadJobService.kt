@@ -33,7 +33,7 @@ import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
 import java.util.concurrent.locks.ReentrantLock
 
-class UploadService : JobService() {
+class UploadJobService : JobService() {
     private var worker: JobWorker? = null
 
     override fun onStartJob(jobParameters: JobParameters): Boolean {
@@ -315,7 +315,7 @@ class UploadService : JobService() {
         }
 
         private fun prepareBuilder(id: Int, context: Context, source: UploadScheduleSource): JobInfo.Builder {
-            val jobBuilder = JobInfo.Builder(id, ComponentName(context, UploadService::class.java))
+            val jobBuilder = JobInfo.Builder(id, ComponentName(context, UploadJobService::class.java))
             jobBuilder.setPersisted(true)
             val pb = PersistableBundle(1)
             pb.putInt(KEY_SOURCE, source.ordinal)

@@ -18,7 +18,7 @@ import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.signalcollector.jobs.UploadService
+import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -44,10 +44,10 @@ class MainActivity : FragmentActivity() {
         Assist.initialize(this)
 
         if (Network.cloudStatus == CloudStatus.UNKNOWN) {
-            val scheduleSource = UploadService.getUploadScheduled(this)
+            val scheduleSource = UploadJobService.getUploadScheduled(this)
             when (scheduleSource) {
-                UploadService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
-                UploadService.UploadScheduleSource.BACKGROUND, UploadService.UploadScheduleSource.USER -> Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
+                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
+                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
             }
         }
 
