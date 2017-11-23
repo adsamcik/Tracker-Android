@@ -61,7 +61,11 @@ dependencies {
     }
     implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     implementation 'de.psdev.licensesdialog:licensesdialog:1.8.3'
-    implementation 'com.adsamcik:slider:0.3.0'
+
+    //1st party dependencies
+    implementation 'com.adsamcik.android-components:slider:0.3.0'
+    implementation 'com.adsamcik.android-components:table:0.1.0'
+
     implementation "com.android.support:design:$support_version"
     implementation "com.android.support:appcompat-v7:$support_version"
     implementation "com.android.support:support-compat:$support_version"

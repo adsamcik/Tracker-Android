@@ -8,9 +8,6 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.Drawable
-import android.graphics.drawable.RippleDrawable
 import android.location.Location
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -302,22 +299,6 @@ object Assist {
         return true
     }
 
-    /**
-     * Generate ripple drawable
-     *
-     * @param normalColor  if 0, background is transparent
-     * @param pressedColor pressed color
-     * @return RippleDrawable
-     */
-    fun getPressedColorRippleDrawable(normalColor: Int, pressedColor: Int, mask: Drawable?): RippleDrawable =
-            RippleDrawable(getPressedColorSelector(pressedColor), if (normalColor == 0) null else getColorDrawableFromColor(normalColor), mask)
-
-    private fun getPressedColorSelector(pressedColor: Int): ColorStateList {
-        return ColorStateList(arrayOf(intArrayOf()), intArrayOf(pressedColor)
-        )
-    }
-
-    private fun getColorDrawableFromColor(color: Int): ColorDrawable = ColorDrawable(color)
 
     fun invertColor(@ColorInt color: Int): Int =
             Color.argb(Color.alpha(color), 255 - Color.red(color), 255 - Color.green(color), 255 - Color.blue(color))
