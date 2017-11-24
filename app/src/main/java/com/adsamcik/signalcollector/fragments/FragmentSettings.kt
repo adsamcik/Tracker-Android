@@ -39,6 +39,7 @@ import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
+import com.adsamcik.slider.IntValueSlider
 import com.adsamcik.slider.Slider
 import com.google.android.gms.common.SignInButton
 import com.google.firebase.crash.FirebaseCrash
@@ -269,33 +270,27 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
                 INonNullValueCallback { _ -> ActivityWakerService.poke(activity) })
 
-        val activityFrequencySlider = rootView.findViewById<IntSlider>(R.id.settings_seekbar_watcher_frequency)
+        val activityFrequencySlider = rootView.findViewById<IntValueSlider>(R.id.settings_seekbar_watcher_frequency)
         //todo update to not set useless values because of setItems below
-        setSeekbar(activity,
-                activityFrequencySlider,
-                rootView.findViewById(R.id.settings_text_activity_frequency),
-                0,
-                300,
-                30,
-                Preferences.PREF_ACTIVITY_UPDATE_RATE,
-                Preferences.DEFAULT_ACTIVITY_UPDATE_RATE,
-                Slider.IStringify setSeekbar@ { progress ->
-                    when {
-                        progress == 0 -> return@setSeekbar getString(R.string.frequency_asap)
-                        progress < 60 -> return@setSeekbar getString(R.string.frequency_seconds, progress)
-                        progress!! % 60 == 0 -> return@setSeekbar getString(R.string.frequency_minute, progress / 60)
-                        else -> {
-                            val minutes = progress / 60
-                            return@setSeekbar getString(R.string.frequency_minute_second, minutes, progress - minutes * 60)
-                        }
-                    }
-                },
-                INonNullValueCallback { value ->
-                    ActivityService.requestActivity(activity, MainActivity::class.java, value)
-                    ActivityWakerService.poke(activity)
-                })
-
         activityFrequencySlider.items = arrayOf(0, 5, 10, 30, 60, 120, 240, 300, 600)
+        activityFrequencySlider.setPreferences(Preferences.getPref(activity), Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE)
+        activityFrequencySlider.setTextView(rootView.findViewById(R.id.settings_text_activity_frequency), { progress ->
+            when {
+                progress == 0 -> return@setTextView getString(R.string.frequency_asap)
+                progress < 60 -> return@setTextView getString(R.string.frequency_seconds, progress)
+                progress!! % 60 == 0 -> return@setTextView getString(R.string.frequency_minute, progress / 60)
+                else -> {
+                    val minutes = progress / 60
+                    return@setTextView getString(R.string.frequency_minute_second, minutes, progress - minutes * 60)
+                }
+            }
+        })
+        activityFrequencySlider.setOnValueChangeListener { value, fromUser ->
+            if (fromUser) {
+                ActivityService.requestActivity(activity, MainActivity::class.java, value)
+                ActivityWakerService.poke(activity)
+            }
+        }
 
         val disableTrackingSwitch = rootView.findViewById<Switch>(R.id.switchDisableTrackingTillRecharge)
         disableTrackingSwitch.isChecked = Preferences.getPref(activity).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false)
@@ -490,13 +485,12 @@ class FragmentSettings : Fragment(), ITabFragment {
                            minValue: Int,
                            maxValue: Int,
                            step: Int,
-                           preference: String?,
+                           preference: String,
                            defaultValue: Int,
                            textGenerationFuncton: Slider.IStringify<Int>,
                            valueCallback: INonNullValueCallback<Int>?) {
         slider.maxValue = maxValue
-        val previousProgress = Preferences.getPref(context).getInt(preference, defaultValue) - minValue
-        slider.setProgressValue(previousProgress)
+        slider.setPreferences(Preferences.getPref(context), preference, defaultValue)
         slider.step = step
         slider.minValue = minValue
         slider.setTextView(title, textGenerationFuncton)

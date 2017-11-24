@@ -4,13 +4,14 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.adapters.TableAdapter
 import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.enums.AppendBehavior
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Table
+import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.table.AppendBehavior
+import com.adsamcik.table.Table
+import com.adsamcik.table.TableAdapter
 import com.google.gson.Gson
 import java.util.*
 
@@ -31,7 +32,7 @@ class UploadReportsActivity : DetailActivity() {
             listView.setSelector(android.R.color.transparent)
             parent.addView(listView)
 
-            val adapter = TableAdapter(this, 16)
+            val adapter = TableAdapter(this, 16, Preferences.getTheme(this))
             listView.adapter = adapter
 
             recent.forEach { stats ->
