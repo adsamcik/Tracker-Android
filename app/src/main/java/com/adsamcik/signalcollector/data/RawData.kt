@@ -69,7 +69,7 @@ class RawData : Serializable {
      */
     var activity: Int? = null
 
-    var noise: Short = 0
+    var noise: Short? =  null
 
     /**
      * Stag constructor

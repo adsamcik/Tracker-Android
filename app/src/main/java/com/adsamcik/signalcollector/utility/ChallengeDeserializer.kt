@@ -12,10 +12,7 @@ class ChallengeDeserializer : JsonDeserializer<Challenge> {
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): Challenge {
         val jobject = json.asJsonObject
         val jDescVars = jobject.get("descVars").asJsonArray
-        val descVars = arrayOfNulls<String>(jDescVars.size())
-
-        for (i in descVars.indices)
-            descVars[i] = jDescVars.get(i).asString
+        val descVars = Array(jDescVars.size()) { jDescVars[it].asString }
 
         val progressElement = jobject.get("progress")
         val progress: Float

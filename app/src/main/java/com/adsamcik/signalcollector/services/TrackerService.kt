@@ -253,8 +253,8 @@ class TrackerService : Service() {
             sb.append(d.wifi!!.size).append(" wifi ")
         if (d.cellCount != null)
             sb.append(d.cellCount!!).append(" cell ")
-        if (d.noise > 0)
-            sb.append(df.format(Assist.amplitudeToDbm(d.noise))).append(" dB ")
+        if (d.noise != null)
+            sb.append(df.format(Assist.amplitudeToDbm(d.noise!!))).append(" dB ")
         if (sb.isNotEmpty())
             sb.setLength(sb.length - 1)
         else
