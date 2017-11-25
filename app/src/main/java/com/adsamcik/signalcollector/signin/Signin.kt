@@ -13,30 +13,23 @@ import java.util.*
 import kotlin.coroutines.experimental.suspendCoroutine
 
 class Signin {
-    private var silentFailed: Boolean = false
-
     var user: User? = null
         private set
 
     private val onSignedCallbackList = ArrayList<(User?) -> Unit>(2)
-    var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
-        set(value) {
-            value?.invoke(status, user)
-        }
 
     private val onSignInInternal: (Context, User?) -> Unit = { context, user ->
-
         val status = when {
             this.user != null && user == null -> {
-                client = null
                 Network.clearCookieJar(context)
                 Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
                 DataStore.delete(context, Preferences.PREF_USER_DATA)
                 DataStore.delete(context, Preferences.PREF_USER_STATS)
-                callOnSigninCallbacks()
                 SigninStatus.NOT_SIGNED
             }
-            user == null -> SigninStatus.SIGNIN_FAILED
+            user == null -> {
+                SigninStatus.SIGNIN_FAILED
+            }
             user.isServerDataAvailable -> SigninStatus.SIGNED
             else -> SigninStatus.SIGNED_NO_DATA
         }
@@ -62,7 +55,6 @@ class Signin {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
-        instance = this
         initializeClient()
         if (silent)
             client!!.signInSilent(activity, onSignInInternal)
@@ -74,16 +66,18 @@ class Signin {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
-        instance = this
-
         initializeClient()
         client!!.signInSilent(context, onSignInInternal)
     }
 
     private fun updateStatus(signinStatus: SigninStatus) {
         when {
-            signinStatus == SigninStatus.NOT_SIGNED -> client = null
+            signinStatus == SigninStatus.NOT_SIGNED -> {
+                instance = null
+                client = null
+            }
             signinStatus.failed -> {
+                instance = null
                 client = null
                 silentFailed = true
             }
@@ -105,7 +99,6 @@ class Signin {
     private fun signout(context: Context) {
         assert(status.success)
         client!!.signOut(context)
-
     }
 
     enum class SigninStatus(val value: Int) {
@@ -127,7 +120,14 @@ class Signin {
     companion object {
         const val RC_SIGN_IN = 4654
 
+        private var silentFailed: Boolean = false
         private var instance: Signin? = null
+
+        var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
+            set(value) {
+                value?.invoke(status, instance?.user)
+                field = value
+            }
 
         val isSignedIn: Boolean
             get() = instance?.user != null
@@ -135,7 +135,7 @@ class Signin {
         val status: SigninStatus
             get() = when {
                 instance == null -> SigninStatus.NOT_SIGNED
-                instance!!.silentFailed -> SigninStatus.SILENT_SIGNIN_FAILED
+                silentFailed -> SigninStatus.SILENT_SIGNIN_FAILED
                 instance!!.user == null -> SigninStatus.SIGNIN_IN_PROGRESS
                 instance!!.user!!.isServerDataAvailable -> SigninStatus.SIGNED
                 else -> SigninStatus.SIGNED_NO_DATA
@@ -156,8 +156,7 @@ class Signin {
 
         fun signIn(context: Context, callback: ((User?) -> Unit)?): Signin? {
             if (instance == null)
-            //instance is assigned in constructor to make it sooner available
-                Signin(context, callback)
+                instance = Signin(context, callback)
             else if (callback != null) {
                 when {
                     instance!!.user != null -> callback.invoke(instance!!.user)

@@ -304,7 +304,8 @@ class FragmentSettings : Fragment(), ITabFragment {
 
     private fun initializeSignIn(activity: Activity) {
         if (Assist.hasNetwork(activity)) {
-            Signin.signIn(activity, userSignedCallback, true).onStateChangeCallback = { status, user -> onUserStateChange(status, user) }
+            Signin.onStateChangeCallback = { status, user -> onUserStateChange(status, user) }
+            Signin.signIn(activity, userSignedCallback, true)
         } else
             signInNoConnection!!.visibility = View.VISIBLE
     }
@@ -728,7 +729,9 @@ class FragmentSettings : Fragment(), ITabFragment {
 
     override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> = Failure()
 
-    override fun onLeave(activity: FragmentActivity) {}
+    override fun onLeave(activity: FragmentActivity) {
+        Signin.onStateChangeCallback = null
+    }
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         when (requestCode) {
