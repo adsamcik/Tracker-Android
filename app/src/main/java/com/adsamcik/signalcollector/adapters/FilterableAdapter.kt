@@ -12,7 +12,6 @@ import android.widget.Filter
 import android.widget.Filterable
 import android.widget.TextView
 import com.adsamcik.signalcollector.interfaces.IFilterRule
-import com.adsamcik.signalcollector.interfaces.IString
 import java.util.*
 import java.util.regex.Pattern
 
@@ -27,7 +26,7 @@ class FilterableAdapter<T>
  * @param stringMethod Method to convert objects to strings
  */
 (context: Context, @param:LayoutRes @field:LayoutRes
-private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRule<T>?, private val stringMethod: IString<T>) : BaseAdapter(), Filterable {
+private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRule<T>?, private val stringMethod: (T) -> String) : BaseAdapter(), Filterable {
     private val dataList: MutableList<T>?
     private val stringDataList: ArrayList<String>
     private var filteredData: ArrayList<String>? = null
@@ -44,7 +43,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
             this.dataList = items
             this.stringDataList = ArrayList(items.size)
             for (item in items)
-                this.stringDataList.add(stringMethod.stringify(item))
+                this.stringDataList.add(stringMethod.invoke(item))
         }
 
         if (Looper.myLooper() == null)
@@ -64,7 +63,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
     override fun getItemId(position: Int): Long = position.toLong()
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-        var convertView = convertView
+        var cView = convertView
         // A ViewHolder keeps references to children views to avoid unnecessary calls
         // to findViewById() on each row.
 
@@ -73,27 +72,26 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
         // When convertView is not null, we can reuse it directly, there is no need
         // to reinflate it. We only inflate a new View when the convertView supplied
         // by ListView is null.
-        if (convertView == null) {
-            convertView = mInflater.inflate(res, null)
+        if (cView == null) {
+            cView = mInflater.inflate(res, null)
 
             // Creates a ViewHolder and store references to the two children views
             // we want to bind data to.
             holder = ViewHolder()
-            holder.text = convertView as TextView?
+            holder.text = cView as TextView?
 
             // Bind the data efficiently with the holder.
-
-            convertView!!.tag = holder
+            cView.tag = holder
         } else {
             // Get the ViewHolder back to getPref fast access to the TextView
             // and the ImageView.
-            holder = convertView.tag as ViewHolder
+            holder = cView.tag as ViewHolder
         }
 
         // If weren't re-ordering this you could rely on what you set last time
         holder.text!!.text = getItem(position)
 
-        return convertView
+        return cView!!
     }
 
     internal class ViewHolder {
@@ -110,7 +108,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
 
     fun add(item: T, activity: Activity?) {
         dataList!!.add(item)
-        val string = stringMethod.stringify(item)
+        val string = stringMethod.invoke(item)
         stringDataList.add(string)
         if (lastConstraint != null) {
             if (filterRule != null) {
@@ -176,6 +174,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
         }
 
         override fun publishResults(constraint: CharSequence?, results: Filter.FilterResults) {
+            @Suppress("UNCHECKED_CAST")
             filteredData = results.values as ArrayList<String>
             lastConstraint = if (constraint == null || constraint.isEmpty())
                 null
