@@ -9,7 +9,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.IFilterRule
-import com.adsamcik.signalcollector.interfaces.IString
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
@@ -63,8 +62,8 @@ class ActivityRecognitionActivity : DetailActivity() {
 
         async {
             val items = Parser.parseTSVFromFile(activity, FILE) ?: ArrayList()
-            adapter = FilterableAdapter(activity, R.layout.spinner_item, items, IFilterRule{value, _, _ -> value.size >= 3 }, IString{item ->
-                return@IString item.joinToString(delim)
+            adapter = FilterableAdapter(activity, R.layout.spinner_item, items, IFilterRule{value, _, _ -> value.size >= 3 }, {item ->
+                item.joinToString(delim)
             })
         }
 

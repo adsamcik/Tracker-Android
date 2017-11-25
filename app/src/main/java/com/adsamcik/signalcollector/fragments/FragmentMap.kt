@@ -24,8 +24,6 @@ import android.widget.EditText
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.interfaces.IString
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
@@ -107,8 +105,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 locationManager!!.removeUpdates(locationListener)
             locationListener!!.cleanup()
 
-            if (menu != null)
-                menu!!.hideAndDestroy(activity)
+            menu?.hideAndDestroy()
 
             fabOne!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(activity, R.color.text_primary))
         }
@@ -164,8 +161,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     if (fabTwo != null) {
                         val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
-                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, IString { it.name })
-                            menu!!.setCallback(INonNullValueCallback { value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
+                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, { it.name })
+                            menu!!.setCallback({ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
 
                             if (networkInfo.hasPersonalMapAccess())
                                 menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))

@@ -11,11 +11,10 @@ import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
 import com.adsamcik.signalcollector.interfaces.IFilterRule
-import com.adsamcik.signalcollector.interfaces.IString
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, activity: Activity, filterRule: IFilterRule<T>?, toString: IString<T>) {
+class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, activity: Activity, filterRule: IFilterRule<T>?, toString: (T) -> String) {
     private val TAG = "SignalsFabMenu"
 
     private val wrapper: ViewGroup = LayoutInflater.from(activity).inflate(R.layout.fab_menu, parent, false) as ViewGroup
