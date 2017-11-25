@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.test.MockSignInClient
@@ -159,14 +160,18 @@ class Signin {
 
         suspend fun signIn(activity: Activity, silentOnly: Boolean): User? =
                 suspendCoroutine { cont ->
+                    Log.d("Signals", "run00")
                     if (instance == null)
                         Signin(activity, {
                             cont.resume(it)
+                            Log.d("Signals", "run01")
                         }, silentOnly)
                     else if (status.failed && !silentOnly) {
                         instance!!.client.signIn(activity, { context, value ->
                             instance!!.onSignInInternal.invoke(context, value)
+                            Log.d("Signals", "run021")
                             cont.resume(value)
+                            Log.d("Signals", "run022")
                         })
                     }
                 }

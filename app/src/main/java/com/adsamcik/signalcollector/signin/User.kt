@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.signin
 
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.gson.*
 import java.lang.reflect.Type
 import java.util.*
@@ -53,7 +54,7 @@ class User(val id: String, val token: String) {
         val networkInfo = NetworkInfo()
 
         networkInfo.feedbackAccess = false
-        networkInfo.mapAccessUntil = System.currentTimeMillis()
+        networkInfo.mapAccessUntil = System.currentTimeMillis() + DAY_IN_MILLISECONDS
         networkInfo.personalMapAccessUntil = 0
 
         this.networkInfo = networkInfo
