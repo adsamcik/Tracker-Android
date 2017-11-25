@@ -28,7 +28,13 @@ class Signin {
         when {
             this.user != null && user == null -> {
                 updateStatus(SigninStatus.NOT_SIGNED)
-                signout(context)
+                client = null
+                updateStatus(SigninStatus.NOT_SIGNED)
+                Network.clearCookieJar(context)
+                Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
+                DataStore.delete(context, Preferences.PREF_USER_DATA)
+                DataStore.delete(context, Preferences.PREF_USER_STATS)
+                callOnSigninCallbacks()
             }
             user == null -> updateStatus(SigninStatus.SIGNIN_FAILED)
             user.isServerDataAvailable -> updateStatus(SigninStatus.SIGNED)
@@ -98,14 +104,7 @@ class Signin {
     private fun signout(context: Context) {
         assert(status.success)
         client!!.signOut(context)
-        client = null
-        user = null
-        updateStatus(SigninStatus.NOT_SIGNED)
-        Network.clearCookieJar(context)
-        Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
-        DataStore.delete(context, Preferences.PREF_USER_DATA)
-        DataStore.delete(context, Preferences.PREF_USER_STATS)
-        callOnSigninCallbacks()
+
     }
 
     enum class SigninStatus(val value: Int) {
