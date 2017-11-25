@@ -25,16 +25,16 @@ class MockSignInClient : ISignInClient {
             return
         }
 
-        val left = (System.currentTimeMillis() % 4).toInt()
-        Log.d("MockSigninSignals", "State " + left)
-        if (left == 2) {
+        val state = (System.currentTimeMillis() % 4).toInt()
+        Log.d("MockSigninSignals", "State " + state)
+        if (state == 2) {
             userValueCallback.invoke(context, null)
             return
         }
 
         val user = User("MOCKED", "BLEH")
         Preferences.getPref(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
-        when (left) {
+        when (state) {
             0 -> user.mockServerData()
             1 -> {
                 //server data received later on

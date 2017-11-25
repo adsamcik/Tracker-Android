@@ -27,9 +27,7 @@ class Signin {
                 DataStore.delete(context, Preferences.PREF_USER_STATS)
                 SigninStatus.NOT_SIGNED
             }
-            user == null -> {
-                SigninStatus.SIGNIN_FAILED
-            }
+            user == null -> SigninStatus.SIGNIN_FAILED
             user.isServerDataAvailable -> SigninStatus.SIGNED
             else -> SigninStatus.SIGNED_NO_DATA
         }
@@ -44,6 +42,9 @@ class Signin {
     else
         GoogleSignInSignalsClient()
 
+    init {
+        instance = this
+    }
 
     private constructor(activity: Activity, callback: ((User?) -> Unit)?, silent: Boolean) {
         if (callback != null)
@@ -159,15 +160,15 @@ class Signin {
         suspend fun signIn(activity: Activity, silentOnly: Boolean): User? =
                 suspendCoroutine { cont ->
                     if (instance == null)
-                        instance = Signin(activity, { cont.resume(it) }, silentOnly)
+                        Signin(activity, {
+                            cont.resume(it)
+                        }, silentOnly)
                     else if (status.failed && !silentOnly) {
                         instance!!.client.signIn(activity, { context, value ->
                             instance!!.onSignInInternal.invoke(context, value)
                             cont.resume(value)
                         })
                     }
-
-                    cont.resume(instance!!.user)
                 }
 
         fun signOut(context: Context) {

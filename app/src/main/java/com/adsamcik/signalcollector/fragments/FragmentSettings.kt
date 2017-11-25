@@ -144,7 +144,8 @@ class FragmentSettings : Fragment(), ITabFragment {
                                             onUserStateChange(Signin.SigninStatus.SIGNED, value)
                                         })
                                     }
-                                }
+                                } else
+                                    SnackMaker(activity!!).showSnackbar(R.string.error_failed_signin)
                             }
                         }
                         signedInMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
