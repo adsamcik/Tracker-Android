@@ -119,10 +119,11 @@ class FragmentSettings : Fragment(), ITabFragment {
             launch(UI) {
                 when (status) {
                     Signin.SigninStatus.SIGNED -> {
-                        signedInMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
                         signedInMenu.visibility = View.VISIBLE
                         signedInMenu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
                         signInButton.visibility = View.GONE
+                        //todo
+                        resolveUserMenuOnLogin(user!!, Prices())
                     }
                     Signin.SigninStatus.SIGNED_NO_DATA -> {
                         signedInMenu.visibility = View.VISIBLE
@@ -136,9 +137,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                             async {
                                 val usr = Signin.signIn(activity!!, false)
                                 if (usr != null) {
-                                    if (usr.isServerDataAvailable)
-                                        onUserStateChange(Signin.SigninStatus.SIGNED, user)
-                                    else {
+                                    if (!usr.isServerDataAvailable) {
                                         onUserStateChange(Signin.SigninStatus.SIGNED_NO_DATA, user)
                                         usr.addServerDataCallback({ value ->
                                             onUserStateChange(Signin.SigninStatus.SIGNED, value)
@@ -681,6 +680,8 @@ class FragmentSettings : Fragment(), ITabFragment {
             else
                 personalMapAccessTimeTextView.visibility = View.GONE
             (userMapAccessLayout.getChildAt(2) as TextView).text = String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
+
+            signedInMenu!!.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
         }
 
         if (u.networkInfo!!.hasMapAccess())
