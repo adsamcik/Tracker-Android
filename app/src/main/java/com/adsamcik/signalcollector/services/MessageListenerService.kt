@@ -57,7 +57,7 @@ class MessageListenerService : FirebaseMessagingService() {
                         }
 
                         ChallengeManager.getChallenges(this, false, IStateValueCallback{ source, challenges ->
-                            if (source.isSuccess && challenges != null) {
+                            if (source.success && challenges != null) {
                                 for (challenge in challenges) {
                                     if (challenge.type == challengeType) {
                                         challenge.setDone()

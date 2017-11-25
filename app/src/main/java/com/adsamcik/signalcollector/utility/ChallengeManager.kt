@@ -17,7 +17,7 @@ object ChallengeManager {
         val context = ctx.applicationContext
         launch {
             val str = NetworkLoader.requestStringSignedAsync(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST)
-            if (str.first.isSuccess) {
+            if (str.first.success) {
                 val gsonBuilder = GsonBuilder()
                 gsonBuilder.registerTypeAdapter(Challenge::class.java, ChallengeDeserializer())
                 val gson = gsonBuilder.create()
@@ -33,8 +33,8 @@ object ChallengeManager {
 
     fun getChallenges(ctx: Context, force: Boolean, callback: IStateValueCallback<NetworkLoader.Source, Array<Challenge>?>) {
         val context = ctx.applicationContext
-        NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, IStateValueCallback { source, jsonChallenges ->
-            if (!source.isSuccess)
+        NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, { source, jsonChallenges ->
+            if (!source.success)
                 callback.callback(source, null)
             else {
                 val gsonBuilder = GsonBuilder()

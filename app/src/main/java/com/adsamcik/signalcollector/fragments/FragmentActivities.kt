@@ -48,7 +48,7 @@ class FragmentActivities : Fragment(), ITabFragment {
         val context = activity!!.applicationContext
         launch {
             val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
-            if (!source.isSuccess)
+            if (!source.success)
                 SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
             else {
                 activity.runOnUiThread { listViewChallenges!!.adapter = ChallengesAdapter(context, challenges!!) }

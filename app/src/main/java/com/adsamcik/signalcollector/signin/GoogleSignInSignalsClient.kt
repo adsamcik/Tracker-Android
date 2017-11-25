@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.utility.Preferences
@@ -94,7 +93,7 @@ class GoogleSignInSignalsClient : ISignInClient {
             FirebaseCrash.report(Throwable("Token is null"))
         //}
 
-        NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, IStateValueCallback { state, value ->
+        NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, { state, value ->
             if (state.isDataAvailable) {
                 user.deserializeServerData(value!!)
             }

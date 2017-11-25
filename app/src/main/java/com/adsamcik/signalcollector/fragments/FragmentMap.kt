@@ -24,7 +24,9 @@ import android.widget.EditText
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
-import com.adsamcik.signalcollector.interfaces.*
+import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
+import com.adsamcik.signalcollector.interfaces.IString
+import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
@@ -169,7 +171,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                 menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
                             if (networkInfo.hasMapAccess())
-                                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, IStateValueCallback { _, layerArray ->
+                                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, { _, layerArray ->
                                     if (fabTwo != null && layerArray != null) {
                                         var savedOverlay = Preferences.getPref(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                                         if (!MapLayer.contains(layerArray, savedOverlay)) {
