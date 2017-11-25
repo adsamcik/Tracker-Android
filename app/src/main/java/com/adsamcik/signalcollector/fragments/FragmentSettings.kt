@@ -543,6 +543,9 @@ class FragmentSettings : Fragment(), ITabFragment {
     }
 
     private fun resolveUserMenuOnLogin(u: User) {
+        if (activity == null)
+            return
+
         val activity = activity!!
 
         if (!u.isServerDataAvailable) {

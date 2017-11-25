@@ -138,7 +138,7 @@ class Signin {
                 if (callback != null)
                     instance!!.onSignedCallbackList.add(callback)
                 instance!!.client.signIn(activity, instance!!.onSignInInternal)
-            } else if (instance?.user != null)
+            } else if (instance!!.user != null)
                 callback?.invoke(instance!!.user)
 
             return instance!!

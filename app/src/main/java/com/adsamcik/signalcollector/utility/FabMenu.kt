@@ -180,7 +180,7 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         if (isVisible)
             return
 
-        adapter.filter.filter(" ") { _ ->
+        adapter.filter.filter("") { _ ->
             isVisible = true
             boundsCalculated = false
 
