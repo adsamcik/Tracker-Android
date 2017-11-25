@@ -25,22 +25,24 @@ class Signin {
         }
 
     private val onSignInInternal: (Context, User?) -> Unit = { context, user ->
-        val userNull = this.user == null
-        this.user = user
-        when {
-            !userNull && user == null -> {
+
+        val status = when {
+            this.user != null && user == null -> {
                 client = null
                 Network.clearCookieJar(context)
                 Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
                 DataStore.delete(context, Preferences.PREF_USER_DATA)
                 DataStore.delete(context, Preferences.PREF_USER_STATS)
                 callOnSigninCallbacks()
-                updateStatus(SigninStatus.NOT_SIGNED)
+                SigninStatus.NOT_SIGNED
             }
-            user == null -> updateStatus(SigninStatus.SIGNIN_FAILED)
-            user.isServerDataAvailable -> updateStatus(SigninStatus.SIGNED)
-            else -> updateStatus(SigninStatus.SIGNED_NO_DATA)
+            user == null -> SigninStatus.SIGNIN_FAILED
+            user.isServerDataAvailable -> SigninStatus.SIGNED
+            else -> SigninStatus.SIGNED_NO_DATA
         }
+
+        this.user = user
+        updateStatus(status)
         callOnSigninCallbacks()
     }
 
