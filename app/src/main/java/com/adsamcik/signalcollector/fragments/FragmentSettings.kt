@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.signin.User
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
@@ -552,7 +553,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         async {
             val priceRequestState = NetworkLoader.requestSignedAsync(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices::class.java)
             if (priceRequestState.first.success) {
-                val prices = priceRequestState.second!!
+                val prices = if (useMock) Prices.mock() else priceRequestState.second!!
                 launch(UI) {
                     val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault())
                     val userInfoLayout = signedInMenu!!.getChildAt(0) as LinearLayout

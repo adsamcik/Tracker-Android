@@ -158,23 +158,25 @@ class Signin {
             return instance
         }
 
-        suspend fun signIn(activity: Activity, silentOnly: Boolean): User? =
-                suspendCoroutine { cont ->
-                    Log.d("Signals", "run00")
-                    if (instance == null)
-                        Signin(activity, {
-                            cont.resume(it)
-                            Log.d("Signals", "run01")
-                        }, silentOnly)
-                    else if (status.failed && !silentOnly) {
-                        instance!!.client.signIn(activity, { context, value ->
-                            instance!!.onSignInInternal.invoke(context, value)
-                            Log.d("Signals", "run021")
-                            cont.resume(value)
-                            Log.d("Signals", "run022")
-                        })
-                    }
+        suspend fun signIn(activity: Activity, silentOnly: Boolean): User? {
+            RuntimeException().printStackTrace()
+            return suspendCoroutine { cont ->
+                Log.d("Signals", "run00")
+                if (instance == null)
+                    Signin(activity, {
+                        cont.resume(it)
+                        Log.d("Signals", "run01")
+                    }, silentOnly)
+                else if (status.failed && !silentOnly) {
+                    instance!!.client.signIn(activity, { context, value ->
+                        instance!!.onSignInInternal.invoke(context, value)
+                        Log.d("Signals", "run021")
+                        cont.resume(value)
+                        Log.d("Signals", "run022")
+                    })
                 }
+            }
+        }
 
         fun signOut(context: Context) {
             instance!!.signout(context)

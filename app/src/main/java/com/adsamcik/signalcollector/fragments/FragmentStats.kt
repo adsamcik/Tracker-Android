@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.fragments
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
 import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
@@ -21,6 +20,7 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.signalcollector.utility.Failure
@@ -98,22 +98,24 @@ class FragmentStats : Fragment(), ITabFragment {
         adapter!!.add(weeklyStats)
 
         refreshingCount = 2
-        Handler().postDelayed({
-            if (refreshingCount > 0)
-                activity.runOnUiThread { refreshLayout!!.isRefreshing = true }
-        }, 100)
 
         NetworkLoader.request(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehavior.FirstLast) })
 
         NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehavior.Any) })
 
-        if (Signin.getUserID(appContext) != null) {
+        if (!useMock && Signin.getUserID(appContext) != null) {
             refreshingCount++
             NetworkLoader.requestSigned(Network.URL_USER_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
                 if (value != null && value.size == 1 && value[0].name.isEmpty())
                     value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
                 handleResponse(activity, state, value, AppendBehavior.First)
             })
+        }
+
+        if (refreshingCount > 0) {
+            launch(UI) {
+                refreshLayout?.isRefreshing = true
+            }
         }
     }
 
@@ -137,15 +139,13 @@ class FragmentStats : Fragment(), ITabFragment {
      */
     private fun addStatsTable(stats: Array<Stat>, @AppendBehavior appendBehavior: Int) {
         for (s in stats) {
-            if (s.data != null) {
-                val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
-                table.title = s.name
-                s.data.indices
-                        .asSequence()
-                        .map { s.data[it] }
-                        .forEach { table.addData(it.id, it.value) }
-                adapter!!.add(table)
-            }
+            val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
+            table.title = s.name
+            s.data.indices
+                    .asSequence()
+                    .map { s.data[it] }
+                    .forEach { table.addData(it.id, it.value) }
+            adapter!!.add(table)
         }
     }
 
