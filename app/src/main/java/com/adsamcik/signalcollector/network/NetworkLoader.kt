@@ -4,10 +4,7 @@ import android.content.Context
 import android.util.Pair
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback
-import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
@@ -30,12 +27,12 @@ object NetworkLoader {
      * @param callback            Callback which is called when the result is ready
      * @param <T>                 Value type
     </T> */
-    fun <T> request(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: IStateValueCallback<Source, T>) {
+    fun <T> request(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
         requestString(Network.client(context, null),
                 Request.Builder().url(url).build(),
                 updateTimeInMinutes,
                 context,
-                preferenceString, IStateValueCallback { src, value -> callback.callback(src, Parser.tryFromJson(value, tClass)) })
+                preferenceString, { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) })
     }
 
     /**
@@ -49,21 +46,41 @@ object NetworkLoader {
      * @param callback            Callback which is called when the result is ready
      * @param <T>                 Value type
     </T> */
-    fun <T> requestSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: IStateValueCallback<Source, T>) {
+    fun <T> requestSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
         Signin.getUserAsync(context, { user ->
             if (user != null)
                 requestString(Network.client(context, user.token),
                         Request.Builder().url(url).build(),
                         updateTimeInMinutes,
                         context,
-                        preferenceString, IStateValueCallback { src, value -> callback.callback(src, Parser.tryFromJson(value, tClass)) })
+                        preferenceString, { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) })
             else
-                callback.callback(Source.NO_DATA_FAILED_SIGNIN, null)
+                callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
         })
     }
 
-    fun test(value: IValueCallback<User>) {
-        value.callback(null)
+    /**
+     * Loads json from the web and converts it to java object
+     *
+     * @param url                 URL
+     * @param updateTimeInMinutes Update time in minutes (if last update was in less minutes, file will be loaded from cache)
+     * @param context             Context
+     * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
+     * @param tClass              Class of the type
+     * @param <T>                 Value type
+    </T> */
+    suspend fun <T> requestSignedAsync(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
+        launch {
+            val user = Signin.getUserAsync(context)
+            if (user != null)
+                requestString(Network.client(context, user.token),
+                        Request.Builder().url(url).build(),
+                        updateTimeInMinutes,
+                        context,
+                        preferenceString, { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) })
+            else
+                cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
+        }
     }
 
     /**
@@ -78,7 +95,7 @@ object NetworkLoader {
         launch {
             val user = Signin.getUserAsync(context)
             if (user != null)
-                requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, IStateValueCallback{source, string ->
+                requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, { source, string ->
                     cont.resume(Pair(source, string))
                 })
             else
@@ -95,21 +112,21 @@ object NetworkLoader {
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      * @param callback            Callback which is called when the result is ready
      */
-    fun requestStringSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, callback: IStateValueCallback<Source, String>) {
+    fun requestStringSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
         Signin.getUserAsync(context, { user ->
             if (user != null)
                 requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
             else
-                callback.callback(Source.NO_DATA_FAILED_SIGNIN, null)
+                callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
         })
     }
 
-    private fun callbackNoData(context: Context, preferenceString: String, callback: IStateValueCallback<Source, String>, lastUpdate: Long, returnCode: Int) {
+    private fun callbackNoData(context: Context, preferenceString: String, callback: (Source, String?) -> Unit, lastUpdate: Long, returnCode: Int) {
         when {
-            returnCode == 403 -> callback.callback(Source.NO_DATA_FAILED_SIGNIN, null)
-            lastUpdate == -1L -> callback.callback(Source.NO_DATA, null)
-            returnCode < 0 -> callback.callback(Source.CACHE_NO_INTERNET, CacheStore.loadString(context, preferenceString))
-            else -> callback.callback(Source.CACHE_INVALID_DATA, CacheStore.loadString(context, preferenceString))
+            returnCode == 403 -> callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
+            lastUpdate == -1L -> callback.invoke(Source.NO_DATA, null)
+            returnCode < 0 -> callback.invoke(Source.CACHE_NO_INTERNET, CacheStore.loadString(context, preferenceString))
+            else -> callback.invoke(Source.CACHE_INVALID_DATA, CacheStore.loadString(context, preferenceString))
         }
     }
 
@@ -122,7 +139,7 @@ object NetworkLoader {
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      * @param callback            Callback which is called when the result is ready
      */
-    private fun requestString(client: OkHttpClient, request: Request, updateTimeInMinutes: Int, ctx: Context, preferenceString: String, callback: IStateValueCallback<Source, String>) {
+    private fun requestString(client: OkHttpClient, request: Request, updateTimeInMinutes: Int, ctx: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
         val context = ctx.applicationContext
         val lastUpdate = Preferences.getPref(context).getLong(preferenceString, -1)
         if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * MINUTE_IN_MILLISECONDS || lastUpdate == -1L || !CacheStore.exists(context, preferenceString)) {
@@ -160,12 +177,12 @@ object NetworkLoader {
                     } else {
                         Preferences.getPref(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply()
                         CacheStore.saveString(context, preferenceString, json, false)
-                        callback.callback(Source.NETWORK, json)
+                        callback.invoke(Source.NETWORK, json)
                     }
                 }
             })
         } else
-            callback.callback(Source.CACHE, CacheStore.loadString(context, preferenceString))
+            callback.invoke(Source.CACHE, CacheStore.loadString(context, preferenceString))
     }
 
     enum class Source {
@@ -177,7 +194,7 @@ object NetworkLoader {
         NO_DATA,
         NO_DATA_FAILED_SIGNIN;
 
-        val isSuccess: Boolean
+        val success: Boolean
             get() = this.ordinal <= 1
 
         val isDataAvailable: Boolean
