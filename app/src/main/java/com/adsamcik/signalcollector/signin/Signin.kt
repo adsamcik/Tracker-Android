@@ -39,46 +39,34 @@ class Signin {
         callOnSigninCallbacks()
     }
 
-    private var client: ISignInClient? = null
-
-    private fun initializeClient() {
-        if (client == null) {
-            client = if (useMock)
-                MockSignInClient()
-            else
-                GoogleSignInSignalsClient()
-        }
-    }
+    private var client: ISignInClient = if (useMock)
+        MockSignInClient()
+    else
+        GoogleSignInSignalsClient()
 
 
     private constructor(activity: Activity, callback: ((User?) -> Unit)?, silent: Boolean) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
-        initializeClient()
         if (silent)
-            client!!.signInSilent(activity, onSignInInternal)
+            client.signInSilent(activity, onSignInInternal)
         else
-            client!!.signIn(activity, onSignInInternal)
+            client.signIn(activity, onSignInInternal)
     }
 
     private constructor(context: Context, callback: ((User?) -> Unit)?) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
-        initializeClient()
-        client!!.signInSilent(context, onSignInInternal)
+        client.signInSilent(context, onSignInInternal)
     }
 
     private fun updateStatus(signinStatus: SigninStatus) {
         when {
-            signinStatus == SigninStatus.NOT_SIGNED -> {
-                instance = null
-                client = null
-            }
+            signinStatus == SigninStatus.NOT_SIGNED -> instance = null
             signinStatus.failed -> {
                 instance = null
-                client = null
                 silentFailed = true
             }
         }
@@ -98,7 +86,7 @@ class Signin {
 
     private fun signout(context: Context) {
         assert(status.success)
-        client!!.signOut(context)
+        client.signOut(context)
     }
 
     enum class SigninStatus(val value: Int) {
@@ -147,7 +135,7 @@ class Signin {
             else if (status.failed && !silentOnly) {
                 if (callback != null)
                     instance!!.onSignedCallbackList.add(callback)
-                instance!!.client!!.signIn(activity, instance!!.onSignInInternal)
+                instance!!.client.signIn(activity, instance!!.onSignInInternal)
             } else if (instance?.user != null)
                 callback?.invoke(instance!!.user)
 
@@ -173,7 +161,7 @@ class Signin {
                     if (instance == null)
                         instance = Signin(activity, { cont.resume(it) }, silentOnly)
                     else if (status.failed && !silentOnly) {
-                        instance!!.client!!.signIn(activity, { context, value ->
+                        instance!!.client.signIn(activity, { context, value ->
                             instance!!.onSignInInternal.invoke(context, value)
                             cont.resume(value)
                         })
@@ -207,7 +195,7 @@ class Signin {
         fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
             val result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent)
             if (result.isSuccess) {
-                instance!!.client!!.onSignInResult(activity, resultCode, intent)
+                instance!!.client.onSignInResult(activity, resultCode, intent)
             } else {
                 onSignedInFailed(activity)
             }
