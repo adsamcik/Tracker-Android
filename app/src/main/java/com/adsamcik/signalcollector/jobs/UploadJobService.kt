@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -166,7 +165,7 @@ class UploadJobService : JobService() {
                 val token = StringWrapper()
                 val userID = StringWrapper()
 
-                Signin.getUserAsync(context, IValueCallback { value ->
+                Signin.getUserAsync(context, { value ->
                     lock.lock()
                     if (value != null) {
                         token.string = value.token

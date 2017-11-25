@@ -3,61 +3,43 @@ package com.adsamcik.signalcollector.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.support.annotation.StringRes
-import android.view.View
-import android.widget.LinearLayout
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.IContextValueCallback
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback
-import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.test.MockSignInClient
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.auth.api.Auth
-import com.google.android.gms.common.SignInButton
-import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.launch
-import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.coroutines.experimental.suspendCoroutine
 
 class Signin {
-    private var status = SigninStatus.NOT_SIGNED
-
-    private var signInButton: WeakReference<SignInButton>? = null
-    private var signedInMenu: WeakReference<LinearLayout>? = null
-    private var activityWeakReference: WeakReference<Activity>? = null
+    private var silentFailed: Boolean = false
 
     var user: User? = null
         private set
 
-    private val onSignedCallbackList = ArrayList<IValueCallback<User>>(2)
-    private var onStateChangeCallback: IStateValueCallback<SigninStatus, User>? = null
-
-    private val onSignInInternal = IContextValueCallback<Context, User> { context, user ->
-        this.user = user
-
-        when {
-            user == null -> updateStatus(SigninStatus.SIGNIN_FAILED, context)
-            user.isServerDataAvailable -> updateStatus(SigninStatus.SIGNED, context)
-            else -> updateStatus(SigninStatus.SIGNED_NO_DATA, context)
+    private val onSignedCallbackList = ArrayList<(User?) -> Unit>(2)
+    var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
+        set(value) {
+            value?.invoke(status, user)
         }
 
+    private val onSignInInternal: (Context, User?) -> Unit = { context, user ->
+        when {
+            this.user != null && user == null -> {
+                updateStatus(SigninStatus.NOT_SIGNED)
+                signout(context)
+            }
+            user == null -> updateStatus(SigninStatus.SIGNIN_FAILED)
+            user.isServerDataAvailable -> updateStatus(SigninStatus.SIGNED)
+            else -> updateStatus(SigninStatus.SIGNED_NO_DATA)
+        }
+
+        this.user = user
         callOnSigninCallbacks()
     }
 
     private var client: ISignInClient? = null
-
-    private var activity: Activity?
-        get() = if (activityWeakReference != null) activityWeakReference!!.get() else null
-        set(activity) {
-            activityWeakReference = WeakReference<Activity>(activity)
-        }
 
     private fun initializeClient() {
         if (client == null) {
@@ -69,13 +51,11 @@ class Signin {
     }
 
 
-    private constructor(activity: Activity, callback: IValueCallback<User>?, silent: Boolean) {
+    private constructor(activity: Activity, callback: ((User?) -> Unit)?, silent: Boolean) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
         instance = this
-
-        this.activity = activity
         initializeClient()
         if (silent)
             client!!.signInSilent(activity, onSignInInternal)
@@ -83,117 +63,49 @@ class Signin {
             client!!.signIn(activity, onSignInInternal)
     }
 
-    private constructor(context: Context, callback: IValueCallback<User>?) {
+    private constructor(context: Context, callback: ((User?) -> Unit)?) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
         instance = this
 
-        activityWeakReference = null
         initializeClient()
         client!!.signInSilent(context, onSignInInternal)
     }
 
-    fun setButtons(signInButton: SignInButton, signedMenu: LinearLayout, context: Context) {
-        this.signInButton = WeakReference(signInButton)
-        this.signedInMenu = WeakReference(signedMenu)
-        updateStatus(status, context)
-    }
-
-    private fun updateStatus(signinStatus: SigninStatus, context: Context) {
-        status = signinStatus
-        if (signInButton != null && signedInMenu != null) {
-            val signInButton = this.signInButton!!.get()
-            val signedMenu = this.signedInMenu!!.get()
-            if (signInButton != null && signedMenu != null) {
-                launch(UI) {
-                    when (status) {
-                        SigninStatus.SIGNED -> {
-                            signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
-                            signedMenu.visibility = View.VISIBLE
-                            signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
-                            signInButton.visibility = View.GONE
-                        }
-                        SigninStatus.SIGNED_NO_DATA -> {
-                            signedMenu.visibility = View.VISIBLE
-                            signedMenu.findViewById<View>(R.id.sign_out_button).setOnClickListener { _ -> signout(context) }
-                            signInButton.visibility = View.GONE
-                        }
-                        SigninStatus.SIGNIN_FAILED, SigninStatus.SILENT_SIGNIN_FAILED, SigninStatus.NOT_SIGNED -> {
-                            signInButton.visibility = View.VISIBLE
-                            signedMenu.visibility = View.GONE
-                            signInButton.setOnClickListener { _ ->
-                                val a = activity
-                                if (a != null) {
-                                    initializeClient()
-                                    client!!.signIn(a, IContextValueCallback { ctx, user ->
-                                        instance!!.user = user
-                                        if (user != null) {
-                                            if (user.isServerDataAvailable)
-                                                updateStatus(SigninStatus.SIGNED, ctx)
-                                            else {
-                                                updateStatus(SigninStatus.SIGNED_NO_DATA, ctx)
-                                                user.addServerDataCallback(INonNullValueCallback { value ->
-                                                    instance!!.user = value
-                                                    updateStatus(SigninStatus.SIGNED, ctx)
-                                                })
-                                            }
-                                        }
-                                    })
-                                }
-                            }
-                            signedMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
-                        }
-                        SigninStatus.SIGNIN_IN_PROGRESS -> {
-                            signInButton.visibility = View.GONE
-                            signedMenu.visibility = View.GONE
-                        }
-                    }
-                }
+    private fun updateStatus(signinStatus: SigninStatus) {
+        when {
+            signinStatus == SigninStatus.NOT_SIGNED -> client = null
+            signinStatus.failed -> {
+                client = null
+                silentFailed = true
             }
         }
+        onStateChangeCallback?.invoke(signinStatus, user)
     }
 
-    private fun onSignInFailed(context: Context) {
-        updateStatus(SigninStatus.SIGNIN_FAILED, context)
+    private fun onSignInFailed() {
+        updateStatus(SigninStatus.SIGNIN_FAILED)
         callOnSigninCallbacks()
     }
 
     @Synchronized private fun callOnSigninCallbacks() {
         for (c in onSignedCallbackList)
-            c.callback(user)
+            c.invoke(user)
         onSignedCallbackList.clear()
     }
 
-    private fun onSignedOut(context: Context) {
-        updateStatus(SigninStatus.NOT_SIGNED, context)
-        showSnackbar(R.string.signed_out_message)
-    }
-
-    private fun showSnackbar(@StringRes messageResId: Int) {
-        val a = activity
-        if (a != null && a is MainActivity)
-            SnackMaker(a).showSnackbar(a.getString(messageResId))
-    }
-
-    private fun showSnackbar(message: String) {
-        val a = activity
-        if (a != null && a is MainActivity)
-            SnackMaker(a).showSnackbar(message)
-    }
-
     private fun signout(context: Context) {
-        if (status == SigninStatus.SIGNED || status == SigninStatus.SIGNED_NO_DATA) {
-            client!!.signOut(context)
-            client = null
-            user = null
-            updateStatus(SigninStatus.NOT_SIGNED, context)
-            Network.clearCookieJar(context)
-            Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
-            DataStore.delete(context, Preferences.PREF_USER_DATA)
-            DataStore.delete(context, Preferences.PREF_USER_STATS)
-            callOnSigninCallbacks()
-        }
+        assert(status.success)
+        client!!.signOut(context)
+        client = null
+        user = null
+        updateStatus(SigninStatus.NOT_SIGNED)
+        Network.clearCookieJar(context)
+        Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
+        DataStore.delete(context, Preferences.PREF_USER_DATA)
+        DataStore.delete(context, Preferences.PREF_USER_STATS)
+        callOnSigninCallbacks()
     }
 
     enum class SigninStatus(val value: Int) {
@@ -202,39 +114,55 @@ class Signin {
         SIGNED(2),
         SIGNED_NO_DATA(3),
         SILENT_SIGNIN_FAILED(4),
-        SIGNIN_FAILED(5)
+        SIGNIN_FAILED(5);
+
+
+        val failed: Boolean
+            get() = value == SILENT_SIGNIN_FAILED.ordinal || value == SIGNIN_FAILED.ordinal
+
+        val success: Boolean
+            get() = value == SIGNED_NO_DATA.ordinal || value == SIGNED.ordinal
     }
 
     companion object {
         const val RC_SIGN_IN = 4654
-        private const val ERROR_REQUEST_CODE = 3543
 
         private var instance: Signin? = null
 
-        fun signin(activity: Activity, callback: IValueCallback<User>?, silentOnly: Boolean): Signin {
+        val isSignedIn: Boolean
+            get() = instance?.user != null
+
+        val status: SigninStatus
+            get() = when {
+                instance == null -> SigninStatus.NOT_SIGNED
+                instance!!.silentFailed -> SigninStatus.SILENT_SIGNIN_FAILED
+                instance!!.user == null -> SigninStatus.SIGNIN_IN_PROGRESS
+                instance!!.user!!.isServerDataAvailable -> SigninStatus.SIGNED
+                else -> SigninStatus.SIGNED_NO_DATA
+            }
+
+        fun signIn(activity: Activity, callback: ((User?) -> Unit)?, silentOnly: Boolean): Signin {
             if (instance == null)
                 instance = Signin(activity, callback, silentOnly)
-            else if (instance!!.activity == null || instance!!.status == SigninStatus.SIGNIN_FAILED && !silentOnly) {
+            else if (status.failed && !silentOnly) {
                 if (callback != null)
                     instance!!.onSignedCallbackList.add(callback)
-                instance!!.activity = activity
-                if (!silentOnly && (instance!!.status == SigninStatus.SILENT_SIGNIN_FAILED || instance!!.status == SigninStatus.SIGNIN_FAILED))
-                    instance!!.client!!.signIn(activity, instance!!.onSignInInternal)
-            } else if (callback != null && instance!!.user != null)
-                callback.callback(instance!!.user)
+                instance!!.client!!.signIn(activity, instance!!.onSignInInternal)
+            } else if (instance?.user != null)
+                callback?.invoke(instance!!.user)
 
             return instance!!
         }
 
-        fun signin(context: Context, callback: IValueCallback<User>?): Signin? {
+        fun signIn(context: Context, callback: ((User?) -> Unit)?): Signin? {
             if (instance == null)
             //instance is assigned in constructor to make it sooner available
                 Signin(context, callback)
             else if (callback != null) {
                 if (instance!!.user != null)
-                    callback.callback(instance!!.user)
-                else if (instance!!.status == SigninStatus.SIGNIN_FAILED || instance!!.status == SigninStatus.SILENT_SIGNIN_FAILED)
-                    callback.callback(null)
+                    callback.invoke(instance!!.user)
+                else if (status.failed)
+                    callback.invoke(null)
                 else
                     instance!!.onSignedCallbackList.add(callback)
             }
@@ -242,55 +170,55 @@ class Signin {
             return instance
         }
 
-        fun getUserAsync(context: Context, callback: IValueCallback<User>) {
+        suspend fun signIn(activity: Activity, silentOnly: Boolean): User? =
+                suspendCoroutine { cont ->
+                    if (instance == null)
+                        instance = Signin(activity, { cont.resume(it) }, silentOnly)
+                    else if (status.failed && !silentOnly) {
+                        instance!!.client!!.signIn(activity, { context, value ->
+                            instance!!.onSignInInternal.invoke(context, value)
+                            cont.resume(value)
+                        })
+                    }
+
+                    cont.resume(instance!!.user)
+                }
+
+        fun signOut(context: Context) {
+            instance!!.signout(context)
+        }
+
+        fun getUserAsync(context: Context, callback: (User?) -> Unit) {
             if (instance?.user != null)
-                callback.callback(instance!!.user)
+                callback.invoke(instance!!.user)
             else
-                signin(context, callback)
+                signIn(context, callback)
         }
 
         suspend fun getUserAsync(context: Context): User? = suspendCoroutine { cont ->
-            getUserAsync(context, IValueCallback { user -> cont.resume(user) })
+            getUserAsync(context, { user -> cont.resume(user) })
         }
 
         fun getUserID(context: Context): String? =
                 Preferences.getPref(context).getString(Preferences.PREF_USER_ID, null)
 
         fun removeOnSignedListeners() {
-            if (instance == null)
-                return
-            instance!!.onSignedCallbackList.clear()
+            instance?.onSignedCallbackList?.clear()
         }
-
-        val isSignedIn: Boolean
-            get() = instance != null && instance!!.user != null
 
         fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
             val result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent)
             if (result.isSuccess) {
                 instance!!.client!!.onSignInResult(activity, resultCode, intent)
             } else {
-                onSignedInFailed(activity, result.status.statusCode)
+                onSignedInFailed(activity)
             }
 
         }
 
-        private fun onSignedInFailed(context: Context, statusCode: Int) {
-            val signin = signin(context, null)
-            signin!!.onSignInFailed(context)
-            signin.showSnackbar(context.getString(R.string.error_failed_signin_errorcode, statusCode))
-        }
-
-        val isMock: Boolean
-            get() {
-                if (instance == null)
-                    throw RuntimeException("Cannot ask if is mock before signing in")
-
-                return instance!!.client is MockSignInClient
-            }
-
-        fun onSignOut(context: Context) {
-            instance!!.onSignedOut(context)
+        private fun onSignedInFailed(context: Context) {
+            val signin = signIn(context, null)
+            signin!!.onSignInFailed()
         }
     }
 }

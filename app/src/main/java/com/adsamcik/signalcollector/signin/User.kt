@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.signin
 
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.test.useMock
 import com.google.gson.*
 import java.lang.reflect.Type
@@ -17,7 +16,7 @@ class User(val id: String, val token: String) {
     var networkPreferences: NetworkPreferences? = null
         private set
 
-    private var callbackList: MutableList<INonNullValueCallback<User>>? = null
+    private var callbackList: MutableList<(User) -> Unit>? = null
 
     val isServerDataAvailable: Boolean
         get() = networkInfo != null && networkPreferences != null
@@ -38,7 +37,7 @@ class User(val id: String, val token: String) {
 
         if (callbackList != null) {
             for (cb in callbackList!!)
-                cb.callback(this)
+                cb.invoke(this)
             callbackList = null
         }
     }
@@ -61,9 +60,9 @@ class User(val id: String, val token: String) {
         this.networkPreferences = networkPreferences
     }
 
-    fun addServerDataCallback(callback: INonNullValueCallback<User>) {
+    fun addServerDataCallback(callback: (User) -> Unit) {
         if (isServerDataAvailable)
-            callback.callback(this)
+            callback.invoke(this)
         else {
             if (callbackList == null)
                 callbackList = ArrayList()

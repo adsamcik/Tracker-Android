@@ -27,7 +27,7 @@ class DataStoreTest {
     @Test
     @Throws(Exception::class)
     fun saveArraySigned() {
-        Signin.signin(appContext, null)
+        Signin.signIn(appContext, null)
 
         if (!Signin.isSignedIn) {
             Log.w("SignalsTest", "Please sign in before doing this test")

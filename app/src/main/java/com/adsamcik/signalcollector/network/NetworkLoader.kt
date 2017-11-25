@@ -50,7 +50,7 @@ object NetworkLoader {
      * @param <T>                 Value type
     </T> */
     fun <T> requestSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: IStateValueCallback<Source, T>) {
-        Signin.getUserAsync(context, IValueCallback{ user ->
+        Signin.getUserAsync(context, { user ->
             if (user != null)
                 requestString(Network.client(context, user.token),
                         Request.Builder().url(url).build(),
@@ -96,7 +96,7 @@ object NetworkLoader {
      * @param callback            Callback which is called when the result is ready
      */
     fun requestStringSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, callback: IStateValueCallback<Source, String>) {
-        Signin.getUserAsync(context, IValueCallback { user ->
+        Signin.getUserAsync(context, { user ->
             if (user != null)
                 requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
             else

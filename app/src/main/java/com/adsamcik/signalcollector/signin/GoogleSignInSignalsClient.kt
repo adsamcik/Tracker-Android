@@ -4,9 +4,7 @@ package com.adsamcik.signalcollector.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.interfaces.IContextValueCallback
 import com.adsamcik.signalcollector.interfaces.IStateValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
@@ -25,7 +23,7 @@ class GoogleSignInSignalsClient : ISignInClient {
     private var client: GoogleSignInClient? = null
     private var user: User? = null
 
-    private var userValueCallback: IContextValueCallback<Context, User>? = null
+    private var userValueCallback: ((Context, User?) -> Unit)? = null
 
     private fun getOptions(context: Context): GoogleSignInOptions {
         return GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -46,23 +44,23 @@ class GoogleSignInSignalsClient : ISignInClient {
         }
     }
 
-    override fun signIn(activity: Activity, userValueCallback: IContextValueCallback<Context, User>) {
+    override fun signIn(activity: Activity, userValueCallback: (Context, User?) -> Unit) {
         client = GoogleSignIn.getClient(activity, getOptions(activity))
 
         val onCompleteListener = OnCompleteListener<GoogleSignInAccount> { task ->
             try {
                 user = resolveUser(activity, task.getResult(ApiException::class.java))
-                userValueCallback.callback(activity, user)
+                userValueCallback.invoke(activity, user!!)
             } catch (e: ApiException) {
                 this.userValueCallback = userValueCallback
                 val signInIntent = client!!.signInIntent
-                activity.startActivityForResult(signInIntent, ISignInClient.Companion.RC_SIGN_IN)
+                activity.startActivityForResult(signInIntent, Signin.RC_SIGN_IN)
             }
         }
         silentSignInInternal(onCompleteListener)
     }
 
-    override fun signInSilent(context: Context, userValueCallback: IContextValueCallback<Context, User>) {
+    override fun signInSilent(context: Context, userValueCallback: (Context, User?) -> Unit) {
         client = GoogleSignIn.getClient(context, getOptions(context))
         val onCompleteListener = OnCompleteListener<GoogleSignInAccount> { task ->
             try {
@@ -75,7 +73,7 @@ class GoogleSignInSignalsClient : ISignInClient {
     }
 
     override fun signOut(context: Context) {
-        client!!.signOut().addOnCompleteListener { _ -> Signin.onSignOut(context) }
+        client!!.signOut().addOnCompleteListener { _ -> userValueCallback?.invoke(context, null) }
     }
 
     private fun resolveUser(context: Context, account: GoogleSignInAccount): User {
@@ -84,8 +82,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         //todo move to Signin
         Preferences.getPref(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
 
-        if (userValueCallback != null)
-            userValueCallback!!.callback(context, user)
+        userValueCallback?.invoke(context, user)
 
         //todo uncomment this when server is ready
         //SharedPreferences sp = Preferences.getPref(context);
@@ -111,6 +108,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         if (result.isSuccess) {
             val acct = result.signInAccount!!
             user = resolveUser(activity, acct)
-        }
+        } else
+            userValueCallback?.invoke(activity, null)
     }
 }

@@ -51,7 +51,7 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        Signin.signin(this, null, true)
+        Signin.signIn(this, null, true)
 
         if (Assist.checkPlayServices(this))
             ActivityService.requestAutoTracking(this, MainActivity::class.java)

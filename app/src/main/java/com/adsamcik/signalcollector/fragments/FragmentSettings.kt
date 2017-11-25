@@ -36,6 +36,7 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.signin.User
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
@@ -45,6 +46,7 @@ import com.google.android.gms.common.SignInButton
 import com.google.firebase.crash.FirebaseCrash
 import com.google.gson.Gson
 import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.launch
 import okhttp3.Call
 import okhttp3.Callback
@@ -89,12 +91,12 @@ class FragmentSettings : Fragment(), ITabFragment {
 
     private var dummyNotificationIndex = 1972
 
-    private val userSignedCallback: IValueCallback<User> = IValueCallback { u ->
+    private val userSignedCallback: (User?) -> Unit = { u ->
         val activity = activity
         if (activity != null) {
             if (u != null) {
-                if (Signin.isMock) {
-                    u.addServerDataCallback(INonNullValueCallback { user -> resolveUserMenuOnLogin(user, Prices()) })
+                if (useMock) {
+                    u.addServerDataCallback({ user -> resolveUserMenuOnLogin(user, Prices()) })
                 } else
                     NetworkLoader.request(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices::class.java, IStateValueCallback { s, p ->
                         //todo check when server data are available
@@ -102,12 +104,58 @@ class FragmentSettings : Fragment(), ITabFragment {
                             if (p == null)
                                 SnackMaker(activity).showSnackbar(R.string.error_invalid_data)
                             else
-                                u.addServerDataCallback(INonNullValueCallback { user -> resolveUserMenuOnLogin(user, p) })
+                                u.addServerDataCallback({ user -> resolveUserMenuOnLogin(user, p) })
                         } else
                             SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
                     })
             } else
                 SnackMaker(activity).showSnackbar(R.string.error_failed_signin)
+        }
+    }
+
+    private fun onUserStateChange(status: Signin.SigninStatus, user: User?) {
+        if (signInButton != null && signedInMenu != null) {
+            val signInButton = signInButton!!
+            val signedInMenu = signedInMenu!!
+            launch(UI) {
+                when (status) {
+                    Signin.SigninStatus.SIGNED -> {
+                        signedInMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
+                        signedInMenu.visibility = View.VISIBLE
+                        signedInMenu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
+                        signInButton.visibility = View.GONE
+                    }
+                    Signin.SigninStatus.SIGNED_NO_DATA -> {
+                        signedInMenu.visibility = View.VISIBLE
+                        signedInMenu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
+                        signInButton.visibility = View.GONE
+                    }
+                    Signin.SigninStatus.SIGNIN_FAILED, Signin.SigninStatus.SILENT_SIGNIN_FAILED, Signin.SigninStatus.NOT_SIGNED -> {
+                        signInButton.visibility = View.VISIBLE
+                        signedInMenu.visibility = View.GONE
+                        signInButton.setOnClickListener { _ ->
+                            async {
+                                val usr = Signin.signIn(activity!!, false)
+                                if (usr != null) {
+                                    if (usr.isServerDataAvailable)
+                                        onUserStateChange(Signin.SigninStatus.SIGNED, user)
+                                    else {
+                                        onUserStateChange(Signin.SigninStatus.SIGNED_NO_DATA, user)
+                                        usr.addServerDataCallback({ value ->
+                                            onUserStateChange(Signin.SigninStatus.SIGNED, value)
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                        signedInMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
+                    }
+                    Signin.SigninStatus.SIGNIN_IN_PROGRESS -> {
+                        signInButton.visibility = View.GONE
+                        signedInMenu.visibility = View.GONE
+                    }
+                }
+            }
         }
     }
 
@@ -257,8 +305,7 @@ class FragmentSettings : Fragment(), ITabFragment {
 
     private fun initializeSignIn(activity: Activity) {
         if (Assist.hasNetwork(activity)) {
-            signin = Signin.signin(activity, userSignedCallback, true)
-            signin!!.setButtons(signInButton!!, signedInMenu!!, activity)
+            signin = Signin.signIn(activity, userSignedCallback, true)
         } else
             signInNoConnection!!.visibility = View.VISIBLE
     }

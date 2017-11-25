@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentIntro
 import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
@@ -124,7 +123,7 @@ class IntroActivity : AppIntro2() {
                         SnackMaker(currentFragment.view!!).showSnackbar(R.string.error_failed_signin)
                         dialog.dismiss()
                     } else {
-                        Signin.signin(activity, IValueCallback { user ->
+                        Signin.signIn(activity, { user ->
                             if (user == null)
                                 SnackMaker(currentFragment.view!!).showSnackbar(R.string.error_failed_signin)
                             dialog.dismiss()

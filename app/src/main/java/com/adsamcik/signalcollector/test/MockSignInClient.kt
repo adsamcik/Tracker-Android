@@ -6,7 +6,6 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.adsamcik.signalcollector.interfaces.IContextValueCallback
 import com.adsamcik.signalcollector.signin.ISignInClient
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Preferences
@@ -14,21 +13,22 @@ import com.adsamcik.signalcollector.utility.Preferences
 
 class MockSignInClient : ISignInClient {
     private var u: User? = null
+    private var userValueCallback: ((Context, User?) -> Unit)? = null
 
-    override fun signIn(activity: Activity, userValueCallback: IContextValueCallback<Context, User>) {
+    override fun signIn(activity: Activity, userValueCallback: (Context, User?) -> Unit) {
         signInSilent(activity, userValueCallback)
     }
 
-    override fun signInSilent(context: Context, userValueCallback: IContextValueCallback<Context, User>) {
+    override fun signInSilent(context: Context, userValueCallback: (Context, User?) -> Unit) {
         if (u != null) {
-            userValueCallback.callback(context, u)
+            userValueCallback.invoke(context, u)
             return
         }
 
         val left = (System.currentTimeMillis() % 4).toInt()
         Log.d("MockSigninSignals", "State " + left)
         if (left == 2) {
-            userValueCallback.callback(context, null)
+            userValueCallback.invoke(context, null)
             return
         }
 
@@ -46,11 +46,13 @@ class MockSignInClient : ISignInClient {
             }
         }//no server data received
 
-        userValueCallback.callback(context, user)
+        userValueCallback.invoke(context, user)
         u = user
+        this.userValueCallback = userValueCallback
     }
 
     override fun signOut(context: Context) {
+        userValueCallback!!.invoke(context, null)
         u = null
     }
 

@@ -156,9 +156,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         mapLayerFilterRule = MapFilterRule()
 
-        Signin.getUserAsync(fActivity!!, IValueCallback { user ->
+        Signin.getUserAsync(fActivity!!, { user ->
             if (fabTwo != null && user != null)
-                user.addServerDataCallback(INonNullValueCallback { u ->
+                user.addServerDataCallback({ u ->
                     if (fabTwo != null) {
                         val networkInfo = u.networkInfo!!
                         if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
