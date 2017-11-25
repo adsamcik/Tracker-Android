@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.test.MockSignInClient
@@ -71,6 +70,7 @@ class Signin {
                 instance = null
                 silentFailed = true
             }
+            signinStatus.success -> silentFailed = false
         }
         onStateChangeCallback?.invoke(signinStatus, user)
     }
@@ -124,8 +124,8 @@ class Signin {
 
         val status: SigninStatus
             get() = when {
+                instance == null && silentFailed -> SigninStatus.SILENT_SIGNIN_FAILED
                 instance == null -> SigninStatus.NOT_SIGNED
-                silentFailed -> SigninStatus.SILENT_SIGNIN_FAILED
                 instance!!.user == null -> SigninStatus.SIGNIN_IN_PROGRESS
                 instance!!.user!!.isServerDataAvailable -> SigninStatus.SIGNED
                 else -> SigninStatus.SIGNED_NO_DATA
@@ -145,7 +145,7 @@ class Signin {
         }
 
         fun signIn(context: Context, callback: ((User?) -> Unit)?): Signin? {
-            if (instance == null)
+            if (instance == null && !silentFailed)
                 instance = Signin(context, callback)
             else if (callback != null) {
                 when {
@@ -159,27 +159,22 @@ class Signin {
         }
 
         suspend fun signIn(activity: Activity, silentOnly: Boolean): User? {
-            RuntimeException().printStackTrace()
             return suspendCoroutine { cont ->
-                Log.d("Signals", "run00")
                 if (instance == null)
                     Signin(activity, {
                         cont.resume(it)
-                        Log.d("Signals", "run01")
                     }, silentOnly)
                 else if (status.failed && !silentOnly) {
                     instance!!.client.signIn(activity, { context, value ->
                         instance!!.onSignInInternal.invoke(context, value)
-                        Log.d("Signals", "run021")
                         cont.resume(value)
-                        Log.d("Signals", "run022")
                     })
                 }
             }
         }
 
         fun signOut(context: Context) {
-            instance!!.signout(context)
+            instance?.signout(context)
         }
 
         fun getUserAsync(context: Context, callback: (User?) -> Unit) {
