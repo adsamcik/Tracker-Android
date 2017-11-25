@@ -75,7 +75,7 @@ object NetworkLoader {
             val user = Signin.getUserAsync(context)
             if (user != null) {
                 if (useMock)
-                    cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.NETWORK else Source.CACHE_CONNECTION_FAILED, null))
+                    cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.NETWORK else Source.NO_DATA, null))
                 else
                     requestString(Network.client(context, user.token),
                             Request.Builder().url(url).build(),

@@ -111,7 +111,7 @@ class NoiseTestingActivity : DetailActivity() {
             return null
         }
 
-        override fun onCancelled(aVoid: Void) {
+        override fun onCancelled(aVoid: Void?) {
             super.onCancelled(aVoid)
             if (noiseTracker.isRunning)
                 noiseTracker.stop()
