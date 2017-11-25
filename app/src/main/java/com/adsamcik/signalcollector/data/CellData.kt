@@ -93,8 +93,7 @@ class CellData
                 return null
 
             return subscriptionInfoList
-                    .firstOrNull { it.mcc == mcc && it.mnc == mnc }
-                    ?.let { it.carrierName.toString() }
+                        .firstOrNull { it.mcc == mcc && it.mnc == mnc }?.carrierName?.toString()
         }
 
         @RequiresApi(22)

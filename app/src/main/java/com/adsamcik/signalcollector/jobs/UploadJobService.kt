@@ -337,13 +337,12 @@ class UploadJobService : JobService() {
             }
         }
 
-        private fun hasEnoughData(context: Context, source: UploadScheduleSource): Boolean {
-            return when (source) {
-                UploadScheduleSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
-                UploadScheduleSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
-                else -> false
-            }
-        }
+        private fun hasEnoughData(context: Context, source: UploadScheduleSource): Boolean =
+                when (source) {
+                    UploadScheduleSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
+                    UploadScheduleSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
+                    else -> false
+                }
 
         private fun updateUploadScheduleSource(context: Context, uss: UploadScheduleSource) {
             Preferences.getPref(context).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal).apply()
