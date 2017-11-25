@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
@@ -31,19 +30,18 @@ object ChallengeManager {
         }
     }
 
-    fun getChallenges(ctx: Context, force: Boolean, callback: IStateValueCallback<NetworkLoader.Source, Array<Challenge>?>) {
+    fun getChallenges(ctx: Context, force: Boolean, callback: (NetworkLoader.Source, Array<Challenge>?) -> Unit) {
         val context = ctx.applicationContext
         NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, { source, jsonChallenges ->
             if (!source.success)
-                callback.callback(source, null)
+                callback.invoke(source, null)
             else {
                 val gsonBuilder = GsonBuilder()
                 gsonBuilder.registerTypeAdapter(Challenge::class.java, ChallengeDeserializer())
                 val gson = gsonBuilder.create()
                 val challengeArray = gson.fromJson(jsonChallenges, Array<Challenge>::class.java)
-                for (challenge in challengeArray)
-                    challenge.generateTexts(context)
-                callback.callback(source, challengeArray)
+                challengeArray.forEach { it.generateTexts(context) }
+                callback.invoke(source, challengeArray)
             }
         })
     }

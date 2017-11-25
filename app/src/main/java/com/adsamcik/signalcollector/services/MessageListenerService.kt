@@ -13,7 +13,6 @@ import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.IStateValueCallback
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -56,7 +55,7 @@ class MessageListenerService : FirebaseMessagingService() {
                             return
                         }
 
-                        ChallengeManager.getChallenges(this, false, IStateValueCallback{ source, challenges ->
+                        ChallengeManager.getChallenges(this, false, { source, challenges ->
                             if (source.success && challenges != null) {
                                 for (challenge in challenges) {
                                     if (challenge.type == challengeType) {
