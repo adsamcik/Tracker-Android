@@ -38,5 +38,13 @@ class MapLayer(name: String, top: Double, right: Double, bottom: Double, left: D
 
         fun contains(layerArray: Array<MapLayer>, name: String): Boolean =
                 layerArray.any { it.name == name }
+
+        fun mockArray(): Array<MapLayer> = arrayOf(
+                MapLayer("Mock", 30.0, 30.0, -30.0, -30.0),
+                MapLayer("Wifi", 0.0, 30.0, -20.0, -30.0),
+                MapLayer("Cell", 30.0, 30.0, -30.0, -30.0),
+                MapLayer("Cell", 60.0, 30.0, -30.0, -30.0),
+                MapLayer("Cell", 30.0, 30.0, -30.0, -30.0)
+        )
     }
 }

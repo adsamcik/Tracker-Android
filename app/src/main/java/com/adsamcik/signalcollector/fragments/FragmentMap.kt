@@ -29,6 +29,7 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -36,6 +37,8 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 import java.io.IOException
 
 class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, ITabFragment {
@@ -155,6 +158,56 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         mapLayerFilterRule = MapFilterRule()
 
+        launch {
+            val user = Signin.getUserAsync(fActivity!!)
+            if (fabTwo != null && user != null) {
+                user.addServerDataCallback {
+                    val networkInfo = it.networkInfo!!
+                    if (fabTwo != null && (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess())) {
+                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, fActivity!!, mapLayerFilterRule, { it.name })
+                        menu!!.setCallback({ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
+
+                        if (networkInfo.hasPersonalMapAccess())
+                            menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
+
+                        if (networkInfo.hasMapAccess()) {
+                            launch {
+                                val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
+                                if (mapListRequest.first.dataAvailable && fabTwo != null) {
+                                    val layerArray = if (useMock) MapLayer.mockArray() else mapListRequest.second!!
+                                    var savedOverlay = Preferences.getPref(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                    if (!MapLayer.contains(layerArray, savedOverlay)) {
+                                        savedOverlay = layerArray[0].name
+                                        Preferences.getPref(fActivity!!).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
+                                    }
+
+                                    val defaultOverlay = savedOverlay
+                                    //menu can become null if user leaves the fragment
+                                    if (menu != null) {
+                                        if (menu!!.itemCount == 0)
+                                            changeMapOverlay(defaultOverlay!!)
+
+                                        for (layer in layerArray)
+                                            menu!!.addItem(layer, fActivity!!)
+
+                                        //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
+                                        if (fabOneVisible) {
+                                            launch(UI) {
+                                                fabTwo!!.show()
+                                            }
+                                        }
+                                        showFabTwo = true
+
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+        }
+
         Signin.getUserAsync(fActivity!!, { user ->
             if (fabTwo != null && user != null)
                 user.addServerDataCallback({ u ->
@@ -187,7 +240,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
                                             //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
                                             if (fabOneVisible) {
-                                                fActivity!!.runOnUiThread { fabTwo!!.show() }
+                                                launch(UI) {
+                                                    fabTwo!!.show()
+                                                }
                                             }
                                             showFabTwo = true
                                         }

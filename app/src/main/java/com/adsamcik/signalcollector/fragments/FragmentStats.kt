@@ -121,7 +121,7 @@ class FragmentStats : Fragment(), ITabFragment {
         if (!state.success)
             SnackMaker(activity).showSnackbar(state.toString(activity))
         refreshingCount--
-        if (state.isDataAvailable)
+        if (state.dataAvailable)
             launch(UI) {
                 addStatsTable(value!!, appendBehavior)
                 adapter!!.sort()

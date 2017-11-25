@@ -201,7 +201,7 @@ object NetworkLoader {
         val success: Boolean
             get() = this.ordinal <= 1
 
-        val isDataAvailable: Boolean
+        val dataAvailable: Boolean
             get() = this.ordinal <= 4
 
         fun toString(context: Context): String = when (this) {
