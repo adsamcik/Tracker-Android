@@ -29,7 +29,6 @@ import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.interfaces.IValueCallback
 import com.adsamcik.signalcollector.interfaces.IVerify
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.network.Network
@@ -438,10 +437,10 @@ class FragmentSettings : Fragment(), ITabFragment {
         val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
         devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE
 
-        rootView.findViewById<View>(R.id.dev_button_cache_clear).setOnClickListener { _ -> createClearDialog(activity, IValueCallback { CacheStore.clearAll(it!!) }, R.string.settings_cleared_all_cache_files) }
-        rootView.findViewById<View>(R.id.dev_button_data_clear).setOnClickListener { _ -> createClearDialog(activity, IValueCallback { DataStore.clearAll(it!!) }, R.string.settings_cleared_all_data_files) }
+        rootView.findViewById<View>(R.id.dev_button_cache_clear).setOnClickListener { _ -> createClearDialog(activity, { CacheStore.clearAll(it!!) }, R.string.settings_cleared_all_cache_files) }
+        rootView.findViewById<View>(R.id.dev_button_data_clear).setOnClickListener { _ -> createClearDialog(activity, { DataStore.clearAll(it!!) }, R.string.settings_cleared_all_data_files) }
         rootView.findViewById<View>(R.id.dev_button_upload_reports_clear).setOnClickListener { _ ->
-            createClearDialog(activity, IValueCallback { _ ->
+            createClearDialog(activity, { _ ->
                 DataStore.delete(activity, DataStore.RECENT_UPLOADS_FILE)
                 Preferences.getPref(activity).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
             }, R.string.settings_cleared_all_upload_reports)
@@ -479,12 +478,12 @@ class FragmentSettings : Fragment(), ITabFragment {
         rootView.findViewById<View>(R.id.dev_button_activity_recognition).setOnClickListener { _ -> startActivity(Intent(getActivity(), ActivityRecognitionActivity::class.java)) }
     }
 
-    private fun createClearDialog(context: Context, clearFunction: IValueCallback<Context>, @StringRes snackBarString: Int) {
+    private fun createClearDialog(context: Context, clearFunction: (Context) -> Unit, @StringRes snackBarString: Int) {
         val alertDialogBuilder = AlertDialog.Builder(context)
         alertDialogBuilder
                 .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
                     SnackMaker(activity!!).showSnackbar(snackBarString)
-                    clearFunction.callback(context)
+                    clearFunction.invoke(context)
                 }
                 .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
                 .setMessage(resources.getText(R.string.alert_confirm_generic))
