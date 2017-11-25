@@ -159,12 +159,11 @@ class Signin {
             //instance is assigned in constructor to make it sooner available
                 Signin(context, callback)
             else if (callback != null) {
-                if (instance!!.user != null)
-                    callback.invoke(instance!!.user)
-                else if (status.failed)
-                    callback.invoke(null)
-                else
-                    instance!!.onSignedCallbackList.add(callback)
+                when {
+                    instance!!.user != null -> callback.invoke(instance!!.user)
+                    status.failed -> callback.invoke(null)
+                    else -> instance!!.onSignedCallbackList.add(callback)
+                }
             }
 
             return instance
