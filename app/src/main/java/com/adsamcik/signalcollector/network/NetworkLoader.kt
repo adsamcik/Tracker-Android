@@ -5,6 +5,7 @@ import android.util.Pair
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
@@ -72,13 +73,16 @@ object NetworkLoader {
     suspend fun <T> requestSignedAsync(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
         launch {
             val user = Signin.getUserAsync(context)
-            if (user != null)
-                requestString(Network.client(context, user.token),
-                        Request.Builder().url(url).build(),
-                        updateTimeInMinutes,
-                        context,
-                        preferenceString, { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) })
-            else
+            if (user != null) {
+                if (useMock)
+                    cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.CACHE else Source.NETWORK, tClass.newInstance()))
+                else
+                    requestString(Network.client(context, user.token),
+                            Request.Builder().url(url).build(),
+                            updateTimeInMinutes,
+                            context,
+                            preferenceString, { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) })
+            } else
                 cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
         }
     }
