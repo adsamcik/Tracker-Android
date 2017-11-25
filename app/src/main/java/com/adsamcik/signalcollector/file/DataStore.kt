@@ -9,9 +9,8 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.interfaces.ICallback
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
-import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -35,7 +34,7 @@ object DataStore {
     private val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: ICallback? = null
-    private var onUploadProgress: INonNullValueCallback<Int>? = null
+    private var onUploadProgress: ((Int) -> Unit)? = null
 
     @Volatile private var approxSize: Long = -1
     @Volatile private var collectionsOnDevice = -1
@@ -75,8 +74,7 @@ object DataStore {
         else
             Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS
 
-        if (onUploadProgress != null)
-            onUploadProgress!!.callback(progress)
+        onUploadProgress?.invoke(progress)
     }
 
     /**
@@ -93,7 +91,7 @@ object DataStore {
      *
      * @param callback callback
      */
-    fun setOnUploadProgress(callback: INonNullValueCallback<Int>?) {
+    fun setOnUploadProgress(callback: ((Int) -> Unit)?) {
         onUploadProgress = callback
     }
 

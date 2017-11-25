@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.utility
 import android.app.Activity
 import android.content.Context
 import android.support.design.widget.FloatingActionButton
-import android.support.v4.app.FragmentActivity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,10 +10,10 @@ import android.widget.FrameLayout
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
-import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.interfaces.IFilterRule
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.IString
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 
 class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, activity: Activity, filterRule: IFilterRule<T>?, toString: IString<T>) {
     private val TAG = "SignalsFabMenu"
@@ -24,7 +23,7 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
 
     private val adapter: FilterableAdapter<T>
 
-    private var callback: INonNullValueCallback<String>? = null
+    private var callback: ((String) -> Unit)? = null
 
     private val closeClickListener = View.OnClickListener { _ -> hide() }
 
@@ -48,11 +47,11 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
     }
 
     private fun callback(value: String) {
-        callback!!.callback(value)
+        callback?.invoke(value)
         hide()
     }
 
-    fun setCallback(callback: INonNullValueCallback<String>?): FabMenu<*> {
+    fun setCallback(callback: ((String) -> Unit)?): FabMenu<*> {
         this.callback = callback
         return this
     }
@@ -75,7 +74,7 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         return this
     }
 
-    fun recalculateBounds(context: Context) {
+    private fun recalculateBounds(context: Context) {
         if (boundsCalculated)
             return
 
@@ -134,8 +133,8 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         return this
     }
 
-    fun destroy(activity: Activity?): FabMenu<*> {
-        activity?.runOnUiThread {
+    private fun destroy(): FabMenu<*> {
+        launch(UI) {
             wrapper.removeAllViews()
             (wrapper.parent as ViewGroup).removeView(wrapper)
         }
@@ -155,23 +154,23 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         return result
     }
 
-    fun hide() {
+    private fun hide() {
         if (!isVisible)
             return
         isVisible = false
         wrapper.setOnClickListener(null)
         val pos = calculateRevealCenter()
-        Animate.revealHide(listView, pos[0], pos[1], 0, ICallback { wrapper.visibility = View.INVISIBLE })
+        Animate.revealHide(listView, pos[0], pos[1], 0, { wrapper.visibility = View.INVISIBLE })
     }
 
-    fun hideAndDestroy(activity: FragmentActivity) {
+    fun hideAndDestroy() {
         if (!isVisible)
-            destroy(activity)
+            destroy()
         else {
             isVisible = false
             wrapper.setOnClickListener(null)
             val pos = calculateRevealCenter()
-            Animate.revealHide(listView, pos[0], pos[1], 0, ICallback { destroy(activity) })
+            Animate.revealHide(listView, pos[0], pos[1], 0,  { destroy() })
         }
     }
 

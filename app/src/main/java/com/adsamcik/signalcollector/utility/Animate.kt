@@ -5,8 +5,6 @@ import android.animation.AnimatorListenerAdapter
 import android.view.View
 import android.view.ViewAnimationUtils
 
-import com.adsamcik.signalcollector.interfaces.ICallback
-
 object Animate {
     /**
      * Circular reveal animation
@@ -46,7 +44,7 @@ object Animate {
      * @param view           view
      * @param onDoneCallback callback when animation is done
      */
-    fun revealHide(view: View, onDoneCallback: ICallback?) {
+    fun revealHide(view: View, onDoneCallback: (() -> Unit)?) {
         val cx = view.width / 2
         val cy = view.height / 2
         revealHide(view, cx, cy, 0, onDoneCallback)
@@ -61,7 +59,7 @@ object Animate {
      * @param endRadius      end radius
      * @param onDoneCallback callback when animation is done
      */
-    fun revealHide(view: View, cx: Int, cy: Int, endRadius: Int, onDoneCallback: ICallback?) {
+    fun revealHide(view: View, cx: Int, cy: Int, endRadius: Int, onDoneCallback: (() -> Unit)?) {
         val initialRadius = Math.hypot(cx.toDouble(), cy.toDouble()).toFloat()
 
         val anim = ViewAnimationUtils.createCircularReveal(view, cx, cy, initialRadius, endRadius.toFloat())
@@ -69,7 +67,7 @@ object Animate {
             override fun onAnimationEnd(animation: Animator) {
                 super.onAnimationEnd(animation)
                 view.visibility = View.INVISIBLE
-                onDoneCallback?.callback()
+                onDoneCallback?.invoke()
             }
         })
         anim.start()
