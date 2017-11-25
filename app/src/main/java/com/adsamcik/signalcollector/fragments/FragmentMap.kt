@@ -187,8 +187,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                         if (menu!!.itemCount == 0)
                                             changeMapOverlay(defaultOverlay!!)
 
-                                        for (layer in layerArray)
-                                            menu!!.addItem(layer, fActivity!!)
+                                        menu!!.addItems(layerArray)
 
                                         //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
                                         if (fabOneVisible) {
@@ -207,51 +206,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 }
             }
         }
-
-        Signin.getUserAsync(fActivity!!, { user ->
-            if (fabTwo != null && user != null)
-                user.addServerDataCallback({ u ->
-                    if (fabTwo != null) {
-                        val networkInfo = u.networkInfo!!
-                        if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
-                            menu = FabMenu(container.parent as ViewGroup, fabTwo, fActivity!!, mapLayerFilterRule, { it.name })
-                            menu!!.setCallback({ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
-
-                            if (networkInfo.hasPersonalMapAccess())
-                                menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
-
-                            if (networkInfo.hasMapAccess())
-                                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, { _, layerArray ->
-                                    if (fabTwo != null && layerArray != null) {
-                                        var savedOverlay = Preferences.getPref(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
-                                        if (!MapLayer.contains(layerArray, savedOverlay)) {
-                                            savedOverlay = layerArray[0].name
-                                            Preferences.getPref(fActivity!!).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
-                                        }
-
-                                        val defaultOverlay = savedOverlay
-                                        //menu can become null if user leaves the fragment
-                                        if (menu != null) {
-                                            if (menu!!.itemCount == 0)
-                                                changeMapOverlay(defaultOverlay!!)
-
-                                            for (layer in layerArray)
-                                                menu!!.addItem(layer, fActivity!!)
-
-                                            //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
-                                            if (fabOneVisible) {
-                                                launch(UI) {
-                                                    fabTwo!!.show()
-                                                }
-                                            }
-                                            showFabTwo = true
-                                        }
-                                    }
-                                })
-                        }
-                    }
-                })
-        })
 
         searchText = fragmentView!!.findViewById(R.id.map_search)
         searchText!!.setOnEditorActionListener { v, _, _ ->

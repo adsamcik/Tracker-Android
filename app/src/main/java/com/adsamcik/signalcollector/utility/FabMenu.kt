@@ -55,22 +55,19 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         return this
     }
 
-    fun addItems(itemList: List<T>): FabMenu<*> {
+    fun addItems(itemList: Collection<T>) {
         for (item in itemList)
             addItem(item)
-        return this
     }
 
-    fun addItem(item: T): FabMenu<*> {
-        adapter.add(item, null)
-        boundsCalculated = false
-        return this
+    fun addItems(itemList: Array<out T>) {
+        for (item in itemList)
+            addItem(item)
     }
 
-    fun addItem(item: T, activity: Activity): FabMenu<*> {
-        adapter.add(item, activity)
+    fun addItem(item: T){
+        adapter.add(item)
         boundsCalculated = false
-        return this
     }
 
     private fun recalculateBounds(context: Context) {
@@ -180,7 +177,7 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         if (isVisible)
             return
 
-        adapter.filter.filter("") { _ ->
+        adapter.filter.filter(" ", {
             isVisible = true
             boundsCalculated = false
 
@@ -193,6 +190,6 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
             val pos = calculateRevealCenter()
             Animate.revealShow(listView, pos[0], pos[1], 0)
             wrapper.setOnClickListener(closeClickListener)
-        }
+        })
     }
 }

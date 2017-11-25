@@ -128,7 +128,7 @@ class ActivityRecognitionActivity : DetailActivity() {
                 val inst = instance!!.get()!!
                 inst.runOnUiThread {
                     val adapter = inst.adapter!!
-                    adapter.add(if (action == null) arrayOf(time, activity) else arrayOf(time, activity, action), null)
+                    adapter.add(if (action == null) arrayOf(time, activity) else arrayOf(time, activity, action))
                     if (inst.listView!!.lastVisiblePosition == adapter.count - 2)
                         inst.listView!!.smoothScrollToPosition(adapter.count - 1)
                 }

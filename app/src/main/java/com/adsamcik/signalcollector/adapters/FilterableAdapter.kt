@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.adapters
 
-import android.app.Activity
 import android.content.Context
 import android.os.Looper
 import android.support.annotation.LayoutRes
@@ -12,7 +11,8 @@ import android.widget.Filter
 import android.widget.Filterable
 import android.widget.TextView
 import com.adsamcik.signalcollector.interfaces.IFilterRule
-import java.util.*
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 import java.util.regex.Pattern
 
 class FilterableAdapter<T>
@@ -26,8 +26,8 @@ class FilterableAdapter<T>
  * @param stringMethod Method to convert objects to strings
  */
 (context: Context, @param:LayoutRes @field:LayoutRes
-private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRule<T>?, private val stringMethod: (T) -> String) : BaseAdapter(), Filterable {
-    private val dataList: MutableList<T>?
+private val res: Int, items: ArrayList<T>?, private var filterRule: IFilterRule<T>?, private val stringMethod: (T) -> String) : BaseAdapter(), Filterable {
+    private val dataList: ArrayList<T>?
     private val stringDataList: ArrayList<String>
     private var filteredData: ArrayList<String>? = null
     private var lastConstraint: CharSequence? = null
@@ -63,39 +63,23 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
     override fun getItemId(position: Int): Long = position.toLong()
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-        var cView = convertView
-        // A ViewHolder keeps references to children views to avoid unnecessary calls
-        // to findViewById() on each row.
-
-        val holder: ViewHolder
-
-        // When convertView is not null, we can reuse it directly, there is no need
-        // to reinflate it. We only inflate a new View when the convertView supplied
-        // by ListView is null.
-        if (cView == null) {
-            cView = mInflater.inflate(res, null)
-
-            // Creates a ViewHolder and store references to the two children views
-            // we want to bind data to.
-            holder = ViewHolder()
-            holder.text = cView as TextView?
-
-            // Bind the data efficiently with the holder.
-            cView.tag = holder
+        val view: View
+        val vh: ListRowHolder
+        if (convertView == null) {
+            view = mInflater.inflate(res, parent, false)
+            vh = ListRowHolder(view)
+            view.tag = vh
         } else {
-            // Get the ViewHolder back to getPref fast access to the TextView
-            // and the ImageView.
-            holder = cView.tag as ViewHolder
+            view = convertView
+            vh = view.tag as ListRowHolder
         }
 
-        // If weren't re-ordering this you could rely on what you set last time
-        holder.text!!.text = getItem(position)
-
-        return cView!!
+        vh.label.text = getItem(position)
+        return view
     }
 
-    internal class ViewHolder {
-        var text: TextView? = null
+    private class ListRowHolder(row: View?) {
+        val label: TextView = row as TextView
     }
 
     fun setFilterRule(filterRule: IFilterRule<T>?) {
@@ -106,7 +90,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
 
     override fun getFilter(): Filter = mFilter
 
-    fun add(item: T, activity: Activity?) {
+    fun add(item: T) {
         dataList!!.add(item)
         val string = stringMethod.invoke(item)
         stringDataList.add(string)
@@ -121,10 +105,9 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
             }
         }
 
-        if (activity != null)
-            activity.runOnUiThread { this.notifyDataSetChanged() }
-        else
+        launch(UI) {
             notifyDataSetChanged()
+        }
     }
 
     fun clear() {
@@ -135,6 +118,7 @@ private val res: Int, items: MutableList<T>?, private var filterRule: IFilterRul
         notifyDataSetChanged()
     }
 
+    //todo rewrite filtering
     private inner class ItemFilter : Filter() {
         override fun performFiltering(constraint: CharSequence?): Filter.FilterResults {
             val results = Filter.FilterResults()
