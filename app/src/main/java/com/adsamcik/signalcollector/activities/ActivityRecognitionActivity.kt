@@ -6,9 +6,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.adapters.FilterableAdapter
+import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.IFilterRule
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
@@ -22,7 +21,7 @@ import java.util.*
 class ActivityRecognitionActivity : DetailActivity() {
 
     private var startStopButton: Button? = null
-    private var adapter: FilterableAdapter<Array<String>>? = null
+    private var adapter: StringFilterableAdapter? = null
     private var listView: ListView? = null
 
     private var usingFilter = false
@@ -62,18 +61,18 @@ class ActivityRecognitionActivity : DetailActivity() {
 
         async {
             val items = Parser.parseTSVFromFile(activity, FILE) ?: ArrayList()
-            adapter = FilterableAdapter(activity, R.layout.spinner_item, items, IFilterRule{value, _, _ -> value.size >= 3 }, {item ->
+            adapter = StringFilterableAdapter(activity, R.layout.spinner_item, {item ->
                 item.joinToString(delim)
             })
         }
 
         findViewById<View>(R.id.dev_activity_recognition_filter).setOnClickListener { f ->
             if (usingFilter) {
-                adapter!!.filter.filter(null)
+                adapter!!.filter(null)
                 (f as Button).setText(R.string.dev_activity_recognition_hide)
             } else {
                 (f as Button).setText(R.string.dev_activity_recognition_show)
-                adapter!!.filter.filter(".*$delim.*$delim.*")
+                adapter!!.filter(".*$delim.*$delim.*")
             }
 
             usingFilter = !usingFilter

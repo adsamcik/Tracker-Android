@@ -4,7 +4,7 @@ import com.vimeo.stag.UseStag
 import java.util.*
 
 @UseStag
-class MapLayer(name: String, top: Double, right: Double, bottom: Double, left: Double) {
+class MapLayer(name: String, top: Double = MAX_LATITUDE, right: Double = MAX_LONGITUDE, bottom: Double = MIN_LATITUDE, left: Double = MIN_LONGITUDE) {
     //internal SETTERS for STAG
     var name: String = name
         internal set
@@ -24,10 +24,10 @@ class MapLayer(name: String, top: Double, right: Double, bottom: Double, left: D
 
     companion object {
 
-        val MIN_LATITUDE = -90.0
-        val MAX_LATITUDE = 90.0
-        val MIN_LONGITUDE = -180.0
-        val MAX_LONGITUDE = 180.0
+        const val MIN_LATITUDE = -90.0
+        const val MAX_LATITUDE = 90.0
+        const val MIN_LONGITUDE = -180.0
+        const val MAX_LONGITUDE = 180.0
 
         fun toStringArray(layerArray: Array<MapLayer>): Array<String> = Array(layerArray.size) { layerArray[it].name }
 

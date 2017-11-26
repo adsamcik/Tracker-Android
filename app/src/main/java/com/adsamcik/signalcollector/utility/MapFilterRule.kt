@@ -1,16 +1,16 @@
 package com.adsamcik.signalcollector.utility
 
 import com.adsamcik.signalcollector.data.MapLayer
-import com.adsamcik.signalcollector.interfaces.IFilterRule
 
-class MapFilterRule : IFilterRule<MapLayer> {
-    private var top = MapLayer.MIN_LATITUDE
-    private var right = MapLayer.MIN_LONGITUDE
-    private var bottom = MapLayer.MAX_LATITUDE
-    private var left = MapLayer.MAX_LONGITUDE
-
-    override fun filter(value: MapLayer, stringValue: String, constraint: CharSequence): Boolean =
-            value.top > bottom && value.right > left && value.bottom < top && value.left < right
+class MapFilterRule {
+    var top = MapLayer.MIN_LATITUDE
+        private set
+    var right = MapLayer.MIN_LONGITUDE
+        private set
+    var bottom = MapLayer.MAX_LATITUDE
+        private set
+    var left = MapLayer.MAX_LONGITUDE
+        private set
 
     fun updateBounds(top: Double, right: Double, bottom: Double, left: Double) {
         this.top = top

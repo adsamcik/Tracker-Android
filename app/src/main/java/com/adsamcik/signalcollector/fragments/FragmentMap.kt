@@ -23,6 +23,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
@@ -59,7 +60,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     private var fActivity: FragmentActivity? = null
     private var fabTwo: FloatingActionButton? = null
     private var fabOne: FloatingActionButton? = null
-    private var menu: FabMenu<MapLayer>? = null
+    private var menu: FabMenu<MapLayer, MapFilterRule>? = null
 
     //fab.isShown() is not fast enough (it probably changes on the next ui update)
     private var fabOneVisible: Boolean = false
@@ -164,8 +165,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 user.addServerDataCallback {
                     val networkInfo = it.networkInfo!!
                     if (fabTwo != null && (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess())) {
-                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, fActivity!!, mapLayerFilterRule, { it.name })
-                        menu!!.setCallback({ value -> fActivity!!.runOnUiThread { changeMapOverlay(value) } })
+                        val adapter = MapFilterableAdapter(fActivity!!, R.layout.spinner_item, { it.name })
+                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, fActivity!!, adapter, mapLayerFilterRule)
+                        menu!!.setCallback({ _, layer -> launch(UI) { changeMapOverlay(layer.name) } })
 
                         if (networkInfo.hasPersonalMapAccess())
                             menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))

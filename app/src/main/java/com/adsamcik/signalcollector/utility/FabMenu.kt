@@ -10,19 +10,16 @@ import android.widget.FrameLayout
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
-import com.adsamcik.signalcollector.interfaces.IFilterRule
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, activity: Activity, filterRule: IFilterRule<T>?, toString: (T) -> String) {
+class FabMenu<T, F>(parent: ViewGroup, private val fab: FloatingActionButton?, activity: Activity, val adapter: FilterableAdapter<T, F>, filterObject: F?) {
     private val TAG = "SignalsFabMenu"
 
     private val wrapper: ViewGroup = LayoutInflater.from(activity).inflate(R.layout.fab_menu, parent, false) as ViewGroup
     private val listView: ListView
 
-    private val adapter: FilterableAdapter<T>
-
-    private var callback: ((String) -> Unit)? = null
+    private var callback: ((View, T) -> Unit)? = null
 
     private val closeClickListener = View.OnClickListener { _ -> hide() }
 
@@ -36,41 +33,44 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         listView = wrapper.getChildAt(0) as ListView
         wrapper.visibility = View.INVISIBLE
         listView.visibility = View.INVISIBLE
-
-        adapter = FilterableAdapter(activity, R.layout.spinner_item, null, filterRule, toString)
+        adapter.filter(filterObject)
 
         listView.adapter = adapter
-        listView.setOnItemClickListener { _, _, i, _ -> callback(adapter.getItem(i)) }
+        listView.setOnItemClickListener { _, view, i, _ -> callback(view, adapter.getItem(i)) }
 
         activity.runOnUiThread { parent.addView(wrapper) }
     }
 
-    private fun callback(value: String) {
-        callback?.invoke(value)
+    private fun callback(view: View, value: T) {
+        if (callback != null)
+            callback!!.invoke(view, value)
         hide()
     }
 
-    fun setCallback(callback: ((String) -> Unit)?): FabMenu<*> {
+    fun setCallback(callback: ((View, T) -> Unit)?): FabMenu<*, *> {
         this.callback = callback
         return this
     }
 
-    fun addItems(itemList: Collection<T>) {
+    fun addItems(itemList: List<T>): FabMenu<*, *> {
         for (item in itemList)
             addItem(item)
+        return this
     }
 
-    fun addItems(itemList: Array<out T>) {
+    fun addItems(itemList: Array<T>): FabMenu<*, *> {
         for (item in itemList)
             addItem(item)
+        return this
     }
 
-    fun addItem(item: T){
+    fun addItem(item: T): FabMenu<*, *> {
         adapter.add(item)
         boundsCalculated = false
+        return this
     }
 
-    private fun recalculateBounds(context: Context) {
+    fun recalculateBounds(context: Context) {
         if (boundsCalculated)
             return
 
@@ -81,7 +81,7 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         height = if (adapter.count == 0)
             0
         else {
-            val item = adapter.getView(0, null, null)
+            val item = adapter.getView(0, null, listView)
             item.measure(
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
@@ -106,11 +106,10 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         val displayMetrics = context.resources.displayMetrics
         listView.x = (displayMetrics.widthPixels - listView.width - dp16px).toFloat()
 
-        fabPos[1] += fab.height / 2
-        val halfHeight = height / 2
-        var offset = halfHeight
-        val botY = fabPos[1] + halfHeight
-        val maxY = wrapperPos[1] + wrapper.height - dp16px - Assist.dpToPx(context, 56)
+        fabPos[1] += fab.height
+        var offset = height
+        val botY = fabPos[1]
+        val maxY = wrapperPos[1] + wrapper.height - Assist.dpToPx(context, 56)
         if (botY > maxY)
             offset += botY - maxY
 
@@ -123,19 +122,15 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         //Log.d(TAG, "offset " + offset + " y " + y + " max y " + maxY + " bot y " + botY + " height " + menu.getHeight() + " target height " + height + " max height " + maxHeight);
     }
 
-    fun clear(activity: Activity?): FabMenu<*> {
-        if (activity != null)
-            adapter.clear()
-        return this
+    fun clear() {
+        adapter.clear()
     }
 
-    private fun destroy(): FabMenu<*> {
+    fun destroy() {
         launch(UI) {
             wrapper.removeAllViews()
             (wrapper.parent as ViewGroup).removeView(wrapper)
         }
-
-        return this
     }
 
     private fun calculateRevealCenter(): IntArray {
@@ -150,12 +145,13 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         return result
     }
 
-    private fun hide() {
+    fun hide() {
         if (!isVisible)
             return
         isVisible = false
         wrapper.setOnClickListener(null)
         val pos = calculateRevealCenter()
+        fab!!.animate().alpha(255f).setDuration(100).start()
         Animate.revealHide(listView, pos[0], pos[1], 0, { wrapper.visibility = View.INVISIBLE })
     }
 
@@ -166,7 +162,8 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
             isVisible = false
             wrapper.setOnClickListener(null)
             val pos = calculateRevealCenter()
-            Animate.revealHide(listView, pos[0], pos[1], 0,  { destroy() })
+            fab!!.animate().alpha(255f).setDuration(100).start()
+            Animate.revealHide(listView, pos[0], pos[1], 0, { destroy() })
         }
     }
 
@@ -177,19 +174,21 @@ class FabMenu<in T>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         if (isVisible)
             return
 
-        adapter.filter.filter(" ", {
-            isVisible = true
-            boundsCalculated = false
+        adapter.filter()
 
-            recalculateBounds(activity)
-            wrapper.visibility = View.VISIBLE
-            listView.visibility = View.INVISIBLE
-            val fabPos = IntArray(2)
-            fab.getLocationOnScreen(fabPos)
+        isVisible = true
+        boundsCalculated = false
 
-            val pos = calculateRevealCenter()
-            Animate.revealShow(listView, pos[0], pos[1], 0)
-            wrapper.setOnClickListener(closeClickListener)
-        })
+        recalculateBounds(activity)
+        wrapper.visibility = View.VISIBLE
+        listView.visibility = View.INVISIBLE
+        val fabPos = IntArray(2)
+        fab.getLocationOnScreen(fabPos)
+
+        val pos = calculateRevealCenter()
+
+        fab.animate().alpha(0f).setDuration(100).start()
+        Animate.revealShow(listView, pos[0], pos[1], 0)
+        wrapper.setOnClickListener(closeClickListener)
     }
 }
