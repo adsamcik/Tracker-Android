@@ -204,7 +204,7 @@
             </LinearLayout>
 
 
-            <com.adsamcik.slider.IntSlider
+            <com.adsamcik.slider.IntValueSlider
                 android:id="@+id/settings_seekbar_watcher_frequency"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"
