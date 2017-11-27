@@ -70,7 +70,6 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
      * Adds item to adapter
      *
      * @param item     object that will be added to adapter
-     * @param activity you need to pass activity if you are not calling this method on UI thread
      */
     @Synchronized
     fun add(item: T) {
@@ -146,10 +145,9 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
     fun filter(filterObject: F?) {
         this.filterObject = filterObject
         mDisplayCollection = ArrayList(mRawCollection!!.size)
-        for (item in mRawCollection!!) {
-            if (filter(item, filterObject))
-                mDisplayCollection!!.add(item)
-        }
+        mRawCollection!!
+                .filter { filter(it, filterObject) }
+                .forEach { mDisplayCollection!!.add(it) }
         notifyDataSetChanged()
     }
 

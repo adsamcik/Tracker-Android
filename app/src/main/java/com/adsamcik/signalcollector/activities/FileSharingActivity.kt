@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.BottomSheetMenu
 import com.adsamcik.signalcollector.utility.SnackMaker
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -58,7 +58,7 @@ class FileSharingActivity : DetailActivity() {
                     try {
                         compress = Compress(DataStore.file(this, System.currentTimeMillis().toString()))
                     } catch (e: FileNotFoundException) {
-                        FirebaseCrash.report(e)
+                        Crashlytics.logException(e)
                         SnackMaker(v).showSnackbar(R.string.error_general)
                         return@OnClickListener
                     }
@@ -73,7 +73,7 @@ class FileSharingActivity : DetailActivity() {
                     try {
                         c = compress.finish()
                     } catch (e: IOException) {
-                        FirebaseCrash.report(e)
+                        Crashlytics.logException(e)
                         return@OnClickListener
                     }
 

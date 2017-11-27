@@ -8,7 +8,7 @@ import android.support.annotation.RequiresApi
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 
 class ShortcutActivity : Activity() {
 
@@ -31,7 +31,7 @@ class ShortcutActivity : Activity() {
                         stopService(serviceIntent)
                 }
             } else {
-                FirebaseCrash.report(Throwable("Invalid value " + value))
+                Crashlytics.logException(Throwable("Invalid value " + value))
             }
         }
         finishAffinity()

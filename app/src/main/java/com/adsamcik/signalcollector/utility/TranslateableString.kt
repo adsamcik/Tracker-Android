@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.utility
 
 import android.content.Context
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.vimeo.stag.UseStag
 
 @UseStag
@@ -32,7 +32,7 @@ class TranslateableString {
                 if (defaultString == null)
                     throw RuntimeException("Translation not found and default string is null for identifier " + identifier)
                 else
-                    FirebaseCrash.report(RuntimeException("Missing translation for " + identifier))
+                    Crashlytics.logException(RuntimeException("Missing translation for " + identifier))
 
                 return defaultString!!
             }

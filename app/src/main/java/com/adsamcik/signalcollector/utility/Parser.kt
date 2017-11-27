@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.utility
 
 import android.content.Context
 import com.adsamcik.signalcollector.file.DataStore
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.IOException
@@ -24,7 +24,7 @@ object Parser {
             try {
                 return Gson().fromJson(json, tClass)
             } catch (e: JsonSyntaxException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
             }
 
         }
@@ -47,7 +47,7 @@ object Parser {
                     return items
                 }
             } catch (e: IOException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
             }
 
         }

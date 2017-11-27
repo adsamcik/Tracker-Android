@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.file
 
 import android.util.MalformedJsonException
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.*
@@ -49,7 +49,7 @@ object FileStore {
                 osw.close()
             }
         } catch (e: Exception) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             e.printStackTrace()
             return false
         }
@@ -103,7 +103,7 @@ object FileStore {
         return try {
             return FileInputStream(file).bufferedReader().use { it.readText() }
         } catch (e: Exception) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             null
         }
     }
@@ -142,7 +142,7 @@ object FileStore {
                     return try {
                         Gson().fromJson(str.substring(it), tClass)
                     } catch (e: JsonSyntaxException) {
-                        FirebaseCrash.report(e)
+                        Crashlytics.logException(e)
                         null
                     }
                 }
@@ -168,7 +168,7 @@ object FileStore {
                 return arr
             }
         } catch (e: IOException) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             return null
         }
 

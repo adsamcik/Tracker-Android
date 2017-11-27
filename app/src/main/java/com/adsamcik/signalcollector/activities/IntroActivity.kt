@@ -18,8 +18,8 @@ import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
+import com.crashlytics.android.Crashlytics
 import com.github.paolorotolo.appintro.AppIntro2
-import com.google.firebase.crash.FirebaseCrash
 import java.util.*
 
 class IntroActivity : AppIntro2() {
@@ -119,7 +119,7 @@ class IntroActivity : AppIntro2() {
                     dialog.setMessage(getString(R.string.signin_connecting))
                     val activity = currentFragment.activity
                     if (activity == null) {
-                        FirebaseCrash.report(Throwable("Activity was null during Intro"))
+                        Crashlytics.logException(Throwable("Activity was null during Intro"))
                         SnackMaker(currentFragment.view!!).showSnackbar(R.string.error_failed_signin)
                         dialog.dismiss()
                     } else {

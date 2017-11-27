@@ -9,11 +9,11 @@ import android.util.SparseArray
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.utility.*
+import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
-import com.google.firebase.crash.FirebaseCrash
 
 class ActivityService : IntentService("ActivityService") {
 
@@ -122,7 +122,7 @@ class ActivityService : IntentService("ActivityService") {
                     setMinUpdateRate(context, ari.updateFrequency)
                 }
             } else {
-                FirebaseCrash.report(Throwable("Trying to remove class that is not subscribed (" + tClass.name + ")"))
+                Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.name + ")"))
             }
 
             if (activeRequests.size() == 0) {
@@ -133,7 +133,7 @@ class ActivityService : IntentService("ActivityService") {
 
         fun removeAutoTracking(context: Context, tClass: Class<*>) {
             if (!backgroundTracking) {
-                FirebaseCrash.report(Throwable("Trying to remove auto tracking request that never existed"))
+                Crashlytics.logException(Throwable("Trying to remove auto tracking request that never existed"))
                 return
             }
 
@@ -169,7 +169,7 @@ class ActivityService : IntentService("ActivityService") {
                 task = activityRecognitionClient.requestActivityUpdates((delayInS * Constants.SECOND_IN_MILLISECONDS).toLong(), getActivityDetectionPendingIntent(context))
                 true
             } else {
-                FirebaseCrash.report(Throwable("Unavailable play services"))
+                Crashlytics.logException(Throwable("Unavailable play services"))
                 false
             }
         }

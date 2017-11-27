@@ -10,17 +10,19 @@ import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.adsamcik.signalcollector.utility.NotificationTools
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
+import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.crash.FirebaseCrash
 import com.google.firebase.iid.FirebaseInstanceId
 import com.google.firebase.perf.FirebasePerformance
+import io.fabric.sdk.android.Fabric
+
 
 class LaunchActivity : Activity() {
 
@@ -40,7 +42,7 @@ class LaunchActivity : Activity() {
             try {
                 editor.putInt(Preferences.LAST_VERSION, packageManager.getPackageInfo(packageName, 0).versionCode)
             } catch (e: PackageManager.NameNotFoundException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
             }
 
             editor.apply()
@@ -73,12 +75,12 @@ class LaunchActivity : Activity() {
             NotificationTools.prepareChannels(this)
 
         if (BuildConfig.DEBUG) {
-            FirebaseCrash.setCrashCollectionEnabled(false)
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
             FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
-        }
+        } else
+            Fabric.with(this, Crashlytics())
 
         ActivityWakerService.poke(this)
 

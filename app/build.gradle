@@ -1,6 +1,8 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'com.google.gms.oss.licenses.plugin'
+apply plugin: 'io.fabric'
+
 
 if (file('key.gradle').exists())
     apply from: 'key.gradle'
@@ -77,7 +79,10 @@ dependencies {
     implementation "com.google.firebase:firebase-core:$play_services_version"
     implementation "com.google.firebase:firebase-messaging:$play_services_version"
     implementation "com.google.firebase:firebase-perf:$play_services_version"
-    implementation "com.google.firebase:firebase-crash:$play_services_version"
+    compile('com.crashlytics.sdk.android:crashlytics:2.7.1@aar') {
+        transitive = true
+    }
+
 
 
     annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.4.0'

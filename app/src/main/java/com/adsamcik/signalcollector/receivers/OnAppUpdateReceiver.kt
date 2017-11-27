@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 
 class OnAppUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -30,7 +30,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             try {
                 editor.putInt(Preferences.LAST_VERSION, context.packageManager.getPackageInfo(context.packageName, 0).versionCode)
             } catch (e: PackageManager.NameNotFoundException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
             }
 
             editor.apply()

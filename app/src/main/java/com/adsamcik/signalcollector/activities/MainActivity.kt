@@ -16,15 +16,15 @@ import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
+import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 
 class MainActivity : FragmentActivity() {
 
@@ -123,10 +123,10 @@ class MainActivity : FragmentActivity() {
             try {
                 currentFragment = tClass.newInstance()
             } catch (e: InstantiationException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
                 return
             } catch (e: IllegalAccessException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
                 return
             }
 

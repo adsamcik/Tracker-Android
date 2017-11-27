@@ -5,7 +5,7 @@ import android.location.Location
 import android.net.wifi.ScanResult
 import android.os.Build
 import android.telephony.*
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.vimeo.stag.UseStag
 import java.io.Serializable
 import java.util.*
@@ -168,7 +168,7 @@ class RawData : Serializable {
                 addCell(CellData.newInstance(cic, telephonyManager.getNetworkOperatorName()));
                 else*/
                                 cd = CellData.newInstance(ci, null as String?)
-                            else -> FirebaseCrash.report(Throwable("UNKNOWN CELL TYPE"))
+                            else -> Crashlytics.logException(Throwable("UNKNOWN CELL TYPE"))
                         }
 
                         if (cd != null)

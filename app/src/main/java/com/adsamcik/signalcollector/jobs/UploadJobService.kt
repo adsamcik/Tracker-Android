@@ -23,7 +23,7 @@ import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.google.firebase.perf.FirebasePerformance
 import okhttp3.*
 import java.io.File
@@ -56,7 +56,7 @@ class UploadJobService : JobService() {
                 var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
                 if (collectionCount < collectionsToUpload) {
                     collectionCount = 0
-                    FirebaseCrash.report(Throwable("There are less collections than thought"))
+                    Crashlytics.logException(Throwable("There are less collections than thought"))
                 } else
                     collectionCount -= collectionsToUpload
                 DataStore.setCollections(this, collectionCount)
@@ -97,7 +97,7 @@ class UploadJobService : JobService() {
             if (file == null)
                 throw InvalidParameterException("file is null")
             else if (token == null) {
-                FirebaseCrash.report(Throwable("Token is null"))
+                Crashlytics.logException(Throwable("Token is null"))
                 return false
             }
 
@@ -115,10 +115,10 @@ class UploadJobService : JobService() {
                     return true
 
                 if (code >= 500 || code == 403)
-                    FirebaseCrash.report(Throwable("Upload failed " + code))
+                    Crashlytics.logException(Throwable("Upload failed " + code))
                 return false
             } catch (e: IOException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
                 return false
             }
 
@@ -141,7 +141,7 @@ class UploadJobService : JobService() {
             val context = this.context.get()!!
             val files = DataStore.getDataFiles(context, if (source == UploadScheduleSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE)
             if (files == null) {
-                FirebaseCrash.report(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
+                Crashlytics.logException(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
                 DataStore.onUpload(context, -1)
                 return false
             } else {
@@ -154,7 +154,7 @@ class UploadJobService : JobService() {
                     compress += files
                     tempZipFile = compress.finish()
                 } catch (e: IOException) {
-                    FirebaseCrash.report(e)
+                    Crashlytics.logException(e)
                     uploadTrace.incrementCounter("fail", 1)
                     uploadTrace.stop()
                     return false
@@ -180,7 +180,7 @@ class UploadJobService : JobService() {
                     if (token.string == null)
                         callbackReceived.await()
                 } catch (e: InterruptedException) {
-                    FirebaseCrash.report(e)
+                    Crashlytics.logException(e)
                     uploadTrace.incrementCounter("fail", 2)
                     uploadTrace.stop()
                     return false
@@ -215,7 +215,7 @@ class UploadJobService : JobService() {
             }
 
             if (tempZipFile != null && !FileStore.delete(tempZipFile))
-                FirebaseCrash.report(IOException("Upload zip file was not deleted"))
+                Crashlytics.logException(IOException("Upload zip file was not deleted"))
 
             callback?.callback(result)
         }

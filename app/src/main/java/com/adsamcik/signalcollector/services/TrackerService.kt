@@ -38,7 +38,7 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.*
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
@@ -212,7 +212,7 @@ class TrackerService : Service() {
                     !Preferences.getPref(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
                     DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
                 UploadJobService.requestUpload(this, UploadJobService.UploadScheduleSource.BACKGROUND)
-                FirebaseCrash.log("Requested upload from tracking")
+                Crashlytics.log("Requested upload from tracking")
             }
         }
     }
@@ -301,7 +301,7 @@ class TrackerService : Service() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC.toLong(), MIN_DISTANCE_M, locationListener)
         else {
-            FirebaseCrash.report(Exception("Tracker does not have sufficient permissions"))
+            Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
             stopSelf()
             return
         }

@@ -9,7 +9,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signalcollector.utility.Constants
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 
 import java.io.File
@@ -80,7 +80,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             try {
                 ascii = FileStore.loadLastAscii(file, 2)
             } catch (e: FileNotFoundException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
             }
 
             isWriteable = ascii == null || ascii != "]}"
@@ -97,7 +97,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             File(file.parentFile, getTemplate(file) + SEPARATOR + this.collectionCount)
 
         if (!file.renameTo(newFile))
-            FirebaseCrash.report(Throwable("Failed to rename file"))
+            Crashlytics.logException(Throwable("Failed to rename file"))
         else
             file = newFile
     }
@@ -136,7 +136,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             try {
                 FileOutputStream(file, true).channel.truncate(file.length() - 2).close()
             } catch (e: IOException) {
-                FirebaseCrash.report(e)
+                Crashlytics.logException(e)
                 return false
             }
 
@@ -158,7 +158,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             status
         } catch (e: MalformedJsonException) {
             //Should never happen, but w/e
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             false
         }
 
@@ -177,7 +177,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             isWriteable = false
             last2 == "]}" || FileStore.saveString(file, "]}", true)
         } catch (e: FileNotFoundException) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             isWriteable = true
             false
         }

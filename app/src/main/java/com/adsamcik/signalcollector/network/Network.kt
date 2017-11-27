@@ -5,10 +5,10 @@ import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
+import com.crashlytics.android.Crashlytics
 import com.franmontiel.persistentcookiejar.PersistentCookieJar
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor
-import com.google.firebase.crash.FirebaseCrash
 import okhttp3.*
 import java.io.IOException
 import java.util.*
@@ -103,8 +103,8 @@ object Network {
         val request = requestPOST(url, formBody)
         client(context, userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                FirebaseCrash.log("Register " + preferencesName)
-                FirebaseCrash.report(e)
+                Crashlytics.log("Register " + preferencesName)
+                Crashlytics.logException(e)
             }
 
             @Throws(IOException::class)

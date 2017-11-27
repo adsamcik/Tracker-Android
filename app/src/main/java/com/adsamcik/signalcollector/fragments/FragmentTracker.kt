@@ -33,8 +33,8 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.*
+import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.crash.FirebaseCrash
 
 class FragmentTracker : Fragment(), ITabFragment {
     private var layoutCell: CardView? = null
@@ -168,7 +168,7 @@ class FragmentTracker : Fragment(), ITabFragment {
     private fun updateUploadButton() {
         if (fabUp == null || Network.cloudStatus == CloudStatus.UNKNOWN) {
             Log.e("SignalsTrackerFragment", "fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine")
-            FirebaseCrash.report(Exception("fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine"))
+            Crashlytics.logException(Exception("fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine"))
             return
         }
 

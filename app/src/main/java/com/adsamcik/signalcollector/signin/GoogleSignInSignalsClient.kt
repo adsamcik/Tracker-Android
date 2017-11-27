@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.utility.Preferences
+import com.crashlytics.android.Crashlytics
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -15,7 +16,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.OnCompleteListener
-import com.google.firebase.crash.FirebaseCrash
 import com.google.firebase.iid.FirebaseInstanceId
 
 class GoogleSignInSignalsClient : ISignInClient {
@@ -91,7 +91,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         if (token != null)
             Network.register(context, user.token, token)
         else
-            FirebaseCrash.report(Throwable("Token is null"))
+            Crashlytics.logException(Throwable("Token is null"))
         //}
 
         NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, { state, value ->

@@ -33,6 +33,10 @@
             android:name="android.max_aspect"
             android:value="2.1"/>
 
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false"/>
+
         <provider
             android:name="android.support.v4.content.FileProvider"
             android:authorities="com.asdamcik.signalcollector.fileprovider"

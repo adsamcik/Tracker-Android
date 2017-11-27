@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Preferences
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
 import de.psdev.licensesdialog.licenses.License
@@ -63,10 +63,14 @@ class LicenseActivity : DetailActivity() {
                 addLicenseDialogListener(button, name, rLicense.readLine())
             }
         } catch (e: IOException) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
         }
 
         setTitle(R.string.open_source_licenses)
+    }
+
+    private fun readLicense(from: Int, to: Int) {
+
     }
 
     private fun addButton(parent: ViewGroup, name: String): Button {

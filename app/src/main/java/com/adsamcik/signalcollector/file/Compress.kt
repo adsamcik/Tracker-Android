@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.file
 
 
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import java.io.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -34,7 +34,7 @@ constructor(private val file: File) {
             zipStream.write(buffer, 0, buffer.size)
             true
         } catch (e: IOException) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             false
         }
 
@@ -52,7 +52,7 @@ constructor(private val file: File) {
         try {
             fi = FileInputStream(file)
         } catch (e: FileNotFoundException) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             return false
         }
 
@@ -70,7 +70,7 @@ constructor(private val file: File) {
             true
         } catch (e: IOException) {
             e.printStackTrace()
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             false
         }
 

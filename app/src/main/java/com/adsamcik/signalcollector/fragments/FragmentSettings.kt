@@ -44,8 +44,8 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
 import com.adsamcik.slider.IntValueSlider
 import com.adsamcik.slider.Slider
+import com.crashlytics.android.Crashlytics
 import com.google.android.gms.common.SignInButton
-import com.google.firebase.crash.FirebaseCrash
 import com.google.gson.Gson
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async
@@ -438,8 +438,8 @@ class FragmentSettings : Fragment(), ITabFragment {
         val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
         devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE
 
-        rootView.findViewById<View>(R.id.dev_button_cache_clear).setOnClickListener { _ -> createClearDialog(activity, { CacheStore.clearAll(it!!) }, R.string.settings_cleared_all_cache_files) }
-        rootView.findViewById<View>(R.id.dev_button_data_clear).setOnClickListener { _ -> createClearDialog(activity, { DataStore.clearAll(it!!) }, R.string.settings_cleared_all_data_files) }
+        rootView.findViewById<View>(R.id.dev_button_cache_clear).setOnClickListener { _ -> createClearDialog(activity, { CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files) }
+        rootView.findViewById<View>(R.id.dev_button_data_clear).setOnClickListener { _ -> createClearDialog(activity, { DataStore.clearAll(it) }, R.string.settings_cleared_all_data_files) }
         rootView.findViewById<View>(R.id.dev_button_upload_reports_clear).setOnClickListener { _ ->
             createClearDialog(activity, { _ ->
                 DataStore.delete(activity, DataStore.RECENT_UPLOADS_FILE)
@@ -602,7 +602,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                                             }
 
                                         } else
-                                            FirebaseCrash.report(Throwable("Body is null"))
+                                            Crashlytics.logException(Throwable("Body is null"))
                                     }
                                     DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
                                 } else {
@@ -658,7 +658,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                                             }
 
                                         } else
-                                            FirebaseCrash.report(Throwable("Body is null"))
+                                            Crashlytics.logException(Throwable("Body is null"))
                                     }
                                     DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
                                 } else {

@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
-import com.google.firebase.crash.FirebaseCrash
+import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.launch
 import okhttp3.*
 import java.io.IOException
@@ -156,8 +156,8 @@ object NetworkLoader {
                 override fun onFailure(call: Call, e: IOException) {
                     callbackNoData(context, preferenceString, callback, lastUpdate, -1)
 
-                    FirebaseCrash.log("Load " + preferenceString)
-                    FirebaseCrash.report(e)
+                    Crashlytics.log("Load " + preferenceString)
+                    Crashlytics.logException(e)
                 }
 
                 @Throws(IOException::class)

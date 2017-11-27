@@ -16,8 +16,8 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.adsamcik.signalcollector.utility.Preferences
+import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.crash.FirebaseCrash
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -122,7 +122,7 @@ object DataStore {
      */
     fun delete(context: Context, fileName: String) {
         if (!FileStore.delete(file(context, fileName)))
-            FirebaseCrash.report(RuntimeException("Failed to delete " + fileName))
+            Crashlytics.logException(RuntimeException("Failed to delete " + fileName))
     }
 
     /**
@@ -255,7 +255,7 @@ object DataStore {
             val name = file.name
             if (name.startsWith(DATA_FILE))
                 if (!FileStore.delete(file))
-                    FirebaseCrash.report(RuntimeException("Failed to delete " + file.name))
+                    Crashlytics.logException(RuntimeException("Failed to delete " + file.name))
         }
         onDataChanged(context)
 
@@ -320,7 +320,7 @@ object DataStore {
                 preference = PREF_DATA_FILE_INDEX
             }
             else -> {
-                FirebaseCrash.report(Throwable("Unknown type " + type))
+                Crashlytics.logException(Throwable("Unknown type " + type))
                 return
             }
         }
@@ -395,7 +395,7 @@ object DataStore {
 
             files
                     .filterNot { FileStore.delete(it) }
-                    .forEach { FirebaseCrash.report(RuntimeException("Failed to delete " + it.name)) }
+                    .forEach { Crashlytics.logException(RuntimeException("Failed to delete " + it.name)) }
         }
     }
 
@@ -451,7 +451,7 @@ object DataStore {
                 try {
                     FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), gson.toJson(stats), false)
                 } catch (e: Exception) {
-                    FirebaseCrash.report(e)
+                    Crashlytics.logException(e)
                 }
 
             }
@@ -468,7 +468,7 @@ object DataStore {
         return try {
             FileStore.saveAppendableJsonArray(file(context, fileName), data, append)
         } catch (e: MalformedJsonException) {
-            FirebaseCrash.report(e)
+            Crashlytics.logException(e)
             false
         }
 
