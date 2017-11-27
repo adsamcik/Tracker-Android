@@ -79,7 +79,7 @@ dependencies {
     implementation "com.google.firebase:firebase-core:$play_services_version"
     implementation "com.google.firebase:firebase-messaging:$play_services_version"
     implementation "com.google.firebase:firebase-perf:$play_services_version"
-    implementation('com.crashlytics.sdk.android:crashlytics:2.7.1@aar') {
+    implementation 'com.crashlytics.sdk.android:crashlytics:2.7.1@aar', {
         transitive = true
     }
 
