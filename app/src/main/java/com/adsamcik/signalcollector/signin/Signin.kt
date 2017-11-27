@@ -16,8 +16,6 @@ class Signin {
     var user: User? = null
         private set
 
-    private val onSignedCallbackList = ArrayList<(User?) -> Unit>(2)
-
     private val onSignInInternal: (Context, User?) -> Unit = { context, user ->
         val status = when {
             this.user != null && user == null -> {
@@ -113,6 +111,8 @@ class Signin {
         private var silentFailed: Boolean = false
         private var instance: Signin? = null
 
+        private val onSignedCallbackList = ArrayList<(User?) -> Unit>(2)
+
         var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
             set(value) {
                 value?.invoke(status, instance?.user)
@@ -136,7 +136,7 @@ class Signin {
                 instance = Signin(activity, callback, silentOnly)
             else if (status.failed && !silentOnly) {
                 if (callback != null)
-                    instance!!.onSignedCallbackList.add(callback)
+                    onSignedCallbackList.add(callback)
                 instance!!.client.signIn(activity, instance!!.onSignInInternal)
             } else if (instance!!.user != null)
                 callback?.invoke(instance!!.user)
@@ -149,9 +149,9 @@ class Signin {
                 instance = Signin(context, callback)
             else if (callback != null) {
                 when {
-                    instance!!.user != null -> callback.invoke(instance!!.user)
+                    instance?.user != null -> callback.invoke(instance!!.user)
                     status.failed -> callback.invoke(null)
-                    else -> instance!!.onSignedCallbackList.add(callback)
+                    else -> onSignedCallbackList.add(callback)
                 }
             }
 
@@ -192,7 +192,7 @@ class Signin {
                 Preferences.getPref(context).getString(Preferences.PREF_USER_ID, null)
 
         fun removeOnSignedListeners() {
-            instance?.onSignedCallbackList?.clear()
+            onSignedCallbackList.clear()
         }
 
         fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
