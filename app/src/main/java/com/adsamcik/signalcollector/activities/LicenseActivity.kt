@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
+import android.support.annotation.RawRes
 import android.view.ViewGroup
 import android.widget.Button
 import com.adsamcik.signalcollector.R
@@ -13,7 +14,9 @@ import de.psdev.licensesdialog.licenses.MITLicense
 import de.psdev.licensesdialog.model.Notice
 import java.io.BufferedReader
 import java.io.IOException
+import java.io.InputStream
 import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 
 class LicenseActivity : DetailActivity() {
 
@@ -50,17 +53,16 @@ class LicenseActivity : DetailActivity() {
         }
 
         val isMeta = resources.openRawResource(R.raw.third_party_license_metadata)
-        val isLicense = resources.openRawResource(R.raw.third_party_licenses)
+
         val rMeta = BufferedReader(InputStreamReader(isMeta))
-        val rLicense = BufferedReader(InputStreamReader(isLicense))
 
         try {
             rMeta.forEachLine { line ->
-                val firstSpace = line.indexOf(' ')
-                val length = line.length
-                val name = line.substring(firstSpace + 1, length)
-                val button = addButton(parent, name)
-                addLicenseDialogListener(button, name, rLicense.readLine())
+                val split = line.split(' ')
+                val fromTo = split[0].split(':')
+                val lObject = LicenseObject(split[1], fromTo[0].toInt() - 1, fromTo[1].toInt())
+                val button = addButton(parent, lObject.name)
+                addLicenseDialogListener(button, lObject)
             }
         } catch (e: IOException) {
             Crashlytics.logException(e)
@@ -69,8 +71,21 @@ class LicenseActivity : DetailActivity() {
         setTitle(R.string.open_source_licenses)
     }
 
-    private fun readLicense(from: Int, to: Int) {
+    private fun openStream(@RawRes rawRes: Int): InputStream {
+        return resources.openRawResource(rawRes)
+    }
 
+    private fun readLicense(license: LicenseObject): String {
+        val buffer = CharArray(license.length)
+        val stream = openStream(R.raw.third_party_licenses)
+
+        if (license.from > 0)
+            stream.skip(license.from.toLong())
+
+        val reader = InputStreamReader(stream, StandardCharsets.UTF_8)
+        reader.read(buffer, 0, license.length)
+        reader.close()
+        return String(buffer)
     }
 
     private fun addButton(parent: ViewGroup, name: String): Button {
@@ -80,9 +95,9 @@ class LicenseActivity : DetailActivity() {
         return button
     }
 
-    private fun addLicenseDialogListener(button: Button, name: String, licenseURL: String) {
+    private fun addLicenseDialogListener(button: Button, license: LicenseObject) {
         button.setOnClickListener { _ ->
-            val notice = resolveNotice(name, licenseURL)
+            val notice = resolveNotice(license)
             LicensesDialog.Builder(this)
                     .setNotices(notice)
                     .build()
@@ -90,28 +105,31 @@ class LicenseActivity : DetailActivity() {
         }
     }
 
-    private fun resolveNotice(name: String, licenseURL: String): Notice {
-        val lowerName = name.toLowerCase()
+    private fun resolveNotice(license: LicenseObject): Notice {
+        val lowerName = license.name.toLowerCase()
         return when {
-            lowerName.startsWith("stag") -> Notice(name, "https://github.com/vimeo/stag-java", "Copyright (c) 2016 Vimeo", MITLicense())
+            lowerName.startsWith("stag") -> Notice(license.name, "https://github.com/vimeo/stag-java", "Copyright (c) 2016 Vimeo", MITLicense())
             lowerName == "appintro" -> Notice("AppIntro", "https://github.com/apl-devs/AppIntro", "Copyright 2015 Paolo Rotolo\n" + "Copyright 2016 Maximilian Narr", ApacheSoftwareLicense20())
             lowerName == "persistentcookiejar" -> Notice("PersistentCookieJar", "https://github.com/franmontiel/PersistentCookieJar", "Copyright 2016 Francisco José Montiel Navarro", ApacheSoftwareLicense20())
             else -> {
-                val license = resolveLicense(licenseURL)
-                if (license == null)
-                    Notice(name, null, licenseURL, null)
+                val readLicense = readLicense(license)
+                val resolvedLicense = resolveLicense(readLicense)
+                if (resolvedLicense == null)
+                    Notice(license.name, null, readLicense, null)
                 else
-                    Notice(name, null, null, license)
+                    Notice(license.name, null, null, resolvedLicense)
             }
         }
     }
 
-    private fun resolveLicense(url: String): License? {
-        return if (url.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || url.startsWith("https://api.github.com/licenses/apache-2.0"))
+    private fun resolveLicense(license: String): License? {
+        return if (license.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || license.startsWith("https://api.github.com/licenses/apache-2.0"))
             ApacheSoftwareLicense20()
-        else if (url.startsWith("http://www.opensource.org/licenses/mit-license"))
+        else if (license.startsWith("http://www.opensource.org/licenses/mit-license"))
             MITLicense()
         else
             null
     }
+
+    class LicenseObject(val name: String, val from: Int, val length: Int)
 }
