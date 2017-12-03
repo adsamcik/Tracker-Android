@@ -47,33 +47,20 @@ constructor(private val file: File) {
      * @return true if successfully added
      */
     fun add(file: File): Boolean {
-        val fi: FileInputStream
-
-        try {
-            fi = FileInputStream(file)
-        } catch (e: FileNotFoundException) {
-            Crashlytics.logException(e)
-            return false
-        }
-
-        val origin = BufferedInputStream(fi, BUFFER)
-        val entry = ZipEntry(file.name)
-        return try {
-            zipStream.putNextEntry(entry)
-            origin.use { input ->
-                zipStream.use { fileOut ->
-                    input.copyTo(fileOut)
+        BufferedInputStream(FileInputStream(file), BUFFER).use { origin ->
+            val entry = ZipEntry(file.name)
+            return try {
+                zipStream.putNextEntry(entry)
+                origin.use {
+                    it.copyTo(zipStream)
                 }
+                true
+            } catch (e: IOException) {
+                e.printStackTrace()
+                Crashlytics.logException(e)
+                false
             }
-
-            origin.close()
-            true
-        } catch (e: IOException) {
-            e.printStackTrace()
-            Crashlytics.logException(e)
-            false
         }
-
     }
 
     operator fun plusAssign(file: File) {
