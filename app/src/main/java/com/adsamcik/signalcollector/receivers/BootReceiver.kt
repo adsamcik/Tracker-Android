@@ -14,10 +14,10 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            ActivityWakerService.poke(context)
-            ActivityService.requestAutoTracking(context, MainActivity::class.java)
             if (!BuildConfig.DEBUG)
                 Fabric.with(context, Crashlytics())
+            ActivityWakerService.poke(context)
+            ActivityService.requestAutoTracking(context, MainActivity::class.java)
         }
     }
 }

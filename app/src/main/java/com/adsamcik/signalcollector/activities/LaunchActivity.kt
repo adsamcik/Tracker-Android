@@ -29,6 +29,15 @@ class LaunchActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
+
+        if (BuildConfig.DEBUG) {
+            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
+            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
+            val token = FirebaseInstanceId.getInstance().token
+            Log.d("Signals", token ?: "null token")
+        } else
+            Fabric.with(this, Crashlytics())
+
         val scheduler = getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         val sp = Preferences.getPref(this)
         if (sp.getInt(Preferences.LAST_VERSION, 0) <= 138) {
@@ -73,14 +82,6 @@ class LaunchActivity : Activity() {
 
         if (Build.VERSION.SDK_INT >= 26)
             NotificationTools.prepareChannels(this)
-
-        if (BuildConfig.DEBUG) {
-            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
-            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
-            val token = FirebaseInstanceId.getInstance().token
-            Log.d("Signals", token ?: "null token")
-        } else
-            Fabric.with(this, Crashlytics())
 
         ActivityWakerService.poke(this)
 
