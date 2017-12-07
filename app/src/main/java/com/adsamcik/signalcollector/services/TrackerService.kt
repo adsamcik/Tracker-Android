@@ -365,8 +365,7 @@ class TrackerService : Service() {
             unregisterReceiver(wifiReceiver)
 
         saveData()
-        if (onServiceStateChange != null)
-            onServiceStateChange!!.callback()
+        onServiceStateChange?.callback()
         DataStore.cleanup(this)
 
         if (wasWifiEnabled) {
