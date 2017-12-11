@@ -8,18 +8,16 @@ import android.support.annotation.DrawableRes
 import android.view.Window
 import com.adsamcik.signalcollector.R
 
-import com.adsamcik.signalcollector.interfaces.ICallback
 import com.github.paolorotolo.appintro.AppIntroBaseFragment
 import com.github.paolorotolo.appintro.ISlidePolicy
 
 class FragmentIntro : AppIntroBaseFragment(), ISlidePolicy {
     private var window: Window? = null
-    private var onLeaveCallback: ICallback? = null
+    private var onLeaveCallback: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (window == null)
-            window = activity!!.window
+        window = activity!!.window
     }
 
     override fun onSlideSelected() {
@@ -47,7 +45,7 @@ class FragmentIntro : AppIntroBaseFragment(), ISlidePolicy {
 
     override fun onUserIllegallyRequestedNextPage() {
         if (hasCallback()) {
-            onLeaveCallback!!.callback()
+            onLeaveCallback!!.invoke()
             onLeaveCallback = null
         }
     }
@@ -59,13 +57,13 @@ class FragmentIntro : AppIntroBaseFragment(), ISlidePolicy {
         fun newInstance(title: CharSequence, description: CharSequence,
                         @DrawableRes imageDrawable: Int,
                         @ColorInt bgColor: Int,
-                        window: Window, onLeaveCallback: ICallback?): FragmentIntro =
+                        window: Window, onLeaveCallback: (() -> Unit)?): FragmentIntro =
                 newInstance(title, description, imageDrawable, bgColor, 0, 0, window, onLeaveCallback)
 
         private fun newInstance(title: CharSequence, description: CharSequence,
                                 @DrawableRes imageDrawable: Int, @ColorInt bgColor: Int,
                                 @ColorInt titleColor: Int, @ColorInt descColor: Int,
-                                window: Window, onLeaveCallback: ICallback?): FragmentIntro {
+                                window: Window, onLeaveCallback: (() -> Unit)?): FragmentIntro {
             val slide = FragmentIntro()
             val args = Bundle()
             args.putString(AppIntroBaseFragment.ARG_TITLE, title.toString())
@@ -88,7 +86,7 @@ class FragmentIntro : AppIntroBaseFragment(), ISlidePolicy {
                         description: CharSequence, descTypeface: String,
                         @DrawableRes imageDrawable: Int,
                         @ColorInt bgColor: Int,
-                        window: Window, onLeaveCallback: ICallback?): FragmentIntro {
+                        window: Window, onLeaveCallback: (() -> Unit)?): FragmentIntro {
             return newInstance(title, titleTypeface, description, descTypeface, imageDrawable, bgColor,
                     0, 0, window, onLeaveCallback)
         }
@@ -97,7 +95,7 @@ class FragmentIntro : AppIntroBaseFragment(), ISlidePolicy {
                                 description: CharSequence, descTypeface: String,
                                 @DrawableRes imageDrawable: Int, @ColorInt bgColor: Int,
                                 @ColorInt titleColor: Int, @ColorInt descColor: Int,
-                                window: Window, onLeaveCallback: ICallback?): FragmentIntro {
+                                window: Window, onLeaveCallback: (() -> Unit)?): FragmentIntro {
             val slide = FragmentIntro()
             val args = Bundle()
             args.putString(AppIntroBaseFragment.ARG_TITLE, title.toString())

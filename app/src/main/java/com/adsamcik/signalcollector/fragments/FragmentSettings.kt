@@ -27,9 +27,7 @@ import com.adsamcik.signalcollector.activities.*
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.interfaces.IVerify
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
@@ -304,7 +302,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
                 rootView.findViewById(R.id.switch_activity_watcher),
                 Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
-                INonNullValueCallback { _ -> ActivityWakerService.poke(activity) })
+                 { _ -> ActivityWakerService.poke(activity) })
 
         val activityFrequencySlider = rootView.findViewById<IntValueSlider>(R.id.settings_seekbar_watcher_frequency)
         //todo update to not set useless values because of setItems below
@@ -354,7 +352,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.DEFAULT_AUTO_UPLOAD_AT_MB,
                 Slider.IStringify { progress -> getString(R.string.settings_autoupload_at_value, progress) }, null)
 
-        setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, INonNullValueCallback { value -> (seekAutoUploadAt.parent as ViewGroup).visibility = if (value) View.GONE else View.VISIBLE })
+        setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, { value -> (seekAutoUploadAt.parent as ViewGroup).visibility = if (value) View.GONE else View.VISIBLE })
 
         if (Preferences.getPref(activity).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART)) {
             (seekAutoUploadAt.parent as ViewGroup).visibility = View.GONE
@@ -365,7 +363,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         setSwitchChangeListener(activity, Preferences.PREF_TRACKING_WIFI_ENABLED, rootView.findViewById(R.id.switchTrackWifi), Preferences.DEFAULT_TRACKING_WIFI_ENABLED, null)
         setSwitchChangeListener(activity, Preferences.PREF_TRACKING_CELL_ENABLED, rootView.findViewById(R.id.switchTrackCell), Preferences.DEFAULT_TRACKING_CELL_ENABLED, null)
         val switchTrackLocation = rootView.findViewById<Switch>(R.id.switchTrackLocation)
-        setSwitchChangeListener(activity, Preferences.PREF_TRACKING_LOCATION_ENABLED, switchTrackLocation, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, INonNullValueCallback { s ->
+        setSwitchChangeListener(activity, Preferences.PREF_TRACKING_LOCATION_ENABLED, switchTrackLocation, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED, { s ->
             if (!s) {
                 val alertDialogBuilder = AlertDialog.Builder(activity, R.style.AlertDialog)
                 alertDialogBuilder
@@ -409,7 +407,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED,
                 rootView.findViewById(R.id.switchNotificationsUpload),
                 true,
-                INonNullValueCallback { b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b)) })
+                { b -> FirebaseAssist.updateValue(activity, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(b)) })
 
         rootView.findViewById<View>(R.id.other_clear_data).setOnClickListener { _ ->
             val alertDialogBuilder = AlertDialog.Builder(activity)
@@ -448,13 +446,13 @@ class FragmentSettings : Fragment(), ITabFragment {
         }
 
         rootView.findViewById<View>(R.id.dev_button_browse_files).setOnClickListener { _ ->
-            createFileAlertDialog(activity, activity.filesDir, IVerify { file ->
+            createFileAlertDialog(activity, activity.filesDir, { file ->
                 val name = file.name
                 !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
             })
         }
 
-        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, IVerify { file -> !file.name.startsWith("com.") && !file.isDirectory }) }
+        rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory }) }
 
 
         rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { _ -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
@@ -492,10 +490,10 @@ class FragmentSettings : Fragment(), ITabFragment {
         alertDialogBuilder.show()
     }
 
-    private fun createFileAlertDialog(context: Context, directory: File, verifyFunction: IVerify<File>?) {
+    private fun createFileAlertDialog(context: Context, directory: File, verifyFunction: ((File) -> Boolean)?) {
         val files = directory.listFiles()
         val temp = files
-                .filter { verifyFunction == null || verifyFunction.verify(it) }
+                .filter { verifyFunction == null || verifyFunction.invoke(it) }
                 .map { it.name + "|  " + Assist.humanReadableByteCount(it.length(), true) }
 
         Collections.sort(temp) { obj, s -> obj.compareTo(s) }
@@ -524,21 +522,21 @@ class FragmentSettings : Fragment(), ITabFragment {
                            preference: String,
                            defaultValue: Int,
                            textGenerationFuncton: Slider.IStringify<Int>,
-                           valueCallback: INonNullValueCallback<Int>?) {
+                           valueCallback: ((Int) -> Unit)?) {
         slider.maxValue = maxValue
         slider.setPreferences(Preferences.getPref(context), preference, defaultValue)
         slider.step = step
         slider.minValue = minValue
         slider.setTextView(title, textGenerationFuncton)
         if (valueCallback != null)
-            slider.setOnValueChangeListener { _, _ -> valueCallback.callback(slider.value!!) }
+            slider.setOnValueChangeListener { _, _ -> valueCallback.invoke(slider.value!!) }
     }
 
-    private fun setSwitchChangeListener(context: Context, name: String, s: Switch, defaultState: Boolean, callback: INonNullValueCallback<Boolean>?) {
+    private fun setSwitchChangeListener(context: Context, name: String, s: Switch, defaultState: Boolean, callback: ((Boolean) -> Unit)?) {
         s.isChecked = Preferences.getPref(context).getBoolean(name, defaultState)
         s.setOnCheckedChangeListener { _: CompoundButton, b: Boolean ->
             Preferences.getPref(context).edit().putBoolean(name, b).apply()
-            callback?.callback(b)
+            callback?.invoke(b)
         }
     }
 

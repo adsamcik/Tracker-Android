@@ -26,7 +26,6 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
@@ -35,6 +34,8 @@ import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 
 class FragmentTracker : Fragment(), ITabFragment {
     private var layoutCell: CardView? = null
@@ -143,7 +144,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (requiredPermissions == null) {
             if (!TrackerService.isRunning) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener{ _ ->
+                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
                         val gpsOptionsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(gpsOptionsIntent)
                     })
@@ -323,10 +324,10 @@ class FragmentTracker : Fragment(), ITabFragment {
             } else
                 toggleCollecting(activity, !TrackerService.isRunning)
         }
-        DataStore.setOnDataChanged(ICallback { activity.runOnUiThread { setCollected(activity, DataStore.sizeOfData(activity), DataStore.collectionCount(activity)) } })
-        DataStore.setOnUploadProgress({ progress -> activity.runOnUiThread { updateUploadProgress(progress) } })
-        TrackerService.onNewDataFound = ICallback { activity.runOnUiThread { this.updateData() } }
-        TrackerService.onServiceStateChange = ICallback { activity.runOnUiThread { changeTrackerButton(if (TrackerService.isRunning) 1 else 0, true) } }
+        DataStore.setOnDataChanged({ activity.runOnUiThread { setCollected(activity, DataStore.sizeOfData(activity), DataStore.collectionCount(activity)) } })
+        DataStore.setOnUploadProgress({ progress -> launch(UI) { updateUploadProgress(progress) } })
+        TrackerService.onNewDataFound = { launch(UI) { updateData() } }
+        TrackerService.onServiceStateChange = { launch(UI) { changeTrackerButton(if (TrackerService.isRunning) 1 else 0, true) } }
 
         //TrackerService.rawDataEcho = new RawData(200).setActivity(1).addCell("Some Operator", null).setLocation(new Location("test")).setWifi(new android.net.wifi.ScanResult[0], 10);
 

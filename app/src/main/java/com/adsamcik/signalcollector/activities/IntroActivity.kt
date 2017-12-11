@@ -13,8 +13,6 @@ import android.view.View
 import android.view.WindowManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentIntro
-import com.adsamcik.signalcollector.interfaces.ICallback
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
@@ -86,7 +84,7 @@ class IntroActivity : AppIntro2() {
         }
 
 
-        val uploadSetCallback = INonNullValueCallback<Int> { value ->
+        val uploadSetCallback = { value : Int ->
             Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply()
             nextSlide(1)
         }
@@ -96,9 +94,9 @@ class IntroActivity : AppIntro2() {
                 .setTitle(R.string.intro_enable_auto_upload_title)
                 .setMessage(R.string.intro_enable_auto_upload_description)
                 .setCancelable(false)
-                .setPositiveButton(uploadOptions[2]) { _, _ -> uploadSetCallback.callback(2) }
-                .setNeutralButton(uploadOptions[1]) { _, _ -> uploadSetCallback.callback(1) }
-                .setNegativeButton(uploadOptions[0]) { _, _ -> uploadSetCallback.callback(0) }
+                .setPositiveButton(uploadOptions[2]) { _, _ -> uploadSetCallback.invoke(2) }
+                .setNeutralButton(uploadOptions[1]) { _, _ -> uploadSetCallback.invoke(1) }
+                .setNegativeButton(uploadOptions[0]) { _, _ -> uploadSetCallback.invoke(0) }
         //askForPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 2);
 
 
@@ -145,9 +143,9 @@ class IntroActivity : AppIntro2() {
         setNavBarColor("#4c6699")
         skipButtonEnabled = false
 
-        addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome_description), R.drawable.ic_intro_theme, Color.parseColor("#8B8B8B"), window, ICallback(themeCallback)))
-        addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, ICallback(automationSlideCallback)))
-        addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, if (Signin.isSignedIn) null else ICallback(googleSigninSlideCallback)))
+        addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_welcome_title), r.getString(R.string.intro_welcome_description), R.drawable.ic_intro_theme, Color.parseColor("#8B8B8B"), window, themeCallback))
+        addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_auto_track_up_title), r.getString(R.string.intro_auto_track_up), R.drawable.ic_intro_auto_tracking_upload, Color.parseColor("#4c6699"), window, automationSlideCallback))
+        addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_signin_title), r.getString(R.string.intro_signing_description), R.drawable.ic_intro_permissions, Color.parseColor("#cc3333"), window, if (Signin.isSignedIn) null else googleSigninSlideCallback))
         addSlide(FragmentIntro.newInstance(r.getString(R.string.intro_activites_title), r.getString(R.string.intro_activities_description), R.drawable.ic_intro_activites, Color.parseColor("#007b0c"), window, null))
     }
 

@@ -30,7 +30,6 @@ import com.adsamcik.signalcollector.activities.MainActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.Assist
@@ -161,9 +160,7 @@ class TrackerService : Service() {
 
         notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
 
-        if (onNewDataFound != null) {
-            onNewDataFound!!.callback()
-        }
+        onNewDataFound?.invoke()
 
         if (data.size > 5)
             saveData()
@@ -341,8 +338,7 @@ class TrackerService : Service() {
         lockedUntil = 0
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
-        if (onServiceStateChange != null)
-            onServiceStateChange!!.callback()
+        onServiceStateChange?.invoke()
         if (NOISE_ENABLED && Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
             noiseTracker = NoiseTracker(this).start()
         return super.onStartCommand(intent, flags, startId)
@@ -365,7 +361,7 @@ class TrackerService : Service() {
             unregisterReceiver(wifiReceiver)
 
         saveData()
-        onServiceStateChange?.callback()
+        onServiceStateChange?.invoke()
         DataStore.cleanup(this)
 
         if (wasWifiEnabled) {
@@ -405,8 +401,8 @@ class TrackerService : Service() {
 
         val UPDATE_TIME_SEC = 2
 
-        var onServiceStateChange: ICallback? = null
-        var onNewDataFound: ICallback? = null
+        var onServiceStateChange: (() -> Unit)? = null
+        var onNewDataFound: (() -> Unit)? = null
 
         /**
          * RawData from previous collection

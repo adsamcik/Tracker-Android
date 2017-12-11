@@ -14,7 +14,6 @@ import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
-import com.adsamcik.signalcollector.interfaces.INonNullValueCallback
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -51,7 +50,7 @@ class UploadJobService : JobService() {
 
         isUploading = true
         val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
-        worker = JobWorker(context, INonNullValueCallback { success ->
+        worker = JobWorker(context, { success ->
             if (success) {
                 var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
                 if (collectionCount < collectionsToUpload) {
@@ -81,7 +80,7 @@ class UploadJobService : JobService() {
         USER
     }
 
-    private class JobWorker internal constructor(context: Context, private val callback: INonNullValueCallback<Boolean>?) : AsyncTask<JobParameters, Void, Boolean>() {
+    private class JobWorker internal constructor(context: Context, private val callback: ((Boolean) -> Unit)?) : AsyncTask<JobParameters, Void, Boolean>() {
         private val context: WeakReference<Context> = WeakReference(context.applicationContext)
 
         private var tempZipFile: File? = null
@@ -217,7 +216,7 @@ class UploadJobService : JobService() {
             if (tempZipFile != null && !FileStore.delete(tempZipFile))
                 Crashlytics.logException(IOException("Upload zip file was not deleted"))
 
-            callback?.callback(result)
+            callback?.invoke(result)
         }
 
         override fun onCancelled() {
@@ -227,10 +226,9 @@ class UploadJobService : JobService() {
             if (tempZipFile != null)
                 FileStore.delete(tempZipFile)
 
-            if (call != null)
-                call!!.cancel()
+            call?.cancel()
 
-            callback?.callback(call != null && call!!.isExecuted && !call!!.isCanceled)
+            callback?.invoke(call != null && call!!.isExecuted && !call!!.isCanceled)
 
             super.onCancelled()
         }

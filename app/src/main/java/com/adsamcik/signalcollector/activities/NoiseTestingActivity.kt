@@ -66,7 +66,7 @@ class NoiseTestingActivity : DetailActivity() {
             }
         }
 
-        findViewById<View>(R.id.dev_noise_clear_list).setOnClickListener { f -> adapter.clear() }
+        findViewById<View>(R.id.dev_noise_clear_list).setOnClickListener { _ -> adapter.clear() }
 
     }
 

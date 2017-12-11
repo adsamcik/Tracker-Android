@@ -8,7 +8,6 @@ import android.util.Pair
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.interfaces.ICallback
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
@@ -33,7 +32,7 @@ object DataStore {
     val PREF_CACHE_FILE_INDEX = "saveCacheID"
     private val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
-    private var onDataChanged: ICallback? = null
+    private var onDataChanged: (() -> Unit)? = null
     private var onUploadProgress: ((Int) -> Unit)? = null
 
     @Volatile private var approxSize: Long = -1
@@ -57,8 +56,7 @@ object DataStore {
         else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
             Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED
 
-        if (onDataChanged != null)
-            onDataChanged!!.callback()
+        onDataChanged?.invoke()
     }
 
     /**
@@ -82,7 +80,7 @@ object DataStore {
      *
      * @param callback callback
      */
-    fun setOnDataChanged(callback: ICallback?) {
+    fun setOnDataChanged(callback: (() -> Unit)?) {
         onDataChanged = callback
     }
 
