@@ -30,6 +30,8 @@
             android:layout_height="wrap_content"
             android:text="LOREM IPSUM"
             android:textAlignment="center"
+            android:layout_marginLeft="70dp"
+            android:layout_marginRight="70dp"
             android:textColor="@android:color/white"/>
     </android.support.constraint.ConstraintLayout>
 
@@ -99,7 +101,8 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/include">
+        android:id="@+id/include"
+        android:translationZ="-1dp">
 
         <include
             layout="@layout/fragment_new_tracker"/>
