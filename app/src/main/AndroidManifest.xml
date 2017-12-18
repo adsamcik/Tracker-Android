@@ -16,8 +16,8 @@
     <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <!--<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>-->
-    <!--<uses-permission android:name="android.permission.READ_PHONE_STATE"/>-->
+    <!-- <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/> -->
+    <!-- <uses-permission android:name="android.permission.READ_PHONE_STATE"/> -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application
@@ -28,11 +28,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppThemeLight"
         tools:ignore="GoogleAppIndexingWarning">
-
         <meta-data
             android:name="android.max_aspect"
             android:value="2.1"/>
-
         <meta-data
             android:name="firebase_crashlytics_collection_enabled"
             android:value="false"/>
@@ -67,6 +65,14 @@
             android:alwaysRetainTaskState="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"/>
+
+
+        <activity
+            android:name=".activities.NewUIActivity"
+            android:label="@string/title_activity_new_ui"
+            android:exported="true"
+            android:theme="@style/AppThemeTransluscent"/>
+
         <activity
             android:name=".activities.IntroActivity"
             android:screenOrientation="portrait"
@@ -83,35 +89,28 @@
             android:name=".activities.NoiseTestingActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
-
         <activity
             android:name=".activities.ActivityRecognitionActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
-
         <activity
             android:name=".activities.FileSharingActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait">
             <intent-filter>
-                <action
-                    android:name="android.intent.action.PICK"/>
+                <action android:name="android.intent.action.PICK"/>
 
-                <category
-                    android:name="android.intent.category.DEFAULT"/>
-                <category
-                    android:name="android.intent.category.OPENABLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.OPENABLE"/>
 
                 <data android:mimeType="application/zip"/>
             </intent-filter>
         </activity>
-
         <activity
             android:name=".activities.FeedbackActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
-
         <activity
             android:name=".activities.LicenseActivity"
             android:parentActivityName=".activities.StandardUIActivity"
@@ -136,8 +135,7 @@
         <service
             android:name=".services.TrackerService"
             android:exported="false"/>
-        <service
-            android:name=".services.ActivityService"/>
+        <service android:name=".services.ActivityService"/>
         <service
             android:name=".services.InstanceIDListenerService"
             tools:ignore="ExportedService">
@@ -157,7 +155,6 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWakerService"/>
-
         <service
             android:name=".jobs.DisableTillRechargeJobService"
             android:exported="true"

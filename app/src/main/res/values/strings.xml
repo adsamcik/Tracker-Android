@@ -128,4 +128,5 @@
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
     <string name="share_nothing_to_share">Nothing to share</string>
+    <string name="title_activity_new_ui">NewUIActivity</string>
 </resources>

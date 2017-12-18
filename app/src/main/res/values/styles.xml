@@ -18,6 +18,13 @@
         <item name="titleColor">@color/text_primary</item>
     </style>
 
+    <style name="AppThemeTransluscent" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
     <style name="SettingsButton" parent="SettingsItem">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -116,4 +123,8 @@
         <item name="android:scrollbars">vertical</item>
         <item name="android:inputType">textMultiLine</item>
     </style>
+
+    <style name="AppThemeLight.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
+
+    <style name="AppThemeLight.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"/>
 </resources>
