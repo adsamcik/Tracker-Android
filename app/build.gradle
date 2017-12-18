@@ -100,3 +100,5 @@ dependencies {
 apply plugin: 'com.google.gms.google-services'
 //todo Caused issues with coverage run. It is not really needed atm. Remember to look at it at later date
 //apply plugin: 'com.google.firebase.firebase-perf'
+
+apply plugin: 'kotlin-android-extensions'
