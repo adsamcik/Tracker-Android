@@ -28,7 +28,7 @@ import org.junit.runner.RunWith
 class TrackerFragmentTest {
 
     @Rule @JvmField
-    val mActivityTestRule = ActivityTestRule(MainActivity::class.java)
+    val mActivityTestRule = ActivityTestRule(StandardUIActivity::class.java)
 
     @Test
     fun trackerFragmentTest() {

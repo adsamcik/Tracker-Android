@@ -202,7 +202,7 @@ class IntroActivity : AppIntro2() {
     override fun onDonePressed(currentFragment: Fragment?) {
         Preferences.getPref(this).edit().putBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, true).apply()
         if (isTaskRoot)
-            startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+            startActivity(Intent(this, StandardUIActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
         finish()
     }
 

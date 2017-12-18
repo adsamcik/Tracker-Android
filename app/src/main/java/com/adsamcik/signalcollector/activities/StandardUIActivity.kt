@@ -26,7 +26,7 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
 
-class MainActivity : FragmentActivity() {
+class StandardUIActivity : FragmentActivity() {
 
     private var fabOne: FloatingActionButton? = null
     private var fabTwo: FloatingActionButton? = null
@@ -54,7 +54,7 @@ class MainActivity : FragmentActivity() {
         Signin.signIn(this, null, true)
 
         if (Assist.checkPlayServices(this))
-            ActivityService.requestAutoTracking(this, MainActivity::class.java)
+            ActivityService.requestAutoTracking(this, StandardUIActivity::class.java)
         else
             snackMaker.showSnackbar(R.string.error_play_services_not_available)
 

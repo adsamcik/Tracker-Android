@@ -160,9 +160,9 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         if (mTrackingSelected != null)
             if (select == 0)
-                ActivityService.removeAutoTracking(context!!, MainActivity::class.java)
+                ActivityService.removeAutoTracking(context!!, StandardUIActivity::class.java)
             else
-                ActivityService.requestAutoTracking(context!!, MainActivity::class.java)
+                ActivityService.requestAutoTracking(context!!, StandardUIActivity::class.java)
 
         mTrackingSelected = selected
     }
@@ -321,7 +321,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         })
         activityFrequencySlider.setOnValueChangeListener { value, fromUser ->
             if (fromUser) {
-                ActivityService.requestActivity(activity, MainActivity::class.java, value)
+                ActivityService.requestActivity(activity, StandardUIActivity::class.java, value)
                 ActivityWakerService.poke(activity)
             }
         }

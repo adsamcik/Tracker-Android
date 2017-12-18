@@ -10,7 +10,7 @@ import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -66,7 +66,7 @@ class ActivityWakerService : Service() {
     }
 
     private fun updateNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, StandardUIActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text

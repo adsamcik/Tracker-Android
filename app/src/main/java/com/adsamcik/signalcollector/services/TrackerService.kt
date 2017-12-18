@@ -26,7 +26,7 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import com.adsamcik.signalcollector.NoiseTracker
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
@@ -215,7 +215,7 @@ class TrackerService : Service() {
     }
 
     private fun generateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, StandardUIActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setSmallIcon(R.drawable.ic_signals)  // the done icon

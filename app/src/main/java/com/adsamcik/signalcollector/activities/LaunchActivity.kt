@@ -73,7 +73,7 @@ class LaunchActivity : Activity() {
         }
 
         if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || useMock)
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, StandardUIActivity::class.java))
         else
             startActivity(Intent(this, IntroActivity::class.java))
 

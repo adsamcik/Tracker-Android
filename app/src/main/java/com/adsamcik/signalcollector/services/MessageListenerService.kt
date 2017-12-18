@@ -8,7 +8,7 @@ import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.data.UploadStats
@@ -86,7 +86,7 @@ class MessageListenerService : FirebaseMessagingService() {
      */
     private fun sendNotification(messageType: MessageType, title: String, message: String, pendingIntent: PendingIntent?, time: Long) {
         var pendingIntent = pendingIntent
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, StandardUIActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (pendingIntent == null)
             pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT)
