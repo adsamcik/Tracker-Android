@@ -27,53 +27,54 @@
 67914:46 slider
 67962:46 table
 68010:46 design
-68058:46 appcompat-v7
-68106:46 recyclerview-v7
-68154:46 transition
-68202:47 play-services-maps
-68251:47 play-services-location
-68300:47 play-services-auth
-68349:47 firebase-messaging
-68398:47 firebase-perf
-68447:47 play-services-auth-api-phone
-68496:47 play-services-auth-base
-68545:47 play-services-base
-68594:46 support-v4
-68642:46 support-fragment
-68690:46 animated-vector-drawable
-68738:46 support-core-ui
-68786:46 support-core-utils
-68834:46 support-vector-drawable
-68882:46 support-media-compat
-68930:46 support-compat
-68978:46 cardview-v7
-69026:46 constraint-layout
-69074:53 crashlytics
-69129:46 kotlin-stdlib-jre7
-69177:46 kotlinx-coroutines-android
-69225:46 support-annotations
-69273:46 jsr305
-69321:46 runtime
-69369:46 constraint-layout-solver
-69417:11358 v2964546_google
-80777:16013 Android SDK
-96792:10691 Android Core Utils Support Library
-107485:10691 Android Media Compat Support Library
-118178:10695 Android Core UI Support Library
-128875:10695 Android Fragments Support Library
-139572:10695 Android Annotations Support Library
-150269:10695 Android Compat Support Library
-160966:11358 okhttp3
-172326:11358 Okio
-183686:10695 Android Compatibility Library v4
-194383:53 beta
-194438:53 crashlytics-core
-194493:24 answers
-194519:23 fabric
-194544:46 kotlinx-coroutines-core
-194592:46 kotlin-stdlib
-194688:46 common
-194736:46 kotlin-annotation-processing-gradle
-194784:46 kotlin-compiler-embeddable
-194832:46 kotlin-reflect
-194880:46 kotlin-script-runtime
+68058:46 flexbox
+68106:46 appcompat-v7
+68154:46 recyclerview-v7
+68202:46 transition
+68250:47 play-services-maps
+68299:47 play-services-location
+68348:47 play-services-auth
+68397:47 firebase-messaging
+68446:47 firebase-perf
+68495:47 play-services-auth-api-phone
+68544:47 play-services-auth-base
+68593:47 play-services-base
+68642:46 support-v4
+68690:46 support-fragment
+68738:46 animated-vector-drawable
+68786:46 support-core-ui
+68834:46 support-core-utils
+68882:46 support-vector-drawable
+68930:46 support-media-compat
+68978:46 support-compat
+69026:46 cardview-v7
+69074:46 constraint-layout
+69122:53 crashlytics
+69177:46 kotlin-stdlib-jre7
+69225:46 kotlinx-coroutines-android
+69273:46 support-annotations
+69321:46 jsr305
+69369:46 runtime
+69417:46 constraint-layout-solver
+69465:11358 v2964546_google
+80825:16013 Android SDK
+96840:10691 Android Core Utils Support Library
+107533:10691 Android Media Compat Support Library
+118226:10695 Android Core UI Support Library
+128923:10695 Android Fragments Support Library
+139620:10695 Android Annotations Support Library
+150317:10695 Android Compat Support Library
+161014:11358 okhttp3
+172374:11358 Okio
+183734:10695 Android Compatibility Library v4
+194431:53 beta
+194486:53 crashlytics-core
+194541:24 answers
+194567:23 fabric
+194592:46 kotlinx-coroutines-core
+194640:46 kotlin-stdlib
+194736:46 common
+194784:46 kotlin-annotation-processing-gradle
+194832:46 kotlin-compiler-embeddable
+194880:46 kotlin-reflect
+194928:46 kotlin-script-runtime
