@@ -7,12 +7,15 @@
     android:layout_height="match_parent"
     android:background="#166f72"
     android:clipChildren="false"
-    tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
+    tools:context="com.adsamcik.signalcollector.activities.NewUIActivity"
+    android:id="@+id/root">
 
 
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="72dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="horizontal"
         android:paddingBottom="8dp"
         android:paddingEnd="@dimen/edge_margin"
@@ -24,17 +27,18 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:gravity="center"
-            tools:text="06:00:00"
-            android:textColor="@android:color/white"
+            android:text="06:00:00"
+            android:textColor="@color/text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintLeft_toLeftOf="parent"/>
+            app:layout_constraintLeft_toLeftOf="parent"
+            tools:text="06:00:00"/>
 
         <ImageButton
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="@android:color/transparent"
             android:src="@drawable/ic_settings_black_24dp"
-            android:tint="@android:color/white"
+            android:tint="@color/text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintRight_toRightOf="parent"/>
     </android.support.constraint.ConstraintLayout>
@@ -42,9 +46,10 @@
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="128dp"
+        android:clipChildren="false"
         android:clipToPadding="false"
         android:orientation="horizontal"
+        android:paddingBottom="128dp"
         android:translationZ="100dp"
         app:layout_anchor="@+id/include"
         app:layout_anchorGravity="bottom">
@@ -53,7 +58,6 @@
             android:layout_width="72dp"
             android:layout_height="80dp"
             android:layout_gravity="start"
-            android:layout_marginBottom="48dp"
             android:background="@drawable/side_button"
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
@@ -70,8 +74,7 @@
             android:translationX="10dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_bias="0.0">
+            app:layout_constraintTop_toTopOf="parent">
         </ImageButton>
 
 
@@ -86,27 +89,85 @@
         app:layout_anchor="@id/include"
         app:layout_anchorGravity="center | bottom"/>
 
-
-    <ScrollView
-        android:id="@+id/include"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:translationZ="-1dp">
+        android:orientation="vertical"
+        android:paddingLeft="@dimen/edge_margin"
+        android:paddingRight="@dimen/edge_margin">
 
-        <LinearLayout
+        <android.support.constraint.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_marginTop="64dp">
 
-            <View
-                android:layout_width="match_parent"
+            <ImageView
+                android:id="@+id/ic_storage"
+                android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_marginBottom="8dp"/>
+                android:src="@drawable/ic_storage_black_24dp"
+                android:tint="@android:color/white"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                tools:text="588 KB"
+                app:layout_constraintLeft_toRightOf="@id/ic_storage"
+                app:layout_constraintTop_toTopOf="@id/ic_storage"
+                />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="4dp"
+                tools:text="170 collections"
+                app:layout_constraintBottom_toBottomOf="@id/ic_storage"
+                app:layout_constraintLeft_toRightOf="@id/ic_storage"
+                />
+
+            <ImageView
+                android:id="@+id/ic_activity"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_directions_car_white_24dp"
+                android:tint="@android:color/white"
+                app:layout_constraintRight_toRightOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                tools:text="237 m altitude"
+                android:textAlignment="textEnd"
+                app:layout_constraintRight_toLeftOf="@id/ic_activity"
+                app:layout_constraintTop_toTopOf="@id/ic_activity"
+                />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="4dp"
+                tools:text="8 m accuracy"
+                android:textAlignment="textEnd"
+                app:layout_constraintBottom_toBottomOf="@id/ic_activity"
+                app:layout_constraintRight_toLeftOf="@id/ic_activity"
+                />
+
+        </android.support.constraint.ConstraintLayout>
+
+
+        <ScrollView
+            android:id="@+id/include"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:translationZ="-1dp">
             <include
                 layout="@layout/fragment_new_tracker"/>
-        </LinearLayout>
-    </ScrollView>
+        </ScrollView>
+    </LinearLayout>
 
 </android.support.design.widget.CoordinatorLayout>

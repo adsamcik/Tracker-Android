@@ -1,90 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<com.google.android.flexbox.FlexboxLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:layout_marginTop="24dp"
+    app:alignContent="space_between"
+    app:alignItems="flex_start"
+    app:dividerDrawableVertical="@layout/flexbox_vertical_spacing"
+    app:flexWrap="wrap"
+    app:justifyContent="space_between"
+    app:showDividerVertical="middle">
 
-    <android.support.constraint.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+    <include layout="@layout/layout_tracker_item"/>
 
-        <ImageView
-            android:id="@+id/ic_storage"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_storage_black_24dp"
-            android:tint="@android:color/white"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+    <include layout="@layout/layout_tracker_item"/>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:text="588 KB"
-            app:layout_constraintLeft_toRightOf="@id/ic_storage"
-            app:layout_constraintTop_toTopOf="@id/ic_storage"
-            />
+    <include layout="@layout/layout_tracker_item"/>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="4dp"
-            android:text="170 collections"
-            app:layout_constraintBottom_toBottomOf="@id/ic_storage"
-            app:layout_constraintLeft_toRightOf="@id/ic_storage"
-            />
-
-        <ImageView
-            android:id="@+id/ic_activity"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_directions_car_white_24dp"
-            android:tint="@android:color/white"
-            app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:text="237 m altitude"
-            android:textAlignment="textEnd"
-            app:layout_constraintRight_toLeftOf="@id/ic_activity"
-            app:layout_constraintTop_toTopOf="@id/ic_activity"
-            />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="4dp"
-            android:text="8 m accuracy"
-            android:textAlignment="textEnd"
-            app:layout_constraintBottom_toBottomOf="@id/ic_activity"
-            app:layout_constraintRight_toLeftOf="@id/ic_activity"
-            />
-
-    </android.support.constraint.ConstraintLayout>
-
-    <com.google.android.flexbox.FlexboxLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        app:alignContent="space_between"
-        app:justifyContent="space_between"
-        app:alignItems="flex_start"
-        app:dividerDrawableVertical="@layout/flexbox_vertical_spacing"
-        app:flexWrap="wrap"
-        app:showDividerVertical="middle"
-        >
-
-        <include layout="@layout/layout_tracker_item"/>
-
-        <include layout="@layout/layout_tracker_item"/>
-
-        <include layout="@layout/layout_tracker_item"/>
-
-    </com.google.android.flexbox.FlexboxLayout>
-</LinearLayout>
+</com.google.android.flexbox.FlexboxLayout>
