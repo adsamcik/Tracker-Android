@@ -1,16 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.constraint.ConstraintLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
 
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingEnd="@dimen/activity_horizontal_margin"
-        android:paddingStart="@dimen/activity_horizontal_margin">
+        android:layout_height="wrap_content">
 
         <ImageView
             android:id="@+id/ic_storage"
@@ -69,4 +67,24 @@
             />
 
     </android.support.constraint.ConstraintLayout>
-</android.support.constraint.ConstraintLayout>
+
+    <com.google.android.flexbox.FlexboxLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        app:alignContent="space_between"
+        app:justifyContent="space_between"
+        app:alignItems="flex_start"
+        app:dividerDrawableVertical="@layout/flexbox_vertical_spacing"
+        app:flexWrap="wrap"
+        app:showDividerVertical="middle"
+        >
+
+        <include layout="@layout/layout_tracker_item"/>
+
+        <include layout="@layout/layout_tracker_item"/>
+
+        <include layout="@layout/layout_tracker_item"/>
+
+    </com.google.android.flexbox.FlexboxLayout>
+</LinearLayout>

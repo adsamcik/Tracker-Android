@@ -9,30 +9,34 @@
     android:clipChildren="false"
     tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
 
+
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="#33000000"
+        android:layout_height="72dp"
         android:orientation="horizontal"
-        android:paddingEnd="16dp"
-        android:paddingStart="16dp"
-        android:paddingTop="30dp"
+        android:paddingBottom="8dp"
+        android:paddingEnd="@dimen/edge_margin"
+        android:paddingStart="@dimen/edge_margin"
+        android:paddingTop="@dimen/status_bar_height_and_half_padding"
         >
 
         <TextView
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="06:00:00"
-            android:textColor="@android:color/white"/>
+            android:layout_height="32dp"
+            android:gravity="center"
+            tools:text="06:00:00"
+            android:textColor="@android:color/white"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"/>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="70dp"
-            android:layout_marginRight="70dp"
-            android:text="LOREM IPSUM"
-            android:textAlignment="center"
-            android:textColor="@android:color/white"/>
+        <ImageButton
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_settings_black_24dp"
+            android:tint="@android:color/white"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintRight_toRightOf="parent"/>
     </android.support.constraint.ConstraintLayout>
 
     <android.support.constraint.ConstraintLayout
@@ -76,13 +80,11 @@
     <ImageButton
         android:layout_width="220dp"
         android:layout_height="12dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
+        android:layout_marginBottom="80dp"
         android:background="@drawable/map_draggable"
         android:elevation="6dp"
         app:layout_anchor="@id/include"
-        app:layout_anchorGravity="center | bottom"
-        android:layout_marginBottom="80dp"/>
+        app:layout_anchorGravity="center | bottom"/>
 
 
     <ScrollView
@@ -94,11 +96,12 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:padding="16dp">
 
             <View
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
+                android:layout_height="48dp"
                 android:layout_marginBottom="8dp"/>
 
             <include
