@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.support.design.widget.CoordinatorLayout
 import android.support.v7.app.AppCompatActivity
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.components.InfoComponent
 
 
 class NewUIActivity : AppCompatActivity() {
@@ -21,6 +22,13 @@ class NewUIActivity : AppCompatActivity() {
         animation.repeatCount = ValueAnimator.INFINITE
         animation.addUpdateListener { root.setBackgroundColor(it.animatedValue as Int) }
         animation.start()
+
+        val wifiComponent = findViewById<InfoComponent>(R.id.tracker_wifi_component)
+        wifiComponent.addSecondaryText("found them 5meters ago")
+        wifiComponent.addPrimaryText("56 wifi nearby")
+
+        val cellComponent = findViewById<InfoComponent>(R.id.tracker_cell_component)
+        cellComponent.addPrimaryText("Healthy LTE, you fed it well")
     }
 
 
