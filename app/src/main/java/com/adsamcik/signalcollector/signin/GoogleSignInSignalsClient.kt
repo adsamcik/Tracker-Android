@@ -73,13 +73,15 @@ class GoogleSignInSignalsClient : ISignInClient {
     }
 
     override fun signOut(context: Context) {
-        client!!.signOut().addOnCompleteListener { _ -> userValueCallback?.invoke(context, null) }
+        client!!.signOut().addOnCompleteListener {
+            Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).apply()
+            userValueCallback?.invoke(context, null)
+        }
     }
 
     private fun resolveUser(context: Context, account: GoogleSignInAccount): User {
         val user = User(account.id!!, account.idToken!!)
 
-        //todo move to Signin
         Preferences.getPref(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
 
         userValueCallback?.invoke(context, user)
