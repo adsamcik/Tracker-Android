@@ -177,6 +177,10 @@ class Signin {
             instance?.signout(context)
         }
 
+        /**
+         * Returns user asynchronously using callback
+         * User can be null if signin fails
+         */
         fun getUserAsync(context: Context, callback: (User?) -> Unit) {
             if (instance?.user != null)
                 callback.invoke(instance!!.user)
@@ -184,6 +188,10 @@ class Signin {
                 signIn(context, callback)
         }
 
+        /**
+         * Returns user asynchronously using Kotlin's coroutines
+         * User can be null if signin fails
+         */
         suspend fun getUserAsync(context: Context): User? = suspendCoroutine { cont ->
             getUserAsync(context, { user -> cont.resume(user) })
         }
