@@ -24,12 +24,12 @@ import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.perf.FirebasePerformance
+import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.File
 import java.io.IOException
 import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
-import java.util.concurrent.locks.ReentrantLock
 
 class UploadJobService : JobService() {
     private var worker: JobWorker? = null
@@ -159,49 +159,32 @@ class UploadJobService : JobService() {
                     return false
                 }
 
-                val lock = ReentrantLock()
-                val callbackReceived = lock.newCondition()
-                val token = StringWrapper()
-                val userID = StringWrapper()
+                return runBlocking {
+                    val user = Signin.getUserAsync(context)
 
-                Signin.getUserAsync(context, { value ->
-                    lock.lock()
-                    if (value != null) {
-                        token.string = value.token
-                        userID.string = value.id
+                    if (user != null) {
+                        if (upload(tempZipFile, user.token, user.id)) {
+                            for (file in files) {
+                                FileStore.delete(file)
+                            }
+
+                            if (!tempZipFile!!.delete())
+                                tempZipFile!!.deleteOnExit()
+
+                            DataStore.recountData(context)
+                            return@runBlocking true
+                        } else {
+                            uploadTrace.incrementCounter("fail", 3)
+                            uploadTrace.stop()
+                            return@runBlocking false
+                        }
+                    } else {
+                        uploadTrace.incrementCounter("fail", 2)
+                        uploadTrace.stop()
+                        return@runBlocking false
                     }
-                    callbackReceived.signal()
-                    lock.unlock()
-                })
-
-                lock.lock()
-                try {
-                    if (token.string == null)
-                        callbackReceived.await()
-                } catch (e: InterruptedException) {
-                    Crashlytics.logException(e)
-                    uploadTrace.incrementCounter("fail", 2)
-                    uploadTrace.stop()
-                    return false
-                } finally {
-                    lock.unlock()
                 }
-
-                if (upload(tempZipFile, token.string, userID.string)) {
-                    for (file in files)
-                        FileStore.delete(file)
-                    if (!tempZipFile!!.delete())
-                        tempZipFile!!.deleteOnExit()
-                } else {
-                    uploadTrace.incrementCounter("fail", 3)
-                    uploadTrace.stop()
-                    return false
-                }
-                uploadTrace.stop()
             }
-
-            DataStore.recountData(context)
-            return true
         }
 
         override fun onPostExecute(result: Boolean) {
