@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.data
+package com.adsamcik.signals.stats
 
 import com.vimeo.stag.UseStag
 
