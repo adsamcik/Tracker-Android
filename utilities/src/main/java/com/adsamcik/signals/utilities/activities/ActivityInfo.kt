@@ -1,7 +1,8 @@
 package com.adsamcik.signals.utilities.activities
 
 import android.content.Context
-import com.adsamcik.signalcollector.enums.ResolvedActivity
+import com.adsamcik.signals.utilities.R
+import com.adsamcik.signals.utilities.enums.ResolvedActivity
 import com.google.android.gms.location.DetectedActivity
 
 class ActivityInfo(val activity: Int, val confidence: Int) {

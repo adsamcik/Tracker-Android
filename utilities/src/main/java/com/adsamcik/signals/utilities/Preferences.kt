@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
-import com.adsamcik.utilities.R.style.AppThemeLight
+import com.adsamcik.signals.utilities.R.style.AppThemeLight
 
 object Preferences {
     private const val TAG = "SignalsSetting"

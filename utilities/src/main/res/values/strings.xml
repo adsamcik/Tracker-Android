@@ -1,3 +1,9 @@
 <resources>
     <string name="error_no_internet">Internet is unavailable</string>
+
+    <!-- Activity strings -->
+    <string name="activity_idle">Idle</string>
+    <string name="activity_on_foot">On foot</string>
+    <string name="activity_in_vehicle">In vehicle</string>
+    <string name="activity_unknown">Unknown</string>
 </resources>
