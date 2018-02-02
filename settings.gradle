@@ -1,1 +1,1 @@
-include ':app', ':signin', ':utilities'
+include ':app', ':signin', ':utilities', ':tracking', ':network'

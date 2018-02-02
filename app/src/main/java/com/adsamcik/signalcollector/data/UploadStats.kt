@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.data
 
 import android.content.res.Resources
+import com.adsamcik.signalcollector.R
 import com.vimeo.stag.UseStag
 
 @UseStag

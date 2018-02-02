@@ -4,7 +4,9 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/Signals-android.iml" filepath="$PROJECT_DIR$/Signals-android.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/network/network.iml" filepath="$PROJECT_DIR$/network/network.iml" />
       <module fileurl="file://$PROJECT_DIR$/signin/signin.iml" filepath="$PROJECT_DIR$/signin/signin.iml" />
+      <module fileurl="file://$PROJECT_DIR$/tracking/tracking.iml" filepath="$PROJECT_DIR$/tracking/tracking.iml" />
       <module fileurl="file://$PROJECT_DIR$/utilities/utilities.iml" filepath="$PROJECT_DIR$/utilities/utilities.iml" />
     </modules>
   </component>
