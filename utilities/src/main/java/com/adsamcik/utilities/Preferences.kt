@@ -4,13 +4,15 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
+import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.utilities.R.style.AppThemeLight
 import java.util.*
 
 object Preferences {
     private const val TAG = "SignalsSetting"
 
     const val PREF_THEME = "theme"
-    const val DEFAULT_THEME = R.style.AppThemeLight
+    val DEFAULT_THEME = AppThemeLight
 
     const val LAST_VERSION = "lastVersion"
 
