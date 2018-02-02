@@ -57,7 +57,7 @@ class SignalsTileProvider(context: Context, private val maxZoom: Int) : TileProv
     }
 
     companion object {
-        private val size = 256
+        private const val size = 256
         private val halfSize = size / 2
     }
 }

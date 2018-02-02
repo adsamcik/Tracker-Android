@@ -228,8 +228,8 @@ class LoginActivity : AppCompatActivity(), LoaderCallbacks<Cursor> {
         val PROJECTION = arrayOf(
                 ContactsContract.CommonDataKinds.Email.ADDRESS,
                 ContactsContract.CommonDataKinds.Email.IS_PRIMARY)
-        val ADDRESS = 0
-        val IS_PRIMARY = 1
+        const val ADDRESS = 0
+        const val IS_PRIMARY = 1
     }
 
     /**
@@ -281,7 +281,7 @@ class LoginActivity : AppCompatActivity(), LoaderCallbacks<Cursor> {
         /**
          * Id to identity READ_CONTACTS permission request.
          */
-        private val REQUEST_READ_CONTACTS = 0
+        private const val REQUEST_READ_CONTACTS = 0
 
         /**
          * A dummy authentication store containing known user names and passwords.

@@ -74,10 +74,10 @@ class CellData
     }
 
     companion object {
-        val GSM = 0
-        val CDMA = 1
-        val WCDMA = 2
-        val LTE = 3
+        const val GSM = 0
+        const val CDMA = 1
+        const val WCDMA = 2
+        const val LTE = 3
 
         /**
          * Finds carrier name in subscriptions

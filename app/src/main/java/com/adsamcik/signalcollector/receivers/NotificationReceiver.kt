@@ -32,6 +32,6 @@ class NotificationReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        val ACTION_STRING = "action"
+        const val ACTION_STRING = "action"
     }
 }

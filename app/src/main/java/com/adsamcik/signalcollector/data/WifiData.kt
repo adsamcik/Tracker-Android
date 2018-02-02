@@ -95,6 +95,6 @@ class WifiData : Serializable {
     }
 
     companion object {
-        private val MAX_SIGNAL_BAR = 10
+        private const val MAX_SIGNAL_BAR = 10
     }
 }

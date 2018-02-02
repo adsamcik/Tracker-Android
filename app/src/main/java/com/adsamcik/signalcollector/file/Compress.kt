@@ -84,6 +84,6 @@ constructor(private val file: File) {
     }
 
     companion object {
-        private val BUFFER = 2048
+        private const val BUFFER = 2048
     }
 }

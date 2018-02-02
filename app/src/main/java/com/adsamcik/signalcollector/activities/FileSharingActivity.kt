@@ -126,7 +126,7 @@ class FileSharingActivity : DetailActivity() {
     }
 
     companion object {
-        private val SHARE_RESULT = 1
-        private val SHAREABLE_DIR_NAME = "shareable"
+        private const val SHARE_RESULT = 1
+        private const val SHAREABLE_DIR_NAME = "shareable"
     }
 }
