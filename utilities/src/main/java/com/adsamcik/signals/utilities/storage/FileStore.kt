@@ -1,7 +1,6 @@
 package com.adsamcik.signals.utilities.storage
 
 import android.util.MalformedJsonException
-import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.*

@@ -1,6 +1,5 @@
 package com.adsamcik.signals.utilities.components
 
-import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.support.annotation.IntRange
@@ -10,20 +9,12 @@ import android.util.Pair
 import android.view.View
 import java.util.concurrent.LinkedBlockingQueue
 
-class SnackMaker {
-    private val view: View?
+class SnackMaker(view: View) {
+    private val view: View? = view
 
     private val queue = LinkedBlockingQueue<Pair<String, Int>>()
     private var current: Snackbar? = null
     private var handler: Handler? = null
-
-    constructor(view: View) {
-        this.view = view
-    }
-
-    constructor(activity: Activity) {
-        this.view = activity.findViewById(R.id.fabCoordinator)
-    }
 
     fun showSnackbar(@StringRes message: Int) {
         showSnackbar(view!!.context.getString(message), Snackbar.LENGTH_LONG)

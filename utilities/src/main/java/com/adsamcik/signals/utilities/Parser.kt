@@ -1,7 +1,7 @@
 package com.adsamcik.signals.utilities
 
 import android.content.Context
-import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signals.utilities.storage.DataStore
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
