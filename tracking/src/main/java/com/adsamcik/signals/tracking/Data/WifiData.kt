@@ -1,4 +1,4 @@
-package com.adsamcik.signals.tracking.Data
+package com.adsamcik.signals.tracking.data
 
 import android.net.wifi.ScanResult
 import android.net.wifi.ScanResult.*

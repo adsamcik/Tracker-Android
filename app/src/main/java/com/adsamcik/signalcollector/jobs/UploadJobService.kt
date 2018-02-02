@@ -12,7 +12,7 @@ import android.os.PersistableBundle
 import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.file.FileStore
+import com.adsamcik.signals.utilities.storage.FileStore
 import com.adsamcik.signals.network.network.Network
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants

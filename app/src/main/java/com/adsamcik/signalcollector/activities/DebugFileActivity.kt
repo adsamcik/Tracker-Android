@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 
-import com.adsamcik.signalcollector.file.FileStore
+import com.adsamcik.signals.utilities.storage.FileStore
 
 class DebugFileActivity : DetailActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

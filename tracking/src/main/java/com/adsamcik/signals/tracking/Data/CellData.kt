@@ -1,4 +1,4 @@
-package com.adsamcik.signals.tracking.Data
+package com.adsamcik.signals.tracking.data
 
 import android.support.annotation.RequiresApi
 import android.telephony.*

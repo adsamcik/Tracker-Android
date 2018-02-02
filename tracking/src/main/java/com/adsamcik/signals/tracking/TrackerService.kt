@@ -36,7 +36,7 @@ import com.adsamcik.utilities.Constants
 import com.adsamcik.utilities.Constants.*
 import com.adsamcik.utilities.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
-import com.adsamcik.signals.tracking.Data.RawData
+import com.adsamcik.signals.tracking.data.RawData
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import java.lang.ref.WeakReference
