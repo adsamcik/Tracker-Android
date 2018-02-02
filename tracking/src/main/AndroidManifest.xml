@@ -1,9 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.adsamcik.signals.tracking">
+
     <uses-feature android:name="android.hardware.location.gps"/>
     <uses-feature android:name="android.hardware.wifi"/>
 
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+
+    <application>
+        <service
+            android:name=".TrackerService"
+            android:exported="false"/>
+        <service android:name=".ActivityService"/>
+        <service android:name=".ActivityWakerService"/>
+    </application>
 </manifest>

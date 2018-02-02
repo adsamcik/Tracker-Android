@@ -132,10 +132,7 @@
             </intent-filter>
         </receiver>
 
-        <service
-            android:name=".services.TrackerService"
-            android:exported="false"/>
-        <service android:name=".services.ActivityService"/>
+
         <service
             android:name=".services.InstanceIDListenerService"
             tools:ignore="ExportedService">
@@ -154,7 +151,6 @@
             android:name=".jobs.UploadJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service android:name=".services.ActivityWakerService"/>
         <service
             android:name=".jobs.DisableTillRechargeJobService"
             android:exported="true"

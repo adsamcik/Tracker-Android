@@ -34,7 +34,6 @@ android {
 }
 
 dependencies {
-    api 'com.android.support:appcompat-v7:26.1.0'
     implementation "com.android.support:appcompat-v7:$support_version"
     implementation "com.android.support:design:$support_version"
     implementation "com.google.android.gms:play-services-auth:$play_services_version"
@@ -46,7 +45,5 @@ dependencies {
     application project(':app')
 
     api project(':utilities')
-    feature project(":tracking")
     feature project(":network")
-    feature project(":stats")
 }
