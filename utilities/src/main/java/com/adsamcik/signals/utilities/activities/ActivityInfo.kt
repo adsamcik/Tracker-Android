@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signals.utilities.activities
 
 import android.content.Context
 import com.adsamcik.signalcollector.enums.ResolvedActivity

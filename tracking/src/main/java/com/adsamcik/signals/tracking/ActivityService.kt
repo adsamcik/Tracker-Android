@@ -7,7 +7,9 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.PowerManager
 import android.util.SparseArray
+import com.adsamcik.signals.utilities.Assist
 import com.crashlytics.android.Crashlytics
+import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.tasks.Task
 
 class ActivityService : IntentService("ActivityService") {
@@ -16,6 +18,7 @@ class ActivityService : IntentService("ActivityService") {
         val result = ActivityRecognitionResult.extractResult(intent)
         val detectedActivity = result.mostProbableActivity
 
+        com.adsamcik.utilities
         lastActivity = ActivityInfo(detectedActivity.type, detectedActivity.confidence)
         if (backgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
             if (powerManager == null)
@@ -23,17 +26,17 @@ class ActivityService : IntentService("ActivityService") {
             if (TrackerService.isRunning) {
                 if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
                     stopService(Intent(this, TrackerService::class.java))
-                    ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, "stopped tracking")
+                    ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, "stopped tracking")
                 } else {
-                    ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
+                    ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, null)
                 }
             } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackerService.isAutoLocked && !powerManager!!.isPowerSaveMode && Assist.canTrack(this)) {
                 val trackerService = Intent(this, TrackerService::class.java)
                 trackerService.putExtra("backTrack", true)
                 startService(trackerService)
-                ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, "started tracking")
+                ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, "started tracking")
             } else {
-                ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
+                ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, null)
             }
         }
 
