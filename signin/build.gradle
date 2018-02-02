@@ -52,4 +52,6 @@ dependencies {
 
     api project(':utilities')
     implementation project(":network")
+    feature(':tracking')
+    feature project(':app')
 }

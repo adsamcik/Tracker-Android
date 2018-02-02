@@ -93,6 +93,9 @@ dependencies {
     //Modules
     implementation project(':signin')
     api project(':utilities')
+    implementation project(':tracking')
+    implementation project(':stats')
+    implementation project(':network')
 }
 
 apply plugin: 'com.google.gms.google-services'

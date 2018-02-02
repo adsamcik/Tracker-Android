@@ -50,6 +50,9 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:0.19.3'
 
     api project(':utilities')
+    feature project(':signin')
+    feature project(':tracking')
+    feature project(':app')
 }
 repositories {
     mavenCentral()
