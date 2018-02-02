@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.test
+package com.adsamcik.signals.utilities.test
 
 import android.os.Build
 

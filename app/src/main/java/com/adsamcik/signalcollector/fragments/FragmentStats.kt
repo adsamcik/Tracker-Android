@@ -19,7 +19,7 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signals.network.network.NetworkLoader
-import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signals.utilities.test.useMock
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.signalcollector.utility.StatManager

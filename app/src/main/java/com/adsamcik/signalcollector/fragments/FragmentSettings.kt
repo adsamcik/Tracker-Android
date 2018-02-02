@@ -33,7 +33,7 @@ import com.adsamcik.signals.network.network.NetworkLoader
 import com.adsamcik.signals.network.network.Prices
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signals.utilities.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider

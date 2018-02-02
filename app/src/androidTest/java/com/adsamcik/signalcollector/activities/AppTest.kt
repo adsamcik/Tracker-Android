@@ -23,7 +23,7 @@ import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.MessageListenerService
-import com.adsamcik.signalcollector.test.isTestMode
+import com.adsamcik.signals.utilities.test.isTestMode
 import com.adsamcik.utilities.Constants
 import com.adsamcik.utilities.Preferences
 import com.google.gson.Gson
