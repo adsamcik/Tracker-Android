@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.signin
+package com.adsamcik.signals.signin
 
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.test.useMock
@@ -94,8 +94,8 @@ class User(val id: String, val token: String) {
         override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): User {
             val `object` = json.asJsonObject
             val wirelessPoints = `object`.get("wirelessPoints").asLong
-            val networkInfo = context.deserialize<User.NetworkInfo>(`object`.get("networkInfo"), User.NetworkInfo::class.java)
-            val networkPreferences = context.deserialize<User.NetworkPreferences>(`object`.get("networkPreferences"), User.NetworkPreferences::class.java)
+            val networkInfo = context.deserialize<NetworkInfo>(`object`.get("networkInfo"), NetworkInfo::class.java)
+            val networkPreferences = context.deserialize<NetworkPreferences>(`object`.get("networkPreferences"), NetworkPreferences::class.java)
             user.setServerData(wirelessPoints, networkInfo, networkPreferences)
             return user
         }

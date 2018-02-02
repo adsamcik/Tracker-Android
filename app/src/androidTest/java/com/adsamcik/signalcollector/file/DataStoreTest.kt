@@ -6,7 +6,7 @@ import android.support.test.runner.AndroidJUnit4
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals

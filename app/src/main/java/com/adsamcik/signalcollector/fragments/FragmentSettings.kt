@@ -34,8 +34,8 @@ import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.signin.User
+import com.adsamcik.signals.signin.signin.Signin
+import com.adsamcik.signals.signin.signin.User
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES

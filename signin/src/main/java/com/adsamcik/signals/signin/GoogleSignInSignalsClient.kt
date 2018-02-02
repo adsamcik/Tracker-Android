@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.signin
+package com.adsamcik.signals.signin
 
 
 import android.app.Activity
