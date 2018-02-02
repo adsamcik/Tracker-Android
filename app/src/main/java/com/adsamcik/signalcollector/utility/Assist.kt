@@ -22,7 +22,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability

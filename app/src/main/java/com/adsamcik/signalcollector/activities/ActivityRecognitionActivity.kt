@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ListView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS

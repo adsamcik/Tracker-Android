@@ -11,7 +11,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.UploadStats
@@ -19,7 +18,6 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES

@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock

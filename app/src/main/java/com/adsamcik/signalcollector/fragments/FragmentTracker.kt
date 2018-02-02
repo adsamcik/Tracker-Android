@@ -23,14 +23,12 @@ import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics

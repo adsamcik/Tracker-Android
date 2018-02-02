@@ -9,9 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI

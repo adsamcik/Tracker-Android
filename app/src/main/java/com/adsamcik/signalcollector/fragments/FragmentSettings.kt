@@ -22,7 +22,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.*
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.file.CacheStore
@@ -34,8 +33,6 @@ import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signals.signin.signin.Signin
-import com.adsamcik.signals.signin.signin.User
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES

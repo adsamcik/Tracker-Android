@@ -11,9 +11,7 @@ import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
 import android.view.View
 import android.view.WindowManager
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentIntro
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics

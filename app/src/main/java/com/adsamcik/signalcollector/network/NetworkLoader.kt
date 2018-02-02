@@ -2,9 +2,7 @@ package com.adsamcik.signalcollector.network
 
 import android.content.Context
 import android.util.Pair
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS

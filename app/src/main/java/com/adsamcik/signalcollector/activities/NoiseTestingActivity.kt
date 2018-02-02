@@ -7,7 +7,6 @@ import android.util.MutableInt
 import android.view.View
 import android.widget.*
 import com.adsamcik.signalcollector.NoiseTracker
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Preferences
 import java.lang.ref.WeakReference
 import java.util.*

@@ -16,7 +16,6 @@ import android.util.Log
 import android.util.MalformedJsonException
 import android.view.View
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.enums.CloudStatus

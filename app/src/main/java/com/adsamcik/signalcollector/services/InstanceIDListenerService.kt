@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.services
 
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signals.signin.signin.Signin
 import com.google.firebase.iid.FirebaseInstanceId
 import com.google.firebase.iid.FirebaseInstanceIdService
 import kotlinx.coroutines.experimental.launch

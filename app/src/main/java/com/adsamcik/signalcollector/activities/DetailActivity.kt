@@ -7,8 +7,6 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Preferences
 
 abstract class DetailActivity : Activity() {

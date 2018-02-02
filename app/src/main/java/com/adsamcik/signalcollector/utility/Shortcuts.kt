@@ -7,7 +7,6 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.support.annotation.DrawableRes
 import android.support.annotation.RequiresApi
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.ShortcutActivity
 import com.adsamcik.signalcollector.services.TrackerService
 import java.util.*

@@ -8,7 +8,6 @@ import android.support.annotation.StringRes
 import android.support.design.widget.Snackbar
 import android.util.Pair
 import android.view.View
-import com.adsamcik.signalcollector.R
 import java.util.concurrent.LinkedBlockingQueue
 
 class SnackMaker {

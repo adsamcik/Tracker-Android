@@ -14,7 +14,6 @@ import android.support.test.runner.AndroidJUnit4
 import android.support.v4.content.ContextCompat
 import android.view.View
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.handlePermissions
 import com.adsamcik.signalcollector.sleep
 import com.adsamcik.signalcollector.test.isTestMode

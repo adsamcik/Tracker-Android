@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.data
 
 import android.content.Context
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ChallengeDifficulty
 
 class Challenge {

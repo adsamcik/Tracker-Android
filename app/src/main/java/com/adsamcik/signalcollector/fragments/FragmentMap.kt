@@ -22,14 +22,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES

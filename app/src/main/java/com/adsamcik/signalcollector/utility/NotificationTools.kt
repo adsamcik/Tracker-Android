@@ -7,8 +7,6 @@ import android.graphics.Color
 import android.support.annotation.RequiresApi
 import android.support.annotation.StringRes
 
-import com.adsamcik.signalcollector.R
-
 @RequiresApi(26)
 object NotificationTools {
 

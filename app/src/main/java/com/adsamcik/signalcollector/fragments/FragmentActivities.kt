@@ -13,7 +13,6 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.utility.Assist

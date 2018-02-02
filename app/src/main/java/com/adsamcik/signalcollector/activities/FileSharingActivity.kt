@@ -8,11 +8,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataFile
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signals.signin.signin.Signin
 import com.adsamcik.signalcollector.utility.BottomSheetMenu
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics

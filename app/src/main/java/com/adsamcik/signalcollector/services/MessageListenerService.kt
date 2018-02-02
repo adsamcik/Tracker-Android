@@ -7,7 +7,6 @@ import android.content.Intent
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge

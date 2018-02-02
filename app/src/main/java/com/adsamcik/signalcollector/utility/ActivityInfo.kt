@@ -1,8 +1,6 @@
 package com.adsamcik.signalcollector.utility
 
 import android.content.Context
-
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.google.android.gms.location.DetectedActivity
 
