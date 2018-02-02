@@ -1,7 +1,6 @@
 package com.adsamcik.signals.stats
 
 import android.content.res.Resources
-import com.adsamcik.signalcollector.R
 import com.vimeo.stag.UseStag
 
 @UseStag

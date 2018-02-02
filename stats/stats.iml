@@ -119,7 +119,9 @@
       <excludeFolder url="file://$MODULE_DIR$/build/intermediates/splits-support" />
       <excludeFolder url="file://$MODULE_DIR$/build/intermediates/symbols" />
       <excludeFolder url="file://$MODULE_DIR$/build/intermediates/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/build/kotlin" />
       <excludeFolder url="file://$MODULE_DIR$/build/outputs" />
+      <excludeFolder url="file://$MODULE_DIR$/build/tmp" />
     </content>
     <orderEntry type="jdk" jdkName="Android API 27 Platform" jdkType="Android SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
@@ -127,6 +129,7 @@
     <orderEntry type="library" scope="TEST" name="com.android.support.test.espresso:espresso-idling-resource-3.0.1" level="project" />
     <orderEntry type="library" scope="TEST" name="org.hamcrest:hamcrest-core:1.3@jar" level="project" />
     <orderEntry type="library" scope="TEST" name="junit:junit:4.12@jar" level="project" />
+    <orderEntry type="library" name="com.vimeo.stag:stag-library:2.4.0@jar" level="project" />
     <orderEntry type="library" scope="TEST" name="org.hamcrest:hamcrest-library:1.3@jar" level="project" />
     <orderEntry type="library" scope="TEST" name="org.hamcrest:hamcrest-integration:1.3@jar" level="project" />
     <orderEntry type="library" scope="TEST" name="com.android.support.test.espresso:espresso-core-3.0.1" level="project" />
@@ -140,5 +143,6 @@
     <orderEntry type="library" scope="TEST" name="com.android.support.test:runner-1.0.1" level="project" />
     <orderEntry type="library" scope="TEST" name="com.android.support.test:rules-1.0.1" level="project" />
     <orderEntry type="library" scope="TEST" name="com.google.code.findbugs:jsr305:2.0.1@jar" level="project" />
+    <orderEntry type="module" module-name="utilities" />
   </component>
 </module>

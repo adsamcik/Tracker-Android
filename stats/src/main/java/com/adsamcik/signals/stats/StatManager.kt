@@ -2,10 +2,9 @@ package com.adsamcik.signals.stats
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.adsamcik.signalcollector.data.StatDay
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants
-import com.adsamcik.utilities.Preferences
+import com.adsamcik.signals.utilities.Assist
+import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.Preferences
 import com.google.gson.Gson
 import java.util.HashSet
 import kotlin.collections.ArrayList

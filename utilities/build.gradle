@@ -50,6 +50,7 @@ dependencies {
     feature project(':network')
     feature project(':signin')
     feature project(':app')
+    feature project(':stats')
 }
 repositories {
     mavenCentral()
