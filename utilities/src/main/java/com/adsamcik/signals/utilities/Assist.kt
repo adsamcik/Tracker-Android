@@ -23,6 +23,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import com.adsamcik.signals.utilities.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.utilities.R
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat

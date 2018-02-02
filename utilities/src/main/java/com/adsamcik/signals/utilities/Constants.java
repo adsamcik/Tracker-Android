@@ -1,10 +1,6 @@
-package com.adsamcik.signals.utilities
+package com.adsamcik.signals.utilities;
 
 public class Constants {
-	public static final boolean NOISE_ENABLED = true;
-
-	//Base units to make sure there are no typos
-	public static final int MAX_DATA_FILE_SIZE = U_MEBIBYTE;
 	//Time constats
 	public static final int SECOND_IN_MILLISECONDS = 1000;
 	public static final int MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
@@ -31,6 +27,9 @@ public class Constants {
 	private static final int U_BINARY = 1024;
 	public static final int U_KIBIBYTE = U_BINARY;
 	public static final int U_MEBIBYTE = U_KIBIBYTE * U_BINARY;
+
+	//Base units to make sure there are no typos
+	public static final int MAX_DATA_FILE_SIZE = U_MEBIBYTE;
 	/**
 	 * 2^10 / 4 => 2^8
 	 */
