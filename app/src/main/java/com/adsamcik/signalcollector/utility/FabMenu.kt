@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ListView
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
+import com.adsamcik.utilities.Assist
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 

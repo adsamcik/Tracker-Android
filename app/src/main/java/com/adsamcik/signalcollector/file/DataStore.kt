@@ -10,10 +10,10 @@ import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.gson.Gson
@@ -22,14 +22,14 @@ import java.io.File
 import java.util.*
 
 object DataStore {
-    val TAG = "SignalsDatastore"
+    const val TAG = "SignalsDatastore"
 
-    val RECENT_UPLOADS_FILE = "recentUploads"
-    val DATA_FILE = "dataStore"
-    val DATA_CACHE_FILE = "dataCacheFile"
-    val PREF_DATA_FILE_INDEX = "saveFileID"
-    val PREF_CACHE_FILE_INDEX = "saveCacheID"
-    private val PREF_COLLECTED_DATA_SIZE = "totalSize"
+    const val RECENT_UPLOADS_FILE = "recentUploads"
+    const val DATA_FILE = "dataStore"
+    const val DATA_CACHE_FILE = "dataCacheFile"
+    const val PREF_DATA_FILE_INDEX = "saveFileID"
+    const val PREF_CACHE_FILE_INDEX = "saveCacheID"
+    private const val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: (() -> Unit)? = null
     private var onUploadProgress: ((Int) -> Unit)? = null
@@ -40,7 +40,7 @@ object DataStore {
     var currentDataFile: DataFile? = null
         private set
 
-    private val collectionInDataFile = 0
+    private const val collectionInDataFile = 0
 
     fun getDir(context: Context): File = context.filesDir
 

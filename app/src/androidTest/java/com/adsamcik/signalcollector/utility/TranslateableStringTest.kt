@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.utility
 
 
 import android.support.test.InstrumentationRegistry
+import com.adsamcik.utilities.TranslateableString
 import com.google.gson.Gson
 import org.junit.Assert
 import org.junit.Test

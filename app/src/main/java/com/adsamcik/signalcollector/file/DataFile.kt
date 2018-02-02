@@ -8,7 +8,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
-import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.utilities.Constants
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 

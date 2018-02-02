@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility;
+package com.adsamcik.utilities;
 
 public class Constants {
 	public static final boolean NOISE_ENABLED = true;

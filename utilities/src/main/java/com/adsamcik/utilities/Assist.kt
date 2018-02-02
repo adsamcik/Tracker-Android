@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.utilities
 
 import android.animation.ObjectAnimator
 import android.app.Activity
@@ -22,7 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat
@@ -38,7 +38,7 @@ object Assist {
     /**
      * @return Today as a day in unix time
      */
-    val dayInUTC: Long
+    val todayUTC: Long
         get() {
             val c = Calendar.getInstance()
             c.timeZone = java.util.TimeZone.getTimeZone("UTC")

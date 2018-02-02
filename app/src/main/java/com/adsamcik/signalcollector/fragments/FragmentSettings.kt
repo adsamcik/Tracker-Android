@@ -35,10 +35,12 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
 import com.adsamcik.slider.IntValueSlider
 import com.adsamcik.slider.Slider
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.common.SignInButton
 import com.google.gson.Gson

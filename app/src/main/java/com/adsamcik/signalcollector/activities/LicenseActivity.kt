@@ -4,7 +4,7 @@ import android.os.Bundle
 import android.support.annotation.RawRes
 import android.view.ViewGroup
 import android.widget.Button
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20

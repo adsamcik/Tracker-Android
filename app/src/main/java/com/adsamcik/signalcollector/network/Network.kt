@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.franmontiel.persistentcookiejar.PersistentCookieJar
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache
@@ -14,7 +14,7 @@ import java.io.IOException
 import java.util.*
 
 object Network {
-    private val TAG = "SignalsNetwork"
+    private const val TAG = "SignalsNetwork"
     val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
     val URL_TILES = Server.URL_TILES
     val URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES

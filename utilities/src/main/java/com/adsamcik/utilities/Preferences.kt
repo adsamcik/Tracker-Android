@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.utilities
 
 import android.app.Activity
 import android.content.Context
@@ -10,80 +10,80 @@ import com.google.gson.Gson
 import java.util.*
 
 object Preferences {
-    private val TAG = "SignalsSetting"
+    private const val TAG = "SignalsSetting"
 
-    val PREF_THEME = "theme"
-    val DEFAULT_THEME = R.style.AppThemeLight
+    const val PREF_THEME = "theme"
+    const val DEFAULT_THEME = R.style.AppThemeLight
 
-    val LAST_VERSION = "lastVersion"
+    const val LAST_VERSION = "lastVersion"
 
-    val PREF_SCHEDULED_UPLOAD = "uploadSCHEDULED"
-    val PREF_SENT_TOKEN_TO_SERVER = "sentTokenToServer"
-    val PREF_REGISTERED_USER = "playUserRegistered"
+    const val PREF_SCHEDULED_UPLOAD = "uploadSCHEDULED"
+    const val PREF_SENT_TOKEN_TO_SERVER = "sentTokenToServer"
+    const val PREF_REGISTERED_USER = "playUserRegistered"
 
-    val PREF_AUTO_TRACKING = "backgroundTracking"
-    val DEFAULT_AUTO_TRACKING = 1
-    val PREF_AUTO_UPLOAD = "autoUpload"
-    val DEFAULT_AUTO_UPLOAD = 1
+    const val PREF_AUTO_TRACKING = "backgroundTracking"
+    const val DEFAULT_AUTO_TRACKING = 1
+    const val PREF_AUTO_UPLOAD = "autoUpload"
+    const val DEFAULT_AUTO_UPLOAD = 1
 
-    val PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched"
-    val PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge"
+    const val PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched"
+    const val PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge"
 
-    val PREF_USER_ID = "userID"
+    const val PREF_USER_ID = "userID"
 
-    val PREF_AUTO_UPLOAD_AT_MB = "autoUpAtMB"
-    val DEFAULT_AUTO_UPLOAD_AT_MB = 3
+    const val PREF_AUTO_UPLOAD_AT_MB = "autoUpAtMB"
+    const val DEFAULT_AUTO_UPLOAD_AT_MB = 3
 
-    val PREF_AUTO_UPLOAD_SMART = "smartAutoUpload"
-    val DEFAULT_AUTO_UPLOAD_SMART = true
+    const val PREF_AUTO_UPLOAD_SMART = "smartAutoUpload"
+    const val DEFAULT_AUTO_UPLOAD_SMART = true
 
     //Local tracking stats
-    val PREF_STATS_WIFI_FOUND = "statsWifiFound"
-    val PREF_STATS_CELL_FOUND = "statsCellFound"
-    val PREF_STATS_LOCATIONS_FOUND = "statsLocationsFound"
-    val PREF_STATS_MINUTES = "statsMinutes"
-    val PREF_STATS_STAT_LAST_DAY = "statsLastDay"
-    val PREF_STATS_LAST_7_DAYS = "statsLast7Days"
-    val PREF_STATS_UPLOADED = "statsUploaded"
+    const val PREF_STATS_WIFI_FOUND = "statsWifiFound"
+    const val PREF_STATS_CELL_FOUND = "statsCellFound"
+    const val PREF_STATS_LOCATIONS_FOUND = "statsLocationsFound"
+    const val PREF_STATS_MINUTES = "statsMinutes"
+    const val PREF_STATS_STAT_LAST_DAY = "statsLastDay"
+    const val PREF_STATS_LAST_7_DAYS = "statsLast7Days"
+    const val PREF_STATS_UPLOADED = "statsUploaded"
 
-    val PREF_OLDEST_RECENT_UPLOAD = "oldestRecentUpload"
+    const val PREF_OLDEST_RECENT_UPLOAD = "oldestRecentUpload"
 
-    val PREF_GENERAL_STATS = "generalStats"
-    val PREF_STATS = "stats"
-    val PREF_USER_STATS = "userStats"
-    val PREF_AVAILABLE_MAPS = "availableMaps"
+    const val PREF_GENERAL_STATS = "generalStats"
+    const val PREF_STATS = "stats"
+    const val PREF_USER_STATS = "userStats"
+    const val PREF_AVAILABLE_MAPS = "availableMaps"
 
-    val PREF_USER_DATA = "userDATA"
-    val PREF_USER_PRICES = "userPRICES"
+    const val PREF_USER_DATA = "userDATA"
+    const val PREF_USER_PRICES = "userPRICES"
 
-    val PREF_TRACKING_WIFI_ENABLED = "trackingWifiEnabled"
-    val DEFAULT_TRACKING_WIFI_ENABLED = true
-    val PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled"
-    val DEFAULT_TRACKING_CELL_ENABLED = true
-    val PREF_TRACKING_NOISE_ENABLED = "trackingNoiseEnabled"
-    val DEFAULT_TRACKING_NOISE_ENABLED = false
-    val PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled"
-    val DEFAULT_TRACKING_LOCATION_ENABLED = true
+    const val PREF_TRACKING_WIFI_ENABLED = "trackingWifiEnabled"
+    const val DEFAULT_TRACKING_WIFI_ENABLED = true
+    const val PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled"
+    const val DEFAULT_TRACKING_CELL_ENABLED = true
+    const val PREF_TRACKING_NOISE_ENABLED = "trackingNoiseEnabled"
+    const val DEFAULT_TRACKING_NOISE_ENABLED = false
+    const val PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled"
+    const val DEFAULT_TRACKING_LOCATION_ENABLED = true
 
-    val PREF_ACTIVITY_WATCHER_ENABLED = "activityWatcherEnabled"
-    val DEFAULT_ACTIVITY_WATCHER_ENABLED = false
-    val PREF_ACTIVITY_UPDATE_RATE = "activityUpdateRate"
-    val DEFAULT_ACTIVITY_UPDATE_RATE = 30
+    const val PREF_ACTIVITY_WATCHER_ENABLED = "activityWatcherEnabled"
+    const val DEFAULT_ACTIVITY_WATCHER_ENABLED = false
+    const val PREF_ACTIVITY_UPDATE_RATE = "activityUpdateRate"
+    const val DEFAULT_ACTIVITY_UPDATE_RATE = 30
 
-    val PREF_COLLECTIONS_SINCE_LAST_UPLOAD = "collectionsSinceLastUpload"
-    val PREF_COLLECTIONS_IN_STORAGE = "collectionsInStorage"
+    const val PREF_COLLECTIONS_SINCE_LAST_UPLOAD = "collectionsSinceLastUpload"
+    const val PREF_COLLECTIONS_IN_STORAGE = "collectionsInStorage"
 
-    val PREF_DEFAULT_MAP_OVERLAY = "defaultMapOverlay"
+    const val PREF_DEFAULT_MAP_OVERLAY = "defaultMapOverlay"
 
-    val PREF_UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled"
+    const val PREF_UPLOAD_NOTIFICATIONS_ENABLED = "uploadNotificationsEnabled"
 
-    val PREF_SHOW_DEV_SETTINGS = "showDevSettings"
-    val PREF_DEV_ACTIVITY_TRACKING_ENABLED = "activityDebugTracking"
-    val PREF_DEV_ACTIVITY_TRACKING_STARTED = "adevTrackingStartTime"
+    const val PREF_SHOW_DEV_SETTINGS = "showDevSettings"
+    const val PREF_DEV_ACTIVITY_TRACKING_ENABLED = "activityDebugTracking"
+    const val PREF_DEV_ACTIVITY_TRACKING_STARTED = "adevTrackingStartTime"
 
-    val PREF_ACTIVE_CHALLENGE_LIST = "activeChallengeList"
+    const val PREF_ACTIVE_CHALLENGE_LIST = "activeChallengeList"
 
-    private val MAX_DAY_DIFF_STATS = 7
+    private const val MAX_DAY_DIFF_STATS = 7
 
     private var sharedPreferences: SharedPreferences? = null
 
@@ -123,8 +123,8 @@ object Preferences {
     fun checkStatsDay(context: Context) {
         val preferences = getPref(context)
 
-        val todayUTC = Assist.dayInUTC
-        val dayDiff = (todayUTC - preferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
+        val todayUTC = Assist.todayUTC
+        val dayDiff = (todayUTC - preferences.getLong(PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
         if (dayDiff > 0) {
             var stringStats: MutableSet<String>? = preferences.getStringSet(PREF_STATS_LAST_7_DAYS, null)
             val stats = fromJson(stringStats, dayDiff)

@@ -31,10 +31,10 @@ import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Constants.*
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Constants
+import com.adsamcik.utilities.Constants.*
+import com.adsamcik.utilities.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
@@ -398,7 +398,7 @@ class TrackerService : Service() {
         private const val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
         private const val NOTIFICATION_ID_SERVICE = 7643
 
-        val UPDATE_TIME_SEC = 2
+        const val UPDATE_TIME_SEC = 2
 
         var onServiceStateChange: (() -> Unit)? = null
         var onNewDataFound: (() -> Unit)? = null

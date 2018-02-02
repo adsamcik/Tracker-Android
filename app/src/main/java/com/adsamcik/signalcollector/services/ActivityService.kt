@@ -9,6 +9,9 @@ import android.util.SparseArray
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Constants
+import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -51,8 +54,8 @@ class ActivityService : IntentService("ActivityService") {
 
     companion object {
         private val TAG = "Signals" + ActivityService::class.java.simpleName
-        private val REQUIRED_CONFIDENCE = 75
-        private val REQUEST_CODE_PENDING_INTENT = 4561201
+        private const val REQUIRED_CONFIDENCE = 75
+        private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
         var lastActivity = ActivityInfo(DetectedActivity.UNKNOWN, 0)
             private set

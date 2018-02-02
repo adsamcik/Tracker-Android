@@ -80,6 +80,7 @@
 
     </android.support.constraint.ConstraintLayout>
 
+    <!--suppress AndroidDomInspection, AndroidDomInspection -->
     <ImageButton
         android:layout_width="220dp"
         android:layout_height="12dp"

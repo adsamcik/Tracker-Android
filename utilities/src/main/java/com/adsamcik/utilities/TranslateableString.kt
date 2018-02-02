@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.utilities
 
 import android.content.Context
 import com.crashlytics.android.Crashlytics

@@ -14,12 +14,12 @@ import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Constants
+import com.adsamcik.utilities.Constants.HOUR_IN_MILLISECONDS
+import com.adsamcik.utilities.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
 import com.adsamcik.signalcollector.utility.Failure
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.perf.FirebasePerformance
 import kotlinx.coroutines.experimental.runBlocking
@@ -216,13 +216,13 @@ class UploadJobService : JobService() {
     }
 
     companion object {
-        private val TAG = "SignalsUploadService"
-        private val KEY_SOURCE = "source"
+        private const val TAG = "SignalsUploadService"
+        private const val KEY_SOURCE = "source"
         private val MEDIA_TYPE_ZIP = MediaType.parse("application/zip")
-        private val MIN_NO_ACTIVITY_DELAY = HOUR_IN_MILLISECONDS
+        private const val MIN_NO_ACTIVITY_DELAY = HOUR_IN_MILLISECONDS
 
-        private val SCHEDULE_UPLOAD_JOB_ID = 1921109
-        private val UPLOAD_JOB_ID = 2110
+        private const val SCHEDULE_UPLOAD_JOB_ID = 1921109
+        private const val UPLOAD_JOB_ID = 2110
 
         var isUploading = false
             private set

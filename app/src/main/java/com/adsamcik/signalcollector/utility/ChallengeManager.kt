@@ -5,7 +5,8 @@ import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
+import com.adsamcik.utilities.Preferences
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.experimental.launch

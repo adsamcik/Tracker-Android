@@ -30,7 +30,9 @@ import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
+import com.adsamcik.utilities.Preferences
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -558,10 +560,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     companion object {
-        private val MAX_ZOOM = 17
-        private val PERMISSION_LOCATION_CODE = 200
+        private const val MAX_ZOOM = 17
+        private const val PERMISSION_LOCATION_CODE = 200
 
-        private val TAG = "SignalsMap"
+        private const val TAG = "SignalsMap"
     }
 
 }

@@ -7,9 +7,9 @@ import android.widget.Button
 import android.widget.ListView
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.utilities.Preferences
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.launch
@@ -85,11 +85,11 @@ class ActivityRecognitionActivity : DetailActivity() {
     }
 
     companion object {
-        private val FILE = "activityRecognitionDebug.tsv"
+        private const val FILE = "activityRecognitionDebug.tsv"
 
         private var instance: WeakReference<ActivityRecognitionActivity>? = null
 
-        private val delim = " - "
+        private const val delim = " - "
 
         /**
          * Adds line to the activity debug if tracking is enabled
