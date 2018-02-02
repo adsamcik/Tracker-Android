@@ -3,11 +3,6 @@ package com.adsamcik.signals.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.test.MockSignInClient
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.auth.api.Auth
 import java.util.*
 import kotlin.coroutines.experimental.suspendCoroutine

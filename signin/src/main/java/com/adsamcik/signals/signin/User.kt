@@ -1,9 +1,5 @@
 package com.adsamcik.signals.signin
 
-import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.google.gson.*
 import java.lang.reflect.Type
 import java.util.*
 
