@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <style name="AppThemeLight" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="colorPrimary">@color/color_primary</item>
         <item name="colorPrimaryDark">@color/color_primary_dark</item>
@@ -25,7 +26,7 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    
+
     <style name="AlertDialog" parent="android:Theme.Material.Dialog.Alert">
         <item name="android:colorPrimary">@color/color_primary</item>
         <item name="android:colorAccent">@color/text_accent</item>
