@@ -2,9 +2,8 @@ package com.adsamcik.signals.network.network
 
 import android.content.Context
 import android.os.Build
-import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.utilities.Preferences
+import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.utilities.test.useMock
 import com.crashlytics.android.Crashlytics
 import com.franmontiel.persistentcookiejar.PersistentCookieJar
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache

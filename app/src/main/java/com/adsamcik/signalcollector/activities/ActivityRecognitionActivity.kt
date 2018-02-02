@@ -8,7 +8,7 @@ import android.widget.ListView
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Parser
+import com.adsamcik.signals.utilities.Parser
 import com.adsamcik.utilities.Preferences
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async

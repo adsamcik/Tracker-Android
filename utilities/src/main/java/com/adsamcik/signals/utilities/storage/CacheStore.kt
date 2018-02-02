@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.file
+package com.adsamcik.signals.utilities.storage
 
 import android.content.Context
 

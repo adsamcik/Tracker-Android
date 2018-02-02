@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signals.utilities.components
 
 import android.content.Context
 import android.support.design.widget.CoordinatorLayout

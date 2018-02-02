@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.file
+package com.adsamcik.signals.tracking.storage
 
 import android.content.Context
 import android.os.Bundle
@@ -13,6 +13,7 @@ import com.adsamcik.signals.network.network.Network
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist
+import com.adsamcik.signals.utilities.storage.FileStore
 import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics

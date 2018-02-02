@@ -21,7 +21,7 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants
 import com.adsamcik.utilities.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 
 class StandardUIActivity : FragmentActivity() {

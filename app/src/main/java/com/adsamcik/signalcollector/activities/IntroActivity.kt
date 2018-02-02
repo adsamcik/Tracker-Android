@@ -12,7 +12,7 @@ import android.support.v4.content.ContextCompat
 import android.view.WindowManager
 import com.adsamcik.signalcollector.fragments.FragmentIntro
 import com.adsamcik.utilities.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.github.paolorotolo.appintro.AppIntro2
 import java.util.*

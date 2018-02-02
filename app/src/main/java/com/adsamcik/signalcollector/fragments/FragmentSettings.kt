@@ -24,7 +24,7 @@ import android.widget.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.activities.*
 import com.adsamcik.signalcollector.data.MapLayer
-import com.adsamcik.signalcollector.file.CacheStore
+import com.adsamcik.signals.utilities.storage.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signals.utilities.test.useMock
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signals.utilities.components.SnackMaker
 import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider
 import com.adsamcik.slider.IntValueSlider
