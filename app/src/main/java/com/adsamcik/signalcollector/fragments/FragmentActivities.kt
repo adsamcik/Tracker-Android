@@ -31,7 +31,7 @@ class FragmentActivities : Fragment(), ITabFragment {
 
         listViewChallenges = rootView.findViewById(R.id.listview_challenges)
 
-        refreshLayout = rootView as SwipeRefreshLayout
+        refreshLayout = rootView
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
         refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity!!, 40))
         refreshLayout!!.setOnRefreshListener({ this.updateData() })

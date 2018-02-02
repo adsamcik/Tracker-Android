@@ -27,9 +27,9 @@ class NoiseTestingActivity : DetailActivity() {
 
         setTitle(R.string.noise)
 
-        val sampleIntervalTV = v.findViewById<TextView>(R.id.dev_text_noise_sample_size)
+        val sampleIntervalTV = v.findViewById(R.id.dev_text_noise_sample_size)
 
-        val seekBar = v.findViewById<SeekBar>(R.id.dev_noise_sample_rate_seek_bar)
+        val seekBar = v.findViewById(R.id.dev_noise_sample_rate_seek_bar)
         seekBar.max = 9
         seekBar.incrementProgressBy(1)
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -50,7 +50,7 @@ class NoiseTestingActivity : DetailActivity() {
         seekBar.progress = delayBetweenCollections.value - 1
 
         val adapter = ArrayAdapter(this, R.layout.spinner_item, arrayList)
-        val listView = v.findViewById<ListView>(R.id.dev_noise_list_view)
+        val listView = v.findViewById(R.id.dev_noise_list_view)
         listView.adapter = adapter
 
         startStopButton!!.setOnClickListener { _ ->

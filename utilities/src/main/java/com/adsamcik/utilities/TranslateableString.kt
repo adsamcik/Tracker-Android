@@ -1,8 +1,6 @@
 package com.adsamcik.utilities
 
 import android.content.Context
-import com.crashlytics.android.Crashlytics
-import com.vimeo.stag.UseStag
 
 @UseStag
 class TranslateableString {

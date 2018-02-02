@@ -4,9 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
-import com.adsamcik.signalcollector.data.StatDay
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.google.gson.Gson
 import java.util.*
 
 object Preferences {
