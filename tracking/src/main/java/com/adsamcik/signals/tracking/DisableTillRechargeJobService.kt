@@ -9,8 +9,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.utilities.Preferences
 
 class DisableTillRechargeJobService : JobService() {
     override fun onStartJob(jobParameters: JobParameters): Boolean {

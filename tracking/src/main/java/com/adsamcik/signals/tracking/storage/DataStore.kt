@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.util.MalformedJsonException
 import android.util.Pair
 import com.adsamcik.signals.network.network.Network
-import com.adsamcik.signals.network.network.UploadJobService
 import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.stats.UploadStats
 import com.adsamcik.signals.tracking.data.DataFile

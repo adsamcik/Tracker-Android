@@ -3,16 +3,9 @@ package com.adsamcik.signals.tracking.data
 import android.os.Build
 import android.support.annotation.IntDef
 import android.util.MalformedJsonException
-
-import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
-import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signals.utilities.storage.FileStore
-import com.adsamcik.utilities.Constants
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
-
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream

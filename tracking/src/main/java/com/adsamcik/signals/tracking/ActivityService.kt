@@ -4,18 +4,10 @@ import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.PowerManager
 import android.util.SparseArray
-import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
-import com.adsamcik.signalcollector.enums.ResolvedActivity
-import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants
-import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
-import com.google.android.gms.location.ActivityRecognition
-import com.google.android.gms.location.ActivityRecognitionResult
-import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
 
 class ActivityService : IntentService("ActivityService") {
