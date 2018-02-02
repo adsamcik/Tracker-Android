@@ -19,6 +19,10 @@ buildscript {
         // in the individual module build.gradle files
     }
 }
+
+ext.play_services_version = '11.8.0'
+ext.support_version = '27.0.2'
+
 allprojects {
     repositories {
         jcenter()

@@ -2,14 +2,14 @@ apply plugin: 'com.android.feature'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 android {
-    compileSdkVersion 26
+    compileSdkVersion 27
 
 
     baseFeature true
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 26
+        targetSdkVersion 27
         versionCode 1
         versionName "1.0"
 
@@ -18,17 +18,26 @@ android {
     }
 
     buildTypes {
+        debug {
+            testCoverageEnabled = true
+        }
+        release_nominify {
+            minifyEnabled false
+        }
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                    'proguard-rules.pro'
         }
     }
 
 }
 
 dependencies {
-    api 'com.android.support:appcompat-v7:26.1.0'
-    api 'com.android.support:design:26.1.0'
+    api "com.android.support:appcompat-v7:$support_version"
+    api "com.android.support:design:$support_version"
+
+    implementation "com.google.android.gms:play-services-auth:$play_services_version"
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jre7:$kotlin_version"
     testImplementation 'junit:junit:4.12'
