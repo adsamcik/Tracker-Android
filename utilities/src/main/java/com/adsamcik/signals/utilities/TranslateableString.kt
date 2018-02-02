@@ -1,6 +1,7 @@
-package com.adsamcik.utilities
+package com.adsamcik.signals.utilities
 
 import android.content.Context
+import com.vimeo.stag.UseStag
 
 @UseStag
 class TranslateableString {

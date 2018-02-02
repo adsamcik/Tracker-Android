@@ -1,4 +1,4 @@
-package com.adsamcik.utilities
+package com.adsamcik.signals.utilities
 
 import android.animation.ObjectAnimator
 import android.app.Activity
@@ -23,7 +23,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat

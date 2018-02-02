@@ -1,4 +1,4 @@
-package com.adsamcik.utilities
+package com.adsamcik.signals.utilities
 
 import android.app.Activity
 import android.content.Context
