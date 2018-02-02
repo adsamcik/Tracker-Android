@@ -1,4 +1,4 @@
-package com.adsamcik.signals.utilities.activities
+package com.adsamcik.signals.useractivity
 
 import android.content.Context
 import com.adsamcik.signals.utilities.R

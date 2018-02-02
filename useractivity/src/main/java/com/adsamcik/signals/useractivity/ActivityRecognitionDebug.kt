@@ -1,4 +1,4 @@
-package com.adsamcik.signals.tracking
+package com.adsamcik.signals.useractivity
 
 import android.content.Context
 import com.adsamcik.signals.tracking.storage.DataStore

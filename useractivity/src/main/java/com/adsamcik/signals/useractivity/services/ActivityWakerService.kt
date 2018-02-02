@@ -1,4 +1,4 @@
-package com.adsamcik.signals.tracking
+package com.adsamcik.signals.useractivity.services
 
 import android.app.Notification
 import android.app.NotificationManager
@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
+import com.adsamcik.signals.useractivity.R
 
 class ActivityWakerService : Service() {
     private var notificationManager: NotificationManager? = null

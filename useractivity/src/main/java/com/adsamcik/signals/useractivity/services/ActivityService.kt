@@ -1,15 +1,22 @@
-package com.adsamcik.signals.tracking
+package com.adsamcik.signals.useractivity.services
 
 import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.PowerManager
 import android.util.SparseArray
+import com.adsamcik.signals.tracking.TrackerService
+import com.adsamcik.signals.useractivity.ActivityRecognitionDebug
+import com.adsamcik.signals.useractivity.ActivityRequestInfo
 import com.adsamcik.signals.utilities.Assist
+import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.utilities.enums.ResolvedActivity
 import com.crashlytics.android.Crashlytics
+import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult
+import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
 
 class ActivityService : IntentService("ActivityService") {
@@ -18,8 +25,7 @@ class ActivityService : IntentService("ActivityService") {
         val result = ActivityRecognitionResult.extractResult(intent)
         val detectedActivity = result.mostProbableActivity
 
-        com.adsamcik.utilities
-        lastActivity = ActivityInfo(detectedActivity.type, detectedActivity.confidence)
+        lastActivity = com.adsamcik.signals.useractivity.ActivityInfo(detectedActivity.type, detectedActivity.confidence)
         if (backgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
             if (powerManager == null)
                 powerManager = this.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -52,7 +58,7 @@ class ActivityService : IntentService("ActivityService") {
         private const val REQUIRED_CONFIDENCE = 75
         private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
-        var lastActivity = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+        var lastActivity = com.adsamcik.signals.useractivity.ActivityInfo(DetectedActivity.UNKNOWN, 0)
             private set
 
         private var task: Task<*>? = null
