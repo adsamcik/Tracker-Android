@@ -95,7 +95,7 @@ class GoogleSignInSignalsClient : ISignInClient {
             Crashlytics.logException(Throwable("Token is null"))
         //}
 
-        NetworkLoader.requestStringSigned(Network.URL_USER_INFO, 10, context, Preferences.PREF_USER_DATA, { state, value ->
+        NetworkLoader.requestStringSigned(Network.URL_USER_INFO, user.token, 10, context, Preferences.PREF_USER_DATA, { state, value ->
             if (state.dataAvailable) {
                 user.deserializeServerData(value!!)
             }

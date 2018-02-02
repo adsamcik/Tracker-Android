@@ -1,5 +1,8 @@
 package com.adsamcik.signals.signin
 
+import com.adsamcik.signals.utilities.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.signals.utilities.test.useMock
+import com.google.gson.*
 import java.lang.reflect.Type
 import java.util.*
 
@@ -90,8 +93,8 @@ class User(val id: String, val token: String) {
         override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): User {
             val `object` = json.asJsonObject
             val wirelessPoints = `object`.get("wirelessPoints").asLong
-            val networkInfo = context.deserialize(`object`.get("networkInfo"), NetworkInfo::class.java)
-            val networkPreferences = context.deserialize(`object`.get("networkPreferences"), NetworkPreferences::class.java)
+            val networkInfo = context.deserialize(`object`.get("networkInfo"), NetworkInfo::class.java) as NetworkInfo
+            val networkPreferences = context.deserialize(`object`.get("networkPreferences"), NetworkPreferences::class.java) as NetworkPreferences
             user.setServerData(wirelessPoints, networkInfo, networkPreferences)
             return user
         }

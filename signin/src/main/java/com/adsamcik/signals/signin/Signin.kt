@@ -3,6 +3,10 @@ package com.adsamcik.signals.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.utilities.storage.CacheStore
+import com.adsamcik.signals.utilities.test.useMock
 import com.google.android.gms.auth.api.Auth
 import java.util.*
 import kotlin.coroutines.experimental.suspendCoroutine
@@ -16,8 +20,8 @@ class Signin {
             this.user != null && user == null -> {
                 Network.clearCookieJar(context)
                 Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
-                DataStore.delete(context, Preferences.PREF_USER_DATA)
-                DataStore.delete(context, Preferences.PREF_USER_STATS)
+                CacheStore.delete(context, Preferences.PREF_USER_DATA)
+                CacheStore.delete(context, Preferences.PREF_USER_STATS)
                 SigninStatus.NOT_SIGNED
             }
             user == null -> SigninStatus.SIGNIN_FAILED

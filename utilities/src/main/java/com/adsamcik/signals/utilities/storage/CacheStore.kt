@@ -35,7 +35,7 @@ object CacheStore {
      */
     fun exists(context: Context, fileName: String): Boolean = file(context, fileName).exists()
 
-    fun clearAll(context: Context) {
-        FileStore.clearFolder(context.cacheDir)
-    }
+    fun clearAll(context: Context) = FileStore.clearFolder(context.cacheDir)
+
+    fun delete(context: Context, fileName: String) = FileStore.delete(file(context, fileName))
 }
