@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.UploadStats
@@ -19,14 +20,16 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
 import com.adsamcik.signalcollector.utility.Failure
-import com.adsamcik.utilities.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signalcollector.utility.StatManager
+import com.adsamcik.signals.signin.Signin
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
+import com.adsamcik.utilities.Assist
+import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
+import com.adsamcik.utilities.Preferences
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
@@ -36,8 +39,6 @@ class FragmentStats : Fragment(), ITabFragment {
     private var adapter: TableAdapter? = null
 
     private var refreshLayout: SwipeRefreshLayout? = null
-
-    private val CARD_LIST_MARGIN = 16
 
     private var refreshingCount = 0
 
@@ -51,7 +52,7 @@ class FragmentStats : Fragment(), ITabFragment {
 
         Thread { DataStore.removeOldRecentUploads(activity) }.start()
 
-        Preferences.checkStatsDay(activity)
+        StatManager.checkStatsDay(activity)
 
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
@@ -87,7 +88,7 @@ class FragmentStats : Fragment(), ITabFragment {
 
         val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehavior.FirstFirst)
         weeklyStats.title = r.getString(R.string.stats_weekly_title)
-        val weekStats = Preferences.countStats(activity)
+        val weekStats = StatManager.countStats(activity)
         weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), weekStats.minutes.toString())
         weeklyStats.addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.uploaded, true))
         weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), weekStats.locations.toString())
@@ -166,6 +167,5 @@ class FragmentStats : Fragment(), ITabFragment {
             (fragmentView!!.findViewById<View>(R.id.stats_list_view) as ListView).smoothScrollToPosition(0)
         }
     }
-
 }
 

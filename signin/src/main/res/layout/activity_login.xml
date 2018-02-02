@@ -23,7 +23,7 @@
         style="@style/SettingsText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/internet_connection_required"
+        android:text="@string/error_no_internet"
         android:visibility="gone"/>
 
     <LinearLayout

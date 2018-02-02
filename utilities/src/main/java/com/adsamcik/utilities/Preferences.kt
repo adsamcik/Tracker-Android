@@ -4,9 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
-import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.utilities.R.style.AppThemeLight
-import java.util.*
 
 object Preferences {
     private const val TAG = "SignalsSetting"
@@ -82,8 +80,6 @@ object Preferences {
 
     const val PREF_ACTIVE_CHALLENGE_LIST = "activeChallengeList"
 
-    private const val MAX_DAY_DIFF_STATS = 7
-
     private var sharedPreferences: SharedPreferences? = null
 
     /**
@@ -113,79 +109,5 @@ object Preferences {
         activity.setTheme(theme)
         //This ensures that all components use the proper theme
         activity.applicationContext.setTheme(theme)
-    }
-
-    /**
-     * Checks if current day should be archived and clears up old StatDays
-     * @param context context
-     */
-    fun checkStatsDay(context: Context) {
-        val preferences = getPref(context)
-
-        val todayUTC = Assist.todayUTC
-        val dayDiff = (todayUTC - preferences.getLong(PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
-        if (dayDiff > 0) {
-            var stringStats: MutableSet<String>? = preferences.getStringSet(PREF_STATS_LAST_7_DAYS, null)
-            val stats = fromJson(stringStats, dayDiff)
-
-            stats.add(getCurrent(preferences))
-
-            if (stringStats == null)
-                stringStats = HashSet()
-            else
-                stringStats.clear()
-
-            val gson = Gson()
-            stats.mapTo(stringStats) { gson.toJson(it) }
-
-            preferences.edit()
-                    .putLong(PREF_STATS_STAT_LAST_DAY, todayUTC)
-                    .putStringSet(PREF_STATS_LAST_7_DAYS, stringStats)
-                    .putInt(PREF_STATS_MINUTES, 0)
-                    .putInt(PREF_STATS_LOCATIONS_FOUND, 0)
-                    .putInt(PREF_STATS_WIFI_FOUND, 0)
-                    .putInt(PREF_STATS_CELL_FOUND, 0)
-                    .putLong(PREF_STATS_UPLOADED, 0)
-                    .apply()
-        }
-    }
-
-    /**
-     * Counts all stats and combines them to a single StatDay object
-     * @param context context
-     * @return sum of all StatDays
-     */
-    fun countStats(context: Context): StatDay {
-        val sp = getPref(context)
-        val result = getCurrent(sp)
-        val set = fromJson(sp.getStringSet(PREF_STATS_LAST_7_DAYS, null), 0)
-
-        result += set
-        return result
-    }
-
-    /**
-     * Creates stat day with today values
-     * @param sp shared preferences
-     * @return Today StatDay
-     */
-    private fun getCurrent(sp: SharedPreferences): StatDay =
-            StatDay(sp.getInt(PREF_STATS_MINUTES, 0), sp.getInt(PREF_STATS_LOCATIONS_FOUND, 0), sp.getInt(PREF_STATS_WIFI_FOUND, 0), sp.getInt(PREF_STATS_CELL_FOUND, 0), 0, sp.getLong(PREF_STATS_UPLOADED, 0))
-
-    /**
-     * Method loads data to list and checks if they are not too old
-     * @param set string set
-     * @param age how much should stats age
-     * @return list with items that are not too old
-     */
-    private fun fromJson(set: Set<String>?, age: Int): MutableList<StatDay> {
-        val statDays = ArrayList<StatDay>()
-        if (set == null)
-            return statDays
-        val gson = Gson()
-        set
-                .map { gson.fromJson(it, StatDay::class.java) }
-                .filterTo(statDays) { age <= 0 || it.age(age) < MAX_DAY_DIFF_STATS }
-        return statDays
     }
 }
