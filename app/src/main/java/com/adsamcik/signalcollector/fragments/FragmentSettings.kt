@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signals.utilities.test.useMock
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signals.utilities.FirebaseAssist
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
 import com.adsamcik.slider.IntSlider

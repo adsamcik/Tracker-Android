@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.jobs
+package com.adsamcik.signals.network.network
 
 import android.app.job.JobInfo
 import android.app.job.JobParameters
@@ -9,11 +9,9 @@ import android.content.Context
 import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
-import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signals.utilities.storage.FileStore
-import com.adsamcik.signals.network.network.Network
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants
 import com.adsamcik.utilities.Constants.HOUR_IN_MILLISECONDS

@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.utility.FirebaseAssist
+import com.adsamcik.signals.utilities.FirebaseAssist
 import com.google.firebase.analytics.FirebaseAnalytics
 
 class NotificationReceiver : BroadcastReceiver() {

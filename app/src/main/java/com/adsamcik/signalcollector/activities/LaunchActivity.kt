@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signals.utilities.test.useMock
-import com.adsamcik.signalcollector.utility.FirebaseAssist
+import com.adsamcik.signals.utilities.FirebaseAssist
 import com.adsamcik.signalcollector.utility.NotificationTools
 import com.adsamcik.utilities.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts

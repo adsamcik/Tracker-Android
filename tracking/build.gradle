@@ -34,12 +34,24 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation "com.google.code.gson:gson:$gson_version"
+    implementation 'com.vimeo.stag:stag-library:2.4.0', {
+        exclude group: 'com.intellij', module: 'annotations'
+    }
 
-    implementation project(':signin')
+    implementation "com.android.support:support-annotations:$support_version"
+    implementation "com.google.firebase:firebase-core:$play_services_version"
+    implementation 'com.crashlytics.sdk.android:crashlytics:2.7.1@aar', {
+        transitive = true
+    }
+
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    implementation project(':signin')
+    implementation project(':network')
+    implementation project(':stats')
 }
 repositories {
     mavenCentral()

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.jobs
+package com.adsamcik.signals.utilities
 
 import android.app.job.JobScheduler
 import android.content.Context
