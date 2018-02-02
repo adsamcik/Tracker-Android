@@ -12,6 +12,4 @@
     <string name="user_cost_per_month">%1$s wireless points per month</string>
     <string name="user_renew_personal_map">Renew personal map</string>
     <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
-
-    <string name="error_no_internet">Internet is unavailable</string>
 </resources>
