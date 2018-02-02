@@ -8,7 +8,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
-import com.adsamcik.signalcollector.file.Compress
+import com.adsamcik.signals.utilities.storage.Compress
 import com.adsamcik.signalcollector.file.DataFile
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signals.utilities.components.BottomSheetMenu

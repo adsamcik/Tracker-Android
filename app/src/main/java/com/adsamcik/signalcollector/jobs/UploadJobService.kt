@@ -1,4 +1,4 @@
-package com.adsamcik.signals.network.network
+package com.adsamcik.signalcollector.jobs
 
 import android.app.job.JobInfo
 import android.app.job.JobParameters
@@ -9,17 +9,17 @@ import android.content.Context
 import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
-import com.adsamcik.signalcollector.file.Compress
-import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.R
+import com.adsamcik.signals.network.network.CloudStatus
+import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.utilities.*
+import com.adsamcik.signals.utilities.Constants.HOUR_IN_MILLISECONDS
+import com.adsamcik.signals.utilities.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
+import com.adsamcik.signals.utilities.storage.Compress
 import com.adsamcik.signals.utilities.storage.FileStore
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants
-import com.adsamcik.utilities.Constants.HOUR_IN_MILLISECONDS
-import com.adsamcik.utilities.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
-import com.adsamcik.signalcollector.utility.Failure
-import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
-import com.google.firebase.perf.FirebasePerformance
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.File
@@ -140,8 +140,6 @@ class UploadJobService : JobService() {
                 DataStore.onUpload(context, -1)
                 return false
             } else {
-                val uploadTrace = FirebasePerformance.getInstance().newTrace("upload")
-                uploadTrace.start()
                 DataStore.getCurrentDataFile(context)!!.close()
                 val zipName = "up" + System.currentTimeMillis()
                 try {
@@ -150,8 +148,6 @@ class UploadJobService : JobService() {
                     tempZipFile = compress.finish()
                 } catch (e: IOException) {
                     Crashlytics.logException(e)
-                    uploadTrace.incrementCounter("fail", 1)
-                    uploadTrace.stop()
                     return false
                 }
 
@@ -170,13 +166,9 @@ class UploadJobService : JobService() {
                             DataStore.recountData(context)
                             return@runBlocking true
                         } else {
-                            uploadTrace.incrementCounter("fail", 3)
-                            uploadTrace.stop()
                             return@runBlocking false
                         }
                     } else {
-                        uploadTrace.incrementCounter("fail", 2)
-                        uploadTrace.stop()
                         return@runBlocking false
                     }
                 }
@@ -252,7 +244,7 @@ class UploadJobService : JobService() {
                     if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
                         return Failure(context.getString(R.string.error_during_upload_scheduling))
                     updateUploadScheduleSource(context, source)
-                    Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_SCHEDULED
+                    Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
 
                     scheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
 

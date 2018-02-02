@@ -27,9 +27,10 @@ import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signals.network.network.NetworkLoader
-import com.adsamcik.signals.network.network.SignalsTileProvider
+import com.adsamcik.signalcollector.utility.SignalsTileProvider
 import com.adsamcik.signals.utilities.test.useMock
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signals.utilities.Failure
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants.DAY_IN_MINUTES

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signals.utilities
 
 class Failure<T> {
     val value: T?

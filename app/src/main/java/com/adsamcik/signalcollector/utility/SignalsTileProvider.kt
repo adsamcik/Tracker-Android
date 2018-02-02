@@ -1,7 +1,10 @@
-package com.adsamcik.signals.network.network
+package com.adsamcik.signalcollector.utility
 
 import android.content.Context
+import com.adsamcik.signals.network.network.Network
 import com.crashlytics.android.Crashlytics
+import com.google.android.gms.maps.model.Tile
+import com.google.android.gms.maps.model.TileProvider
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response

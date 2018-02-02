@@ -84,7 +84,7 @@ object FileStore {
 
         if (sb[sb.length - 1] == ']')
             sb.deleteCharAt(sb.length - 1)
-        
+
         return saveString(file, sb.toString(), append)
     }
 

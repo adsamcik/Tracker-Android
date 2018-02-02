@@ -23,13 +23,13 @@ import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signals.utilities.Failure
 import com.adsamcik.signals.utilities.FirebaseAssist
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.adsamcik.utilities.Assist
