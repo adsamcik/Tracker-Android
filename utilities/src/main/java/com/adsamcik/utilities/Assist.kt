@@ -13,6 +13,10 @@ import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.os.Build
 import android.provider.Settings
+import android.support.annotation.ColorInt
+import android.support.annotation.RequiresPermission
+import android.support.v4.content.ContextCompat
+import android.support.v4.content.res.ResourcesCompat
 import android.telephony.TelephonyManager
 import android.util.DisplayMetrics
 import android.view.View
@@ -20,6 +24,8 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat
 import java.util.*
 
@@ -234,6 +240,7 @@ object Assist {
      *
      * @return true if connected or connecting
      */
+    @RequiresPermission(android.Manifest.permission.ACCESS_NETWORK_STATE)
     fun hasNetwork(context: Context): Boolean {
         if (connectivityManager == null)
             initialize(context)
