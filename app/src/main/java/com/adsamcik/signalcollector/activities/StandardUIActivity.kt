@@ -11,7 +11,7 @@ import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.util.Log
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
@@ -41,11 +41,11 @@ class StandardUIActivity : FragmentActivity() {
         val snackMaker = SnackMaker(this)
         Assist.initialize(this)
 
-        if (Network.cloudStatus == CloudStatus.UNKNOWN) {
+        if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) {
             val scheduleSource = UploadJobService.getUploadScheduled(this)
             when (scheduleSource) {
-                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
-                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
+                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE else com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED
+                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_SCHEDULED
             }
         }
 

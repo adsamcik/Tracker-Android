@@ -58,7 +58,7 @@ dependencies {
     implementation 'com.vimeo.stag:stag-library:2.4.0', {
         exclude group: 'com.intellij', module: 'annotations'
     }
-    implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
+
     implementation 'de.psdev.licensesdialog:licensesdialog:1.8.3'
     //1st party dependencies
     implementation 'com.adsamcik.android-components:slider:0.5.0'

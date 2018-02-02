@@ -19,7 +19,7 @@ import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.MessageListenerService
@@ -106,7 +106,7 @@ class AppTest {
         if(isTestMode)
             return
 
-        Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+        Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
 
         Thread.sleep(Constants.SECOND_IN_MILLISECONDS.toLong())
 
@@ -150,7 +150,7 @@ class AppTest {
 
         DataStore.onUpload(context, 100)
         DataStore.incData(context, 500, 25)
-        Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+        Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
         Thread.sleep((4 * Constants.SECOND_IN_MILLISECONDS).toLong())
         fabUpload.check(matches(isDisplayed()))
         progressBar.check(doesNotExist())

@@ -23,7 +23,7 @@ import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signals.network.network.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
@@ -168,18 +168,18 @@ class FragmentTracker : Fragment(), ITabFragment {
 
 
     private fun updateUploadButton() {
-        if (fabUp == null || Network.cloudStatus == CloudStatus.UNKNOWN) {
-            Log.e("SignalsTrackerFragment", "fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine")
-            Crashlytics.logException(Exception("fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine"))
+        if (fabUp == null || Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) {
+            Log.e("SignalsTrackerFragment", "fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) " is null " else " is fine")
+            Crashlytics.logException(Exception("fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) " is null " else " is fine"))
             return
         }
 
         when (Network.cloudStatus) {
-            CloudStatus.NO_SYNC_REQUIRED -> {
+            com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED -> {
                 fabUp!!.hide()
                 fabUp!!.setOnClickListener(null)
             }
-            CloudStatus.SYNC_AVAILABLE -> {
+            com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_upload_24dp)
                 progressBar!!.visibility = View.GONE
                 fabUp!!.setOnClickListener { _ ->
@@ -199,7 +199,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 }
                 fabUp!!.show()
             }
-            CloudStatus.SYNC_SCHEDULED -> {
+            com.adsamcik.signals.network.network.CloudStatus.SYNC_SCHEDULED -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
                 fabUp!!.setOnClickListener { _ ->
                     val context = context
@@ -213,17 +213,17 @@ class FragmentTracker : Fragment(), ITabFragment {
                 }
                 fabUp!!.show()
             }
-            CloudStatus.SYNC_IN_PROGRESS -> {
+            com.adsamcik.signals.network.network.CloudStatus.SYNC_IN_PROGRESS -> {
                 fabUp!!.setImageResource(R.drawable.ic_sync_black_24dp)
                 fabUp!!.setOnClickListener(null)
                 fabUp!!.show()
             }
-            CloudStatus.ERROR -> {
+            com.adsamcik.signals.network.network.CloudStatus.ERROR -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_off_24dp)
                 fabUp!!.setOnClickListener(null)
                 fabUp!!.show()
             }
-            CloudStatus.UNKNOWN -> {
+            com.adsamcik.signals.network.network.CloudStatus.UNKNOWN -> {
             }
         }//do nothing
     }
@@ -369,8 +369,8 @@ class FragmentTracker : Fragment(), ITabFragment {
         val d = TrackerService.rawDataEcho
         setCollected(context, DataStore.sizeOfData(context), DataStore.collectionCount(context))
 
-        if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
-            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+        if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED) {
+            Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
             updateUploadButton()
         }
 

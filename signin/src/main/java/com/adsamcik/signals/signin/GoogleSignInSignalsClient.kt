@@ -4,6 +4,10 @@ package com.adsamcik.signals.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.network.network.NetworkLoader
+import com.adsamcik.signals.utilities.Preferences
+import com.crashlytics.android.Crashlytics
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -11,6 +15,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.iid.FirebaseInstanceId
 
 class GoogleSignInSignalsClient : ISignInClient {
     private var client: GoogleSignInClient? = null
