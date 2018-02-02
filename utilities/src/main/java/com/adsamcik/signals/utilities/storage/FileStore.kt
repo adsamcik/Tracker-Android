@@ -1,6 +1,7 @@
 package com.adsamcik.signals.utilities.storage
 
 import android.util.MalformedJsonException
+import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.*
@@ -68,7 +69,6 @@ object FileStore {
      */
     @Throws(MalformedJsonException::class)
     fun saveAppendableJsonArray(file: File, data: String, append: Boolean, firstArrayItem: Boolean = false): Boolean {
-        var data = data
         val sb = StringBuilder(data)
         if (sb[0] == ',')
             throw MalformedJsonException("Json starts with ','. That is not right.")
@@ -84,9 +84,8 @@ object FileStore {
 
         if (sb[sb.length - 1] == ']')
             sb.deleteCharAt(sb.length - 1)
-
-        data = sb.toString()
-        return saveString(file, data, append)
+        
+        return saveString(file, sb.toString(), append)
     }
 
     /**

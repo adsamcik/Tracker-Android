@@ -1,10 +1,10 @@
 package com.adsamcik.signals.utilities
 
 import android.content.Context
-import com.adsamcik.signals.utilities.storage.DataStore
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
+import java.io.File
 import java.io.IOException
 import java.io.InputStreamReader
 import java.util.*
@@ -33,7 +33,7 @@ object Parser {
 
 
     fun parseTSVFromFile(context: Context, fileName: String): ArrayList<Array<String>>? {
-        if (DataStore.exists(context, fileName)) {
+        if (File(context.filesDir, fileName).exists()) {
             val items = ArrayList<Array<String>>()
             try {
                 context.openFileInput(fileName).use { fis ->
