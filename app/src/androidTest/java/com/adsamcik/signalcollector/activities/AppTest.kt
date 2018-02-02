@@ -21,7 +21,7 @@ import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.MessageListenerService
 import com.adsamcik.signalcollector.test.isTestMode
 import com.adsamcik.utilities.Constants

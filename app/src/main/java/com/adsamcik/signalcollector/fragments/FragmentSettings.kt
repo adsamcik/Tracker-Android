@@ -28,9 +28,9 @@ import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.network.Prices
+import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.network.network.NetworkLoader
+import com.adsamcik.signals.network.network.Prices
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock

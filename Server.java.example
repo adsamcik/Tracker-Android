@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.network;
+package com.adsamcik.signals.network.network;
 
 public class Server {
 	private static final String URL_WEB = "https://example.com/";

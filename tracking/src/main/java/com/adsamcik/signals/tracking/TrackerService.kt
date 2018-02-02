@@ -36,6 +36,7 @@ import com.adsamcik.utilities.Constants
 import com.adsamcik.utilities.Constants.*
 import com.adsamcik.utilities.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
+import com.adsamcik.signals.tracking.Data.RawData
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import java.lang.ref.WeakReference
@@ -66,9 +67,6 @@ class TrackerService : Service() {
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
     private val gson = Gson()
-
-    private var noiseTracker: NoiseTracker? = null
-    private var noiseActive = false
 
     /**
      * True if previous collection was mocked
@@ -131,20 +129,6 @@ class TrackerService : Service() {
         }
 
         val activityInfo = ActivityService.lastActivity
-
-        if (noiseTracker != null) {
-            val MAX_NOISE_TRACKING_SPEED_M = (MAX_NOISE_TRACKING_SPEED_KM / 3.6).toFloat()
-            noiseActive = if ((activityInfo.resolvedActivity == ResolvedActivity.ON_FOOT || noiseActive && activityInfo.resolvedActivity == ResolvedActivity.UNKNOWN) && location.speed < MAX_NOISE_TRACKING_SPEED_M) {
-                noiseTracker!!.start()
-                val value = noiseTracker!!.getSample(10)
-                if (value >= 0)
-                    d.setNoise(value)
-                true
-            } else {
-                noiseTracker!!.stop()
-                false
-            }
-        }
 
         if (Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
             d.setLocation(location).setActivity(activityInfo.resolvedActivity)

@@ -9,7 +9,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signals.network.network.Network
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist

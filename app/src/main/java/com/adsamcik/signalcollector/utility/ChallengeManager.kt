@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
+import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.network.network.NetworkLoader
 import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
 import com.adsamcik.utilities.Preferences
 import com.google.gson.Gson

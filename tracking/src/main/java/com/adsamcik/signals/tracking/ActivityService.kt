@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.services
+package com.adsamcik.signals.tracking
 
 import android.app.IntentService
 import android.app.PendingIntent
@@ -145,8 +145,8 @@ class ActivityService : IntentService("ActivityService") {
         }
 
         private fun setMinUpdateRate(context: Context, minUpdateRate: Int) {
-            if (minUpdateRate < ActivityService.minUpdateRate) {
-                ActivityService.minUpdateRate = minUpdateRate
+            if (minUpdateRate < Companion.minUpdateRate) {
+                Companion.minUpdateRate = minUpdateRate
                 initializeActivityClient(context, minUpdateRate)
             }
         }

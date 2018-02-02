@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
-import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signals.network.network.Network
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants
 import com.adsamcik.utilities.Constants.HOUR_IN_MILLISECONDS

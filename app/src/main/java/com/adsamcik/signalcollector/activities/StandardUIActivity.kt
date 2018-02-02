@@ -16,7 +16,7 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.utilities.Assist
 import com.adsamcik.utilities.Constants

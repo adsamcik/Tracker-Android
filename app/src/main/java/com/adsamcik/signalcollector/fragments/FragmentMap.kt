@@ -25,9 +25,9 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.network.SignalsTileProvider
+import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.network.network.NetworkLoader
+import com.adsamcik.signals.network.network.SignalsTileProvider
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.utilities.Assist

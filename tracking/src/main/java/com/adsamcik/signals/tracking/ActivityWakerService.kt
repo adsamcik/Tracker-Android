@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.services
+package com.adsamcik.signals.tracking
 
 import android.app.Notification
 import android.app.NotificationManager

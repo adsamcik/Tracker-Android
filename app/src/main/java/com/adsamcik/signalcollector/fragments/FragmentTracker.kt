@@ -27,7 +27,7 @@ import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.utilities.Assist
