@@ -1,11 +1,12 @@
 package com.adsamcik.signals.useractivity
 
 import android.content.Context
-import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.utilities.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.utilities.storage.FileStore
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
+import java.io.File
 import java.text.DateFormat
 
 class ActivityRecognitionDebug {
@@ -48,7 +49,7 @@ class ActivityRecognitionDebug {
         private fun addLine(context: Context, activity: String, action: String?) {
             val time = DateFormat.getDateTimeInstance().format(System.currentTimeMillis())
             val line = time + '\t' + activity + '\t' + if (action != null) action + '\n' else '\n'
-            DataStore.saveString(context, FILE, line, true)
+            FileStore.saveString(File(context.filesDir, FILE), line, true)
             if (updateCallback != null) {
                 launch(UI) {
                     updateCallback?.invoke(if (action == null) arrayOf(time, activity) else arrayOf(time, activity, action))

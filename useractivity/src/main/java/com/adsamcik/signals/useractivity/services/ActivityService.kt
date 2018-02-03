@@ -4,20 +4,20 @@ import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.PowerManager
 import android.util.SparseArray
-import com.adsamcik.signals.tracking.TrackerService
-import com.adsamcik.signals.useractivity.ActivityRecognitionDebug
+import com.adsamcik.signals.useractivity.ActivityInfo
 import com.adsamcik.signals.useractivity.ActivityRequestInfo
 import com.adsamcik.signals.utilities.Assist
 import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.ContextValueCallback
 import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.enums.ResolvedActivity
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
+
+typealias ActivityCallback = ContextValueCallback<ActivityInfo>
 
 class ActivityService : IntentService("ActivityService") {
 
@@ -26,25 +26,10 @@ class ActivityService : IntentService("ActivityService") {
         val detectedActivity = result.mostProbableActivity
 
         lastActivity = com.adsamcik.signals.useractivity.ActivityInfo(detectedActivity.type, detectedActivity.confidence)
-        if (backgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
-            if (powerManager == null)
-                powerManager = this.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (TrackerService.isRunning) {
-                if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
-                    stopService(Intent(this, TrackerService::class.java))
-                    ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, "stopped tracking")
-                } else {
-                    ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, null)
-                }
-            } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackerService.isAutoLocked && !powerManager!!.isPowerSaveMode && Assist.canTrack(this)) {
-                val trackerService = Intent(this, TrackerService::class.java)
-                trackerService.putExtra("backTrack", true)
-                startService(trackerService)
-                ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, "started tracking")
-            } else {
-                ActivityRecognitionDebug.addLineIfDebug(this, lastActivity.activityName, null)
-            }
-        }
+
+        for (i in 0 until activeRequests.size())
+            activeRequests.valueAt(i).listener!!.invoke(this, lastActivity)
+
 
         /*Log.i(TAG, "_____activities detected");
 		for (DetectedActivity da: result.getProbableActivities()) {
@@ -55,16 +40,12 @@ class ActivityService : IntentService("ActivityService") {
 
     companion object {
         private val TAG = "Signals" + ActivityService::class.java.simpleName
-        private const val REQUIRED_CONFIDENCE = 75
         private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
         var lastActivity = com.adsamcik.signals.useractivity.ActivityInfo(DetectedActivity.UNKNOWN, 0)
             private set
 
         private var task: Task<*>? = null
-        private var powerManager: PowerManager? = null
-
-        private var backgroundTracking: Boolean = false
 
         private var activeRequests = SparseArray<ActivityRequestInfo>()
         private var minUpdateRate = Integer.MAX_VALUE
@@ -77,8 +58,8 @@ class ActivityService : IntentService("ActivityService") {
          * @param updateRate update rate in seconds
          * @return true if success
          */
-        fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int): Boolean =
-                requestActivity(context, tClass.hashCode(), updateRate, false)
+        fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int, listener: ActivityCallback): Boolean =
+                requestActivity(context, tClass.hashCode(), updateRate, listener)
 
         /**
          * Request activity updates
@@ -87,31 +68,23 @@ class ActivityService : IntentService("ActivityService") {
          * @param tClass  class that requests update
          * @return true if success
          */
-        fun requestActivity(context: Context, tClass: Class<*>): Boolean =
-                requestActivity(context, tClass.hashCode(), Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false)
+        fun requestActivity(context: Context, tClass: Class<*>, listener: ActivityCallback): Boolean =
+                requestActivity(context,
+                        tClass.hashCode(),
+                        Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE),
+                        listener)
 
-        private fun requestActivity(context: Context, hash: Int, updateRate: Int, backgroundTracking: Boolean): Boolean {
+        private fun requestActivity(context: Context, hash: Int, updateRate: Int, listener: ActivityCallback): Boolean {
             setMinUpdateRate(context, updateRate)
             val index = activeRequests.indexOfKey(hash)
             if (index < 0) {
-                activeRequests.append(hash, ActivityRequestInfo(hash, updateRate, backgroundTracking))
+                activeRequests.append(hash, ActivityRequestInfo(updateRate, listener))
             } else {
                 val ari = activeRequests.valueAt(index)
-                ari.isBackgroundTracking = backgroundTracking
                 ari.updateFrequency = updateRate
             }
 
             return true
-        }
-
-        fun requestAutoTracking(context: Context, tClass: Class<*>): Boolean {
-            if (!backgroundTracking && Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) > 0) {
-                if (requestActivity(context, tClass.hashCode(), Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), true)) {
-                    backgroundTracking = true
-                    return true
-                }
-            }
-            return false
         }
 
         fun removeActivityRequest(context: Context, tClass: Class<*>) {
@@ -120,51 +93,34 @@ class ActivityService : IntentService("ActivityService") {
                 val updateRate = activeRequests.valueAt(index).updateFrequency
 
                 activeRequests.removeAt(index)
-                if (minUpdateRate == updateRate && activeRequests.size() > 0) {
-                    val ari = generateExtremeRequest()
-                    backgroundTracking = ari.isBackgroundTracking
-                    setMinUpdateRate(context, ari.updateFrequency)
+                if (activeRequests.size() == 0) {
+                    ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context))
+                    minUpdateRate = Int.MAX_VALUE
+                } else if (minUpdateRate == updateRate) {
+                    setMinUpdateRate(context, getUpdateFrequency())
                 }
             } else {
                 Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.name + ")"))
             }
-
-            if (activeRequests.size() == 0) {
-                ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context))
-                activeRequests = SparseArray()
-            }
-        }
-
-        fun removeAutoTracking(context: Context, tClass: Class<*>) {
-            if (!backgroundTracking) {
-                Crashlytics.logException(Throwable("Trying to remove auto tracking request that never existed"))
-                return
-            }
-
-            removeActivityRequest(context, tClass)
-            backgroundTracking = false
         }
 
         private fun setMinUpdateRate(context: Context, minUpdateRate: Int) {
-            if (minUpdateRate < Companion.minUpdateRate) {
-                Companion.minUpdateRate = minUpdateRate
-                initializeActivityClient(context, minUpdateRate)
-            }
+            Companion.minUpdateRate = minUpdateRate
+            initializeActivityClient(context, minUpdateRate)
         }
 
-        private fun generateExtremeRequest(): ActivityRequestInfo {
+        private fun getUpdateFrequency(): Int {
             if (activeRequests.size() == 0)
-                return ActivityRequestInfo(0, Integer.MIN_VALUE, false)
+                throw RuntimeException("Cannog get update frequency without requests")
 
-            var backgroundTracking = false
-            var min = Integer.MAX_VALUE
-            for (i in 0 until activeRequests.size()) {
-                val ari = activeRequests.valueAt(i)
-                if (ari.updateFrequency < min)
-                    min = ari.updateFrequency
-                backgroundTracking = backgroundTracking or ari.isBackgroundTracking
-            }
-            return ActivityRequestInfo(0, min, backgroundTracking)
+            var min = activeRequests.valueAt(0).updateFrequency
+            (1 until activeRequests.size())
+                    .asSequence()
+                    .map { activeRequests.valueAt(it) }
+                    .filter { it.updateFrequency < min }
+                    .forEach { min = it.updateFrequency }
+
+            return min
         }
 
         private fun initializeActivityClient(context: Context, delayInS: Int): Boolean {
@@ -186,32 +142,6 @@ class ActivityService : IntentService("ActivityService") {
             // We use FLAG_UPDATE_CURRENT so that we getPref the same pending intent back when calling
             // requestActivityUpdates() and removeActivityUpdates().
             return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent, PendingIntent.FLAG_UPDATE_CURRENT)
-        }
-
-        /**
-         * Checks if background tracking can be activated
-         *
-         * @param evalActivity evaluated activity
-         * @return true if background tracking can be activated
-         */
-        private fun canBackgroundTrack(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
-            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
-                return false
-            val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
-            return `val` != 0 && (`val` == evalActivity || `val` > evalActivity)
-        }
-
-        /**
-         * Checks if background tracking should stop
-         *
-         * @param evalActivity evaluated activity
-         * @return true if background tracking can continue running
-         */
-        private fun canContinueBackgroundTracking(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
-            if (evalActivity == 0)
-                return false
-            val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
-            return `val` == 2 || `val` == 1 && (evalActivity == 1 || evalActivity == 3)
         }
     }
 }
