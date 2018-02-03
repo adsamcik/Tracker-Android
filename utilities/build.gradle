@@ -51,6 +51,7 @@ dependencies {
     feature project(':signin')
     feature project(':app')
     feature project(':stats')
+    feature project(':useractivity')
 }
 repositories {
     mavenCentral()
