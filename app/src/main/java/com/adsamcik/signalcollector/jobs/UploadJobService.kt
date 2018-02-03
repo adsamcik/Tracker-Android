@@ -119,18 +119,6 @@ class UploadJobService : JobService() {
 
         }
 
-        private inner class StringWrapper internal constructor() {
-
-            @get:Synchronized
-            @set:Synchronized
-            var string: String? = null
-
-            init {
-                string = null
-            }
-
-        }
-
         override fun doInBackground(vararg params: JobParameters): Boolean? {
             val source = UploadScheduleSource.values()[params[0].extras.getInt(KEY_SOURCE)]
             val context = this.context.get()!!
@@ -140,6 +128,7 @@ class UploadJobService : JobService() {
                 DataStore.onUpload(context, -1)
                 return false
             } else {
+                DataStore.lockData()
                 DataStore.getCurrentDataFile(context)!!.close()
                 val zipName = "up" + System.currentTimeMillis()
                 try {
@@ -179,6 +168,7 @@ class UploadJobService : JobService() {
             super.onPostExecute(result)
             val ctx = context.get()!!
             DataStore.cleanup(ctx)
+            DataStore.unlockData()
 
             if (!result) {
                 DataStore.onUpload(ctx, -1)
@@ -194,6 +184,8 @@ class UploadJobService : JobService() {
             val context = this.context.get()!!
             DataStore.cleanup(context)
             DataStore.recountData(context)
+            DataStore.unlockData()
+            
             if (tempZipFile != null)
                 FileStore.delete(tempZipFile)
 
