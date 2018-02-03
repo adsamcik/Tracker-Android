@@ -1,4 +1,4 @@
-package com.adsamcik.signals.useractivity.services
+package com.adsamcik.signalcollector.services
 
 import android.app.Notification
 import android.app.NotificationManager
@@ -9,7 +9,13 @@ import android.content.Intent
 import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
+import com.adsamcik.signals.tracking.automation.BackgroundActivityWatcher
 import com.adsamcik.signals.useractivity.R
+import com.adsamcik.signals.useractivity.services.ActivityService
+import com.adsamcik.signals.utilities.Assist
+import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.utilities.enums.ResolvedActivity
 
 class ActivityWakerService : Service() {
     private var notificationManager: NotificationManager? = null
@@ -29,7 +35,7 @@ class ActivityWakerService : Service() {
 
         startForeground(NOTIFICATION_ID, updateNotification())
 
-        ActivityService.requestAutoTracking(this, javaClass)
+        BackgroundActivityWatcher.startWatching(this)
 
         thread = Thread {
             //Is not supposed to quit while, until service is stopped
@@ -55,13 +61,13 @@ class ActivityWakerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        ActivityService.removeAutoTracking(this, javaClass)
+        BackgroundActivityWatcher.stopWatching(this)
         instance = null
         thread!!.interrupt()
     }
 
     private fun updateNotification(): Notification {
-        val intent = Intent(this, StandardUIActivity::class.java)
+        val intent = Intent(this, Launch::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text

@@ -185,7 +185,7 @@ class UploadJobService : JobService() {
             DataStore.cleanup(context)
             DataStore.recountData(context)
             DataStore.unlockData()
-            
+
             if (tempZipFile != null)
                 FileStore.delete(tempZipFile)
 

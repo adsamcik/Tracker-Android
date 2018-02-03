@@ -5,11 +5,10 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.util.SparseArray
-import com.adsamcik.signals.useractivity.ActivityInfo
+import com.adsamcik.signals.useractivity.ActivityCallback
 import com.adsamcik.signals.useractivity.ActivityRequestInfo
 import com.adsamcik.signals.utilities.Assist
 import com.adsamcik.signals.utilities.Constants
-import com.adsamcik.signals.utilities.ContextValueCallback
 import com.adsamcik.signals.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
@@ -17,10 +16,8 @@ import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
 
-typealias ActivityCallback = ContextValueCallback<ActivityInfo>
 
 class ActivityService : IntentService("ActivityService") {
-
     override fun onHandleIntent(intent: Intent?) {
         val result = ActivityRecognitionResult.extractResult(intent)
         val detectedActivity = result.mostProbableActivity

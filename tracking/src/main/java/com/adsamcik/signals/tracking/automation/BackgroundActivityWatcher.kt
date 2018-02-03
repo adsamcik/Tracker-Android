@@ -1,8 +1,9 @@
-package com.adsamcik.signals.tracking
+package com.adsamcik.signals.tracking.automation
 
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
+import com.adsamcik.signals.tracking.TrackerService
 import com.adsamcik.signals.useractivity.ActivityInfo
 import com.adsamcik.signals.useractivity.ActivityRecognitionDebug
 import com.adsamcik.signals.useractivity.services.ActivityService
