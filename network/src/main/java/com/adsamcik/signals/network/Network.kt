@@ -2,6 +2,7 @@ package com.adsamcik.signals.network.network
 
 import android.content.Context
 import android.os.Build
+import com.adsamcik.signalcollector.network.Server
 import com.adsamcik.signals.utilities.Preferences
 import com.adsamcik.signals.utilities.test.useMock
 import com.crashlytics.android.Crashlytics
