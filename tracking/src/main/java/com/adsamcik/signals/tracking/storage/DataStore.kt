@@ -37,6 +37,8 @@ object DataStore {
     @Volatile private var approxSize: Long = -1
     @Volatile private var collectionsOnDevice = -1
 
+    @Volatile private var dataLocked = false
+
     var currentDataFile: DataFile? = null
         private set
 
@@ -93,13 +95,27 @@ object DataStore {
     }
 
     /**
+     * Locks datafile writes
+     */
+    fun lockData() {
+        dataLocked = true
+    }
+
+    /**
+     * Unlocks datafile writes
+     */
+    fun unlockData() {
+        dataLocked = false;
+    }
+
+    /**
      * Generates array of all data files
      *
      * @param context               context
      * @param lastFileSizeThreshold Include last datafile if it exceeds this size
      * @return array of datafile names
      */
-    fun getDataFiles(context: Context, @IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? =
+    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? =
             getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
 
     /**
@@ -324,7 +340,7 @@ object DataStore {
 
         if (currentDataFile?.type != type || currentDataFile!!.isFull) {
             val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
-            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type)
+            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type, context)
         }
     }
 
@@ -336,7 +352,7 @@ object DataStore {
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
         val userID = Signin.getUserID(context)
-        if (UploadJobService.isUploading || userID == null)
+        if (dataLocked || userID == null)
             updateCurrentData(context, DataFile.CACHE, userID)
         else
             updateCurrentData(context, DataFile.STANDARD, userID)
@@ -380,7 +396,7 @@ object DataStore {
                 while (i < files.size) {
                     val data = FileStore.loadString(files[0])!!
                     val nameTemplate = DATA_FILE + (currentDataIndex + i)
-                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD)
+                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD, context)
                     if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
                         throw RuntimeException()
 
