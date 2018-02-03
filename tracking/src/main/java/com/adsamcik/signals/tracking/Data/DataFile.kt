@@ -1,5 +1,6 @@
 package com.adsamcik.signals.tracking.data
 
+import android.content.Context
 import android.os.Build
 import android.support.annotation.IntDef
 import android.util.MalformedJsonException
@@ -14,7 +15,7 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long) {
+class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long, context: Context) {
     var file: File = file
         private set
 
@@ -67,7 +68,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                         "\"model\":\"" + Build.MODEL +
                         "\",\"manufacturer\":\"" + Build.MANUFACTURER +
                         "\",\"api\":" + Build.VERSION.SDK_INT +
-                        ",\"version\":" + BuildConfig.VERSION_CODE + "," +
+                        ",\"version\":" + context.packageManager.getPackageInfo(context.packageName, 0).versionCode + "," +
                         "\"data\":", false)
             empty = true
             isWriteable = true
