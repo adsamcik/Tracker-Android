@@ -96,6 +96,7 @@ dependencies {
     implementation project(':tracking')
     implementation project(':stats')
     implementation project(':network')
+    implementation project(path: ':useractivity')
 }
 
 apply plugin: 'com.google.gms.google-services'
