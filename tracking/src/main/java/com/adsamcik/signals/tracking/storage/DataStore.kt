@@ -115,8 +115,13 @@ object DataStore {
      * @param lastFileSizeThreshold Include last datafile if it exceeds this size
      * @return array of datafile names
      */
-    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? =
-            getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
+    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
+        val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
+        return if(list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
+            list.dropLast(1).toTypedArray()
+        else
+            list
+    }
 
     /**
      * Move file
