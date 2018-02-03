@@ -95,3 +95,4 @@ app/release/*
 app/src/main/java/com/adsamcik/signalcollector/network/Server.java
 app/google-services.json
 app/src/main/java/com/adsamcik/signalcollector/network/Server.kt
+network/src/main/java/com/adsamcik/signals/network/Server.kt
