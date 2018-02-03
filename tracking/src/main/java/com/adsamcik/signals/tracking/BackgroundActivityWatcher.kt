@@ -44,7 +44,7 @@ object BackgroundActivityWatcher {
                 }
             } else if (canBackgroundTrack(context, ActivityService.lastActivity.resolvedActivity) &&
                     !TrackerService.isAutoLocked &&
-                    !powerManager.isPowerSaveMode &&
+                    !powerManager!!.isPowerSaveMode &&
                     Assist.canTrack(context)) {
 
                 val trackerService = Intent(context, TrackerService::class.java)
