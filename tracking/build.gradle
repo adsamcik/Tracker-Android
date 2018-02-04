@@ -26,7 +26,6 @@ android {
                     'proguard-rules.pro'
         }
     }
-
 }
 
 dependencies {
@@ -55,6 +54,7 @@ dependencies {
     implementation project(':network')
     implementation project(':stats')
     implementation project(':useractivity')
+    api project(':notifications')
     feature project(':app')
 }
 repositories {

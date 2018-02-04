@@ -8,7 +8,7 @@ import android.support.annotation.RequiresApi
 import android.support.annotation.StringRes
 
 @RequiresApi(26)
-object NotificationTools {
+object ChannelTools {
 
     fun prepareChannels(context: Context) {
         createChannel(context, R.string.channel_track_id, R.string.channel_track_name, R.string.channel_track_description, true, NotificationManager.IMPORTANCE_LOW)
