@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.utility
 
 import android.content.Context
+import com.adsamcik.signals.network.Network
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider

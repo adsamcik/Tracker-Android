@@ -25,10 +25,14 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.interfaces.ITabFragment
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.tracking.services.TrackerService
 import com.adsamcik.signals.tracking.services.UploadJobService
-import com.adsamcik.signals.utilities.Failure
-import com.adsamcik.signals.utilities.FirebaseAssist
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.useractivity.ActivityInfo
+import com.adsamcik.signals.utilities.*
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -142,12 +146,12 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (requiredPermissions == null) {
             if (!TrackerService.isRunning) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
+                    SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
                         val gpsOptionsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(gpsOptionsIntent)
                     })
                 } else if (!Assist.canTrack(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
+                    SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_nothing_to_track)
                 } else {
                     Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply()
                     val trackerService = Intent(activity, TrackerService::class.java)
@@ -165,18 +169,18 @@ class FragmentTracker : Fragment(), ITabFragment {
 
 
     private fun updateUploadButton() {
-        if (fabUp == null || Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) {
-            Log.e("SignalsTrackerFragment", "fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) " is null " else " is fine")
-            Crashlytics.logException(Exception("fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) " is null " else " is fine"))
+        if (fabUp == null || Network.cloudStatus == CloudStatus.UNKNOWN) {
+            Log.e("SignalsTrackerFragment", "fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine")
+            Crashlytics.logException(Exception("fab " + (if (fabUp == null) " is null " else " is fine ") + " done " + if (Network.cloudStatus == CloudStatus.UNKNOWN) " is null " else " is fine"))
             return
         }
 
         when (Network.cloudStatus) {
-            com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED -> {
+            CloudStatus.NO_SYNC_REQUIRED -> {
                 fabUp!!.hide()
                 fabUp!!.setOnClickListener(null)
             }
-            com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE -> {
+            CloudStatus.SYNC_AVAILABLE -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_upload_24dp)
                 progressBar!!.visibility = View.GONE
                 fabUp!!.setOnClickListener { _ ->
@@ -185,42 +189,42 @@ class FragmentTracker : Fragment(), ITabFragment {
                         val failure = UploadJobService.requestUpload(context!!, UploadJobService.UploadScheduleSource.USER)
                         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                         if (failure.hasFailed())
-                            SnackMaker(activity!!).showSnackbar(failure.value!!)
+                            SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(failure.value!!)
                         else {
                             updateUploadProgress(0)
                             updateUploadButton()
                         }
                     } else {
-                        SnackMaker(activity!!).showSnackbar(R.string.sign_in_required)
+                        SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.sign_in_required)
                     }
                 }
                 fabUp!!.show()
             }
-            com.adsamcik.signals.network.network.CloudStatus.SYNC_SCHEDULED -> {
+            CloudStatus.SYNC_SCHEDULED -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
                 fabUp!!.setOnClickListener { _ ->
                     val context = context
                     val failure = UploadJobService.requestUpload(context!!, UploadJobService.UploadScheduleSource.USER)
                     FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (failure.hasFailed())
-                        SnackMaker(activity!!).showSnackbar(failure.value!!)
+                        SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(failure.value!!)
                     else {
                         updateUploadButton()
                     }
                 }
                 fabUp!!.show()
             }
-            com.adsamcik.signals.network.network.CloudStatus.SYNC_IN_PROGRESS -> {
+            CloudStatus.SYNC_IN_PROGRESS -> {
                 fabUp!!.setImageResource(R.drawable.ic_sync_black_24dp)
                 fabUp!!.setOnClickListener(null)
                 fabUp!!.show()
             }
-            com.adsamcik.signals.network.network.CloudStatus.ERROR -> {
+            CloudStatus.ERROR -> {
                 fabUp!!.setImageResource(R.drawable.ic_cloud_off_24dp)
                 fabUp!!.setOnClickListener(null)
                 fabUp!!.show()
             }
-            com.adsamcik.signals.network.network.CloudStatus.UNKNOWN -> {
+            CloudStatus.UNKNOWN -> {
             }
         }//do nothing
     }
@@ -318,7 +322,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fabTrack!!.setOnClickListener { _ ->
             if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = TrackerService.setAutoLock()
-                SnackMaker(activity).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+                SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
             } else
                 toggleCollecting(activity, !TrackerService.isRunning)
         }
@@ -366,8 +370,8 @@ class FragmentTracker : Fragment(), ITabFragment {
         val d = TrackerService.rawDataEcho
         setCollected(context, DataStore.sizeOfData(context), DataStore.collectionCount(context))
 
-        if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED) {
-            Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
+        if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
+            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
             updateUploadButton()
         }
 

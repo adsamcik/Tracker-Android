@@ -7,10 +7,15 @@ import android.content.Intent
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.utility.ChallengeManager
+import com.adsamcik.signals.stats.StatManager
+import com.adsamcik.signals.stats.UploadStats
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.utilities.Preferences
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -168,7 +173,7 @@ class MessageListenerService : FirebaseMessagingService() {
             val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations)
             DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)
 
-            Preferences.checkStatsDay(context)
+            StatManager.checkStatsDay(context)
             val sp = Preferences.getPref(context)
             sp.edit().putLong(Preferences.PREF_STATS_UPLOADED, sp.getLong(Preferences.PREF_STATS_UPLOADED, 0) + uploadSize).apply()
             return us
