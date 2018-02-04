@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signals.tracking.services.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.utility.NotificationTools
-import com.adsamcik.signalcollector.utility.Shortcuts
+import com.adsamcik.signals.notifications.Shortcuts
 import com.adsamcik.signals.utilities.FirebaseAssist
 import com.adsamcik.signals.utilities.test.useMock
 import com.crashlytics.android.Crashlytics

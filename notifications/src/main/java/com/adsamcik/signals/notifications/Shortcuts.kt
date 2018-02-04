@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signals.notifications
 
 import android.content.Context
 import android.content.Intent
@@ -7,8 +7,6 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.support.annotation.DrawableRes
 import android.support.annotation.RequiresApi
-import com.adsamcik.signalcollector.activities.ShortcutActivity
-import com.adsamcik.signals.tracking.services.TrackerService
 import java.util.*
 
 @RequiresApi(25)
@@ -22,13 +20,13 @@ object Shortcuts {
      *
      * @param context context
      */
-    fun initializeShortcuts(context: Context) {
+    fun initializeShortcuts(context: Context, trackingActive: Boolean) {
         val shortcutManager = context.getSystemService(ShortcutManager::class.java)
         val shortcuts = ArrayList<ShortcutInfo>(1)
-        if (!TrackerService.isRunning)
-            shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_start_tracking), context.getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, ShortcutType.START_COLLECTION))
-        else
+        if (trackingActive)
             shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_stop_tracking), context.getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, ShortcutType.STOP_COLLECTION))
+        else
+            shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_start_tracking), context.getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, ShortcutType.START_COLLECTION))
 
         assert(shortcutManager != null)
         shortcutManager!!.dynamicShortcuts = shortcuts

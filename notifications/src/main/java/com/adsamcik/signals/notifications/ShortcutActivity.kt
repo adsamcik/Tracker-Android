@@ -1,12 +1,12 @@
-package com.adsamcik.signalcollector.activities
+package com.adsamcik.signals.notifications
 
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.support.annotation.RequiresApi
-import com.adsamcik.signalcollector.utility.Shortcuts
-import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType
+import com.adsamcik.signals.notifications.Shortcuts
+import com.adsamcik.signals.notifications.Shortcuts.ShortcutType
 import com.crashlytics.android.Crashlytics
 
 class ShortcutActivity : Activity() {

@@ -1,8 +1,14 @@
 package com.adsamcik.signals.tracking.services
 
 import android.Manifest
-import android.app.*
-import android.content.*
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
@@ -18,14 +24,16 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import com.adsamcik.signals.notifications.Shortcuts
 import com.adsamcik.signals.stats.StatManager
-import com.adsamcik.signals.tracking.receivers.NotificationReceiver
 import com.adsamcik.signals.tracking.R
 import com.adsamcik.signals.tracking.data.RawData
+import com.adsamcik.signals.tracking.receivers.NotificationReceiver
 import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.useractivity.services.ActivityService
 import com.adsamcik.signals.utilities.Assist
 import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.Constants.SECOND_IN_MILLISECONDS
 import com.adsamcik.signals.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
@@ -68,13 +76,13 @@ class TrackerService : Service() {
      */
     private var prevLocation: Location? = null
 
-    private val baseNotification = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
+    private val notificationBuilder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setSmallIcon(R.drawable.ic_signals)  // the done icon
             .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
             .setWhen(System.currentTimeMillis())  // the time stamp
-            .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
             .setColor(ContextCompat.getColor(this, R.color.color_accent))
+
 
     private fun updateData(location: Location) {
         if (location.isFromMockProvider) {
@@ -139,7 +147,7 @@ class TrackerService : Service() {
         prevLocation = location
         prevLocation!!.time = d.time
 
-        notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
+        notificationManager!!.notify(NOTIFICATION_ID_SERVICE, updateNotification(true, d))
 
         onNewDataFound?.invoke()
 
@@ -195,33 +203,15 @@ class TrackerService : Service() {
         }
     }
 
-    private fun generateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
-        val intent = Intent()
-        intent.component = ComponentName(packageName, packageName + "LaunchActivity")
-        val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setSmallIcon(R.drawable.ic_signals)  // the done icon
-                .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
-                .setWhen(System.currentTimeMillis())  // the time stamp
-                .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
-                .setColor(ContextCompat.getColor(this, R.color.color_accent))
-
-        val stopIntent = Intent(this, NotificationReceiver::class.java)
-        stopIntent.putExtra(NotificationReceiver.ACTION_STRING, if (isBackgroundActivated) 0 else 1)
-        val stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
-        if (isBackgroundActivated)
-            builder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop)
-        else
-            builder.addAction(R.drawable.ic_pause, getString(R.string.notification_stop), stop)
-
+    private fun updateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
         if (!gpsAvailable)
-            builder.setContentTitle(getString(R.string.notification_looking_for_gps))
+            notificationBuilder.setContentTitle(getString(R.string.notification_looking_for_gps))
         else {
-            builder.setContentTitle(getString(R.string.notification_tracking_active))
-            builder.setContentText(buildNotificationText(d))
+            notificationBuilder.setContentTitle(getString(R.string.notification_tracking_active))
+            notificationBuilder.setContentText(buildNotificationText(d))
         }
 
-        return builder.build()
+        return notificationBuilder.build()
     }
 
     private fun buildNotificationText(d: RawData?): String {
@@ -265,7 +255,7 @@ class TrackerService : Service() {
 
             override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {
                 if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-                    notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
+                    notificationManager!!.notify(NOTIFICATION_ID_SERVICE, updateNotification(false, null))
             }
 
             override fun onProviderEnabled(provider: String) {}
@@ -319,10 +309,19 @@ class TrackerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lockedUntil = 0
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
-        startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
+        startForeground(NOTIFICATION_ID_SERVICE, updateNotification(false, null))
         onServiceStateChange?.invoke()
-        if (NOISE_ENABLED && Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
-            noiseTracker = NoiseTracker(this).start()
+
+        val stopIntent = Intent(this, NotificationReceiver::class.java)
+        stopIntent.putExtra(NotificationReceiver.ACTION_STRING, if (isBackgroundActivated) 0 else 1)
+        val stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+        if (isBackgroundActivated)
+            notificationBuilder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop)
+        else
+            notificationBuilder.addAction(R.drawable.ic_pause, getString(R.string.notification_stop), stop)
+
+        notificationBuilder.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
+
         return super.onStartCommand(intent, flags, startId)
     }
 
