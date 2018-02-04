@@ -5,10 +5,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
@@ -33,6 +30,7 @@ import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.useractivity.services.ActivityService
 import com.adsamcik.signals.utilities.Assist
 import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signals.utilities.Constants.SECOND_IN_MILLISECONDS
 import com.adsamcik.signals.utilities.Preferences
 import com.crashlytics.android.Crashlytics
@@ -237,7 +235,7 @@ class TrackerService : Service() {
         Assist.initialize(this)
         val sp = Preferences.getPref(this)
 
-        ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
+        ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC, null)
 
         //Get managers
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -298,10 +296,14 @@ class TrackerService : Service() {
         }
 
         //Shortcut setup
-        if (android.os.Build.VERSION.SDK_INT >= 25) {
-            Shortcuts.initializeShortcuts(this)
-            Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION)
-        }
+        if (android.os.Build.VERSION.SDK_INT >= 25)
+            Shortcuts.updateShortcut(this,
+                    true,
+                    Shortcuts.TRACKING_ID,
+                    getString(R.string.shortcut_stop_tracking),
+                    getString(R.string.shortcut_stop_tracking_long),
+                    R.drawable.ic_pause,
+                    Shortcuts.ShortcutType.STOP_COLLECTION)
 
         UploadJobService.cancelUploadSchedule(this)
     }
@@ -320,7 +322,9 @@ class TrackerService : Service() {
         else
             notificationBuilder.addAction(R.drawable.ic_pause, getString(R.string.notification_stop), stop)
 
-        notificationBuilder.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
+        val appOpenIntent = Intent()
+        appOpenIntent.component = ComponentName(packageName, packageName + ".activities.LaunchActivity")
+        notificationBuilder.setContentIntent(PendingIntent.getActivity(this, 0, appOpenIntent, 0)) // The intent to send when the entry is clicked
 
         return super.onStartCommand(intent, flags, startId)
     }
@@ -353,10 +357,14 @@ class TrackerService : Service() {
         val sp = Preferences.getPref(this)
         sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt()).apply()
 
-        if (android.os.Build.VERSION.SDK_INT >= 25) {
-            Shortcuts.initializeShortcuts(this)
-            Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION)
-        }
+        if (android.os.Build.VERSION.SDK_INT >= 25)
+            Shortcuts.updateShortcut(this,
+                    false,
+                    Shortcuts.TRACKING_ID,
+                    getString(R.string.shortcut_start_tracking),
+                    getString(R.string.shortcut_start_tracking_long),
+                    R.drawable.ic_play,
+                    Shortcuts.ShortcutType.START_COLLECTION)
 
         if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
             UploadJobService.requestUploadSchedule(this)

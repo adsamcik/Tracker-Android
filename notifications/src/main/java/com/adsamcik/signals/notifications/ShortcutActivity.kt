@@ -1,6 +1,8 @@
 package com.adsamcik.signals.notifications
 
 import android.app.Activity
+import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -19,15 +21,15 @@ class ShortcutActivity : Activity() {
             val value = intent.getIntExtra(Shortcuts.ACTION_STRING, -1)
             if (value >= 0 && value < ShortcutType.values().size) {
                 val type = ShortcutType.values()[value]
-                val serviceIntent = Intent(this, TrackerService::class.java)
+                val serviceIntent = Intent()
+                serviceIntent.component = ComponentName(packageName, packageName + ".tracking.services.TrackerService")
 
                 when (type) {
                     Shortcuts.ShortcutType.START_COLLECTION -> {
                         serviceIntent.putExtra("backTrack", false)
                         startService(serviceIntent)
                     }
-                    Shortcuts.ShortcutType.STOP_COLLECTION -> if (TrackerService.isRunning)
-                        stopService(serviceIntent)
+                    Shortcuts.ShortcutType.STOP_COLLECTION -> stopService(serviceIntent)
                 }
             } else {
                 Crashlytics.logException(Throwable("Invalid value " + value))

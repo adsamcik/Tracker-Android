@@ -25,7 +25,7 @@ class ActivityService : IntentService("ActivityService") {
         lastActivity = com.adsamcik.signals.useractivity.ActivityInfo(detectedActivity.type, detectedActivity.confidence)
 
         for (i in 0 until activeRequests.size())
-            activeRequests.valueAt(i).listener!!.invoke(this, lastActivity)
+            activeRequests.valueAt(i).listener?.invoke(this, lastActivity)
 
 
         /*Log.i(TAG, "_____activities detected");
@@ -55,7 +55,7 @@ class ActivityService : IntentService("ActivityService") {
          * @param updateRate update rate in seconds
          * @return true if success
          */
-        fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int, listener: ActivityCallback): Boolean =
+        fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int, listener: ActivityCallback?): Boolean =
                 requestActivity(context, tClass.hashCode(), updateRate, listener)
 
         /**
@@ -65,13 +65,13 @@ class ActivityService : IntentService("ActivityService") {
          * @param tClass  class that requests update
          * @return true if success
          */
-        fun requestActivity(context: Context, tClass: Class<*>, listener: ActivityCallback): Boolean =
+        fun requestActivity(context: Context, tClass: Class<*>, listener: ActivityCallback?): Boolean =
                 requestActivity(context,
                         tClass.hashCode(),
                         Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE),
                         listener)
 
-        private fun requestActivity(context: Context, hash: Int, updateRate: Int, listener: ActivityCallback): Boolean {
+        private fun requestActivity(context: Context, hash: Int, updateRate: Int, listener: ActivityCallback?): Boolean {
             setMinUpdateRate(context, updateRate)
             val index = activeRequests.indexOfKey(hash)
             if (index < 0) {
