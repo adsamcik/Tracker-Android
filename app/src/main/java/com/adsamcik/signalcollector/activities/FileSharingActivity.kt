@@ -98,7 +98,7 @@ class FileSharingActivity : DetailActivity() {
             val bottomSheetMenu = BottomSheetMenu(layout)
             bottomSheetMenu.addItem(R.string.export_share_button, shareOnClickListener)
 
-            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener{ _ ->
+            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener { _ ->
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, true)
             })

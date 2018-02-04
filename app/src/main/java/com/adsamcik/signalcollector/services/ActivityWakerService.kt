@@ -51,8 +51,8 @@ class ActivityWakerService : Service() {
         startForeground(NOTIFICATION_ID, updateNotification())
 
         BackgroundActivityWatcher.startWatching(this)
-        ActivityService.requestActivity(this, this.javaClass, Int.MAX_VALUE) {_, activityInfo ->
-            if(this.activityInfo.activity != activityInfo.activity) {
+        ActivityService.requestActivity(this, this.javaClass, Int.MAX_VALUE) { _, activityInfo ->
+            if (this.activityInfo.activity != activityInfo.activity) {
                 changed = true
                 this.activityInfo = activityInfo
             }

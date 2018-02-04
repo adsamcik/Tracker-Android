@@ -79,7 +79,7 @@ class InfoComponent : FrameLayout {
 
     private fun setTextViewTheme(textView: TextView, textSizeResource: Int, textColorResource: Int) {
         val resources = context.resources
-        textView.setTextSize(TypedValue.COMPLEX_UNIT_PX,resources.getDimension(textSizeResource))
+        textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(textSizeResource))
         textView.setTextColor(ContextCompat.getColor(context, textColorResource))
     }
 

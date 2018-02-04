@@ -1,8 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
         android:width="24dp"
         android:height="24dp"
-        android:viewportWidth="@integer/viewport_width"
-        android:viewportHeight="@integer/viewport_height">
+        android:viewportHeight="@integer/viewport_height"
+        android:viewportWidth="@integer/viewport_width">
 
     <group
         android:name="@string/nPlayPauseGroup"
@@ -11,8 +11,8 @@
 
         <path
             android:name="@string/nPlay"
-            android:pathData="@string/path_play"
-            android:fillColor="#000"/>
+            android:fillColor="#000"
+            android:pathData="@string/path_play"/>
 
     </group>
 

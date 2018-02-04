@@ -3,12 +3,12 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#166f72"
     android:clipChildren="false"
-    tools:context="com.adsamcik.signalcollector.activities.NewUIActivity"
-    android:id="@+id/root">
+    tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
 
 
     <android.support.constraint.ConstraintLayout
@@ -115,18 +115,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingTop="4dp"
-                tools:text="588 KB"
                 app:layout_constraintLeft_toRightOf="@id/ic_storage"
                 app:layout_constraintTop_toTopOf="@id/ic_storage"
+                tools:text="588 KB"
                 />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingBottom="4dp"
-                tools:text="170 collections"
                 app:layout_constraintBottom_toBottomOf="@id/ic_storage"
                 app:layout_constraintLeft_toRightOf="@id/ic_storage"
+                tools:text="170 collections"
                 />
 
             <ImageView
@@ -142,20 +142,20 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingTop="4dp"
-                tools:text="237 m altitude"
                 android:textAlignment="textEnd"
                 app:layout_constraintRight_toLeftOf="@id/ic_activity"
                 app:layout_constraintTop_toTopOf="@id/ic_activity"
+                tools:text="237 m altitude"
                 />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingBottom="4dp"
-                tools:text="8 m accuracy"
                 android:textAlignment="textEnd"
                 app:layout_constraintBottom_toBottomOf="@id/ic_activity"
                 app:layout_constraintRight_toLeftOf="@id/ic_activity"
+                tools:text="8 m accuracy"
                 />
 
         </android.support.constraint.ConstraintLayout>

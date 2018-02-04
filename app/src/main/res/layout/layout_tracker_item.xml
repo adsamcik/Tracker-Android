@@ -2,9 +2,9 @@
 
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="170dp"
     android:layout_height="wrap_content"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_marginBottom="16dp"
     android:background="@drawable/background_tracker_data"
     android:orientation="vertical"
@@ -28,8 +28,8 @@
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
             android:gravity="center_vertical"
-            tools:text="Wifi"
-            android:textSize="@dimen/primary_text_size"/>
+            android:textSize="@dimen/primary_text_size"
+            tools:text="Wifi"/>
     </LinearLayout>
 
     <View

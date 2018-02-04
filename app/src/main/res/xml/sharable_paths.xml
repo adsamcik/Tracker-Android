@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <files-path path="shareable/" name="shareable" />
+    <files-path
+        name="shareable"
+        path="shareable/"/>
 </paths>
