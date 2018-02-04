@@ -11,13 +11,11 @@ import java.text.DateFormat
 
 class ActivityRecognitionDebug {
     companion object {
-        private const val FILE = "activityRecognitionDebug.tsv"
+        const val FILE = "activityRecognitionDebug.tsv"
 
         private var updateCallback: ((Array<String>) -> Unit)? = null
 
         private var stopCallback: (() -> Unit)? = null
-
-        private const val delim = " - "
 
         /**
          * Adds line to the activity debug if tracking is enabled

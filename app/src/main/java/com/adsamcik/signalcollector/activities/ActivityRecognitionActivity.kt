@@ -4,8 +4,11 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ListView
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.useractivity.ActivityRecognitionDebug
+import com.adsamcik.signals.useractivity.ActivityRecognitionDebug.Companion.FILE
 import com.adsamcik.signals.utilities.Parser
 import com.adsamcik.signals.utilities.Preferences
 import kotlinx.coroutines.experimental.async
@@ -13,17 +16,16 @@ import java.lang.ref.WeakReference
 import java.util.*
 
 class ActivityRecognitionActivity : DetailActivity() {
-
     private var startStopButton: Button? = null
     private var adapter: StringFilterableAdapter? = null
     private var listView: ListView? = null
 
     private var usingFilter = false
 
+    private val delim = " - "
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        instance = WeakReference(this)
 
         val v = layoutInflater.inflate(R.layout.layout_activity_recognition, createContentParent(false))
         startStopButton = findViewById(R.id.dev_activity_debug_start_stop_button)
@@ -59,6 +61,7 @@ class ActivityRecognitionActivity : DetailActivity() {
             adapter = StringFilterableAdapter(activity, R.layout.spinner_item, { item ->
                 item.joinToString(delim)
             })
+            adapter!!.addAll(items)
         }
 
         findViewById<View>(R.id.dev_activity_recognition_filter).setOnClickListener { f ->
@@ -77,9 +80,5 @@ class ActivityRecognitionActivity : DetailActivity() {
             adapter!!.clear()
             DataStore.delete(this, FILE)
         }
-    }
-
-    companion object {
-
     }
 }
