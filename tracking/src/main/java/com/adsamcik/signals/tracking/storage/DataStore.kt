@@ -4,7 +4,8 @@ import android.content.Context
 import android.os.Bundle
 import android.util.MalformedJsonException
 import android.util.Pair
-import com.adsamcik.signals.network.network.Network
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
 import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.stats.UploadStats
 import com.adsamcik.signals.tracking.data.DataFile
@@ -52,10 +53,10 @@ object DataStore {
      * Call to invoke onDataChanged callback
      */
     private fun onDataChanged(context: Context) {
-        if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
-            Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
-        else if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
-            Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED
+        if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
+            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+        else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
+            Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED
 
         onDataChanged?.invoke()
     }
@@ -67,11 +68,11 @@ object DataStore {
      */
     fun onUpload(context: Context, progress: Int) {
         if (progress == 100)
-            Network.cloudStatus = if (sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE else com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED
+            Network.cloudStatus = if (sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
         else if (progress == -1 && sizeOfData(context) > 0)
-            Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
+            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
         else
-            Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_IN_PROGRESS
+            Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS
 
         onUploadProgress?.invoke(progress)
     }
@@ -105,7 +106,7 @@ object DataStore {
      * Unlocks datafile writes
      */
     fun unlockData() {
-        dataLocked = false;
+        dataLocked = false
     }
 
     /**
