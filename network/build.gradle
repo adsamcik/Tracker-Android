@@ -27,14 +27,11 @@ android {
                     'proguard-rules.pro'
         }
     }
-
 }
 
 kotlin { experimental { coroutines 'enable' } }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-
     implementation "com.google.code.gson:gson:$gson_version"
     implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     implementation "com.squareup.okhttp3:okhttp:$okhttp_version"
@@ -52,6 +49,7 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutines_version"
 
     api project(':utilities')
+
     feature project(':signin')
     feature project(':tracking')
     feature project(':app')
