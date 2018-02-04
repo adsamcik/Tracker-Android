@@ -1,4 +1,7 @@
 <resources>
+    <style name="SplashTheme" parent="AppThemeTransluscent">
+        <item name="android:windowBackground">@drawable/background_splash</item>
+    </style>
     <style name="AppThemeLight.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
     <style name="AppThemeLight.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"/>
 </resources>

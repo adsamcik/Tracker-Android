@@ -5,7 +5,7 @@
         <activity
             android:name="com.adsamcik.signals.notifications.ShortcutActivity"
             android:screenOrientation="portrait"
-            android:theme="@style/SplashTheme">
+            android:theme="@style/AppThemeTransluscent">
         </activity>
 
         <receiver android:name="com.adsamcik.signals.tracking.receivers.NotificationReceiver">
