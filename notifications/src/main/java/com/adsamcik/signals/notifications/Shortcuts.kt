@@ -43,7 +43,7 @@ object Shortcuts {
         return shortcutBuilder.build()
     }
 
-    fun updateShortcut(context: Context, trackingActive: Boolean, id: String, shortLabel: String, longLabel: String?, @DrawableRes iconResource: Int, action: ShortcutType) {
+    fun updateShortcuts(context: Context, trackingActive: Boolean, id: String, shortLabel: String, longLabel: String?, @DrawableRes iconResource: Int, action: ShortcutType) {
         initializeShortcuts(context, trackingActive)
         val shortcutManager = context.getSystemService(ShortcutManager::class.java)!!
         val shortcuts = shortcutManager.dynamicShortcuts
@@ -54,6 +54,10 @@ object Shortcuts {
             }
         }
         shortcutManager.updateShortcuts(shortcuts)
+    }
+
+    fun updateShortcuts(context: Context, trackingActive: Boolean) {
+        initializeShortcuts(context, trackingActive)
     }
 
 

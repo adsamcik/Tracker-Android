@@ -13,9 +13,11 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.utility.ChallengeManager
+import com.adsamcik.signals.utilities.Assist
 import com.adsamcik.signals.utilities.Failure
 import com.adsamcik.signals.utilities.components.SnackMaker
 import kotlinx.coroutines.experimental.launch
@@ -30,7 +32,7 @@ class FragmentActivities : Fragment(), ITabFragment {
 
         listViewChallenges = rootView.findViewById(R.id.listview_challenges)
 
-        refreshLayout = rootView
+        refreshLayout = rootView as SwipeRefreshLayout
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
         refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity!!, 40))
         refreshLayout!!.setOnRefreshListener({ this.updateData() })
@@ -42,12 +44,12 @@ class FragmentActivities : Fragment(), ITabFragment {
 
     private fun updateData() {
         val isRefresh = refreshLayout != null && refreshLayout!!.isRefreshing
-        val activity = activity
-        val context = activity!!.applicationContext
+        val activity = activity!!
+        val context = activity.applicationContext
         launch {
             val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
             if (!source.success)
-                SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
+                SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_connection_failed)
             else {
                 activity.runOnUiThread { listViewChallenges!!.adapter = ChallengesAdapter(context, challenges!!) }
             }

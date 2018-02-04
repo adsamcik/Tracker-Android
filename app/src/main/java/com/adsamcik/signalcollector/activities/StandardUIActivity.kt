@@ -11,9 +11,18 @@ import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.util.Log
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.tracking.services.UploadJobService
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.useractivity.services.ActivityService
+import com.adsamcik.signals.utilities.Assist
+import com.adsamcik.signals.utilities.Constants
+import com.adsamcik.signals.utilities.Preferences
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 
@@ -31,21 +40,21 @@ class StandardUIActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
-        val snackMaker = SnackMaker(this)
+        val snackMaker = SnackMaker(findViewById(R.id.fabCoordinator))
         Assist.initialize(this)
 
-        if (Network.cloudStatus == com.adsamcik.signals.network.network.CloudStatus.UNKNOWN) {
+        if (Network.cloudStatus == CloudStatus.UNKNOWN) {
             val scheduleSource = UploadJobService.getUploadScheduled(this)
             when (scheduleSource) {
-                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE else com.adsamcik.signals.network.network.CloudStatus.NO_SYNC_REQUIRED
-                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_SCHEDULED
+                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
+                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
             }
         }
 
         Signin.signIn(this, null, true)
 
         if (Assist.checkPlayServices(this))
-            ActivityService.requestAutoTracking(this, StandardUIActivity::class.java)
+            ActivityService.requestActivity(this, StandardUIActivity::class.java, null)
         else
             snackMaker.showSnackbar(R.string.error_play_services_not_available)
 
@@ -128,7 +137,7 @@ class StandardUIActivity : FragmentActivity() {
             fragmentTransaction.commit()
 
             if (state.hasFailed())
-                SnackMaker(this).showSnackbar(state.value!!)
+                SnackMaker(findViewById(R.id.fabCoordinator)).showSnackbar(state.value!!)
         }
     }
 

@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.support.design.widget.CoordinatorLayout
 import android.support.v7.app.AppCompatActivity
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.InfoComponent
 
 

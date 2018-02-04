@@ -25,8 +25,8 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signals.tracking.services.UploadJobService
 import com.adsamcik.signals.tracking.services.TrackerService
+import com.adsamcik.signals.tracking.services.UploadJobService
 import com.adsamcik.signals.utilities.Failure
 import com.adsamcik.signals.utilities.FirebaseAssist
 import com.adsamcik.signals.utilities.components.SnackMaker

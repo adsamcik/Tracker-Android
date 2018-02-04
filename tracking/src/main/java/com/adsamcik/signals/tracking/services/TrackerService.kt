@@ -297,7 +297,7 @@ class TrackerService : Service() {
 
         //Shortcut setup
         if (android.os.Build.VERSION.SDK_INT >= 25)
-            Shortcuts.updateShortcut(this,
+            Shortcuts.updateShortcuts(this,
                     true,
                     Shortcuts.TRACKING_ID,
                     getString(R.string.shortcut_stop_tracking),
@@ -358,7 +358,7 @@ class TrackerService : Service() {
         sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt()).apply()
 
         if (android.os.Build.VERSION.SDK_INT >= 25)
-            Shortcuts.updateShortcut(this,
+            Shortcuts.updateShortcuts(this,
                     false,
                     Shortcuts.TRACKING_ID,
                     getString(R.string.shortcut_start_tracking),

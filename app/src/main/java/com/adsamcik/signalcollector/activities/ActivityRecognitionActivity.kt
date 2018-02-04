@@ -7,12 +7,10 @@ import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.signals.useractivity.ActivityRecognitionDebug
 import com.adsamcik.signals.useractivity.ActivityRecognitionDebug.Companion.FILE
 import com.adsamcik.signals.utilities.Parser
 import com.adsamcik.signals.utilities.Preferences
 import kotlinx.coroutines.experimental.async
-import java.lang.ref.WeakReference
 import java.util.*
 
 class ActivityRecognitionActivity : DetailActivity() {

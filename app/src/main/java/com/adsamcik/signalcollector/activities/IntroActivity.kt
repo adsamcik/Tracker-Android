@@ -10,10 +10,14 @@ import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
 import android.view.WindowManager
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentIntro
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.utilities.Preferences
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.github.paolorotolo.appintro.AppIntro2
+import com.google.android.gms.common.SignInButton
 import java.util.*
 
 class IntroActivity : AppIntro2() {
@@ -107,7 +111,7 @@ class IntroActivity : AppIntro2() {
                         .setCancelable(true)
                         .create()
 
-                v.findViewById(R.id.sign_in_button).setOnClickListener { _ ->
+                v.findViewById<SignInButton>(R.id.sign_in_button).setOnClickListener { _ ->
                     val currentFragment = currentFragment!!
                     dialog.getButton(DialogInterface.BUTTON_NEGATIVE).isEnabled = false
                     dialog.setMessage(getString(R.string.signin_connecting))

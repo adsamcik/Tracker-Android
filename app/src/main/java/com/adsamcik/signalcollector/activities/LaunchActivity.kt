@@ -9,10 +9,12 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signals.tracking.services.UploadJobService
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.utility.NotificationTools
+import com.adsamcik.signals.notifications.ChannelTools
 import com.adsamcik.signals.notifications.Shortcuts
+import com.adsamcik.signals.tracking.services.TrackerService
+import com.adsamcik.signals.tracking.services.UploadJobService
 import com.adsamcik.signals.utilities.FirebaseAssist
 import com.adsamcik.signals.utilities.Preferences
 import com.adsamcik.signals.utilities.test.useMock
@@ -77,10 +79,10 @@ class LaunchActivity : Activity() {
             startActivity(Intent(this, IntroActivity::class.java))
 
         if (Build.VERSION.SDK_INT >= 25)
-            Shortcuts.initializeShortcuts(this)
+            Shortcuts.updateShortcuts(this, TrackerService.isRunning)
 
         if (Build.VERSION.SDK_INT >= 26)
-            NotificationTools.prepareChannels(this)
+            ChannelTools.prepareChannels(this)
 
         ActivityWakerService.poke(this)
 

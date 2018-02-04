@@ -8,6 +8,10 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import com.adsamcik.signalcollector.R
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.tracking.data.DataFile
+import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.utilities.components.BottomSheetMenu
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.adsamcik.signals.utilities.storage.Compress
@@ -44,7 +48,7 @@ class FileSharingActivity : DetailActivity() {
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
                         temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD).close()
+                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD, this).close()
                     }
 
                 if (temp.size == 0)
