@@ -1,15 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.adsamcik.signals.notifications">
 
-    <activity
-        android:name="com.adsamcik.signals.notifications.ShortcutActivity"
-        android:screenOrientation="portrait"
-        android:theme="@style/SplashTheme">
-    </activity>
+    <application>
+        <activity
+            android:name="com.adsamcik.signals.notifications.ShortcutActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/SplashTheme">
+        </activity>
 
-    <receiver android:name="com.adsamcik.signals.tracking.receivers.NotificationReceiver">
-        <intent-filter>
-            <action android:name="android.intent.action.MAIN"/>
-        </intent-filter>
-    </receiver>
+        <receiver android:name="com.adsamcik.signals.tracking.receivers.NotificationReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </receiver>
+    </application>
 </manifest>
