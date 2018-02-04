@@ -10,10 +10,7 @@ import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge
-import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.ChallengeManager
-import com.adsamcik.utilities.Preferences
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 

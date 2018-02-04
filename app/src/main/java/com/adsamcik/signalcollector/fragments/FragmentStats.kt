@@ -13,23 +13,14 @@ import android.view.ViewGroup
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
-import com.adsamcik.signalcollector.data.Stat
-import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signals.network.network.Network
-import com.adsamcik.signals.network.network.NetworkLoader
-import com.adsamcik.signals.utilities.test.useMock
+import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.utilities.Failure
 import com.adsamcik.signals.utilities.components.SnackMaker
-import com.adsamcik.signalcollector.utility.StatManager
-import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.utilities.test.useMock
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants.DAY_IN_MINUTES
-import com.adsamcik.utilities.Preferences
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 

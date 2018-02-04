@@ -3,11 +3,6 @@ package com.adsamcik.signalcollector.activities
 import android.content.Context
 import android.os.Bundle
 import android.widget.ListView
-import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.utilities.Preferences
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter

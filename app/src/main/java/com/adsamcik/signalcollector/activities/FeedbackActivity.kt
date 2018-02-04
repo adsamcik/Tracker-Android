@@ -9,8 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.adsamcik.signals.network.network.Network
-import com.adsamcik.utilities.Assist
 import com.adsamcik.signals.utilities.components.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch

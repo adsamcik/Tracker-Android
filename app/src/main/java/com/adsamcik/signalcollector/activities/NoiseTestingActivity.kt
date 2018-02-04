@@ -5,9 +5,10 @@ import android.os.AsyncTask
 import android.os.Bundle
 import android.util.MutableInt
 import android.view.View
-import android.widget.*
-import com.adsamcik.signalcollector.NoiseTracker
-import com.adsamcik.utilities.Preferences
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.ListView
+import android.widget.SeekBar
 import java.lang.ref.WeakReference
 import java.util.*
 

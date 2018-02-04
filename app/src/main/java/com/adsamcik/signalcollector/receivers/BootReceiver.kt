@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.activities.StandardUIActivity
-import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric

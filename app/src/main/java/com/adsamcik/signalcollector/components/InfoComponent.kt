@@ -11,7 +11,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.utilities.Assist
 
 
 class InfoComponent : FrameLayout {

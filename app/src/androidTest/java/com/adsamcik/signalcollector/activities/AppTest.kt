@@ -17,15 +17,9 @@ import android.util.MalformedJsonException
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
-import com.adsamcik.signals.network.network.CloudStatus
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signalcollector.services.MessageListenerService
 import com.adsamcik.signals.utilities.test.isTestMode
-import com.adsamcik.utilities.Constants
-import com.adsamcik.utilities.Preferences
 import com.google.gson.Gson
 import org.hamcrest.Description
 import org.hamcrest.Matcher

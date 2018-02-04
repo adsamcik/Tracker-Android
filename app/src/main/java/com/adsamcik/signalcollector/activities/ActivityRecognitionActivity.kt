@@ -1,22 +1,15 @@
 package com.adsamcik.signalcollector.activities
 
-import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ListView
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.utilities.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signals.utilities.Parser
 import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.utilities.Preferences
-import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
-import java.text.DateFormat.getDateTimeInstance
 import java.util.*
 
 class ActivityRecognitionActivity : DetailActivity() {

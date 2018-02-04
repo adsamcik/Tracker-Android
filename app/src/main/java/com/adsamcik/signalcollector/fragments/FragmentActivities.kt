@@ -15,7 +15,6 @@ import android.widget.ListView
 import android.widget.TextView
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.utilities.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signals.utilities.Failure
 import com.adsamcik.signals.utilities.components.SnackMaker

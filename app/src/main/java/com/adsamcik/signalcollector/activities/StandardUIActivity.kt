@@ -11,16 +11,9 @@ import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.util.Log
-import com.adsamcik.signals.network.network.CloudStatus
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signals.network.network.Network
-import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Constants
-import com.adsamcik.utilities.Preferences
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 

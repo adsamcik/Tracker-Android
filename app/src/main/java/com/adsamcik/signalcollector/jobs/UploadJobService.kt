@@ -10,8 +10,6 @@ import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signals.network.network.CloudStatus
-import com.adsamcik.signals.network.network.Network
 import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.utilities.*

@@ -4,9 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.utilities.Assist
-import com.adsamcik.utilities.Preferences
 import com.crashlytics.android.Crashlytics
 
 class OnAppUpdateReceiver : BroadcastReceiver() {
