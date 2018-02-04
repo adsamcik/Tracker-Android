@@ -1,1 +1,1 @@
-include ':app', ':signin', ':utilities', ':tracking', ':network', ':stats', ':useractivity', ':notifications'
+include ':app', ':signin', ':base', ':tracking', ':network', ':stats', ':useractivity', ':notifications'

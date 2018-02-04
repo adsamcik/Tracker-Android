@@ -48,7 +48,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutines_version"
 
-    api project(':utilities')
+    api project(':base')
 
     feature project(':signin')
     feature project(':tracking')

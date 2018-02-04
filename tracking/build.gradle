@@ -55,7 +55,7 @@ dependencies {
     implementation project(':stats')
     implementation project(':useractivity')
     implementation project(':notifications')
-    api project(':utilities')
+    api project(':base')
 
     feature project(':app')
 }
