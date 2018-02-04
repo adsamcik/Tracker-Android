@@ -35,7 +35,7 @@ dependencies {
 
     implementation "com.google.code.gson:gson:$gson_version"
     implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
-    implementation 'com.squareup.okhttp3:okhttp:3.9.1'
+    implementation "com.squareup.okhttp3:okhttp:$okhttp_version"
 
     implementation "com.android.support:support-annotations:$support_version"
     implementation "com.google.firebase:firebase-core:$play_services_version"

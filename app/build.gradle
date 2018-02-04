@@ -52,7 +52,7 @@ android {
 kotlin { experimental { coroutines 'enable' } }
 
 dependencies {
-    implementation 'com.squareup.okhttp3:okhttp:3.9.1'
+    implementation "com.squareup.okhttp3:okhttp:$okhttp_version"
     implementation "com.google.code.gson:gson:$gson_version"
     implementation 'com.github.apl-devs:appintro:v4.2.2'
     implementation 'com.vimeo.stag:stag-library:2.4.0', {
