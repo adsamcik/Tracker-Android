@@ -17,18 +17,22 @@ object ChallengeManager {
     suspend fun getChallenges(ctx: Context, force: Boolean): Pair<NetworkLoader.Source, Array<Challenge>?> = suspendCoroutine { cont ->
         val context = ctx.applicationContext
         launch {
-            val str = NetworkLoader.requestStringSignedAsync(Network.URL_CHALLENGES_LIST, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST)
-            if (str.first.success) {
-                val gsonBuilder = GsonBuilder()
-                gsonBuilder.registerTypeAdapter(Challenge::class.java, ChallengeDeserializer())
-                val gson = gsonBuilder.create()
-                val challengeArray = gson.fromJson(str.second!!, Array<Challenge>::class.java)
-                for (challenge in challengeArray)
-                    challenge.generateTexts(context)
-                cont.resume(Pair(str.first, challengeArray))
-            } else {
-                cont.resume(Pair(str.first, null))
-            }
+            val user = Signin.getUserAsync(context)
+            if(user != null) {
+                val str = NetworkLoader.requestStringSignedAsync(Network.URL_CHALLENGES_LIST, user.token, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST)
+                if (str.first.success) {
+                    val gsonBuilder = GsonBuilder()
+                    gsonBuilder.registerTypeAdapter(Challenge::class.java, ChallengeDeserializer())
+                    val gson = gsonBuilder.create()
+                    val challengeArray = gson.fromJson(str.second!!, Array<Challenge>::class.java)
+                    for (challenge in challengeArray)
+                        challenge.generateTexts(context)
+                    cont.resume(Pair(str.first, challengeArray))
+                } else {
+                    cont.resume(Pair(str.first, null))
+                }
+            } else
+                cont.resume(Pair(NetworkLoader.Source.NO_DATA_FAILED_SIGNIN, null))
         }
     }
 
