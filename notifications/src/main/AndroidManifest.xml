@@ -7,11 +7,5 @@
             android:screenOrientation="portrait"
             android:theme="@style/AppThemeTransluscent">
         </activity>
-
-        <receiver android:name="com.adsamcik.signals.tracking.receivers.NotificationReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>

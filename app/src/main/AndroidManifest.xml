@@ -114,6 +114,7 @@
         </receiver>
 
 
+        <service android:name=".services.ActivityWakerService"/>
         <service
             android:name=".services.InstanceIDListenerService"
             tools:ignore="ExportedService">
@@ -131,10 +132,6 @@
         <service
             android:name="com.adsamcik.signals.tracking.services.UploadJobService"
             android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service
-            android:name=".jobs.DisableTillRechargeJobService"
-            android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <meta-data

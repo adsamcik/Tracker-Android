@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools"
           package="com.adsamcik.signals.tracking">
 
     <uses-feature android:name="android.hardware.location.gps"/>
@@ -16,7 +17,16 @@
         <service
             android:name=".services.TrackerService"
             android:exported="false"/>
-        <service android:name=".ActivityService"/>
-        <service android:name="com.adsamcik.signalcollector.services.ActivityWakerService"/>
+
+        <service
+            android:name=".services.DisableTillRechargeJobService"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+
+        <receiver android:name="com.adsamcik.signals.tracking.receivers.NotificationReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

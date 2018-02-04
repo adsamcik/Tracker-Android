@@ -1,13 +1,11 @@
 package com.adsamcik.signals.notifications
 
 import android.app.Activity
-import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.support.annotation.RequiresApi
-import com.adsamcik.signals.notifications.Shortcuts
 import com.adsamcik.signals.notifications.Shortcuts.ShortcutType
 import com.crashlytics.android.Crashlytics
 

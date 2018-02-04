@@ -31,12 +31,13 @@ android {
 
 dependencies {
     implementation "com.google.firebase:firebase-core:$play_services_version"
-    implementation 'com.crashlytics.sdk.android:crashlytics:2.7.1@aar', {
+    implementation "com.crashlytics.sdk.android:crashlytics:$crashlytics_version@aar", {
         transitive = true
     }
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
     implementation project(':signin')
+    implementation project(':base')
 
     feature project(':tracking')
     feature project(':app')

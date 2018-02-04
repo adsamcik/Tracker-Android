@@ -10,13 +10,13 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/base" />
             <option value="$PROJECT_DIR$/network" />
             <option value="$PROJECT_DIR$/notifications" />
             <option value="$PROJECT_DIR$/signin" />
             <option value="$PROJECT_DIR$/stats" />
             <option value="$PROJECT_DIR$/tracking" />
             <option value="$PROJECT_DIR$/useractivity" />
-            <option value="$PROJECT_DIR$/utilities" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
