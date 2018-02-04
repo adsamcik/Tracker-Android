@@ -1,4 +1,4 @@
-package com.adsamcik.signals.network.network
+package com.adsamcik.signals.network
 
 
 class Prices {

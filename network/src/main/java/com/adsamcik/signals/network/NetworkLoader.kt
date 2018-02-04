@@ -1,8 +1,7 @@
-package com.adsamcik.signals.network.network
+package com.adsamcik.signals.network
 
 import android.content.Context
 import android.util.Pair
-import com.adsamcik.signals.network.R
 import com.adsamcik.signals.utilities.Assist
 import com.adsamcik.signals.utilities.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signals.utilities.Parser
