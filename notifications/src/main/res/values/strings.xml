@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="notification_looking_for_gps">Looking for GPS</string>
     <string name="notification_tracking_active">Tracking</string>

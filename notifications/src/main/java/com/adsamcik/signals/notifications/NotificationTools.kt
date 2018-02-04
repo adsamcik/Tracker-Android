@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signals.notifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,9 +11,9 @@ import android.support.annotation.StringRes
 object NotificationTools {
 
     fun prepareChannels(context: Context) {
-        createChannel(context, R.string.channel_track_id, R.string.channel_track_name, R.string.channel_track_description, true, android.app.NotificationManager.IMPORTANCE_LOW)
+        createChannel(context, R.string.channel_track_id, R.string.channel_track_name, R.string.channel_track_description, true, NotificationManager.IMPORTANCE_LOW)
         createChannel(context, R.string.channel_upload_id, R.string.channel_upload_name, R.string.channel_upload_description, false, NotificationManager.IMPORTANCE_HIGH)
-        createChannel(context, R.string.channel_other_id, R.string.channel_other_name, R.string.channel_other_description, true, android.app.NotificationManager.IMPORTANCE_LOW)
+        createChannel(context, R.string.channel_other_id, R.string.channel_other_name, R.string.channel_other_description, true, NotificationManager.IMPORTANCE_LOW)
         createChannel(context, R.string.channel_challenges_id, R.string.channel_challenges_name, R.string.channel_challenges_description, true, NotificationManager.IMPORTANCE_HIGH)
         createChannel(context, R.string.channel_activity_watcher_id, R.string.channel_activity_watcher_name, R.string.channel_activity_watcher_description, false, NotificationManager.IMPORTANCE_NONE)
     }

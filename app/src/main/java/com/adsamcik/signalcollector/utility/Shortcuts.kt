@@ -8,6 +8,7 @@ import android.graphics.drawable.Icon
 import android.support.annotation.DrawableRes
 import android.support.annotation.RequiresApi
 import com.adsamcik.signalcollector.activities.ShortcutActivity
+import com.adsamcik.signals.tracking.services.TrackerService
 import java.util.*
 
 @RequiresApi(25)
