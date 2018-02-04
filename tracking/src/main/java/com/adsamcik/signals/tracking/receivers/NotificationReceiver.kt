@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.receivers
+package com.adsamcik.signals.tracking.receivers
 
 
 import android.content.BroadcastReceiver
@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import com.adsamcik.signals.tracking.services.DisableTillRechargeJobService
+import com.adsamcik.signals.tracking.services.TrackerService
 import com.adsamcik.signals.utilities.FirebaseAssist
 import com.google.firebase.analytics.FirebaseAnalytics
 

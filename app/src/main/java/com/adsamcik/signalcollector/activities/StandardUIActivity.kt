@@ -13,7 +13,7 @@ import android.support.v4.content.ContextCompat
 import android.util.Log
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signals.tracking.UploadJobService
+import com.adsamcik.signals.tracking.services.UploadJobService
 import com.adsamcik.signals.utilities.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 

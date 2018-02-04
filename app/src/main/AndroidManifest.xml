@@ -118,7 +118,7 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".receivers.NotificationReceiver">
+        <receiver android:name="com.adsamcik.signals.tracking.receivers.NotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
@@ -145,7 +145,7 @@
             </intent-filter>
         </service>
         <service
-            android:name="com.adsamcik.signals.tracking.UploadJobService"
+            android:name="com.adsamcik.signals.tracking.services.UploadJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service

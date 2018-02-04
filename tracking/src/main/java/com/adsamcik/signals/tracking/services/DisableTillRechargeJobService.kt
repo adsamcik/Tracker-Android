@@ -1,4 +1,4 @@
-package com.adsamcik.signals.tracking
+package com.adsamcik.signals.tracking.services
 
 import android.app.job.JobInfo
 import android.app.job.JobParameters

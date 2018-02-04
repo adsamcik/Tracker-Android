@@ -1,4 +1,4 @@
-package com.adsamcik.signals.tracking
+package com.adsamcik.signals.tracking.services
 
 import android.app.job.JobInfo
 import android.app.job.JobParameters
@@ -10,7 +10,10 @@ import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
 import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.tracking.R
 import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.utilities.*
 import com.adsamcik.signals.utilities.Constants.HOUR_IN_MILLISECONDS

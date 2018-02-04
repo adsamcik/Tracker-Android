@@ -14,7 +14,7 @@
 
     <application>
         <service
-            android:name=".TrackerService"
+            android:name=".services.TrackerService"
             android:exported="false"/>
         <service android:name=".ActivityService"/>
         <service android:name="com.adsamcik.signalcollector.services.ActivityWakerService"/>
