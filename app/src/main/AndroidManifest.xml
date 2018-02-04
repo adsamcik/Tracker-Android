@@ -145,7 +145,7 @@
             </intent-filter>
         </service>
         <service
-            android:name=".jobs.UploadJobService"
+            android:name="com.adsamcik.signals.tracking.UploadJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service
