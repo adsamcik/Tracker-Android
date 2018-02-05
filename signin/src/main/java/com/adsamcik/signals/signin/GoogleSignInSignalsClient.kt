@@ -4,6 +4,7 @@ package com.adsamcik.signals.signin
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.signals.signin.R
 import com.adsamcik.signals.network.Network
 import com.adsamcik.signals.network.NetworkLoader
 import com.adsamcik.signals.utilities.Preferences
