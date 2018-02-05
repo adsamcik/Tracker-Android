@@ -11,17 +11,16 @@ import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signals.notifications.ChannelTools
-import com.adsamcik.signals.notifications.Shortcuts
+import com.adsamcik.signals.externals.ChannelTools
+import com.adsamcik.signals.externals.Shortcuts
 import com.adsamcik.signals.tracking.services.TrackerService
 import com.adsamcik.signals.tracking.services.UploadJobService
-import com.adsamcik.signals.utilities.FirebaseAssist
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.test.useMock
+import com.adsamcik.signals.base.FirebaseAssist
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.test.useMock
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.perf.FirebasePerformance
 import io.fabric.sdk.android.Fabric
 
 
@@ -33,7 +32,6 @@ class LaunchActivity : Activity() {
 
         if (BuildConfig.DEBUG) {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
-            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
         } else
