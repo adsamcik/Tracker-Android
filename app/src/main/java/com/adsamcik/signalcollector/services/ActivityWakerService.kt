@@ -9,14 +9,14 @@ import android.content.Intent
 import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signals.tracking.automation.BackgroundActivityWatcher
-import com.adsamcik.signals.useractivity.R
 import com.adsamcik.signals.useractivity.services.ActivityService
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Constants
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.enums.ResolvedActivity
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.enums.ResolvedActivity
 
 class ActivityWakerService : Service() {
     private var notificationManager: NotificationManager? = null

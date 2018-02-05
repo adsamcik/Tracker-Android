@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="error_connection_failed">Connection to server failed</string>
     <string name="error_invalid_data">Received invalid data</string>

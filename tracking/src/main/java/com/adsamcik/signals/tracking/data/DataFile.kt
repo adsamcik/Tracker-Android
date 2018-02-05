@@ -6,8 +6,8 @@ import android.support.annotation.IntDef
 import android.util.MalformedJsonException
 import com.adsamcik.signals.tracking.storage.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signals.tracking.storage.DataStore.PREF_DATA_FILE_INDEX
-import com.adsamcik.signals.utilities.Constants
-import com.adsamcik.signals.utilities.storage.FileStore
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.storage.FileStore
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import java.io.File

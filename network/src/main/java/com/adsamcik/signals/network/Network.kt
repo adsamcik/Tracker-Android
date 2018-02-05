@@ -2,8 +2,8 @@ package com.adsamcik.signals.network
 
 import android.content.Context
 import android.os.Build
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.test.useMock
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.test.useMock
 import com.crashlytics.android.Crashlytics
 import com.franmontiel.persistentcookiejar.PersistentCookieJar
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache

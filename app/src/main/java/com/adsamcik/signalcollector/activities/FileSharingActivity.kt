@@ -12,9 +12,9 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.tracking.data.DataFile
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.signals.utilities.components.BottomSheetMenu
-import com.adsamcik.signals.utilities.components.SnackMaker
-import com.adsamcik.signals.utilities.storage.Compress
+import com.adsamcik.signals.base.components.BottomSheetMenu
+import com.adsamcik.signals.base.components.SnackMaker
+import com.adsamcik.signals.base.storage.Compress
 import com.crashlytics.android.Crashlytics
 import java.io.File
 import java.io.FileNotFoundException

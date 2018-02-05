@@ -8,8 +8,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
 import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.useractivity.ActivityRecognitionDebug.Companion.FILE
-import com.adsamcik.signals.utilities.Parser
-import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.base.Parser
+import com.adsamcik.signals.base.Preferences
 import kotlinx.coroutines.experimental.async
 import java.util.*
 

@@ -6,9 +6,9 @@ import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signals.stats.UploadStats
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants.MINUTE_IN_MILLISECONDS
+import com.adsamcik.signals.base.Preferences
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter

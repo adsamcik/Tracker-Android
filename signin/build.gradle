@@ -58,5 +58,4 @@ dependencies {
     feature project(':tracking')
     feature project(':app')
     feature project(":useractivity")
-    feature project(":notifications")
 }

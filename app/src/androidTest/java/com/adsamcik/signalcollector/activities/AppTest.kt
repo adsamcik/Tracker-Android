@@ -19,7 +19,7 @@ import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.services.MessageListenerService
-import com.adsamcik.signals.utilities.test.isTestMode
+import com.adsamcik.signals.base.test.isTestMode
 import com.google.gson.Gson
 import org.hamcrest.Description
 import org.hamcrest.Matcher

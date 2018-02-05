@@ -7,6 +7,7 @@ buildscript {
     ext.coroutines_version = '0.22.1'
     ext.okhttp_version = '3.9.1'
     ext.crashlytics_version = '2.7.1'
+    ext.stag_version = '2.5.1'
 
     repositories {
         jcenter()
@@ -16,7 +17,7 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.0.1'
+        classpath 'com.android.tools.build:gradle:3.2.0-alpha01'
         classpath 'com.google.gms:google-services:3.2.0'
         classpath 'com.google.firebase:firebase-plugins:1.1.5'
         classpath 'com.google.gms:oss-licenses:0.9.1'

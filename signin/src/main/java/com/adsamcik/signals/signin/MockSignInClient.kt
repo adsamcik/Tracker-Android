@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.base.Preferences
 
 
 class MockSignInClient : ISignInClient {

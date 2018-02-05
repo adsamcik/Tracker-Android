@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signals.stats.StatManager
 import com.adsamcik.signals.stats.UploadStats
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.base.Preferences
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 

@@ -17,9 +17,9 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.utility.ChallengeManager
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Failure
-import com.adsamcik.signals.utilities.components.SnackMaker
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Failure
+import com.adsamcik.signals.base.components.SnackMaker
 import kotlinx.coroutines.experimental.launch
 
 class FragmentActivities : Fragment(), ITabFragment {

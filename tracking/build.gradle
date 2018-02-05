@@ -32,7 +32,7 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation "com.google.code.gson:gson:$gson_version"
-    implementation 'com.vimeo.stag:stag-library:2.4.0', {
+    implementation "com.vimeo.stag:stag-library:$stag_version", {
         exclude group: 'com.intellij', module: 'annotations'
     }
 
@@ -54,7 +54,7 @@ dependencies {
     implementation project(':network')
     implementation project(':stats')
     implementation project(':useractivity')
-    implementation project(':notifications')
+    implementation project(':externals')
     api project(':base')
 
     feature project(':app')

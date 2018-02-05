@@ -7,9 +7,9 @@ import android.content.Intent
 import android.util.SparseArray
 import com.adsamcik.signals.useractivity.ActivityCallback
 import com.adsamcik.signals.useractivity.ActivityRequestInfo
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Constants
-import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult

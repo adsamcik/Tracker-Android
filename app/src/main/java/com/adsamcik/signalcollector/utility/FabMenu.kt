@@ -10,8 +10,8 @@ import android.widget.FrameLayout
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.components.Animate
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.components.Animate
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 

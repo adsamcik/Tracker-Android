@@ -7,9 +7,9 @@ import com.adsamcik.signals.tracking.services.TrackerService
 import com.adsamcik.signals.useractivity.ActivityInfo
 import com.adsamcik.signals.useractivity.ActivityRecognitionDebug
 import com.adsamcik.signals.useractivity.services.ActivityService
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.enums.ResolvedActivity
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.enums.ResolvedActivity
 
 object BackgroundActivityWatcher {
     private const val REQUIRED_CONFIDENCE = 75

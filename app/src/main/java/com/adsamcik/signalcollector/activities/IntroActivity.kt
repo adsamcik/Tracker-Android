@@ -13,8 +13,8 @@ import android.view.WindowManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentIntro
 import com.adsamcik.signals.signin.Signin
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.components.SnackMaker
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.github.paolorotolo.appintro.AppIntro2
 import com.google.android.gms.common.SignInButton

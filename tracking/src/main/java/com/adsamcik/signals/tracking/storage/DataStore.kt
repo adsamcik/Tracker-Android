@@ -10,11 +10,11 @@ import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.stats.UploadStats
 import com.adsamcik.signals.tracking.data.DataFile
 import com.adsamcik.signals.tracking.data.RawData
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Constants
-import com.adsamcik.signals.utilities.FirebaseAssist
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.storage.FileStore
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.FirebaseAssist
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.storage.FileStore
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.gson.Gson

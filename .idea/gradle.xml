@@ -11,8 +11,8 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/base" />
+            <option value="$PROJECT_DIR$/externals" />
             <option value="$PROJECT_DIR$/network" />
-            <option value="$PROJECT_DIR$/notifications" />
             <option value="$PROJECT_DIR$/signin" />
             <option value="$PROJECT_DIR$/stats" />
             <option value="$PROJECT_DIR$/tracking" />

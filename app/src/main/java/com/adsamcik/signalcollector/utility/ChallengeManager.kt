@@ -6,8 +6,8 @@ import com.adsamcik.signals.network.Network
 import com.adsamcik.signals.network.NetworkLoader
 import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.signals.utilities.Constants.DAY_IN_MINUTES
-import com.adsamcik.signals.utilities.Preferences
+import com.adsamcik.signals.base.Constants.DAY_IN_MINUTES
+import com.adsamcik.signals.base.Preferences
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.experimental.launch

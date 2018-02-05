@@ -13,7 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.signalcollector.handlePermissions
 import com.adsamcik.signalcollector.sleep
-import com.adsamcik.signals.utilities.test.isTestMode
+import com.adsamcik.signals.base.test.isTestMode
 import org.hamcrest.Description
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf

@@ -4,9 +4,9 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.signals.network.Network
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.storage.CacheStore
-import com.adsamcik.signals.utilities.test.useMock
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.storage.CacheStore
+import com.adsamcik.signals.base.test.useMock
 import com.google.android.gms.auth.api.Auth
 import java.util.*
 import kotlin.coroutines.experimental.suspendCoroutine

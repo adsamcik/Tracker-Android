@@ -32,8 +32,8 @@ import com.adsamcik.signals.tracking.services.TrackerService
 import com.adsamcik.signals.tracking.services.UploadJobService
 import com.adsamcik.signals.tracking.storage.DataStore
 import com.adsamcik.signals.useractivity.ActivityInfo
-import com.adsamcik.signals.utilities.*
-import com.adsamcik.signals.utilities.components.SnackMaker
+import com.adsamcik.signals.base.*
+import com.adsamcik.signals.base.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.experimental.android.UI

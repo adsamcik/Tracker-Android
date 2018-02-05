@@ -14,11 +14,11 @@ import com.adsamcik.signals.network.Network
 import com.adsamcik.signals.signin.Signin
 import com.adsamcik.signals.tracking.R
 import com.adsamcik.signals.tracking.storage.DataStore
-import com.adsamcik.signals.utilities.*
-import com.adsamcik.signals.utilities.Constants.HOUR_IN_MILLISECONDS
-import com.adsamcik.signals.utilities.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
-import com.adsamcik.signals.utilities.storage.Compress
-import com.adsamcik.signals.utilities.storage.FileStore
+import com.adsamcik.signals.base.*
+import com.adsamcik.signals.base.Constants.HOUR_IN_MILLISECONDS
+import com.adsamcik.signals.base.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
+import com.adsamcik.signals.base.storage.Compress
+import com.adsamcik.signals.base.storage.FileStore
 import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*

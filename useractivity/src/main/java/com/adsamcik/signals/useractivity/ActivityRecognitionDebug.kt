@@ -1,9 +1,9 @@
 package com.adsamcik.signals.useractivity
 
 import android.content.Context
-import com.adsamcik.signals.utilities.Constants.DAY_IN_MILLISECONDS
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.storage.FileStore
+import com.adsamcik.signals.base.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.storage.FileStore
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.io.File

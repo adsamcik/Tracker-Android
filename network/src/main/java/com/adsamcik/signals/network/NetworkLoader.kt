@@ -2,12 +2,12 @@ package com.adsamcik.signals.network
 
 import android.content.Context
 import android.util.Pair
-import com.adsamcik.signals.utilities.Assist
-import com.adsamcik.signals.utilities.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signals.utilities.Parser
-import com.adsamcik.signals.utilities.Preferences
-import com.adsamcik.signals.utilities.storage.CacheStore
-import com.adsamcik.signals.utilities.test.useMock
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants.MINUTE_IN_MILLISECONDS
+import com.adsamcik.signals.base.Parser
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.storage.CacheStore
+import com.adsamcik.signals.base.test.useMock
 import com.crashlytics.android.Crashlytics
 import okhttp3.*
 import java.io.IOException
@@ -193,7 +193,7 @@ object NetworkLoader {
 
         fun toString(context: Context): String = when (this) {
             CACHE_CONNECTION_FAILED -> context.getString(R.string.error_connection_failed)
-            CACHE_NO_INTERNET -> context.getString(R.string.error_no_internet)
+            CACHE_NO_INTERNET -> context.getString(com.adsamcik.signals.base.R.string.error_no_internet)
             CACHE_INVALID_DATA -> context.getString(R.string.error_invalid_data)
             NO_DATA -> context.getString(R.string.error_no_data)
             NO_DATA_FAILED_SIGNIN -> context.getString(R.string.error_failed_signin)

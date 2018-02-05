@@ -1,7 +1,7 @@
 package com.adsamcik.signals.signin
 
-import com.adsamcik.signals.utilities.Constants.DAY_IN_MILLISECONDS
-import com.adsamcik.signals.utilities.test.useMock
+import com.adsamcik.signals.base.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.signals.base.test.useMock
 import com.google.gson.*
 import java.lang.reflect.Type
 import java.util.*
