@@ -1,2 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.adsamcik.signals.externals"/>
+          xmlns:tools="http://schemas.android.com/tools"
+          package="com.adsamcik.signals.externals">
+
+    <application  tools:node="replace">
+    </application>
+</manifest>
