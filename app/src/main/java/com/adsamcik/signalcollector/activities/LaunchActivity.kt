@@ -19,6 +19,7 @@ import com.adsamcik.signals.base.FirebaseAssist
 import com.adsamcik.signals.base.Preferences
 import com.adsamcik.signals.base.test.useMock
 import com.crashlytics.android.Crashlytics
+import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
 import io.fabric.sdk.android.Fabric
@@ -29,6 +30,8 @@ class LaunchActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
+
+        FirebaseApp.initializeApp(this);
 
         if (BuildConfig.DEBUG) {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)

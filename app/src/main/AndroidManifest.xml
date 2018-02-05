@@ -50,6 +50,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
         <activity
             android:name=".activities.StandardUIActivity"
             android:alwaysRetainTaskState="true"
@@ -138,6 +139,8 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/GEO_API"/>
+
+        <meta-data android:name="com.google.android.gms.version" android:value="@integer/google_play_services_version" />
     </application>
 
 </manifest>
