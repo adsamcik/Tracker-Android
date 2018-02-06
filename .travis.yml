@@ -48,7 +48,8 @@ before_install:
 
 before_script:
     - yes | cp -rf Server.java.example network/src/main/java/com/adsamcik/signals/network/Server.java
-    - yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
+    - yes | cp -rf appkeys.xml.example app/src/main/res/values/keys.xml
+    - yes | cp -rf signinkeys.xml.example signin/src/main/res/values/keys.xml
     - yes | cp -rf google-services.json.example app/google-services.json
     - echo no | android create avd --force -n test -t android-$EMULATOR_API --abi $ANDROID_ABI
     - emulator -avd test -no-audio -no-window &
