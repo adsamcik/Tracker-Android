@@ -23,7 +23,7 @@ android {
                 arguments = [
                         stagAssumeHungarianNotation: 'false',
                         stagGeneratedPackageName   : 'com.adsamcik.signalcollector.generated',
-                        stagDebug                  : 'true'
+                        stagDebug                  : 'false'
                 ]
             }
         }
