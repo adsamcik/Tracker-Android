@@ -19,7 +19,13 @@ import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.services.MessageListenerService
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.Constants.*
 import com.adsamcik.signals.base.test.isTestMode
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.stats.UploadStats
+import com.adsamcik.signals.tracking.storage.DataStore
 import com.google.gson.Gson
 import org.hamcrest.Description
 import org.hamcrest.Matcher
@@ -100,16 +106,16 @@ class AppTest {
         if (isTestMode)
             return
 
-        Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
+        Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
 
-        Thread.sleep(Constants.SECOND_IN_MILLISECONDS.toLong())
+        Thread.sleep(SECOND_IN_MILLISECONDS.toLong())
 
-        mDevice.waitForIdle((30 * Constants.SECOND_IN_MILLISECONDS).toLong())
+        mDevice.waitForIdle((30 * SECOND_IN_MILLISECONDS).toLong())
         val actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"))
         actionStats.click()
         mDevice.findObject(By.res(PACKAGE, "action_tracker")).click()
 
-        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2).toLong())
+        Thread.sleep((SECOND_IN_MILLISECONDS / 2).toLong())
 
         val fabUpload = onView(
                 allOf(withId(R.id.fabTwo),
@@ -140,12 +146,12 @@ class AppTest {
         progressBar.check(matches(isDisplayed()))
 
         DataStore.onUpload(context, 50)
-        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2).toLong())
+        Thread.sleep((SECOND_IN_MILLISECONDS / 2).toLong())
 
         DataStore.onUpload(context, 100)
         DataStore.incData(context, 500, 25)
-        Network.cloudStatus = com.adsamcik.signals.network.network.CloudStatus.SYNC_AVAILABLE
-        Thread.sleep((4 * Constants.SECOND_IN_MILLISECONDS).toLong())
+        Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+        Thread.sleep((4 * SECOND_IN_MILLISECONDS).toLong())
         fabUpload.check(matches(isDisplayed()))
         progressBar.check(doesNotExist())
     }
