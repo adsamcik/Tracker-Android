@@ -17,18 +17,19 @@ class NewUIActivity : AppCompatActivity() {
         val root = findViewById<CoordinatorLayout>(R.id.root)
 
         val animation = ValueAnimator.ofArgb(Color.parseColor("#166f72"), Color.parseColor("#2e4482"))
-        animation.duration = 5000
+        animation.duration = 50000
         animation.repeatMode = ValueAnimator.REVERSE
         animation.repeatCount = ValueAnimator.INFINITE
         animation.addUpdateListener { root.setBackgroundColor(it.animatedValue as Int) }
         animation.start()
 
         val wifiComponent = findViewById<InfoComponent>(R.id.tracker_wifi_component)
-        wifiComponent.addSecondaryText("found them 5meters ago")
-        wifiComponent.addPrimaryText("56 wifi nearby")
+        wifiComponent.addSecondaryText("found 6 meters before collection")
+        wifiComponent.addPrimaryText("In range of 150 Wifi's")
 
         val cellComponent = findViewById<InfoComponent>(R.id.tracker_cell_component)
-        cellComponent.addPrimaryText("Healthy LTE, you fed it well")
+        cellComponent.addPrimaryText("LTE -89 dbm, 51 asu")
+        cellComponent.addPrimaryText("In range of 12 base stations")
     }
 
 
