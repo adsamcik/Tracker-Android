@@ -19,7 +19,7 @@ class CellData
  * @param dbm          [CellData.dbm]
  * @param asu          [CellData.asu]
  * @param level        [CellData.level]
- */(operatorName: String,
+ */(var operatorName: String,
         /**
          * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
          */
@@ -56,11 +56,6 @@ class CellData
     var level: Int) : Serializable {
 
     /**
-     * Network operator name
-     */
-    var operatorName: String? = operatorName
-
-    /**
      * Converts int type to string
      *
      * @return type of network as string
@@ -74,10 +69,10 @@ class CellData
     }
 
     companion object {
-        val GSM = 0
-        val CDMA = 1
-        val WCDMA = 2
-        val LTE = 3
+        const val GSM = 0
+        const val CDMA = 1
+        const val WCDMA = 2
+        const val LTE = 3
 
         /**
          * Finds carrier name in subscriptions

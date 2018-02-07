@@ -1,23 +1,21 @@
 package com.adsamcik.signalcollector.file
 
+import android.content.Context
 import android.os.Build
 import android.support.annotation.IntDef
 import android.util.MalformedJsonException
-
-import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signalcollector.utility.Constants
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
-
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long) {
+class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long, context: Context) {
     var file: File = file
         private set
 
@@ -70,7 +68,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                         "\"model\":\"" + Build.MODEL +
                         "\",\"manufacturer\":\"" + Build.MANUFACTURER +
                         "\",\"api\":" + Build.VERSION.SDK_INT +
-                        ",\"version\":" + BuildConfig.VERSION_CODE + "," +
+                        ",\"version\":" + context.packageManager.getPackageInfo(context.packageName, 0).versionCode + "," +
                         "\"data\":", false)
             empty = true
             isWriteable = true

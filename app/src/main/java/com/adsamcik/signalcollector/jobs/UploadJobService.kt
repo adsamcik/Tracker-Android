@@ -23,7 +23,6 @@ import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import com.google.firebase.perf.FirebasePerformance
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.File
@@ -123,18 +122,6 @@ class UploadJobService : JobService() {
 
         }
 
-        private inner class StringWrapper internal constructor() {
-
-            @get:Synchronized
-            @set:Synchronized
-            var string: String? = null
-
-            init {
-                string = null
-            }
-
-        }
-
         override fun doInBackground(vararg params: JobParameters): Boolean? {
             val source = UploadScheduleSource.values()[params[0].extras.getInt(KEY_SOURCE)]
             val context = this.context.get()!!
@@ -144,8 +131,7 @@ class UploadJobService : JobService() {
                 DataStore.onUpload(context, -1)
                 return false
             } else {
-                val uploadTrace = FirebasePerformance.getInstance().newTrace("upload")
-                uploadTrace.start()
+                DataStore.lockData()
                 DataStore.getCurrentDataFile(context)!!.close()
                 val zipName = "up" + System.currentTimeMillis()
                 try {
@@ -154,8 +140,6 @@ class UploadJobService : JobService() {
                     tempZipFile = compress.finish()
                 } catch (e: IOException) {
                     Crashlytics.logException(e)
-                    uploadTrace.incrementCounter("fail", 1)
-                    uploadTrace.stop()
                     return false
                 }
 
@@ -174,13 +158,9 @@ class UploadJobService : JobService() {
                             DataStore.recountData(context)
                             return@runBlocking true
                         } else {
-                            uploadTrace.incrementCounter("fail", 3)
-                            uploadTrace.stop()
                             return@runBlocking false
                         }
                     } else {
-                        uploadTrace.incrementCounter("fail", 2)
-                        uploadTrace.stop()
                         return@runBlocking false
                     }
                 }
@@ -191,6 +171,7 @@ class UploadJobService : JobService() {
             super.onPostExecute(result)
             val ctx = context.get()!!
             DataStore.cleanup(ctx)
+            DataStore.unlockData()
 
             if (!result) {
                 DataStore.onUpload(ctx, -1)
@@ -206,6 +187,8 @@ class UploadJobService : JobService() {
             val context = this.context.get()!!
             DataStore.cleanup(context)
             DataStore.recountData(context)
+            DataStore.unlockData()
+
             if (tempZipFile != null)
                 FileStore.delete(tempZipFile)
 
@@ -218,13 +201,13 @@ class UploadJobService : JobService() {
     }
 
     companion object {
-        private val TAG = "SignalsUploadService"
-        private val KEY_SOURCE = "source"
+        private const val TAG = "SignalsUploadService"
+        private const val KEY_SOURCE = "source"
         private val MEDIA_TYPE_ZIP = MediaType.parse("application/zip")
-        private val MIN_NO_ACTIVITY_DELAY = HOUR_IN_MILLISECONDS
+        private const val MIN_NO_ACTIVITY_DELAY = HOUR_IN_MILLISECONDS
 
-        private val SCHEDULE_UPLOAD_JOB_ID = 1921109
-        private val UPLOAD_JOB_ID = 2110
+        private const val SCHEDULE_UPLOAD_JOB_ID = 1921109
+        private const val UPLOAD_JOB_ID = 2110
 
         var isUploading = false
             private set

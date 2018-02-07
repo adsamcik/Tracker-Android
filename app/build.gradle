@@ -2,7 +2,6 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'com.google.gms.oss.licenses.plugin'
 apply plugin: 'io.fabric'
-apply plugin: 'kotlin-kapt'
 
 
 if (file('key.gradle').exists())
@@ -26,7 +25,7 @@ android {
                 arguments = [
                         stagAssumeHungarianNotation: 'false',
                         stagGeneratedPackageName   : 'com.adsamcik.signalcollector.generated',
-                        stagDebug                  : 'true'
+                        stagDebug                  : 'false'
                 ]
             }
         }
@@ -84,7 +83,7 @@ dependencies {
         transitive = true
     }
 
-    kapt 'com.vimeo.stag:stag-library-compiler:2.5.1'
+    annotationProcessor 'com.vimeo.stag:stag-library-compiler:2.5.1'
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test:rules:1.0.1'
     androidTestImplementation 'com.android.support.test.uiautomator:uiautomator-v18:2.1.3'

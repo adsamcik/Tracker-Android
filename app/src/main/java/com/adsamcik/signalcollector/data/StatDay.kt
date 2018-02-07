@@ -4,17 +4,12 @@ import com.vimeo.stag.UseStag
 
 @UseStag
 class StatDay {
-    internal var age: Int = 0
+    var age: Int = 0
     var wifi: Int = 0
-        internal set
     var cell: Int = 0
-        internal set
     var locations: Int = 0
-        internal set
     var minutes: Int = 0
-        internal set
     var uploaded: Long = 0
-        private set
 
     constructor(minutes: Int, locations: Int, wifi: Int, cell: Int, age: Int, upload: Long) {
         this.minutes = minutes

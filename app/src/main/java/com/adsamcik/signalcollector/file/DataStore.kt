@@ -2,13 +2,9 @@ package com.adsamcik.signalcollector.file
 
 import android.content.Context
 import android.os.Bundle
-import android.support.annotation.IntRange
-import android.util.MalformedJsonException
-import android.util.Pair
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -19,18 +15,19 @@ import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.google.gson.stream.MalformedJsonException
 import java.io.File
 import java.util.*
 
 object DataStore {
-    val TAG = "SignalsDatastore"
+    const val TAG = "SignalsDatastore"
 
-    val RECENT_UPLOADS_FILE = "recentUploads"
-    val DATA_FILE = "dataStore"
-    val DATA_CACHE_FILE = "dataCacheFile"
-    val PREF_DATA_FILE_INDEX = "saveFileID"
-    val PREF_CACHE_FILE_INDEX = "saveCacheID"
-    private val PREF_COLLECTED_DATA_SIZE = "totalSize"
+    const val RECENT_UPLOADS_FILE = "recentUploads"
+    const val DATA_FILE = "dataStore"
+    const val DATA_CACHE_FILE = "dataCacheFile"
+    const val PREF_DATA_FILE_INDEX = "saveFileID"
+    const val PREF_CACHE_FILE_INDEX = "saveCacheID"
+    private const val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: (() -> Unit)? = null
     private var onUploadProgress: ((Int) -> Unit)? = null
@@ -38,10 +35,12 @@ object DataStore {
     @Volatile private var approxSize: Long = -1
     @Volatile private var collectionsOnDevice = -1
 
+    @Volatile private var dataLocked = false
+
     var currentDataFile: DataFile? = null
         private set
 
-    private val collectionInDataFile = 0
+    private const val collectionInDataFile = 0
 
     fun getDir(context: Context): File = context.filesDir
 
@@ -94,14 +93,33 @@ object DataStore {
     }
 
     /**
+     * Locks datafile writes
+     */
+    fun lockData() {
+        dataLocked = true
+    }
+
+    /**
+     * Unlocks datafile writes
+     */
+    fun unlockData() {
+        dataLocked = false
+    }
+
+    /**
      * Generates array of all data files
      *
      * @param context               context
      * @param lastFileSizeThreshold Include last datafile if it exceeds this size
      * @return array of datafile names
      */
-    fun getDataFiles(context: Context, @IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? =
-            getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
+    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
+        val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
+        return if(list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
+            list.dropLast(1).toTypedArray()
+        else
+            list
+    }
 
     /**
      * Move file
@@ -258,7 +276,10 @@ object DataStore {
         onDataChanged(context)
 
         val bundle = Bundle()
-        bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings")
+        bundle.putString(
+                FirebaseAssist.PARAM_SOURCE,
+                "settings"
+        )
         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle)
     }
 
@@ -325,7 +346,7 @@ object DataStore {
 
         if (currentDataFile?.type != type || currentDataFile!!.isFull) {
             val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
-            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type)
+            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type, context)
         }
     }
 
@@ -337,7 +358,7 @@ object DataStore {
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
         val userID = Signin.getUserID(context)
-        if (UploadJobService.isUploading || userID == null)
+        if (dataLocked || userID == null)
             updateCurrentData(context, DataFile.CACHE, userID)
         else
             updateCurrentData(context, DataFile.STANDARD, userID)
@@ -381,7 +402,7 @@ object DataStore {
                 while (i < files.size) {
                     val data = FileStore.loadString(files[0])!!
                     val nameTemplate = DATA_FILE + (currentDataIndex + i)
-                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD)
+                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD, context)
                     if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
                         throw RuntimeException()
 

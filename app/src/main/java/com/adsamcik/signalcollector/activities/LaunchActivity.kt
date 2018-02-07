@@ -20,7 +20,6 @@ import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.perf.FirebasePerformance
 import io.fabric.sdk.android.Fabric
 
 
@@ -32,7 +31,6 @@ class LaunchActivity : Activity() {
 
         if (BuildConfig.DEBUG) {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
-            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
         } else
