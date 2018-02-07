@@ -7,21 +7,22 @@ import android.support.design.widget.CoordinatorLayout
 import android.support.v7.app.AppCompatActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.InfoComponent
+import com.adsamcik.signalcollector.uitools.ColorManager
 
 
 class NewUIActivity : AppCompatActivity() {
+    var colorManager: ColorManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_new_ui)
         val root = findViewById<CoordinatorLayout>(R.id.root)
 
-        val animation = ValueAnimator.ofArgb(Color.parseColor("#166f72"), Color.parseColor("#2e4482"))
-        animation.duration = 50000
-        animation.repeatMode = ValueAnimator.REVERSE
-        animation.repeatCount = ValueAnimator.INFINITE
-        animation.addUpdateListener { root.setBackgroundColor(it.animatedValue as Int) }
-        animation.start()
+        colorManager = ColorManager(root, this)
+        val colorManager = colorManager!!
+
+        colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        //colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
 
         val wifiComponent = findViewById<InfoComponent>(R.id.tracker_wifi_component)
         wifiComponent.addSecondaryText("found 6 meters before collection")
@@ -44,6 +45,14 @@ class NewUIActivity : AppCompatActivity() {
         val demoComponent = findViewById<InfoComponent>(R.id.tracker_demo_component)
         demoComponent.addPrimaryText("LTE -89 dbm, 51 asu")
         demoComponent.addPrimaryText("In range of 12 base stations")
+
+
+        colorManager.watchElement(wifiComponent)
+        colorManager.watchElement(cellComponent)
+        colorManager.watchElement(demo2Component)
+        colorManager.watchElement(demoComponent)
+        colorManager.watchElement(findViewById(R.id.top_panel_layout))
+        colorManager.watchElement(findViewById(R.id.top_info_bar))
     }
 
 

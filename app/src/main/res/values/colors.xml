@@ -6,9 +6,9 @@
     <color name="text_accent">#CC28cc90</color>
     <color name="color_user_accuracy">#80365fb3</color>
     <color name="background_splash">#363636</color>
-    <color name="text_primary">#ffffff</color>
+    <color name="text_primary">#ddffffff</color>
     <color name="text_secondary">#B2FFFFFF</color>
-    <color name="text_primary_dark">#df000000</color>
+    <color name="text_primary_dark">#dd000000</color>
     <color name="text_secondary_dark">#8A000000</color>
     <color name="text_disabled">#80FFFFFF</color>
     <color name="error">#d32f2f</color>
@@ -20,4 +20,5 @@
     <color name="text_color_primary">#000000</color>
 
     <color name="background_new_light">#19FFFFFF</color>
+    <color name="background_new_dark">#19000000</color>
 </resources>
