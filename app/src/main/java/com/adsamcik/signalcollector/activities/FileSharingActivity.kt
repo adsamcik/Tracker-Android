@@ -48,7 +48,7 @@ class FileSharingActivity : DetailActivity() {
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
                         temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD).close()
+                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD, this).close()
                     }
 
                 if (temp.size == 0)
