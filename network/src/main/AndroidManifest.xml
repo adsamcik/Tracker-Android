@@ -2,6 +2,8 @@
           xmlns:tools="http://schemas.android.com/tools"
           package="com.adsamcik.signals.network">
 
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
     <application  tools:node="replace">
     </application>
 </manifest>
