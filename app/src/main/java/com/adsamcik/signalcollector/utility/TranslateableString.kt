@@ -7,9 +7,9 @@ import com.vimeo.stag.UseStag
 @UseStag
 class TranslateableString {
     //Stag
-    internal var defaultString: String? = null
-    internal var identifier: String? = null
-    internal var identifierResolver: IIdentifierResolver? = null
+    var defaultString: String? = null
+    var identifier: String? = null
+    var identifierResolver: IIdentifierResolver? = null
 
     constructor() {
         defaultString = null
