@@ -14,6 +14,7 @@
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="72dp"
+        android:background="@color/background_new_light"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:orientation="horizontal"
@@ -27,7 +28,6 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:gravity="center"
-            android:text="06:00:00"
             android:textColor="@color/text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
@@ -99,7 +99,7 @@
         <android.support.constraint.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="64dp">
+            android:layout_marginTop="82dp">
 
             <ImageView
                 android:id="@+id/ic_storage"
@@ -180,26 +180,50 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                app:alignContent="space_between"
                 app:alignItems="flex_start"
-                app:dividerDrawableVertical="@layout/flexbox_vertical_spacing"
+                app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
+                app:dividerDrawableVertical="@drawable/flexbox_spacing"
                 app:flexWrap="wrap"
-                app:justifyContent="space_between"
+                app:showDividerHorizontal="middle"
                 app:showDividerVertical="middle">
 
                 <com.adsamcik.signalcollector.components.InfoComponent
                     android:id="@+id/tracker_cell_component"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="180dp"
+                    android:layout_height="200dp"
+                    app:layout_flexGrow="1"
+                    app:layout_flexShrink="1"
                     app:title="Cell"
                     app:titleImage="@drawable/ic_network_cell_black_24dp"/>
 
                 <com.adsamcik.signalcollector.components.InfoComponent
                     android:id="@+id/tracker_wifi_component"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="180dp"
+                    android:layout_height="200dp"
+                    app:layout_flexGrow="1"
+                    app:layout_flexShrink="1"
                     app:title="Wifi"
                     app:titleImage="@drawable/ic_network_wifi_24dp"/>
+
+                <com.adsamcik.signalcollector.components.InfoComponent
+                    android:id="@+id/tracker_demo_component"
+                    android:layout_width="180dp"
+                    android:layout_height="200dp"
+                    app:layout_flexGrow="1"
+                    app:layout_flexShrink="1"
+                    app:title="Wifi"
+                    app:titleImage="@drawable/ic_network_wifi_24dp"/>
+
+
+                <com.adsamcik.signalcollector.components.InfoComponent
+                    android:id="@+id/tracker_demo2_component"
+                    android:layout_width="180dp"
+                    android:layout_height="200dp"
+                    app:layout_flexGrow="1"
+                    app:layout_flexShrink="1"
+                    app:title="Cell"
+                    app:titleImage="@drawable/ic_network_cell_black_24dp"/>
+
 
             </com.google.android.flexbox.FlexboxLayout>
         </ScrollView>
