@@ -11,16 +11,32 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.StandardUIActivity
-import com.adsamcik.signalcollector.enums.ResolvedActivity
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signals.tracking.automation.BackgroundActivityWatcher
+import com.adsamcik.signals.useractivity.services.ActivityService
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.enums.ResolvedActivity
 
 class ActivityWakerService : Service() {
     private var notificationManager: NotificationManager? = null
     private val NOTIFICATION_ID = 568465
-    private var thread: Thread? = null
+    private var thread: Thread = Thread {
+        //Is not supposed to quit while, until service is stopped
 
+        while (!Thread.currentThread().isInterrupted) {
+            try {
+                Thread.sleep((500 + Preferences.getPref(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS)).toLong())
+                if (changed)
+                    notificationManager!!.notify(NOTIFICATION_ID, updateNotification())
+            } catch (e: InterruptedException) {
+                break
+            }
+
+        }
+    }
+
+    private var changed = false
     private var activityInfo = ActivityService.lastActivity
 
     override fun onBind(intent: Intent): IBinder? = null
@@ -34,35 +50,23 @@ class ActivityWakerService : Service() {
 
         startForeground(NOTIFICATION_ID, updateNotification())
 
-        ActivityService.requestAutoTracking(this, javaClass)
-
-        thread = Thread {
-            //Is not supposed to quit while, until service is stopped
-
-            while (!Thread.currentThread().isInterrupted) {
-                try {
-                    Thread.sleep((500 + Preferences.getPref(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS)).toLong())
-                    val newActivityInfo = ActivityService.lastActivity
-                    if (newActivityInfo != activityInfo) {
-                        activityInfo = newActivityInfo
-                        notificationManager!!.notify(NOTIFICATION_ID, updateNotification())
-                    }
-                } catch (e: InterruptedException) {
-                    break
-                }
-
+        BackgroundActivityWatcher.startWatching(this)
+        ActivityService.requestActivity(this, this.javaClass, Int.MAX_VALUE) { _, activityInfo ->
+            if (this.activityInfo.activity != activityInfo.activity) {
+                changed = true
+                this.activityInfo = activityInfo
             }
-
         }
 
-        thread!!.start()
+        thread.start()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        ActivityService.removeAutoTracking(this, javaClass)
+        BackgroundActivityWatcher.stopWatching(this)
+        ActivityService.removeActivityRequest(this, this.javaClass)
         instance = null
-        thread!!.interrupt()
+        thread.interrupt()
     }
 
     private fun updateNotification(): Notification {

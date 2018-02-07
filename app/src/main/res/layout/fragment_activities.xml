@@ -25,10 +25,10 @@
                     style="@style/Base.TextAppearance.AppCompat.Caption"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingStart="@dimen/edge_margin"
-                    android:paddingEnd="@dimen/edge_margin"
-                    android:paddingTop="8dp"
                     android:paddingBottom="8dp"
+                    android:paddingEnd="@dimen/edge_margin"
+                    android:paddingStart="@dimen/edge_margin"
+                    android:paddingTop="8dp"
                     android:text="@string/challenge_list_title"/>
 
                 <ListView

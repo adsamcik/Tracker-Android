@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <attr name="titleColor" format="reference|color" />
-
     <declare-styleable name="InfoComponent">
-        <attr name="title" format="string" />
-        <attr name="titleImage" format="integer" />
+        <attr name="title" format="string"/>
+        <attr name="titleImage" format="integer"/>
     </declare-styleable>
 </resources>

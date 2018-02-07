@@ -26,13 +26,18 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.network.SignalsTileProvider
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.signalcollector.utility.FabMenu
+import com.adsamcik.signalcollector.utility.MapFilterRule
+import com.adsamcik.signalcollector.utility.SignalsTileProvider
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.network.NetworkLoader
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants.DAY_IN_MINUTES
+import com.adsamcik.signals.base.Failure
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.components.SnackMaker
+import com.adsamcik.signals.base.test.useMock
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -159,48 +164,56 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         mapLayerFilterRule = MapFilterRule()
 
+        val activity = fActivity!!
+
         launch {
-            val user = Signin.getUserAsync(fActivity!!)
+            val user = Signin.getUserAsync(activity)
             if (fabTwo != null && user != null) {
                 user.addServerDataCallback {
                     val networkInfo = it.networkInfo!!
                     if (fabTwo != null && (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess())) {
-                        val adapter = MapFilterableAdapter(fActivity!!, R.layout.spinner_item, { it.name })
-                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, fActivity!!, adapter, mapLayerFilterRule)
+                        val adapter = MapFilterableAdapter(activity, R.layout.spinner_item, { it.name })
+                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, activity, adapter, mapLayerFilterRule)
                         menu!!.setCallback({ _, layer -> launch(UI) { changeMapOverlay(layer.name) } })
 
                         if (networkInfo.hasPersonalMapAccess())
-                            menu!!.addItem(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
+                            menu!!.addItem(MapLayer(activity.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
                         if (networkInfo.hasMapAccess()) {
                             launch {
-                                val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
-                                if (mapListRequest.first.dataAvailable && fabTwo != null) {
-                                    val layerArray = if (useMock) MapLayer.mockArray() else mapListRequest.second!!
-                                    var savedOverlay = Preferences.getPref(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
-                                    if (!MapLayer.contains(layerArray, savedOverlay)) {
-                                        savedOverlay = layerArray[0].name
-                                        Preferences.getPref(fActivity!!).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
-                                    }
+                                    val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE,
+                                            user.token,
+                                            DAY_IN_MINUTES,
+                                            activity,
+                                            Preferences.PREF_AVAILABLE_MAPS,
+                                            Array<MapLayer>::class.java)
 
-                                    val defaultOverlay = savedOverlay
-                                    //menu can become null if user leaves the fragment
-                                    if (menu != null) {
-                                        if (menu!!.itemCount == 0)
-                                            changeMapOverlay(defaultOverlay!!)
-
-                                        menu!!.addItems(layerArray)
-
-                                        //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
-                                        if (fabOneVisible) {
-                                            launch(UI) {
-                                                fabTwo!!.show()
-                                            }
+                                    if (mapListRequest.first.dataAvailable && fabTwo != null) {
+                                        val layerArray = if (useMock) MapLayer.mockArray() else mapListRequest.second!!
+                                        var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                        if (!MapLayer.contains(layerArray, savedOverlay)) {
+                                            savedOverlay = layerArray[0].name
+                                            Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
                                         }
-                                        showFabTwo = true
 
+                                        val defaultOverlay = savedOverlay
+                                        //menu can become null if user leaves the fragment
+                                        if (menu != null) {
+                                            if (menu!!.itemCount == 0)
+                                                changeMapOverlay(defaultOverlay!!)
+
+                                            menu!!.addItems(layerArray)
+
+                                            //Check if fab one is visible so fab two is not shown if user decided to hide maps ui
+                                            if (fabOneVisible) {
+                                                launch(UI) {
+                                                    fabTwo!!.show()
+                                                }
+                                            }
+                                            showFabTwo = true
+
+                                        }
                                     }
-                                }
                             }
                         }
                     }
@@ -560,10 +573,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     companion object {
-        private val MAX_ZOOM = 17
-        private val PERMISSION_LOCATION_CODE = 200
+        private const val MAX_ZOOM = 17
+        private const val PERMISSION_LOCATION_CODE = 200
 
-        private val TAG = "SignalsMap"
+        private const val TAG = "SignalsMap"
     }
 
 }

@@ -9,12 +9,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.file.Compress
-import com.adsamcik.signalcollector.file.DataFile
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.utility.BottomSheetMenu
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.tracking.data.DataFile
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.base.components.BottomSheetMenu
+import com.adsamcik.signals.base.components.SnackMaker
+import com.adsamcik.signals.base.storage.Compress
 import com.crashlytics.android.Crashlytics
 import java.io.File
 import java.io.FileNotFoundException
@@ -48,7 +48,7 @@ class FileSharingActivity : DetailActivity() {
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
                         temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD).close()
+                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD, this).close()
                     }
 
                 if (temp.size == 0)
@@ -102,7 +102,7 @@ class FileSharingActivity : DetailActivity() {
             val bottomSheetMenu = BottomSheetMenu(layout)
             bottomSheetMenu.addItem(R.string.export_share_button, shareOnClickListener)
 
-            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener{ _ ->
+            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener { _ ->
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, true)
             })
@@ -128,7 +128,7 @@ class FileSharingActivity : DetailActivity() {
     }
 
     companion object {
-        private val SHARE_RESULT = 1
-        private val SHAREABLE_DIR_NAME = "shareable"
+        private const val SHARE_RESULT = 1
+        private const val SHAREABLE_DIR_NAME = "shareable"
     }
 }

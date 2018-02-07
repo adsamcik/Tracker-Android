@@ -16,9 +16,6 @@
     <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <!-- <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/> -->
-    <!-- <uses-permission android:name="android.permission.READ_PHONE_STATE"/> -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application
         android:allowBackup="false"
@@ -27,13 +24,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/AppThemeLight"
-        tools:ignore="GoogleAppIndexingWarning">
+        tools:ignore="GoogleAppIndexingWarning"
+        tools:node="replace">
         <meta-data
             android:name="android.max_aspect"
             android:value="2.1"/>
-        <meta-data
-            android:name="firebase_crashlytics_collection_enabled"
-            android:value="false"/>
 
         <provider
             android:name="android.support.v4.content.FileProvider"
@@ -55,11 +50,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity
-            android:name=".activities.ShortcutActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/SplashTheme">
-        </activity>
+
         <activity
             android:name=".activities.StandardUIActivity"
             android:alwaysRetainTaskState="true"
@@ -69,8 +60,8 @@
 
         <activity
             android:name=".activities.NewUIActivity"
-            android:label="@string/title_activity_new_ui"
             android:exported="true"
+            android:label="@string/title_activity_new_ui"
             android:theme="@style/AppThemeTransluscent"/>
 
         <activity
@@ -85,10 +76,7 @@
             android:name=".activities.DebugFileActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
-        <activity
-            android:name=".activities.NoiseTestingActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
-            android:screenOrientation="portrait"/>
+
         <activity
             android:name=".activities.ActivityRecognitionActivity"
             android:parentActivityName=".activities.StandardUIActivity"
@@ -121,21 +109,14 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".receivers.NotificationReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-            </intent-filter>
-        </receiver>
         <receiver android:name=".receivers.OnAppUpdateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
 
-        <service
-            android:name=".services.TrackerService"
-            android:exported="false"/>
-        <service android:name=".services.ActivityService"/>
+
+        <service android:name=".services.ActivityWakerService"/>
         <service
             android:name=".services.InstanceIDListenerService"
             tools:ignore="ExportedService">
@@ -151,21 +132,15 @@
             </intent-filter>
         </service>
         <service
-            android:name=".jobs.UploadJobService"
+            android:name="com.adsamcik.signals.tracking.services.UploadJobService"
             android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service android:name=".services.ActivityWakerService"/>
-        <service
-            android:name=".jobs.DisableTillRechargeJobService"
-            android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/GEO_API"/>
-        <meta-data
-            android:name="com.google.android.gms.games.APP_ID"
-            android:value="@string/google_app_id2"/>
+
+        <meta-data android:name="com.google.android.gms.version" android:value="@integer/google_play_services_version" />
     </application>
 
 </manifest>

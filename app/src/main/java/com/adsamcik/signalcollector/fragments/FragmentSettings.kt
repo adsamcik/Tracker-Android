@@ -25,20 +25,24 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.*
 import com.adsamcik.signalcollector.data.MapLayer
-import com.adsamcik.signalcollector.file.CacheStore
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.network.Prices
-import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.signin.User
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.network.NetworkLoader
+import com.adsamcik.signals.network.Prices
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.signin.User
+import com.adsamcik.signals.tracking.services.DisableTillRechargeJobService
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.useractivity.services.ActivityService
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants.DAY_IN_MINUTES
+import com.adsamcik.signals.base.Failure
+import com.adsamcik.signals.base.FirebaseAssist
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.components.SnackMaker
+import com.adsamcik.signals.base.storage.CacheStore
+import com.adsamcik.signals.base.test.useMock
 import com.adsamcik.slider.IntSlider
 import com.adsamcik.slider.IntValueSlider
 import com.adsamcik.slider.Slider
@@ -96,7 +100,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             if (u != null) {
                 u.addServerDataCallback({ user -> resolveUserMenuOnLogin(user) })
             } else
-                SnackMaker(activity).showSnackbar(R.string.error_failed_signin)
+                SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_failed_signin)
         }
     }
 
@@ -131,7 +135,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                                         })
                                     }
                                 } else
-                                    SnackMaker(activity!!).showSnackbar(R.string.error_failed_signin)
+                                    SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_failed_signin)
                             }
                         }
                         signedInMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
@@ -160,9 +164,9 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         if (mTrackingSelected != null)
             if (select == 0)
-                ActivityService.removeAutoTracking(context!!, StandardUIActivity::class.java)
+                ActivityService.removeActivityRequest(context!!, StandardUIActivity::class.java)
             else
-                ActivityService.requestAutoTracking(context!!, StandardUIActivity::class.java)
+                ActivityService.requestActivity(context!!, StandardUIActivity::class.java, null)
 
         mTrackingSelected = selected
     }
@@ -243,7 +247,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             val setVisible = devView.visibility == View.GONE
             devView.visibility = if (setVisible) View.VISIBLE else View.GONE
             Preferences.getPref(rootView.context).edit().putBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, setVisible).apply()
-            SnackMaker(activity!!).showSnackbar(getString(if (setVisible) R.string.dev_join else R.string.dev_leave))
+            SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(getString(if (setVisible) R.string.dev_join else R.string.dev_leave))
             true
         }
     }
@@ -302,7 +306,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
                 rootView.findViewById(R.id.switch_activity_watcher),
                 Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
-                 { _ -> ActivityWakerService.poke(activity) })
+                { _ -> ActivityWakerService.poke(activity) })
 
         val activityFrequencySlider = rootView.findViewById<IntValueSlider>(R.id.settings_seekbar_watcher_frequency)
         //todo update to not set useless values because of setItems below
@@ -321,7 +325,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         })
         activityFrequencySlider.setOnValueChangeListener { value, fromUser ->
             if (fromUser) {
-                ActivityService.requestActivity(activity, StandardUIActivity::class.java, value)
+                ActivityService.requestActivity(activity, StandardUIActivity::class.java, value, null)
                 ActivityWakerService.poke(activity)
             }
         }
@@ -428,7 +432,7 @@ class FragmentSettings : Fragment(), ITabFragment {
             if (Signin.isSignedIn)
                 startActivity(Intent(activity, FeedbackActivity::class.java))
             else
-                SnackMaker(activity).showSnackbar(R.string.feedback_error_not_signed_in)
+                SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.feedback_error_not_signed_in)
         }
     }
 
@@ -454,9 +458,6 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory }) }
 
-
-        rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { _ -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
-
         rootView.findViewById<View>(R.id.dev_button_notification_dummy).setOnClickListener { _ ->
             val helloWorld = getString(R.string.dev_notification_dummy)
             val color = ContextCompat.getColor(activity, R.color.color_primary)
@@ -481,7 +482,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         val alertDialogBuilder = AlertDialog.Builder(context)
         alertDialogBuilder
                 .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
-                    SnackMaker(activity!!).showSnackbar(snackBarString)
+                    SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(snackBarString)
                     clearFunction.invoke(context)
                 }
                 .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
@@ -547,181 +548,184 @@ class FragmentSettings : Fragment(), ITabFragment {
         val activity = activity!!
 
         if (!u.isServerDataAvailable) {
-            SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
+            SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_connection_failed)
             return
         }
 
         async {
-            val priceRequestState = NetworkLoader.requestSignedAsync(Network.URL_USER_PRICES, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices::class.java)
-            if (priceRequestState.first.success) {
-                val prices = if (useMock) Prices.mock() else priceRequestState.second!!
-                launch(UI) {
-                    val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault())
-                    val userInfoLayout = signedInMenu!!.getChildAt(0) as LinearLayout
-                    userInfoLayout.visibility = View.VISIBLE
+            val user = Signin.getUserAsync(activity)
+            if (user != null) {
+                val priceRequestState = NetworkLoader.requestSignedAsync(Network.URL_USER_PRICES, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_USER_PRICES, Prices::class.java)
+                if (priceRequestState.first.success) {
+                    val prices = if (useMock) Prices.mock() else priceRequestState.second!!
+                    launch(UI) {
+                        val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault())
+                        val userInfoLayout = signedInMenu!!.getChildAt(0) as LinearLayout
+                        userInfoLayout.visibility = View.VISIBLE
 
-                    val wPointsTextView = userInfoLayout.getChildAt(0) as TextView
-                    wPointsTextView.text = String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints))
+                        val wPointsTextView = userInfoLayout.getChildAt(0) as TextView
+                        wPointsTextView.text = String.format(activity.getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints))
 
-                    val mapAccessLayout = userInfoLayout.getChildAt(1) as LinearLayout
-                    val mapAccessSwitch = mapAccessLayout.getChildAt(0) as Switch
-                    val mapAccessTimeTextView = mapAccessLayout.getChildAt(1) as TextView
+                        val mapAccessLayout = userInfoLayout.getChildAt(1) as LinearLayout
+                        val mapAccessSwitch = mapAccessLayout.getChildAt(0) as Switch
+                        val mapAccessTimeTextView = mapAccessLayout.getChildAt(1) as TextView
 
-                    mapAccessSwitch.text = activity.getString(R.string.user_renew_map)
-                    mapAccessSwitch.isChecked = u.networkPreferences!!.renewMap
-                    mapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
-                        compoundButton.isEnabled = false
-                        val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
-                        Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(object : Callback {
-                            override fun onFailure(call: Call, e: IOException) {
-                                activity.runOnUiThread {
-                                    compoundButton.isEnabled = true
-                                    compoundButton.isChecked = !b
-                                }
-                            }
-
-                            @Throws(IOException::class)
-                            override fun onResponse(call: Call, response: Response) {
-                                if (response.isSuccessful) {
-                                    val networkInfo = u.networkInfo!!
-                                    u.networkPreferences!!.renewMap = b
-                                    if (b) {
-                                        val rBody = response.body()
-                                        if (rBody != null) {
-                                            val temp = networkInfo.mapAccessUntil
-                                            networkInfo.mapAccessUntil = java.lang.Long.parseLong(rBody.string())
-                                            if (temp != networkInfo.mapAccessUntil) {
-                                                u.addWirelessPoints((-prices.PRICE_30DAY_MAP).toLong())
-                                                activity.runOnUiThread {
-                                                    wPointsTextView.text = activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))
-                                                    mapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.mapAccessUntil)))
-                                                    mapAccessTimeTextView.visibility = View.VISIBLE
-                                                }
-                                            }
-
-                                        } else
-                                            Crashlytics.logException(Throwable("Body is null"))
+                        mapAccessSwitch.text = activity.getString(R.string.user_renew_map)
+                        mapAccessSwitch.isChecked = u.networkPreferences!!.renewMap
+                        mapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+                            compoundButton.isEnabled = false
+                            val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
+                            Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(object : Callback {
+                                override fun onFailure(call: Call, e: IOException) {
+                                    activity.runOnUiThread {
+                                        compoundButton.isEnabled = true
+                                        compoundButton.isChecked = !b
                                     }
-                                    DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
-                                } else {
-                                    activity.runOnUiThread { compoundButton.isChecked = !b }
-                                    SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp)
                                 }
-                                activity.runOnUiThread { compoundButton.isEnabled = true }
-                                response.close()
-                            }
-                        })
-                    }
 
-                    if (u.networkInfo!!.mapAccessUntil > System.currentTimeMillis())
-                        mapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(u.networkInfo!!.mapAccessUntil)))
-                    else
-                        mapAccessTimeTextView.visibility = View.GONE
-                    (mapAccessLayout.getChildAt(2) as TextView).text = String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
-
-                    val userMapAccessLayout = userInfoLayout.getChildAt(2) as LinearLayout
-                    val userMapAccessSwitch = userMapAccessLayout.getChildAt(0) as Switch
-                    val personalMapAccessTimeTextView = userMapAccessLayout.getChildAt(1) as TextView
-
-                    userMapAccessSwitch.text = activity.getString(R.string.user_renew_personal_map)
-                    userMapAccessSwitch.isChecked = u.networkPreferences!!.renewPersonalMap
-                    userMapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
-                        compoundButton.isEnabled = false
-                        val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
-                        Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(object : Callback {
-                            override fun onFailure(call: Call, e: IOException) {
-                                activity.runOnUiThread {
-                                    compoundButton.isEnabled = true
-                                    compoundButton.isChecked = !b
-                                }
-                            }
-
-                            @Throws(IOException::class)
-                            override fun onResponse(call: Call, response: Response) {
-                                if (response.isSuccessful) {
-                                    val networkInfo = u.networkInfo
-                                    u.networkPreferences!!.renewPersonalMap = b
-                                    if (b) {
-                                        val rBody = response.body()
-                                        if (rBody != null) {
-                                            val temp = networkInfo!!.personalMapAccessUntil
-                                            networkInfo.personalMapAccessUntil = java.lang.Long.parseLong(rBody.string())
-                                            if (temp != networkInfo.personalMapAccessUntil) {
-                                                u.addWirelessPoints((-prices.PRICE_30DAY_PERSONAL_MAP).toLong())
-                                                activity.runOnUiThread {
-                                                    wPointsTextView.text = activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))
-                                                    personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.personalMapAccessUntil)))
-                                                    personalMapAccessTimeTextView.visibility = View.VISIBLE
+                                @Throws(IOException::class)
+                                override fun onResponse(call: Call, response: Response) {
+                                    if (response.isSuccessful) {
+                                        val networkInfo = u.networkInfo!!
+                                        u.networkPreferences!!.renewMap = b
+                                        if (b) {
+                                            val rBody = response.body()
+                                            if (rBody != null) {
+                                                val temp = networkInfo.mapAccessUntil
+                                                networkInfo.mapAccessUntil = java.lang.Long.parseLong(rBody.string())
+                                                if (temp != networkInfo.mapAccessUntil) {
+                                                    u.addWirelessPoints((-prices.PRICE_30DAY_MAP).toLong())
+                                                    activity.runOnUiThread {
+                                                        wPointsTextView.text = activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))
+                                                        mapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.mapAccessUntil)))
+                                                        mapAccessTimeTextView.visibility = View.VISIBLE
+                                                    }
                                                 }
-                                            }
 
-                                        } else
-                                            Crashlytics.logException(Throwable("Body is null"))
-                                    }
-                                    DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
-                                } else {
-                                    activity.runOnUiThread { compoundButton.isChecked = !b }
-                                    SnackMaker(activity).showSnackbar(R.string.user_not_enough_wp)
-                                }
-                                activity.runOnUiThread { compoundButton.isEnabled = true }
-                                response.close()
-                            }
-                        })
-                    }
-
-                    if (u.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
-                        personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date()))
-                    else
-                        personalMapAccessTimeTextView.visibility = View.GONE
-                    (userMapAccessLayout.getChildAt(2) as TextView).text = String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
-
-                    signedInMenu!!.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
-                }
-            }
-
-            if (u.networkInfo!!.hasMapAccess())
-                NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java, { _, layerArray ->
-                    if (layerArray != null && layerArray.isNotEmpty()) {
-                        val sp = Preferences.getPref(activity)
-                        val defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
-                        val index = MapLayer.indexOf(layerArray, defaultOverlay)
-                        val selectIndex = if (index == -1) 0 else index
-                        if (index == -1)
-                            sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name).apply()
-
-                        val items = arrayOfNulls<CharSequence>(layerArray.size)
-                        for (i in layerArray.indices)
-                            items[i] = layerArray[i].name
-
-                        launch(UI) {
-                            val mapOverlayButton = rootView!!.findViewById<Button>(R.id.setting_map_overlay_button)
-
-                            val adapter = ArrayAdapter(activity, R.layout.spinner_item, MapLayer.toStringArray(layerArray))
-                            adapter.setDropDownViewResource(R.layout.spinner_item)
-                            mapOverlayButton.text = items[selectIndex]
-                            mapOverlayButton.setOnClickListener { _ ->
-                                val ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
-                                val `in` = MapLayer.indexOf(layerArray, ov)
-                                val selectIn = if (`in` == -1) 0 else `in`
-
-                                val alertDialogBuilder = AlertDialog.Builder(activity, R.style.AlertDialog)
-                                alertDialogBuilder
-                                        .setTitle(getString(R.string.settings_default_map_overlay))
-                                        .setSingleChoiceItems(items, selectIn) { dialog, which ->
-                                            Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply()
-                                            mapOverlayButton.text = items[which]
-                                            dialog.dismiss()
+                                            } else
+                                                Crashlytics.logException(Throwable("Body is null"))
                                         }
-                                        .setNegativeButton(R.string.cancel) { _, _ -> }
+                                        DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
+                                    } else {
+                                        activity.runOnUiThread { compoundButton.isChecked = !b }
+                                        SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.user_not_enough_wp)
+                                    }
+                                    activity.runOnUiThread { compoundButton.isEnabled = true }
+                                    response.close()
+                                }
+                            })
+                        }
 
-                                alertDialogBuilder.create().show()
+                        if (u.networkInfo!!.mapAccessUntil > System.currentTimeMillis())
+                            mapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(u.networkInfo!!.mapAccessUntil)))
+                        else
+                            mapAccessTimeTextView.visibility = View.GONE
+                        (mapAccessLayout.getChildAt(2) as TextView).text = String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
+
+                        val userMapAccessLayout = userInfoLayout.getChildAt(2) as LinearLayout
+                        val userMapAccessSwitch = userMapAccessLayout.getChildAt(0) as Switch
+                        val personalMapAccessTimeTextView = userMapAccessLayout.getChildAt(1) as TextView
+
+                        userMapAccessSwitch.text = activity.getString(R.string.user_renew_personal_map)
+                        userMapAccessSwitch.isChecked = u.networkPreferences!!.renewPersonalMap
+                        userMapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+                            compoundButton.isEnabled = false
+                            val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
+                            Network.client(activity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(object : Callback {
+                                override fun onFailure(call: Call, e: IOException) {
+                                    activity.runOnUiThread {
+                                        compoundButton.isEnabled = true
+                                        compoundButton.isChecked = !b
+                                    }
+                                }
+
+                                @Throws(IOException::class)
+                                override fun onResponse(call: Call, response: Response) {
+                                    if (response.isSuccessful) {
+                                        val networkInfo = u.networkInfo
+                                        u.networkPreferences!!.renewPersonalMap = b
+                                        if (b) {
+                                            val rBody = response.body()
+                                            if (rBody != null) {
+                                                val temp = networkInfo!!.personalMapAccessUntil
+                                                networkInfo.personalMapAccessUntil = java.lang.Long.parseLong(rBody.string())
+                                                if (temp != networkInfo.personalMapAccessUntil) {
+                                                    u.addWirelessPoints((-prices.PRICE_30DAY_PERSONAL_MAP).toLong())
+                                                    activity.runOnUiThread {
+                                                        wPointsTextView.text = activity.getString(R.string.user_have_wireless_points, Assist.formatNumber(u.wirelessPoints))
+                                                        personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.personalMapAccessUntil)))
+                                                        personalMapAccessTimeTextView.visibility = View.VISIBLE
+                                                    }
+                                                }
+
+                                            } else
+                                                Crashlytics.logException(Throwable("Body is null"))
+                                        }
+                                        DataStore.saveString(activity, Preferences.PREF_USER_DATA, Gson().toJson(u), false)
+                                    } else {
+                                        activity.runOnUiThread { compoundButton.isChecked = !b }
+                                        SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.user_not_enough_wp)
+                                    }
+                                    activity.runOnUiThread { compoundButton.isEnabled = true }
+                                    response.close()
+                                }
+                            })
+                        }
+
+                        if (u.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
+                            personalMapAccessTimeTextView.text = String.format(activity.getString(R.string.user_access_date), dateFormat.format(Date()))
+                        else
+                            personalMapAccessTimeTextView.visibility = View.GONE
+                        (userMapAccessLayout.getChildAt(2) as TextView).text = String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
+
+                        signedInMenu!!.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
+                    }
+                }
+
+                if (u.networkInfo!!.hasMapAccess())
+                    NetworkLoader.request(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java) { _, layerArray ->
+                        if (layerArray != null && layerArray.isNotEmpty()) {
+                            val sp = Preferences.getPref(activity)
+                            val defaultOverlay = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                            val index = MapLayer.indexOf(layerArray, defaultOverlay)
+                            val selectIndex = if (index == -1) 0 else index
+                            if (index == -1)
+                                sp.edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name).apply()
+
+                            val items = arrayOfNulls<CharSequence>(layerArray.size)
+                            for (i in layerArray.indices)
+                                items[i] = layerArray[i].name
+
+                            launch(UI) {
+                                val mapOverlayButton = rootView!!.findViewById<Button>(R.id.setting_map_overlay_button)
+
+                                val adapter = ArrayAdapter(activity, R.layout.spinner_item, MapLayer.toStringArray(layerArray))
+                                adapter.setDropDownViewResource(R.layout.spinner_item)
+                                mapOverlayButton.text = items[selectIndex]
+                                mapOverlayButton.setOnClickListener { _ ->
+                                    val ov = sp.getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                    val `in` = MapLayer.indexOf(layerArray, ov)
+                                    val selectIn = if (`in` == -1) 0 else `in`
+
+                                    val alertDialogBuilder = AlertDialog.Builder(activity, R.style.AlertDialog)
+                                    alertDialogBuilder
+                                            .setTitle(getString(R.string.settings_default_map_overlay))
+                                            .setSingleChoiceItems(items, selectIn) { dialog, which ->
+                                                Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, adapter.getItem(which)).apply()
+                                                mapOverlayButton.text = items[which]
+                                                dialog.dismiss()
+                                            }
+                                            .setNegativeButton(R.string.cancel) { _, _ -> }
+
+                                    alertDialogBuilder.create().show()
+                                }
+
+                                val mDOLayout = rootView!!.findViewById<LinearLayout>(R.id.settings_map_overlay_layout)
+                                mDOLayout.visibility = View.VISIBLE
                             }
-
-                            val mDOLayout = rootView!!.findViewById<LinearLayout>(R.id.settings_map_overlay_layout)
-                            mDOLayout.visibility = View.VISIBLE
                         }
                     }
-                })
+            }
         }
     }
 

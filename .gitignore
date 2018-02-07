@@ -89,9 +89,10 @@ $RECYCLE.BIN/
 key.gradle
 keys.xml
 java_pid12832.hprof
-app/app.iml
+*.iml
 app/release_nominify/*
 app/release/*
 app/src/main/java/com/adsamcik/signalcollector/network/Server.java
 app/google-services.json
 app/src/main/java/com/adsamcik/signalcollector/network/Server.kt
+network/src/main/java/com/adsamcik/signals/network/Server.kt

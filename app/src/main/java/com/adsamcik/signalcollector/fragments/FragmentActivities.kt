@@ -16,10 +16,10 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
-import com.adsamcik.signalcollector.utility.Failure
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Failure
+import com.adsamcik.signals.base.components.SnackMaker
 import kotlinx.coroutines.experimental.launch
 
 class FragmentActivities : Fragment(), ITabFragment {
@@ -44,12 +44,12 @@ class FragmentActivities : Fragment(), ITabFragment {
 
     private fun updateData() {
         val isRefresh = refreshLayout != null && refreshLayout!!.isRefreshing
-        val activity = activity
-        val context = activity!!.applicationContext
+        val activity = activity!!
+        val context = activity.applicationContext
         launch {
             val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
             if (!source.success)
-                SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
+                SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_connection_failed)
             else {
                 activity.runOnUiThread { listViewChallenges!!.adapter = ChallengesAdapter(context, challenges!!) }
             }

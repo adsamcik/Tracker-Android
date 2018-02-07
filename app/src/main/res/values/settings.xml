@@ -13,7 +13,7 @@
     <string name="settings_battery_optimalizations_enabled_tracking">Battery optimalizations are enabled! Automatic tracking may be unreliable. Tap to disable.</string>
     <string name="settings_battery_optimalizations_disabled">Battery optimalizations are disabled.</string>
     <string name="settings_battery_optimalizations_unknown">Battery optimalizations status is unknown.</string>
-    
+
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
         <item>Disabled</item>
@@ -25,7 +25,7 @@
     <string name="autoupload_always_description">Automatic upload enabled on cellular and wifi networks</string>
     <string name="settings_autoupload_smart">Smart upload</string>
 
-    <string name="settings_playGames">Account</string>
+    <string name="settings_account">Account</string>
     <string name="settings_clear_data">Clear tracked data</string>
     <string name="settings_feedback">Feedback</string>
     <string name="settings_reopen_tutorial">Tutorial</string>
@@ -55,20 +55,6 @@
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="settings_autoupload_at">Autoupload at</string>
     <string name="settings_autoupload_at_value">%1$d MB</string>
-    <string name="internet_connection_required">Internet connection required</string>
-
-    <string name="signout">Sign out</string>
-    <string name="signin">Sign in</string>
-    <string name="signed_in_message">Signed in successfully</string>
-    <string name="signed_out_message">Signed out</string>
-    <string name="sign_in_required">You must be signed in!</string>
 
     <string name="settings_disable_tracking_till_recharge">Disabled till recharge</string>
-
-    <string name="user_have_wireless_points">You have %1$s wireless points</string>
-    <string name="user_renew_map">Renew map access</string>
-    <string name="user_access_date">You have access until %1$s</string>
-    <string name="user_cost_per_month">%1$s wireless points per month</string>
-    <string name="user_renew_personal_map">Renew personal map</string>
-    <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
 </resources>

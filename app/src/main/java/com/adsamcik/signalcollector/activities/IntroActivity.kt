@@ -9,15 +9,15 @@ import android.os.Build
 import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
-import android.view.View
 import android.view.WindowManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentIntro
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.github.paolorotolo.appintro.AppIntro2
+import com.google.android.gms.common.SignInButton
 import java.util.*
 
 class IntroActivity : AppIntro2() {
@@ -84,7 +84,7 @@ class IntroActivity : AppIntro2() {
         }
 
 
-        val uploadSetCallback = { value : Int ->
+        val uploadSetCallback = { value: Int ->
             Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply()
             nextSlide(1)
         }
@@ -111,7 +111,7 @@ class IntroActivity : AppIntro2() {
                         .setCancelable(true)
                         .create()
 
-                v.findViewById<View>(R.id.sign_in_button).setOnClickListener { _ ->
+                v.findViewById<SignInButton>(R.id.sign_in_button).setOnClickListener { _ ->
                     val currentFragment = currentFragment!!
                     dialog.getButton(DialogInterface.BUTTON_NEGATIVE).isEnabled = false
                     dialog.setMessage(getString(R.string.signin_connecting))
@@ -169,7 +169,7 @@ class IntroActivity : AppIntro2() {
      *
      * @return true if all permissions are granted
      */
-    private fun CheckAllTrackingPermissions(): Boolean {
+    private fun checkAllTrackingPermissions(): Boolean {
         if (Build.VERSION.SDK_INT > 22) {
             val permissions = ArrayList<String>()
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)

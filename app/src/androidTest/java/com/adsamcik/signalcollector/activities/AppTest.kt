@@ -17,15 +17,15 @@ import android.util.MalformedJsonException
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
-import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.MessageListenerService
-import com.adsamcik.signalcollector.test.isTestMode
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.Constants.*
+import com.adsamcik.signals.base.test.isTestMode
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.stats.UploadStats
+import com.adsamcik.signals.tracking.storage.DataStore
 import com.google.gson.Gson
 import org.hamcrest.Description
 import org.hamcrest.Matcher
@@ -84,13 +84,13 @@ class AppTest {
         val SIZE = "uploadSize"
 
         val d = HashMap<String, String>(10)
-        d.put(WIFI, Integer.toString(us.wifi))
-        d.put(NEW_WIFI, Integer.toString(us.newWifi))
-        d.put(CELL, Integer.toString(us.cell))
-        d.put(NEW_CELL, Integer.toString(us.newCell))
-        d.put(COLLECTIONS, Integer.toString(us.collections))
-        d.put(NEW_LOCATIONS, Integer.toString(us.newLocations))
-        d.put(SIZE, java.lang.Long.toString(us.uploadSize))
+        d[WIFI] = Integer.toString(us.wifi)
+        d[NEW_WIFI] = Integer.toString(us.newWifi)
+        d[CELL] = Integer.toString(us.cell)
+        d[NEW_CELL] = Integer.toString(us.newCell)
+        d[COLLECTIONS] = Integer.toString(us.collections)
+        d[NEW_LOCATIONS] = Integer.toString(us.newLocations)
+        d[SIZE] = java.lang.Long.toString(us.uploadSize)
 
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
         Assert.assertEquals('[' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
@@ -103,19 +103,19 @@ class AppTest {
     @Test
     @Throws(Exception::class)
     fun uploadFABTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
 
         Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
 
-        Thread.sleep(Constants.SECOND_IN_MILLISECONDS.toLong())
+        Thread.sleep(SECOND_IN_MILLISECONDS.toLong())
 
-        mDevice.waitForIdle((30 * Constants.SECOND_IN_MILLISECONDS).toLong())
+        mDevice.waitForIdle((30 * SECOND_IN_MILLISECONDS).toLong())
         val actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"))
         actionStats.click()
         mDevice.findObject(By.res(PACKAGE, "action_tracker")).click()
 
-        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2).toLong())
+        Thread.sleep((SECOND_IN_MILLISECONDS / 2).toLong())
 
         val fabUpload = onView(
                 allOf(withId(R.id.fabTwo),
@@ -146,20 +146,20 @@ class AppTest {
         progressBar.check(matches(isDisplayed()))
 
         DataStore.onUpload(context, 50)
-        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2).toLong())
+        Thread.sleep((SECOND_IN_MILLISECONDS / 2).toLong())
 
         DataStore.onUpload(context, 100)
         DataStore.incData(context, 500, 25)
         Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
-        Thread.sleep((4 * Constants.SECOND_IN_MILLISECONDS).toLong())
+        Thread.sleep((4 * SECOND_IN_MILLISECONDS).toLong())
         fabUpload.check(matches(isDisplayed()))
         progressBar.check(doesNotExist())
     }
 
     companion object {
-        private val TAG = "SignalsSaveLoadTest"
-        private val PACKAGE = "com.adsamcik.signalcollector"
-        private val LAUNCH_TIMEOUT = 5000
+        private const val TAG = "SignalsSaveLoadTest"
+        private const val PACKAGE = "com.adsamcik.signalcollector"
+        private const val LAUNCH_TIMEOUT = 5000
 
         private fun childAtPosition(
                 parentMatcher: Matcher<View>, position: Int): Matcher<View> {
@@ -183,7 +183,7 @@ class AppTest {
          * and is matched by the given view matcher.
          */
         fun matches(viewMatcher: Matcher<View>): ViewAssertion {
-            return ViewAssertion{ view: View?, noViewException: NoMatchingViewException? ->
+            return ViewAssertion { view: View?, noViewException: NoMatchingViewException? ->
                 val description = StringDescription()
                 description.appendText("'")
                 viewMatcher.describeTo(description)

@@ -1,0 +1,57 @@
+apply plugin: 'com.android.feature'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdkVersion 27
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 27
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        debug {
+            testCoverageEnabled = true
+        }
+        release_nominify {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                    'proguard-rules.pro'
+        }
+    }
+    baseFeature true
+}
+
+dependencies {
+    implementation "com.android.support:appcompat-v7:$support_version"
+    implementation "com.android.support:support-compat:$support_version"
+    implementation "com.android.support:design:$support_version"
+    implementation "com.google.android.gms:play-services-base:$play_services_version"
+    implementation "com.google.firebase:firebase-core:$play_services_version"
+    implementation "com.crashlytics.sdk.android:crashlytics:$crashlytics_version@aar", {
+        transitive = true
+    }
+
+    implementation "com.google.code.gson:gson:$gson_version"
+    implementation "com.vimeo.stag:stag-library:$stag_version", {
+        exclude group: 'com.intellij', module: 'annotations'
+    }
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    application project(':app')
+    feature project(':network')
+    feature project(':signin')
+    feature project(':app')
+    feature project(':stats')
+    feature project(':useractivity')
+    feature project(":externals")
+}
+repositories {
+    mavenCentral()
+}

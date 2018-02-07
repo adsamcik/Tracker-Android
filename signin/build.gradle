@@ -1,0 +1,54 @@
+apply plugin: 'com.android.feature'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+android {
+    compileSdkVersion 27
+
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 27
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+    }
+
+    buildTypes {
+        debug {
+            testCoverageEnabled = true
+        }
+        release_nominify {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                    'proguard-rules.pro'
+        }
+    }
+
+}
+
+kotlin { experimental { coroutines 'enable' } }
+
+dependencies {
+    implementation "com.google.code.gson:gson:$gson_version"
+    api "com.android.support:appcompat-v7:$support_version"
+    implementation "com.android.support:design:$support_version"
+    implementation "com.google.android.gms:play-services-auth:$play_services_version"
+    implementation "com.android.support:support-compat:$support_version"
+    implementation "com.google.firebase:firebase-core:$play_services_version"
+    implementation "com.crashlytics.sdk.android:crashlytics:$crashlytics_version@aar", {
+        transitive = true
+    }
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jre7:$kotlin_version"
+
+    api project(':base')
+    implementation project(":network")
+
+    feature project(':tracking')
+    feature project(':app')
+    feature project(":useractivity")
+}

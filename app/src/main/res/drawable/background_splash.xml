@@ -3,5 +3,7 @@
 
     <item android:drawable="@color/color_accent"/>
 
-    <item android:drawable="@drawable/ic_signals_launcher" android:gravity="center" />
+    <item
+        android:drawable="@drawable/ic_signals_launcher"
+        android:gravity="center"/>
 </layer-list>

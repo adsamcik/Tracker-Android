@@ -10,17 +10,18 @@ import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.NotificationTools
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.Shortcuts
+import com.adsamcik.signals.externals.ChannelTools
+import com.adsamcik.signals.externals.Shortcuts
+import com.adsamcik.signals.tracking.services.TrackerService
+import com.adsamcik.signals.tracking.services.UploadJobService
+import com.adsamcik.signals.base.FirebaseAssist
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.test.useMock
 import com.crashlytics.android.Crashlytics
+import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.perf.FirebasePerformance
 import io.fabric.sdk.android.Fabric
 
 
@@ -30,9 +31,10 @@ class LaunchActivity : Activity() {
         Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
 
+        FirebaseApp.initializeApp(this);
+
         if (BuildConfig.DEBUG) {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
-            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
         } else
@@ -78,10 +80,10 @@ class LaunchActivity : Activity() {
             startActivity(Intent(this, IntroActivity::class.java))
 
         if (Build.VERSION.SDK_INT >= 25)
-            Shortcuts.initializeShortcuts(this)
+            Shortcuts.updateShortcuts(this, TrackerService.isRunning)
 
         if (Build.VERSION.SDK_INT >= 26)
-            NotificationTools.prepareChannels(this)
+            ChannelTools.prepareChannels(this)
 
         ActivityWakerService.poke(this)
 

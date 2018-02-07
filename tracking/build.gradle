@@ -1,0 +1,70 @@
+apply plugin: 'com.android.feature'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdkVersion 27
+
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 27
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        debug {
+            testCoverageEnabled = true
+        }
+        release_nominify {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                    'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation "com.google.code.gson:gson:$gson_version"
+    implementation "com.vimeo.stag:stag-library:$stag_version", {
+        exclude group: 'com.intellij', module: 'annotations'
+    }
+
+    implementation "com.squareup.okhttp3:okhttp:$okhttp_version"
+    implementation "com.google.android.gms:play-services-location:$play_services_version", {
+        exclude group: 'com.android.support', module: 'support-v4'
+    }
+    implementation "com.android.support:support-annotations:$support_version"
+    implementation "com.google.firebase:firebase-core:$play_services_version", {
+        exclude group: 'com.android.support', module: 'support-v4'
+    }
+    implementation "com.crashlytics.sdk.android:crashlytics:$crashlytics_version@aar", {
+        transitive = true
+    }
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutines_version"
+
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.1', {
+        exclude group: 'com.android.support', module: 'support-v4'
+    }
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    implementation project(':signin')
+    implementation project(':network')
+    implementation project(':stats')
+    implementation project(':useractivity')
+    implementation project(':externals')
+    api project(':base')
+
+    feature project(':app')
+}
+repositories {
+    mavenCentral()
+}

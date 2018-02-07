@@ -1,0 +1,113 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:gravity="center_horizontal"
+              android:orientation="vertical"
+              android:paddingBottom="@dimen/activity_vertical_margin"
+              android:paddingLeft="@dimen/activity_horizontal_margin"
+              android:paddingRight="@dimen/activity_horizontal_margin"
+              android:paddingTop="@dimen/activity_vertical_margin"
+              tools:context="com.adsamcik.signals.signin.LoginActivity">
+
+    <com.google.android.gms.common.SignInButton
+        android:id="@+id/sign_in_button"
+        style="@style/SettingsItem"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="@dimen/setting_item_padding"
+        android:visibility="gone"/>
+
+    <TextView
+        android:id="@+id/sign_in_message"
+        style="@style/SettingsText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/error_no_internet"
+        android:visibility="gone"/>
+
+    <LinearLayout
+        android:id="@+id/signed_in_menu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/signed_in_server_menu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/SettingsText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/user_have_wireless_points"/>
+
+            <LinearLayout
+                android:id="@+id/layout_map_access"
+                style="@style/SettingsItem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <Switch
+                    style="@style/SettingsTextNoParent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="@dimen/setting_item_padding"
+                    android:paddingTop="@dimen/setting_item_padding"
+                    android:text="@string/user_renew_map"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_cost_per_month"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_access_date"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layout_user_map_access"
+                style="@style/SettingsItem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <Switch
+                    style="@style/SettingsTextNoParent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="@dimen/setting_item_padding"
+                    android:paddingTop="@dimen/setting_item_padding"
+                    android:text="@string/user_renew_personal_map"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_cost_per_month"/>
+
+                <TextView
+                    style="@style/SettingsTextSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/user_access_date"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/sign_out_button"
+            style="@style/SettingsButton"
+            android:backgroundTint="@color/color_accent"
+            android:text="@string/signout"/>
+
+    </LinearLayout>
+</LinearLayout>

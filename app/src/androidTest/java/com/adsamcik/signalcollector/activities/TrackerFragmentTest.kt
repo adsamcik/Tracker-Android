@@ -11,10 +11,9 @@ import android.support.test.rule.ActivityTestRule
 import android.support.test.runner.AndroidJUnit4
 import android.view.View
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.handlePermissions
 import com.adsamcik.signalcollector.sleep
-import com.adsamcik.signalcollector.test.isTestMode
+import com.adsamcik.signals.base.test.isTestMode
 import org.hamcrest.Description
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
@@ -27,12 +26,13 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class TrackerFragmentTest {
 
-    @Rule @JvmField
+    @Rule
+    @JvmField
     val mActivityTestRule = ActivityTestRule(StandardUIActivity::class.java)
 
     @Test
     fun trackerFragmentTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
         sleep(3000)
 

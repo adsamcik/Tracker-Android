@@ -13,19 +13,20 @@ import android.view.ViewGroup
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
-import com.adsamcik.signalcollector.data.Stat
-import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
-import com.adsamcik.signalcollector.utility.Failure
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.network.NetworkLoader
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.stats.Stat
+import com.adsamcik.signals.stats.StatManager
+import com.adsamcik.signals.stats.UploadStats
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants.DAY_IN_MINUTES
+import com.adsamcik.signals.base.Failure
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.components.SnackMaker
+import com.adsamcik.signals.base.test.useMock
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
@@ -39,9 +40,9 @@ class FragmentStats : Fragment(), ITabFragment {
 
     private var refreshLayout: SwipeRefreshLayout? = null
 
-    private val CARD_LIST_MARGIN = 16
-
     private var refreshingCount = 0
+
+    private val CARD_LIST_MARGIN = 16
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
@@ -53,7 +54,7 @@ class FragmentStats : Fragment(), ITabFragment {
 
         Thread { DataStore.removeOldRecentUploads(activity) }.start()
 
-        Preferences.checkStatsDay(activity)
+        StatManager.checkStatsDay(activity)
 
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
@@ -89,7 +90,7 @@ class FragmentStats : Fragment(), ITabFragment {
 
         val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehavior.FirstFirst)
         weeklyStats.title = r.getString(R.string.stats_weekly_title)
-        val weekStats = Preferences.countStats(activity)
+        val weekStats = StatManager.countStats(activity)
         weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), weekStats.minutes.toString())
         weeklyStats.addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.uploaded, true))
         weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), weekStats.locations.toString())
@@ -103,14 +104,19 @@ class FragmentStats : Fragment(), ITabFragment {
 
         NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehavior.Any) })
 
-        if (!useMock && Signin.getUserID(appContext) != null) {
-            refreshingCount++
-            NetworkLoader.requestSigned(Network.URL_USER_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
-                if (value != null && value.size == 1 && value[0].name.isEmpty())
-                    value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
-                handleResponse(activity, state, value, AppendBehavior.First)
-            })
-        }
+        if (!useMock)
+            launch {
+                val user = Signin.getUserAsync(appContext)
+                if (user != null) {
+                    refreshingCount++
+                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
+                        if (value != null && value.size == 1 && value[0].name.isEmpty())
+                            value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
+                        handleResponse(activity, state, value, AppendBehavior.First)
+                    })
+                }
+
+            }
 
         if (refreshingCount > 0) {
             launch(UI) {
@@ -121,7 +127,7 @@ class FragmentStats : Fragment(), ITabFragment {
 
     private fun handleResponse(activity: Activity, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehavior appendBehavior: Int) {
         if (!state.success)
-            SnackMaker(activity).showSnackbar(state.toString(activity))
+            SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(state.toString(activity))
         refreshingCount--
         if (state.dataAvailable)
             launch(UI) {
@@ -168,6 +174,5 @@ class FragmentStats : Fragment(), ITabFragment {
             (fragmentView!!.findViewById<View>(R.id.stats_list_view) as ListView).smoothScrollToPosition(0)
         }
     }
-
 }
 

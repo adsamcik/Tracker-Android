@@ -12,18 +12,18 @@ import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.tracking.services.UploadJobService
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.useractivity.services.ActivityService
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants
+import com.adsamcik.signals.base.Preferences
+import com.adsamcik.signals.base.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 
 class StandardUIActivity : FragmentActivity() {
@@ -40,7 +40,7 @@ class StandardUIActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
-        val snackMaker = SnackMaker(this)
+        val snackMaker = SnackMaker(findViewById(R.id.fabCoordinator))
         Assist.initialize(this)
 
         if (Network.cloudStatus == CloudStatus.UNKNOWN) {
@@ -54,7 +54,7 @@ class StandardUIActivity : FragmentActivity() {
         Signin.signIn(this, null, true)
 
         if (Assist.checkPlayServices(this))
-            ActivityService.requestAutoTracking(this, StandardUIActivity::class.java)
+            ActivityService.requestActivity(this, StandardUIActivity::class.java, null)
         else
             snackMaker.showSnackbar(R.string.error_play_services_not_available)
 
@@ -137,7 +137,7 @@ class StandardUIActivity : FragmentActivity() {
             fragmentTransaction.commit()
 
             if (state.hasFailed())
-                SnackMaker(this).showSnackbar(state.value!!)
+                SnackMaker(findViewById(R.id.fabCoordinator)).showSnackbar(state.value!!)
         }
     }
 
@@ -159,6 +159,6 @@ class StandardUIActivity : FragmentActivity() {
     }
 
     companion object {
-        val TAG = "SignalsMainActivity"
+        const val TAG = "SignalsMainActivity"
     }
 }

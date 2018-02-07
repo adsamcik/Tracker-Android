@@ -24,14 +24,16 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signals.network.CloudStatus
+import com.adsamcik.signals.network.Network
+import com.adsamcik.signals.signin.Signin
+import com.adsamcik.signals.tracking.services.TrackerService
+import com.adsamcik.signals.tracking.services.UploadJobService
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.useractivity.ActivityInfo
+import com.adsamcik.signals.base.*
+import com.adsamcik.signals.base.components.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.experimental.android.UI
@@ -144,12 +146,12 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (requiredPermissions == null) {
             if (!TrackerService.isRunning) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
+                    SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
                         val gpsOptionsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(gpsOptionsIntent)
                     })
                 } else if (!Assist.canTrack(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
+                    SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.error_nothing_to_track)
                 } else {
                     Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply()
                     val trackerService = Intent(activity, TrackerService::class.java)
@@ -187,13 +189,13 @@ class FragmentTracker : Fragment(), ITabFragment {
                         val failure = UploadJobService.requestUpload(context!!, UploadJobService.UploadScheduleSource.USER)
                         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                         if (failure.hasFailed())
-                            SnackMaker(activity!!).showSnackbar(failure.value!!)
+                            SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(failure.value!!)
                         else {
                             updateUploadProgress(0)
                             updateUploadButton()
                         }
                     } else {
-                        SnackMaker(activity!!).showSnackbar(R.string.sign_in_required)
+                        SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(R.string.sign_in_required)
                     }
                 }
                 fabUp!!.show()
@@ -205,7 +207,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                     val failure = UploadJobService.requestUpload(context!!, UploadJobService.UploadScheduleSource.USER)
                     FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (failure.hasFailed())
-                        SnackMaker(activity!!).showSnackbar(failure.value!!)
+                        SnackMaker(activity!!.findViewById(R.id.fabCoordinator)).showSnackbar(failure.value!!)
                     else {
                         updateUploadButton()
                     }
@@ -320,7 +322,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fabTrack!!.setOnClickListener { _ ->
             if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = TrackerService.setAutoLock()
-                SnackMaker(activity).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+                SnackMaker(activity.findViewById(R.id.fabCoordinator)).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
             } else
                 toggleCollecting(activity, !TrackerService.isRunning)
         }

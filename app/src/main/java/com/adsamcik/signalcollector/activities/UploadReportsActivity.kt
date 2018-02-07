@@ -4,11 +4,11 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signals.stats.UploadStats
+import com.adsamcik.signals.tracking.storage.DataStore
+import com.adsamcik.signals.base.Assist
+import com.adsamcik.signals.base.Constants.MINUTE_IN_MILLISECONDS
+import com.adsamcik.signals.base.Preferences
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter

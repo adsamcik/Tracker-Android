@@ -1,21 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="color_primary">#00663b</color>
-    <color name="color_primary_dark">#004d2d</color>
-    <color name="color_accent">#008055</color>
-    <color name="text_accent">#CC28cc90</color>
     <color name="color_user_accuracy">#80365fb3</color>
     <color name="background_splash">#363636</color>
-    <color name="text_primary">#ffffff</color>
-    <color name="text_secondary">#B2FFFFFF</color>
-    <color name="text_primary_dark">#df000000</color>
-    <color name="text_secondary_dark">#8A000000</color>
-    <color name="text_disabled">#80FFFFFF</color>
-    <color name="error">#d32f2f</color>
-    <color name="card_background">#424242</color>
-    <color name="inactive_icon">#61FFFFFF</color>
-
-    <color name="background_success">#AA009966</color>
-    <color name="background_material">#303030</color>
-    <color name="text_color_primary">#000000</color>
 </resources>
