@@ -5,7 +5,7 @@ import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signals.network.Server
+import com.adsamcik.signalcollector.network.Server
 import com.crashlytics.android.Crashlytics
 import com.franmontiel.persistentcookiejar.PersistentCookieJar
 import com.franmontiel.persistentcookiejar.cache.SetCookieCache
