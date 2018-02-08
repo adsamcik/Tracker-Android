@@ -78,14 +78,15 @@ class DraggableImageButton : ImageButton {
     private fun moveToState(state: Boolean) {
         var target: Float
         if (this.dragAxis == DragAxis.X || this.dragAxis == DragAxis.XY) {
-            target = if (currentState) targetTranslation.x.toFloat() else initialTranslation.x
+            target = if (state) targetTranslation.x.toFloat() else initialTranslation.x
             animate(ValueAnimator.AnimatorUpdateListener { translationX = it.animatedValue as Float }, translationX, target)
         }
 
         if (this.dragAxis == DragAxis.Y || this.dragAxis == DragAxis.XY) {
-            target = if (currentState) targetTranslation.y.toFloat() else initialTranslation.y
+            target = if (state) targetTranslation.y.toFloat() else initialTranslation.y
             animate(ValueAnimator.AnimatorUpdateListener { translationY = it.animatedValue as Float }, translationY, target)
         }
+
         currentState = state
     }
 

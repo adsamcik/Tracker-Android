@@ -53,11 +53,11 @@ class NewUIActivity : AppCompatActivity() {
 
         val statsButton = findViewById<DraggableImageButton>(R.id.stats_button)
         statsButton.setDrag(DraggableImageButton.DragAxis.X)
-        statsButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopRight, 16)
+        statsButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopRight, -10)
 
         val activityButton = findViewById<DraggableImageButton>(R.id.activity_button)
         activityButton.setDrag(DraggableImageButton.DragAxis.X)
-        activityButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopLeft, 16)
+        activityButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopLeft, -10)
 
         val mapDraggable = findViewById<DraggableImageButton>(R.id.map_draggable)
         mapDraggable.setDrag(DraggableImageButton.DragAxis.Y)
