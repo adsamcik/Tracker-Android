@@ -26,9 +26,9 @@ class DraggableImageButton : ImageButton {
 
     private var initialPosition: Point = Point()
     private var initialTranslation: PointF = PointF()
-    private var targetPosition: Point = Point()
+    private var targetTranslation: Point = Point()
 
-    private var stateInitial = true
+    private var currentState = true
     private var touchInitialPosition: PointF = PointF()
 
 
@@ -47,12 +47,15 @@ class DraggableImageButton : ImageButton {
         this.anchor = anchor
         this.marginDp = marginDp
 
+        initialTranslation.x = translationX
+        initialTranslation.y = translationY
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
         val position = getLocationOnScreen(this)
         initialPosition.x = position[0]
         initialPosition.y = position[1]
-
-        initialTranslation.x = translationX
-        initialTranslation.y = translationY
     }
 
     private fun getLocationOnScreen(view: View): IntArray {
@@ -66,7 +69,7 @@ class DraggableImageButton : ImageButton {
 
         if (targetView != null && this.dragAxis != DragAxis.None) {
             Log.d(TAG, "Click")
-            moveToState(!stateInitial)
+            moveToState(!currentState)
         }
 
         return true
@@ -75,28 +78,28 @@ class DraggableImageButton : ImageButton {
     private fun moveToState(state: Boolean) {
         var target: Float
         if (this.dragAxis == DragAxis.X || this.dragAxis == DragAxis.XY) {
-            target = if (stateInitial) (targetPosition.x - initialPosition.x).toFloat() else initialTranslation.x
+            target = if (currentState) targetTranslation.x.toFloat() else initialTranslation.x
             animate(ValueAnimator.AnimatorUpdateListener { translationX = it.animatedValue as Float }, translationX, target)
         }
 
         if (this.dragAxis == DragAxis.Y || this.dragAxis == DragAxis.XY) {
-            target = if (stateInitial) (targetPosition.y - initialPosition.y).toFloat() else initialTranslation.y
+            target = if (currentState) targetTranslation.y.toFloat() else initialTranslation.y
             animate(ValueAnimator.AnimatorUpdateListener { translationY = it.animatedValue as Float }, translationY, target)
         }
-        stateInitial = state
+        currentState = state
     }
 
-    private fun calculateRelativePosition(target: View, targetAnchor: DragTargetAnchor): Point {
+    private fun calculateEdgeOffset(target: View, targetAnchor: DragTargetAnchor): Point {
         return when (targetAnchor) {
-            DragTargetAnchor.Top -> Point(target.width / 2, 0)
-            DragTargetAnchor.TopRight -> Point(target.width, 0)
-            DragTargetAnchor.Right -> Point(target.width, target.height / 2)
-            DragTargetAnchor.BottomRight -> Point(target.width, target.height)
-            DragTargetAnchor.Bottom -> Point(target.width / 2, target.height)
-            DragTargetAnchor.BottomLeft -> Point(0, target.height)
-            DragTargetAnchor.Left -> Point(0, target.height / 2)
+            DragTargetAnchor.Top -> Point(target.width / 2 - width / 2, 0)
+            DragTargetAnchor.TopRight -> Point(target.width - width, 0)
+            DragTargetAnchor.Right -> Point(target.width - width, target.height / 2 - height / 2)
+            DragTargetAnchor.BottomRight -> Point(target.width - width, target.height - height)
+            DragTargetAnchor.Bottom -> Point(target.width / 2 - height / 2, target.height - height)
+            DragTargetAnchor.BottomLeft -> Point(0, target.height - height)
+            DragTargetAnchor.Left -> Point(0, target.height / 2 - height / 2)
             DragTargetAnchor.TopLeft -> Point(0, 0)
-            DragTargetAnchor.Middle -> Point(target.width / 2, target.height / 2)
+            DragTargetAnchor.Middle -> Point(target.width / 2 - height / 2, target.height / 2 - height / 2)
         }
     }
 
@@ -124,16 +127,16 @@ class DraggableImageButton : ImageButton {
             number in firstConstraint..secondConstraint
     }
 
-    private fun calculateTargetPosition() {
+    private fun calculateTargetTranslation() {
         val thisOnScreen = getLocationOnScreen(this)
         val targetOnScreen = getLocationOnScreen(targetView!!)
-        val targetRelPos = calculateRelativePosition(targetView!!, anchor)
-        val targetX = targetOnScreen[0] - thisOnScreen[0] + targetRelPos.x
-        val targetY = targetOnScreen[1] - thisOnScreen[1] + targetRelPos.y
+        val targetRelPos = calculateEdgeOffset(targetView!!, anchor)
+        val targetX = ((targetOnScreen[0] - thisOnScreen[0]) + targetRelPos.x + translationX).toInt()
+        val targetY = ((targetOnScreen[1] - thisOnScreen[1]) + targetRelPos.y + translationY).toInt()
         val marginPx = Assist.dpToPx(context, marginDp)
 
-        targetPosition.x = targetX - targetX.sign * marginPx
-        targetPosition.y = targetY - targetY.sign * marginPx
+        targetTranslation.x = targetX - targetX.sign * marginPx
+        targetTranslation.y = targetY - targetY.sign * marginPx
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -144,7 +147,7 @@ class DraggableImageButton : ImageButton {
                 touchInitialPosition.x = event.rawX
                 touchInitialPosition.y = event.rawY
 
-                calculateTargetPosition()
+                calculateTargetTranslation()
             }
             MotionEvent.ACTION_UP -> {
                 val changeX = event.rawX - touchInitialPosition.x
@@ -157,20 +160,20 @@ class DraggableImageButton : ImageButton {
                 else if (targetView != null) {
                     var move = false
 
-                    calculateTargetPosition()
+                    calculateTargetTranslation()
 
                     if (dragAxis.isHorizontal() && dragAxis.isVertical()) {
 
                     } else if (dragAxis.isVertical()) {
-                        move = (Math.abs(changeY - initialPosition.y) < Math.abs(changeY - targetPosition.y)) xor stateInitial
+                        move = (Math.abs(changeY - initialPosition.y) > Math.abs(changeY - targetTranslation.y)) xor currentState
                     } else if (dragAxis.isHorizontal()) {
-                        move = (Math.abs(changeX - initialPosition.x) < Math.abs(changeX - targetPosition.x)) xor stateInitial
+                        move = (Math.abs(changeX - initialPosition.x) > Math.abs(changeX - targetTranslation.x)) xor currentState
                     }
 
                     if (move)
-                        moveToState(!stateInitial)
+                        moveToState(!currentState)
                     else
-                        moveToState(stateInitial)
+                        moveToState(currentState)
                 }
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -181,7 +184,7 @@ class DraggableImageButton : ImageButton {
                 if (this.dragAxis == DragAxis.X || this.dragAxis == DragAxis.XY) {
                     val desire = translationX + x
                     if (targetView != null) {
-                        if (between(targetPosition.x, initialPosition.x, desire))
+                        if (between(targetTranslation.x, initialPosition.x, desire))
                             translationX = desire
 
                     } else
@@ -191,7 +194,7 @@ class DraggableImageButton : ImageButton {
                 if (this.dragAxis == DragAxis.Y || this.dragAxis == DragAxis.XY) {
                     val desire = translationY + y
                     if (targetView != null) {
-                        if (between(targetPosition.y, initialPosition.y, desire))
+                        if (between(targetTranslation.y, initialPosition.y, desire))
                             translationY = desire
 
                     } else
