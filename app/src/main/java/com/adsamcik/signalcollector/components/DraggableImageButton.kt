@@ -4,23 +4,18 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Point
 import android.graphics.PointF
+import android.support.v7.widget.AppCompatImageButton
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
-import android.widget.ImageButton
 import com.adsamcik.signalcollector.utility.Assist
 import kotlin.math.sign
 
 
-class DraggableImageButton : ImageButton {
+class DraggableImageButton : AppCompatImageButton {
     val TAG = "DraggableImageButton"
-
-    constructor(context: Context?) : super(context)
-    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes)
 
     private val deadZone = Assist.dpToPx(context, 16)
 
@@ -37,6 +32,10 @@ class DraggableImageButton : ImageButton {
     private var targetView: View? = null
     private var anchor = DragTargetAnchor.TopLeft
     private var marginDp = 0
+
+    constructor(context: Context?) : super(context)
+    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
+    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
 
     fun setDrag(axis: DragAxis) {
         dragAxis = axis

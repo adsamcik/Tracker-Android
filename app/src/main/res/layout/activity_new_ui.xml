@@ -78,8 +78,7 @@
             android:background="@drawable/side_button"
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
-            android:translationX="-10dp"
-            android:visibility="gone">
+            android:translationX="-10dp">
         </com.adsamcik.signalcollector.components.DraggableImageButton>
 
         <com.adsamcik.signalcollector.components.DraggableImageButton
