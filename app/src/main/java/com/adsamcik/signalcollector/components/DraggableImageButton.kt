@@ -110,7 +110,14 @@ class DraggableImageButton : ImageButton {
         valueAnimator.start()
     }
 
-    private fun between(firstConstraint: Float, secondConstraint: Float, number: Float): Boolean {
+    private fun between(firstConstraint: Int, secondConstraint: Int, number: Int): Boolean {
+        return if (firstConstraint > secondConstraint)
+            number in secondConstraint..firstConstraint
+        else
+            number in firstConstraint..secondConstraint
+    }
+
+    private fun between(firstConstraint: Int, secondConstraint: Int, number: Float): Boolean {
         return if (firstConstraint > secondConstraint)
             number in secondConstraint..firstConstraint
         else
