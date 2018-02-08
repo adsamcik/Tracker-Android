@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.components
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Point
 import android.graphics.PointF
 import android.util.AttributeSet
 import android.util.Log
@@ -10,6 +11,7 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.ImageButton
 import com.adsamcik.signalcollector.utility.Assist
+import kotlin.math.sign
 
 
 class DraggableImageButton : ImageButton {
@@ -22,9 +24,9 @@ class DraggableImageButton : ImageButton {
 
     private val deadZone = Assist.dpToPx(context, 16)
 
-    private var initialPosition: PointF = PointF()
+    private var initialPosition: Point = Point()
     private var initialTranslation: PointF = PointF()
-    private var targetPosition: PointF = PointF()
+    private var targetPosition: Point = Point()
 
     private var stateInitial = true
     private var touchInitialPosition: PointF = PointF()
@@ -46,8 +48,8 @@ class DraggableImageButton : ImageButton {
         this.marginDp = marginDp
 
         val position = getLocationOnScreen(this)
-        initialPosition.x = position[0].toFloat()
-        initialPosition.y = position[1].toFloat()
+        initialPosition.x = position[0]
+        initialPosition.y = position[1]
 
         initialTranslation.x = translationX
         initialTranslation.y = translationY
@@ -73,28 +75,28 @@ class DraggableImageButton : ImageButton {
     private fun moveToState(state: Boolean) {
         var target: Float
         if (this.dragAxis == DragAxis.X || this.dragAxis == DragAxis.XY) {
-            target = if (stateInitial) targetPosition.x else initialTranslation.x
+            target = if (stateInitial) (targetPosition.x - initialPosition.x).toFloat() else initialTranslation.x
             animate(ValueAnimator.AnimatorUpdateListener { translationX = it.animatedValue as Float }, translationX, target)
         }
 
         if (this.dragAxis == DragAxis.Y || this.dragAxis == DragAxis.XY) {
-            target = if (stateInitial) targetPosition.y else initialTranslation.y
+            target = if (stateInitial) (targetPosition.y - initialPosition.y).toFloat() else initialTranslation.y
             animate(ValueAnimator.AnimatorUpdateListener { translationY = it.animatedValue as Float }, translationY, target)
         }
         stateInitial = state
     }
 
-    private fun calculateRelativePosition(target: View, targetAnchor: DragTargetAnchor): PointF {
+    private fun calculateRelativePosition(target: View, targetAnchor: DragTargetAnchor): Point {
         return when (targetAnchor) {
-            DragTargetAnchor.Top -> PointF(target.x + target.width / 2, 0f)
-            DragTargetAnchor.TopRight -> PointF(target.x + target.width, 0f)
-            DragTargetAnchor.Right -> PointF(target.x + target.width, target.y + target.height / 2)
-            DragTargetAnchor.BottomRight -> PointF(target.x + target.width, target.y + target.height)
-            DragTargetAnchor.Bottom -> PointF(target.x + target.width / 2, target.y + target.height)
-            DragTargetAnchor.BottomLeft -> PointF(0f, target.y + target.height)
-            DragTargetAnchor.Left -> PointF(0f, target.y + target.height / 2)
-            DragTargetAnchor.TopLeft -> PointF(0f, 0f)
-            DragTargetAnchor.Middle -> PointF(target.x + target.width / 2, target.y + target.height / 2)
+            DragTargetAnchor.Top -> Point(target.width / 2, 0)
+            DragTargetAnchor.TopRight -> Point(target.width, 0)
+            DragTargetAnchor.Right -> Point(target.width, target.height / 2)
+            DragTargetAnchor.BottomRight -> Point(target.width, target.height)
+            DragTargetAnchor.Bottom -> Point(target.width / 2, target.height)
+            DragTargetAnchor.BottomLeft -> Point(0, target.height)
+            DragTargetAnchor.Left -> Point(0, target.height / 2)
+            DragTargetAnchor.TopLeft -> Point(0, 0)
+            DragTargetAnchor.Middle -> Point(target.width / 2, target.height / 2)
         }
     }
 
@@ -119,10 +121,12 @@ class DraggableImageButton : ImageButton {
         val thisOnScreen = getLocationOnScreen(this)
         val targetOnScreen = getLocationOnScreen(targetView!!)
         val targetRelPos = calculateRelativePosition(targetView!!, anchor)
+        val targetX = targetOnScreen[0] - thisOnScreen[0] + targetRelPos.x
+        val targetY = targetOnScreen[1] - thisOnScreen[1] + targetRelPos.y
         val marginPx = Assist.dpToPx(context, marginDp)
 
-        targetPosition.x = translationX + (targetOnScreen[0] - thisOnScreen[0] + marginPx).toFloat() - targetRelPos.x
-        targetPosition.y = translationY + (targetOnScreen[1] - thisOnScreen[1] + marginPx).toFloat() - targetRelPos.y
+        targetPosition.x = targetX - targetX.sign * marginPx
+        targetPosition.y = targetY - targetY.sign * marginPx
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
