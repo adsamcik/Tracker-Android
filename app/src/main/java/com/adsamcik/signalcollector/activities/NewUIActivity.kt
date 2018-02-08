@@ -1,11 +1,16 @@
 package com.adsamcik.signalcollector.activities
 
-import android.animation.ValueAnimator
 import android.graphics.Color
 import android.os.Bundle
 import android.support.design.widget.CoordinatorLayout
 import android.support.v7.app.AppCompatActivity
+import android.util.Log
+import android.view.MotionEvent
+import android.view.View
+import android.widget.Button
+import android.widget.ImageButton
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.components.DraggableImageButton
 import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.uitools.ColorManager
 
@@ -21,7 +26,7 @@ class NewUIActivity : AppCompatActivity() {
         colorManager = ColorManager(root, this)
         val colorManager = colorManager!!
 
-        colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        //colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
         //colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
 
         val wifiComponent = findViewById<InfoComponent>(R.id.tracker_wifi_component)
@@ -46,13 +51,24 @@ class NewUIActivity : AppCompatActivity() {
         demoComponent.addPrimaryText("LTE -89 dbm, 51 asu")
         demoComponent.addPrimaryText("In range of 12 base stations")
 
+        val statsButton = findViewById<DraggableImageButton>(R.id.stats_button)
+        statsButton.setDrag(DraggableImageButton.DragAxis.X)
+        statsButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopRight, 16)
 
-        colorManager.watchElement(wifiComponent)
+        val activityButton = findViewById<DraggableImageButton>(R.id.activity_button)
+        activityButton.setDrag(DraggableImageButton.DragAxis.X)
+        activityButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopLeft, 16)
+
+        val mapDraggable = findViewById<DraggableImageButton>(R.id.map_draggable)
+        mapDraggable.setDrag(DraggableImageButton.DragAxis.Y)
+        mapDraggable.setTarget(root, DraggableImageButton.DragTargetAnchor.Top, 64)
+
+        /*colorManager.watchElement(wifiComponent)
         colorManager.watchElement(cellComponent)
         colorManager.watchElement(demo2Component)
         colorManager.watchElement(demoComponent)
         colorManager.watchElement(findViewById(R.id.top_panel_layout))
-        colorManager.watchElement(findViewById(R.id.top_info_bar))
+        colorManager.watchElement(findViewById(R.id.top_info_bar))*/
     }
 
 

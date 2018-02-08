@@ -10,6 +10,21 @@
     android:clipChildren="false"
     tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
 
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#ffffff"
+        android:translationX="-420dp"
+        android:translationZ="200dp"
+        >
+
+        <Button
+            android:id="@+id/test_button"
+            android:layout_width="100dp"
+            android:layout_height="80dp"
+            android:layout_gravity="center"/>
+    </FrameLayout>
+
 
     <android.support.constraint.ConstraintLayout
         android:id="@+id/top_panel_layout"
@@ -55,7 +70,8 @@
         app:layout_anchor="@+id/include"
         app:layout_anchorGravity="bottom">
 
-        <ImageButton
+        <com.adsamcik.signalcollector.components.DraggableImageButton
+            android:id="@+id/stats_button"
             android:layout_width="72dp"
             android:layout_height="80dp"
             android:layout_gravity="start"
@@ -63,9 +79,10 @@
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
             android:translationX="-10dp">
-        </ImageButton>
+        </com.adsamcik.signalcollector.components.DraggableImageButton>
 
-        <ImageButton
+        <com.adsamcik.signalcollector.components.DraggableImageButton
+            android:id="@+id/activity_button"
             android:layout_width="72dp"
             android:layout_height="80dp"
             android:layout_gravity="end"
@@ -76,12 +93,13 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintTop_toTopOf="parent">
-        </ImageButton>
+        </com.adsamcik.signalcollector.components.DraggableImageButton>
 
 
     </android.support.constraint.ConstraintLayout>
 
-    <ImageButton
+    <com.adsamcik.signalcollector.components.DraggableImageButton
+        android:id="@+id/map_draggable"
         android:layout_width="220dp"
         android:layout_height="12dp"
         android:layout_marginBottom="80dp"
