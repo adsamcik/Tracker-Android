@@ -6,7 +6,6 @@ import android.graphics.Point
 import android.graphics.PointF
 import android.support.v7.widget.AppCompatImageButton
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -110,13 +109,6 @@ class DraggableImageButton : AppCompatImageButton {
         valueAnimator.interpolator = LinearInterpolator()
         valueAnimator.duration = 200
         valueAnimator.start()
-    }
-
-    private fun between(firstConstraint: Int, secondConstraint: Int, number: Int): Boolean {
-        return if (firstConstraint > secondConstraint)
-            number in secondConstraint..firstConstraint
-        else
-            number in firstConstraint..secondConstraint
     }
 
     private fun between(firstConstraint: Int, secondConstraint: Int, number: Float): Boolean {
