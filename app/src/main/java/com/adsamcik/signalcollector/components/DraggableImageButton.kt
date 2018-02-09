@@ -67,7 +67,6 @@ class DraggableImageButton : AppCompatImageButton {
         super.performClick()
 
         if (targetView != null && this.dragAxis != DragAxis.None) {
-            Log.d(TAG, "Click")
             moveToState(!currentState)
         }
 
