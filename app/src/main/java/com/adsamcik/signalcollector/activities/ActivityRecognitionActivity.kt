@@ -62,7 +62,7 @@ class ActivityRecognitionActivity : DetailActivity() {
         async {
             //I think this is here to load data asynchronously
             val items = Parser.parseTSVFromFile(activity, FILE) ?: ArrayList()
-            adapter = StringFilterableAdapter(activity, R.layout.spinner_item, {item ->
+            adapter = StringFilterableAdapter(activity, R.layout.spinner_item, { item ->
                 item.joinToString(delim)
             })
         }

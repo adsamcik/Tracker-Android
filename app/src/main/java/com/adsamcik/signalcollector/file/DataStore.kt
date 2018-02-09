@@ -32,10 +32,13 @@ object DataStore {
     private var onDataChanged: (() -> Unit)? = null
     private var onUploadProgress: ((Int) -> Unit)? = null
 
-    @Volatile private var approxSize: Long = -1
-    @Volatile private var collectionsOnDevice = -1
+    @Volatile
+    private var approxSize: Long = -1
+    @Volatile
+    private var collectionsOnDevice = -1
 
-    @Volatile private var dataLocked = false
+    @Volatile
+    private var dataLocked = false
 
     var currentDataFile: DataFile? = null
         private set
@@ -115,7 +118,7 @@ object DataStore {
      */
     fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
         val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
-        return if(list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
+        return if (list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
             list.dropLast(1).toTypedArray()
         else
             list
@@ -322,7 +325,8 @@ object DataStore {
         return currentDataFile
     }
 
-    @Synchronized private fun updateCurrentData(context: Context, @DataFile.FileType type: Long, userID: String?) {
+    @Synchronized
+    private fun updateCurrentData(context: Context, @DataFile.FileType type: Long, userID: String?) {
         val dataFile: String
         val preference: String
 
@@ -365,7 +369,8 @@ object DataStore {
         return saveData(context, currentDataFile, rawData)
     }
 
-    @Synchronized private fun writeTempData(context: Context) {
+    @Synchronized
+    private fun writeTempData(context: Context) {
         val userId = Signin.getUserID(context)
         if (currentDataFile!!.type != DataFile.STANDARD || userId == null)
             return
@@ -418,7 +423,8 @@ object DataStore {
         }
     }
 
-    @Synchronized private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
+    @Synchronized
+    private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
         val prevSize = file!!.size()
 
         if (file.type == DataFile.STANDARD)

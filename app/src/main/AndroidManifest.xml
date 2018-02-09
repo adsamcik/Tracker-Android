@@ -69,8 +69,8 @@
 
         <activity
             android:name=".activities.NewUIActivity"
-            android:label="@string/title_activity_new_ui"
             android:exported="true"
+            android:label="@string/title_activity_new_ui"
             android:theme="@style/AppThemeTransluscent"/>
 
         <activity

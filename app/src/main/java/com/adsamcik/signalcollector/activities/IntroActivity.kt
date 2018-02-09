@@ -84,7 +84,7 @@ class IntroActivity : AppIntro2() {
         }
 
 
-        val uploadSetCallback = { value : Int ->
+        val uploadSetCallback = { value: Int ->
             Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply()
             nextSlide(1)
         }

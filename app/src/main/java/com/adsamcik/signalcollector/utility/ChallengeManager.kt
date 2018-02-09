@@ -25,7 +25,7 @@ object ChallengeManager {
                     challenge.generateTexts(context)
                 cont.resume(Pair(str.first, challengeArray))
             } else {
-               cont.resume(Pair(str.first, null))
+                cont.resume(Pair(str.first, null))
             }
         }
     }

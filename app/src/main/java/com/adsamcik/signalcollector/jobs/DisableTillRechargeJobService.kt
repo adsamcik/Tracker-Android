@@ -28,11 +28,11 @@ class DisableTillRechargeJobService : JobService() {
             Preferences.getPref(context).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, value).apply()
         }
 
-        fun stopTillRecharge(context: Context) : Boolean {
+        fun stopTillRecharge(context: Context): Boolean {
             val scheduler = scheduler(context)
             val jobBuilder = JobInfo.Builder(JOB_DISABLE_TILL_RECHARGE_ID, ComponentName(context, DisableTillRechargeJobService::class.java))
             jobBuilder.setPersisted(true).setRequiresCharging(true).setRequiresDeviceIdle(false)
-            if(scheduler.schedule(jobBuilder.build()) == RESULT_SUCCESS) {
+            if (scheduler.schedule(jobBuilder.build()) == RESULT_SUCCESS) {
                 updatePreference(context, true)
                 if (TrackerService.isRunning)
                     context.stopService(Intent(context, TrackerService::class.java))

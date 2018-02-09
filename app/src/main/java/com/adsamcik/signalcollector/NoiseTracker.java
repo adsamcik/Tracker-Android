@@ -16,11 +16,10 @@ import com.adsamcik.signalcollector.utility.EArray;
 import com.crashlytics.android.Crashlytics;
 
 public class NoiseTracker implements SensorEventListener {
-	private final String TAG = "SignalsNoise";
 	private static final int SAMPLING = 22050;
 	// AudioRecord.getMinBufferSize(SAMPLING, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
 	private static final int bufferSize = SAMPLING * 2;
-
+	private final String TAG = "SignalsNoise";
 	private final short MAX_HISTORY_SIZE = 20;
 	private final short[] values = new short[MAX_HISTORY_SIZE];
 	private final boolean[] valuesPocket = new boolean[MAX_HISTORY_SIZE];
@@ -124,9 +123,9 @@ public class NoiseTracker implements SensorEventListener {
 		private final int SKIP_SAMPLES = SAMPLING / PROCESS_SAMPLES_EVERY_SECOND;
 
 		private final AudioRecord audioRecorder;
+		private final NoiseTracker noiseTracker;
 		private short lastAvg = -1;
 		private short currentIndex = -1;
-		private final NoiseTracker noiseTracker;
 
 		private NoiseCheckTask(NoiseTracker noiseTracker) {
 			audioRecorder = new AudioRecord(MediaRecorder.AudioSource.CAMCORDER, SAMPLING, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);

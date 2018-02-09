@@ -103,7 +103,7 @@ class AppTest {
     @Test
     @Throws(Exception::class)
     fun uploadFABTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
 
         Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
@@ -183,7 +183,7 @@ class AppTest {
          * and is matched by the given view matcher.
          */
         fun matches(viewMatcher: Matcher<View>): ViewAssertion {
-            return ViewAssertion{ view: View?, noViewException: NoMatchingViewException? ->
+            return ViewAssertion { view: View?, noViewException: NoMatchingViewException? ->
                 val description = StringDescription()
                 description.appendText("'")
                 viewMatcher.describeTo(description)

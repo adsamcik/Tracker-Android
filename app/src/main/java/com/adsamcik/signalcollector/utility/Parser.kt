@@ -41,7 +41,7 @@ object Parser {
 
                     isr.buffered().useLines { line ->
                         val parsedLine = parseLine(line.toString())
-                        if(parsedLine != null)
+                        if (parsedLine != null)
                             items.add(parsedLine)
                     }
                     return items

@@ -20,7 +20,8 @@ class BottomSheetMenu(root: CoordinatorLayout) {
     private val menuItems: ArrayList<Button>
     private val bottomSheetBehavior: BottomSheetBehavior<*>
 
-    @ColorInt private val textColor: Int
+    @ColorInt
+    private val textColor: Int
 
     init {
         val context = root.context

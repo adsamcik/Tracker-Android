@@ -27,12 +27,13 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class TrackerFragmentTest {
 
-    @Rule @JvmField
+    @Rule
+    @JvmField
     val mActivityTestRule = ActivityTestRule(StandardUIActivity::class.java)
 
     @Test
     fun trackerFragmentTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
         sleep(3000)
 

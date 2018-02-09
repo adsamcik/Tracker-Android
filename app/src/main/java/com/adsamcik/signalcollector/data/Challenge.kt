@@ -25,7 +25,8 @@ class Challenge {
     /**
      * Difficulty of the challenge
      */
-    @ChallengeDifficulty private var difficulty: Int = 0
+    @ChallengeDifficulty
+    private var difficulty: Int = 0
 
     var title: String? = null
         private set

@@ -1,10 +1,12 @@
 package com.adsamcik.signalcollector.data
+
 import com.vimeo.stag.UseStag
 import java.util.*
 
 @UseStag
 data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right: Double = MAX_LONGITUDE, var bottom: Double = MIN_LATITUDE, var left: Double = MIN_LONGITUDE) {
     var values: ArrayList<ValueColor>? = null
+
     inner class ValueColor(val name: String, val color: Int)
 
     constructor() : this("")

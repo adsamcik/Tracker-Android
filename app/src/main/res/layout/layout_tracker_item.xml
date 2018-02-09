@@ -41,7 +41,7 @@
         android:layout_height="2dp"
         android:layout_marginBottom="8dp"
         android:layout_marginTop="8dp"
-        android:backgroundTint="@null"
-        android:alpha="1"/>
+        android:alpha="1"
+        android:backgroundTint="@null"/>
 
 </LinearLayout>

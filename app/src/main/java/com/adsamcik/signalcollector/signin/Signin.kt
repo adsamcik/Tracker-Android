@@ -78,7 +78,8 @@ class Signin {
         callOnSigninCallbacks()
     }
 
-    @Synchronized private fun callOnSigninCallbacks() {
+    @Synchronized
+    private fun callOnSigninCallbacks() {
         for (c in onSignedCallbackList)
             c.invoke(user)
         onSignedCallbackList.clear()

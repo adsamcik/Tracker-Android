@@ -36,7 +36,7 @@ class MapFragmentTest {
 
     @Test
     fun mapFragmentTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
         sleep(3000)
 

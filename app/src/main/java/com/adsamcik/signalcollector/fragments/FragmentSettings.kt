@@ -302,7 +302,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
                 rootView.findViewById(R.id.switch_activity_watcher),
                 Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
-                 { _ -> ActivityWakerService.poke(activity) })
+                { _ -> ActivityWakerService.poke(activity) })
 
         val activityFrequencySlider = rootView.findViewById<IntValueSlider>(R.id.settings_seekbar_watcher_frequency)
         //todo update to not set useless values because of setItems below

@@ -25,7 +25,8 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
          * 2 vehicle
          * 3 tilting
          */
-        @ResolvedActivity private fun resolveActivity(activity: Int): Int = when (activity) {
+        @ResolvedActivity
+        private fun resolveActivity(activity: Int): Int = when (activity) {
             DetectedActivity.STILL -> ResolvedActivity.STILL
             DetectedActivity.RUNNING -> ResolvedActivity.ON_FOOT
             DetectedActivity.ON_FOOT -> ResolvedActivity.ON_FOOT

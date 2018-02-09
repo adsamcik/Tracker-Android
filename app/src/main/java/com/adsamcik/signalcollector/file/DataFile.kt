@@ -87,7 +87,8 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
         }
     }
 
-    @Synchronized private fun updateCollectionCount(collectionCount: Int) {
+    @Synchronized
+    private fun updateCollectionCount(collectionCount: Int) {
         this.collectionCount += collectionCount
         val newFile: File = if (fileNameTemplate != null)
             File(file.parentFile, fileNameTemplate + SEPARATOR + this.collectionCount)
@@ -148,7 +149,8 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             false
     }
 
-    @Synchronized private fun saveData(jsonArray: String): Boolean {
+    @Synchronized
+    private fun saveData(jsonArray: String): Boolean {
         return try {
             val status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty)
             if (status)

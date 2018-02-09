@@ -20,39 +20,39 @@ class CellData
  * @param asu          [CellData.asu]
  * @param level        [CellData.level]
  */(var operatorName: String,
-        /**
-         * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
-         */
+    /**
+     * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
+     */
     var type: Int,
-        /**
-         * Cell id
-         * GSM - cid
-         * CDMA - baseStationId
-         * WCDMA - cid
-         * LTE - ci
-         */
+    /**
+     * Cell id
+     * GSM - cid
+     * CDMA - baseStationId
+     * WCDMA - cid
+     * LTE - ci
+     */
     var id: Int,
-        /**
-         * Mobile country code
-         * Replaced with System ID on CDMA
-         */
+    /**
+     * Mobile country code
+     * Replaced with System ID on CDMA
+     */
     var mcc: Int,
-        /**
-         * Mobile network code
-         * Replaced with Network ID on CDMA
-         */
+    /**
+     * Mobile network code
+     * Replaced with Network ID on CDMA
+     */
     var mnc: Int,
-        /**
-         * Strength of signal in decibels
-         */
+    /**
+     * Strength of signal in decibels
+     */
     var dbm: Int,
-        /**
-         * Strength of signal in asu
-         */
+    /**
+     * Strength of signal in asu
+     */
     var asu: Int,
-        /**
-         * Signal strength as int 0...4 calculated by device
-         */
+    /**
+     * Signal strength as int 0...4 calculated by device
+     */
     var level: Int) : Serializable {
 
     /**
@@ -88,7 +88,7 @@ class CellData
                 return null
 
             return subscriptionInfoList
-                        .firstOrNull { it.mcc == mcc && it.mnc == mnc }?.carrierName?.toString()
+                    .firstOrNull { it.mcc == mcc && it.mnc == mnc }?.carrierName?.toString()
         }
 
         @RequiresApi(22)
