@@ -149,7 +149,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         if (fActivity == null)
             fActivity = activity
-        if (Assist.checkPlayServices(fActivity!!) && container != null && hasPermissions)
+
+        val activity = fActivity!!
+
+        if (Assist.checkPlayServices(activity) && container != null && hasPermissions)
             fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
         else {
             fragmentView = inflater.inflate(R.layout.layout_error, container, false)
@@ -160,13 +163,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         mapLayerFilterRule = MapFilterRule()
 
         launch {
-            val user = Signin.getUserAsync(fActivity!!)
+            val user = Signin.getUserAsync(activity)
             if (fabTwo != null && user != null) {
                 user.addServerDataCallback {
                     val networkInfo = it.networkInfo!!
                     if (fabTwo != null && (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess())) {
-                        val adapter = MapFilterableAdapter(fActivity!!, R.layout.spinner_item, { it.name })
-                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, fActivity!!, adapter, mapLayerFilterRule)
+                        val adapter = MapFilterableAdapter(activity, R.layout.spinner_item, { it.name })
+                        menu = FabMenu(container.parent as ViewGroup, fabTwo!!, activity, adapter, mapLayerFilterRule)
                         menu!!.setCallback({ _, layer -> launch(UI) { changeMapOverlay(layer.name) } })
 
                         if (networkInfo.hasPersonalMapAccess())
@@ -174,13 +177,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
                         if (networkInfo.hasMapAccess()) {
                             launch {
-                                val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, DAY_IN_MINUTES, fActivity!!, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
+                                val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
                                 if (mapListRequest.first.dataAvailable && fabTwo != null) {
                                     val layerArray = if (useMock) MapLayer.mockArray() else mapListRequest.second!!
-                                    var savedOverlay = Preferences.getPref(fActivity!!).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                    var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
                                     if (!MapLayer.contains(layerArray, savedOverlay)) {
                                         savedOverlay = layerArray[0].name
-                                        Preferences.getPref(fActivity!!).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
+                                        Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
                                     }
 
                                     val defaultOverlay = savedOverlay

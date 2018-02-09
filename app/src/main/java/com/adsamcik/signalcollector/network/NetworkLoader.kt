@@ -4,14 +4,12 @@ import android.content.Context
 import android.util.Pair
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import kotlinx.coroutines.experimental.launch
 import okhttp3.*
 import java.io.IOException
 import kotlin.coroutines.experimental.suspendCoroutine
@@ -47,17 +45,15 @@ object NetworkLoader {
      * @param callback            Callback which is called when the result is ready
      * @param <T>                 Value type
     </T> */
-    fun <T> requestSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
-        Signin.getUserAsync(context, { user ->
-            if (user != null)
-                requestString(Network.client(context, user.token),
-                        Request.Builder().url(url).build(),
-                        updateTimeInMinutes,
-                        context,
-                        preferenceString, { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) })
-            else
-                callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
-        })
+    fun <T> requestSigned(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
+        if (userToken != null)
+            requestString(Network.client(context, userToken),
+                    Request.Builder().url(url).build(),
+                    updateTimeInMinutes,
+                    context,
+                    preferenceString, { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) })
+        else
+            callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
     }
 
     /**
@@ -70,21 +66,18 @@ object NetworkLoader {
      * @param tClass              Class of the type
      * @param <T>                 Value type
     </T> */
-    suspend fun <T> requestSignedAsync(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
-        launch {
-            val user = Signin.getUserAsync(context)
-            if (user != null) {
-                if (useMock)
-                    cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.NETWORK else Source.NO_DATA, null))
-                else
-                    requestString(Network.client(context, user.token),
-                            Request.Builder().url(url).build(),
-                            updateTimeInMinutes,
-                            context,
-                            preferenceString, { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) })
-            } else
-                cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
-        }
+    suspend fun <T> requestSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
+        if (userToken != null) {
+            if (useMock)
+                cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.NETWORK else Source.NO_DATA, null))
+            else
+                requestString(Network.client(context, userToken),
+                        Request.Builder().url(url).build(),
+                        updateTimeInMinutes,
+                        context,
+                        preferenceString, { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) })
+        } else
+            cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
     }
 
     /**
@@ -95,16 +88,13 @@ object NetworkLoader {
      * @param context             Context
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      */
-    suspend fun requestStringSignedAsync(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String): Pair<Source, String?> = suspendCoroutine { cont ->
-        launch {
-            val user = Signin.getUserAsync(context)
-            if (user != null)
-                requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, { source, string ->
-                    cont.resume(Pair(source, string))
-                })
-            else
-                cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
-        }
+    suspend fun requestStringSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String): Pair<Source, String?> = suspendCoroutine { cont ->
+        if (userToken != null)
+            requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, { source, string ->
+                cont.resume(Pair(source, string))
+            })
+        else
+            cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
     }
 
     /**
@@ -116,13 +106,11 @@ object NetworkLoader {
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      * @param callback            Callback which is called when the result is ready
      */
-    fun requestStringSigned(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
-        Signin.getUserAsync(context, { user ->
-            if (user != null)
-                requestString(Network.client(context, user.token), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
-            else
-                callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
-        })
+    fun requestStringSigned(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
+        if (userToken != null)
+            requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
+        else
+            callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
     }
 
     private fun callbackNoData(context: Context, preferenceString: String, callback: (Source, String?) -> Unit, lastUpdate: Long, returnCode: Int) {
@@ -188,6 +176,7 @@ object NetworkLoader {
         } else
             callback.invoke(Source.CACHE, CacheStore.loadString(context, preferenceString))
     }
+
 
     enum class Source {
         CACHE,

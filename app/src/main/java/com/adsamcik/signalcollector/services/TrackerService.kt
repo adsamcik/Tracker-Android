@@ -34,7 +34,9 @@ import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Constants.*
+import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
+import com.adsamcik.signalcollector.utility.Constants.NOISE_ENABLED
+import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
@@ -46,10 +48,6 @@ import java.text.DecimalFormat
 import java.util.*
 
 class TrackerService : Service() {
-    private val MIN_DISTANCE_M = 5f
-
-    private val MAX_NOISE_TRACKING_SPEED_KM = 18f
-    private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
     private val data = ArrayList<RawData>()
 
     private var wifiScanTime: Long = 0
@@ -294,7 +292,6 @@ class TrackerService : Service() {
             }
         }
 
-        val UPDATE_TIME_MILLISEC = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC.toLong(), MIN_DISTANCE_M, locationListener)
         else {
@@ -399,7 +396,14 @@ class TrackerService : Service() {
         private const val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
         private const val NOTIFICATION_ID_SERVICE = 7643
 
-        val UPDATE_TIME_SEC = 2
+        private const val MIN_DISTANCE_M = 5f
+        private const val MAX_NOISE_TRACKING_SPEED_KM = 18f
+
+        const val UPDATE_TIME_SEC = 2
+        private const val UPDATE_TIME_MILLISEC = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
+
+        private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
+
 
         var onServiceStateChange: (() -> Unit)? = null
         var onNewDataFound: (() -> Unit)? = null
