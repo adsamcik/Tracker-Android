@@ -1,14 +1,8 @@
 package com.adsamcik.signalcollector.activities
 
-import android.graphics.Color
 import android.os.Bundle
 import android.support.design.widget.CoordinatorLayout
 import android.support.v7.app.AppCompatActivity
-import android.util.Log
-import android.view.MotionEvent
-import android.view.View
-import android.widget.Button
-import android.widget.ImageButton
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.DraggableImageButton
 import com.adsamcik.signalcollector.components.InfoComponent
