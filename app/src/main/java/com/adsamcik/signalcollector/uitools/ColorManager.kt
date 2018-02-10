@@ -28,7 +28,7 @@ class ColorManager(private val bgElement: View, val context: Context) {
         animation?.end()
 
         val anim = ValueAnimator.ofArgb(*colorList.toIntArray())
-        anim.duration = 5000
+        anim.duration = 30000
         anim.repeatMode = ValueAnimator.REVERSE
         anim.repeatCount = ValueAnimator.INFINITE
         anim.addUpdateListener { updateBackground(it.animatedValue as Int) }

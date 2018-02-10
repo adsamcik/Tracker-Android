@@ -37,7 +37,6 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.launch
 import java.io.IOException
 
 class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
@@ -114,9 +113,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         val activity = fActivity!!
 
         if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
-            launch {
-                fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
-            }
+            fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
         } else {
             fragmentView = inflater.inflate(R.layout.layout_error, container, false)
             (fragmentView!!.findViewById<View>(R.id.activity_error_text) as TextView).setText(if (hasPermissions) R.string.error_play_services_not_available else R.string.error_missing_permission)

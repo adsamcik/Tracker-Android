@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.uitools.ColorManager
 import kotlinx.android.synthetic.main.activity_new_ui.*
+import java.util.*
 
 
 class NewUIActivity : FragmentActivity() {
@@ -27,8 +28,8 @@ class NewUIActivity : FragmentActivity() {
         colorManager = ColorManager(root as View, this)
         val colorManager = colorManager!!
 
-        //colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
-        //colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
 
         trackerWifiComponent.addSecondaryText("found 6 meters before collection")
         trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
@@ -71,17 +72,16 @@ class NewUIActivity : FragmentActivity() {
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
-        
         mapDraggable.addPayload(mapPayload)
 
         //findViewById<ViewStub>(R.id.stub_import).inflate()
 
-        /*colorManager.watchElement(wifiComponent)
-        colorManager.watchElement(cellComponent)
-        colorManager.watchElement(demo2Component)
-        colorManager.watchElement(demoComponent)
-        colorManager.watchElement(findViewById(R.id.top_panel_layout))
-        colorManager.watchElement(findViewById(R.id.top_info_bar))*/
+        colorManager.watchElement(trackerWifiComponent)
+        colorManager.watchElement(trackerCellComponent)
+        colorManager.watchElement(trackerDemo2Component)
+        colorManager.watchElement(trackerDemoComponent)
+        colorManager.watchElement(topPanelLayout)
+        colorManager.watchElement(topInfoBar)
     }
 
 

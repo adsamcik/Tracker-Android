@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.design.widget.CoordinatorLayout
+<android.support.constraint.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -46,13 +46,12 @@
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="128dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:orientation="horizontal"
-        android:paddingBottom="128dp"
         android:translationZ="6dp"
-        app:layout_anchor="@+id/include"
-        app:layout_anchorGravity="bottom">
+        app:layout_constraintBottom_toBottomOf="parent">
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/statsButton"
@@ -62,7 +61,7 @@
             android:background="@drawable/side_button"
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
-            android:translationX="-10dp" />
+            android:translationX="-10dp"/>
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/activityButton"
@@ -75,7 +74,7 @@
             android:translationX="10dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent"/>
 
     </android.support.constraint.ConstraintLayout>
 
@@ -86,12 +85,17 @@
         android:layout_marginBottom="80dp"
         android:background="@drawable/map_draggable"
         android:translationZ="12dp"
-        app:layout_anchor="@id/include"
-        app:layout_anchorGravity="center | bottom"/>
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        />
+
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical"
         android:paddingLeft="@dimen/edge_margin"
         android:paddingRight="@dimen/edge_margin">
@@ -230,4 +234,4 @@
         </ScrollView>
     </LinearLayout>
 
-</android.support.design.widget.CoordinatorLayout>
+</android.support.constraint.ConstraintLayout>
