@@ -18,8 +18,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 27
-        versionCode 228
-        versionName "5.0.α3 Kobold the candle keeper"
+        versionCode 229
+        versionName "6.0.α1 Naaru the colorful"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         kapt {
             arguments {
