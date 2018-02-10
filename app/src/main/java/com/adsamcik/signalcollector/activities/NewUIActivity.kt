@@ -3,8 +3,10 @@ package com.adsamcik.signalcollector.activities
 import android.os.Bundle
 import android.support.design.widget.CoordinatorLayout
 import android.support.v7.app.AppCompatActivity
+import com.adsamcik.draggable.DragAxis
+import com.adsamcik.draggable.DragTargetAnchor
+import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.components.DraggableImageButton
 import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.uitools.ColorManager
 
@@ -46,16 +48,18 @@ class NewUIActivity : AppCompatActivity() {
         demoComponent.addPrimaryText("In range of 12 base stations")
 
         val statsButton = findViewById<DraggableImageButton>(R.id.stats_button)
-        statsButton.setDrag(DraggableImageButton.DragAxis.X)
-        statsButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopRight, -10)
+        statsButton.setDrag(DragAxis.X)
+        statsButton.setTarget(root, DragTargetAnchor.TopRight, -10)
 
         val activityButton = findViewById<DraggableImageButton>(R.id.activity_button)
-        activityButton.setDrag(DraggableImageButton.DragAxis.X)
-        activityButton.setTarget(root, DraggableImageButton.DragTargetAnchor.TopLeft, -10)
+        activityButton.setDrag(DragAxis.X)
+        activityButton.setTarget(root, DragTargetAnchor.TopLeft, -10)
 
         val mapDraggable = findViewById<DraggableImageButton>(R.id.map_draggable)
-        mapDraggable.setDrag(DraggableImageButton.DragAxis.Y)
-        mapDraggable.setTarget(root, DraggableImageButton.DragTargetAnchor.Top, 64)
+        mapDraggable.setDrag(DragAxis.Y)
+        mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
+
+        //findViewById<ViewStub>(R.id.stub_import).inflate()
 
         /*colorManager.watchElement(wifiComponent)
         colorManager.watchElement(cellComponent)

@@ -70,7 +70,7 @@
         app:layout_anchor="@+id/include"
         app:layout_anchorGravity="bottom">
 
-        <com.adsamcik.signalcollector.components.DraggableImageButton
+        <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/stats_button"
             android:layout_width="72dp"
             android:layout_height="80dp"
@@ -78,10 +78,9 @@
             android:background="@drawable/side_button"
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
-            android:translationX="-10dp">
-        </com.adsamcik.signalcollector.components.DraggableImageButton>
+            android:translationX="-10dp" />
 
-        <com.adsamcik.signalcollector.components.DraggableImageButton
+        <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/activity_button"
             android:layout_width="72dp"
             android:layout_height="80dp"
@@ -92,13 +91,11 @@
             android:translationX="10dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-        </com.adsamcik.signalcollector.components.DraggableImageButton>
-
+            app:layout_constraintTop_toTopOf="parent" />
 
     </android.support.constraint.ConstraintLayout>
 
-    <com.adsamcik.signalcollector.components.DraggableImageButton
+    <com.adsamcik.draggable.DraggableImageButton
         android:id="@+id/map_draggable"
         android:layout_width="220dp"
         android:layout_height="12dp"
@@ -248,5 +245,13 @@
             </com.google.android.flexbox.FlexboxLayout>
         </ScrollView>
     </LinearLayout>
+
+    <ViewStub
+        android:id="@+id/stub_stats"
+        android:inflatedId="@+id/stats"
+        android:layout="@layout/fragment_stats"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:translationZ="2000dp"/>
 
 </android.support.design.widget.CoordinatorLayout>
