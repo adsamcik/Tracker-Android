@@ -96,3 +96,5 @@ app/src/main/java/com/adsamcik/signalcollector/network/Server.java
 app/google-services.json
 app/src/main/java/com/adsamcik/signalcollector/network/Server.kt
 .idea/caches/build_file_checksums.ser
+app/src/main/res/raw/third_party_licenses
+app/src/main/res/raw/third_party_license_metadata
