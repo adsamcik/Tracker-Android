@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.fragments
 
+import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import android.support.design.widget.FloatingActionButton
@@ -13,6 +14,7 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
+import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
@@ -20,9 +22,10 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.SnackMaker
+import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentActivities : Fragment(), ITabFragment {
+class FragmentActivities : Fragment(), ITabFragment, IOnDemandView {
     private var listViewChallenges: ListView? = null
     private var refreshLayout: SwipeRefreshLayout? = null
 
@@ -44,25 +47,26 @@ class FragmentActivities : Fragment(), ITabFragment {
 
     private fun updateData() {
         val isRefresh = refreshLayout != null && refreshLayout!!.isRefreshing
-        val activity = activity
-        val context = activity!!.applicationContext
+        val activity = activity!!
+        val context = activity.applicationContext
         launch {
             val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
             if (!source.success)
                 SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
             else {
-                activity.runOnUiThread { listViewChallenges!!.adapter = ChallengesAdapter(context, challenges!!) }
+                launch(UI) { listViewChallenges!!.adapter = ChallengesAdapter(context, challenges!!) }
             }
-            activity.runOnUiThread { refreshLayout!!.isRefreshing = false }
+            launch(UI) { refreshLayout!!.isRefreshing = false }
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> =
-            Failure()
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> = Failure()
 
-    override fun onLeave(activity: FragmentActivity) {
+    override fun onLeave(activity: FragmentActivity) {}
 
-    }
+    override fun onEnter(activity: Activity) {}
+
+    override fun onLeave(activity: Activity) {}
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 

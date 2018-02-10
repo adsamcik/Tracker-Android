@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
+import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Stat
@@ -32,7 +33,7 @@ import com.adsamcik.table.TableAdapter
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentStats : Fragment(), ITabFragment {
+class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
     private var fragmentView: View? = null
 
     private var adapter: TableAdapter? = null
@@ -155,14 +156,23 @@ class FragmentStats : Fragment(), ITabFragment {
     }
 
     override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
-        adapter = TableAdapter(activity, 16, Preferences.getTheme(activity))
+        onEnter(activity)
         return Failure()
     }
 
     override fun onLeave(activity: FragmentActivity) {
+        onLeave(activity as Activity)
+    }
+
+    override fun onEnter(activity: Activity) {
+        adapter = TableAdapter(activity, 16, Preferences.getTheme(activity))
+    }
+
+    override fun onLeave(activity: Activity) {
         if (refreshLayout != null && refreshLayout!!.isRefreshing)
             refreshLayout!!.isRefreshing = false
     }
+
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 

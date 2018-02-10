@@ -50,7 +50,7 @@
         android:clipToPadding="false"
         android:orientation="horizontal"
         android:paddingBottom="128dp"
-        android:translationZ="100dp"
+        android:translationZ="6dp"
         app:layout_anchor="@+id/include"
         app:layout_anchorGravity="bottom">
 
@@ -85,7 +85,7 @@
         android:layout_height="12dp"
         android:layout_marginBottom="80dp"
         android:background="@drawable/map_draggable"
-        android:elevation="6dp"
+        android:translationZ="12dp"
         app:layout_anchor="@id/include"
         app:layout_anchorGravity="center | bottom"/>
 
