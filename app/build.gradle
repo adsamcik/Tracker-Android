@@ -1,6 +1,5 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-kapt'
 apply plugin: 'com.google.gms.oss.licenses.plugin'
 apply plugin: 'io.fabric'
 
@@ -21,11 +20,13 @@ android {
         versionCode 229
         versionName "6.0.α1 Naaru the colorful"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
-        kapt {
-            arguments {
-                arg("stagAssumeHungarianNotation", "false")
-                arg("stagGeneratedPackageName", "com.adsamcik.signalcollector.generated")
-                arg("stagDebug", "false")
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [
+                        stagAssumeHungarianNotation: 'false',
+                        stagGeneratedPackageName   : 'com.adsamcik.signalcollector.generated',
+                        stagDebug                  : 'false'
+                ]
             }
         }
     }
@@ -88,7 +89,7 @@ dependencies {
     }
 
     //Annotation processors
-    kapt "com.vimeo.stag:stag-library-compiler:$stag_version"
+    annotationProcessor "com.vimeo.stag:stag-library-compiler:$stag_version"
 
     //Test implementations
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
