@@ -58,7 +58,7 @@ dependencies {
     //1st party dependencies
     implementation 'com.adsamcik.android-components:slider:0.5.0'
     implementation 'com.adsamcik.android-components:table:0.1.2'
-    implementation 'com.adsamcik.android-components:draggable:0.1.2'
+    implementation 'com.adsamcik.android-components:draggable:0.2.0'
 
     //3rd party dependencies
     implementation 'com.squareup.okhttp3:okhttp:3.9.1'

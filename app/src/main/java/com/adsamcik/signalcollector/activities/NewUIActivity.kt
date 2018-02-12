@@ -53,22 +53,22 @@ class NewUIActivity : FragmentActivity() {
         val size = Point()
         display.getRealSize(size)
 
-        statsButton.setDrag(DragAxis.X)
+        statsButton.dragAxis = DragAxis.X
         statsButton.setTarget(root, DragTargetAnchor.TopRight, -10)
         val statsPayload = DraggablePayload(this, FragmentStats::class.java, Point(-size.x, 0), root, DragTargetAnchor.TopRight, 0)
-        statsPayload.setBackgroundColor(Color.WHITE)
+        statsPayload.backgroundColor = Color.WHITE
         statsButton.addPayload(statsPayload)
-        statsButton.setTargetTranslationZ(12f)
+        statsButton.targetTranslationZ = 12f
 
-        activityButton.setDrag(DragAxis.X)
+        activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.TopLeft, -10)
-        activityButton.setTargetTranslationZ(12f)
+        activityButton.targetTranslationZ = 12f
 
         val activityPayload = DraggablePayload(this, FragmentActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
-        activityPayload.setBackgroundColor(Color.WHITE)
+        activityPayload.backgroundColor = Color.WHITE
         activityButton.addPayload(activityPayload)
 
-        mapDraggable.setDrag(DragAxis.Y)
+        mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
