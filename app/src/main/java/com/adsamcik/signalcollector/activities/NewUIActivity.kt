@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.Constants
 import kotlinx.android.synthetic.main.activity_new_ui.*
 
 
@@ -61,7 +62,7 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.backgroundColor = Color.WHITE
         statsButton.addPayload(statsPayload)
         statsButton.targetTranslationZ = 12f
-        statsButton.onPayloadInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
+        statsPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
 
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.TopLeft, -10)
@@ -70,17 +71,18 @@ class NewUIActivity : FragmentActivity() {
         val activityPayload = DraggablePayload(this, FragmentActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityButton.addPayload(activityPayload)
-        activityButton.onPayloadInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
+        activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
 
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
         mapDraggable.increaseTouchAreaBy(Assist.dpToPx(this, 32))
-        mapDraggable.onPayloadInitialized = { colorManager.watchElement(ColorView(it.view!!.findViewById(R.id.map_search), true, true)) }
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(20f)
-        //mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
+        mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
+        mapPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!.findViewById(R.id.map_search), true, true)) }
+        mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(it.view!!.findViewById(R.id.map_search)) }
         mapDraggable.addPayload(mapPayload)
 
         //findViewById<ViewStub>(R.id.stub_import).inflate()
