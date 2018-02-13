@@ -41,7 +41,7 @@ class InfoComponent : FrameLayout {
 
     private fun initialize(context: Context) {
         val inflater = context.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        inflater.inflate(R.layout.layout_tracker_item, this)
+        inflater.inflate(R.layout.layout_component_info, this)
         root = this.getChildAt(0) as ViewGroup
 
         titleIconView = findViewById(R.id.tracker_item_icon)

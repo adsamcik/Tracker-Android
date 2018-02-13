@@ -4,8 +4,7 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Bundle
 import android.support.v4.app.FragmentActivity
-import android.util.DisplayMetrics
-import android.view.View
+import android.view.MotionEvent
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
@@ -14,8 +13,9 @@ import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorView
+import com.adsamcik.signalcollector.utility.Assist
 import kotlinx.android.synthetic.main.activity_new_ui.*
-import java.util.*
 
 
 class NewUIActivity : FragmentActivity() {
@@ -25,8 +25,10 @@ class NewUIActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_new_ui)
 
-        colorManager = ColorManager(root as View, this)
+        colorManager = ColorManager(this)
         val colorManager = colorManager!!
+
+        colorManager.watchElement(ColorView(root, false, true))
 
         colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
         colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
@@ -59,6 +61,7 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.backgroundColor = Color.WHITE
         statsButton.addPayload(statsPayload)
         statsButton.targetTranslationZ = 12f
+        statsButton.onPayloadInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
 
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.TopLeft, -10)
@@ -67,11 +70,17 @@ class NewUIActivity : FragmentActivity() {
         val activityPayload = DraggablePayload(this, FragmentActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityButton.addPayload(activityPayload)
+        activityButton.onPayloadInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
 
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
+        mapDraggable.increaseTouchAreaBy(Assist.dpToPx(this, 32))
+        mapDraggable.onPayloadInitialized = { colorManager.watchElement(ColorView(it.view!!.findViewById(R.id.map_search), true, true)) }
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
+        mapPayload.backgroundColor = Color.WHITE
+        mapPayload.setTranslationZ(20f)
+        //mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapDraggable.addPayload(mapPayload)
 
         //findViewById<ViewStub>(R.id.stub_import).inflate()
@@ -84,5 +93,11 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(topInfoBar)
     }
 
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        return if (root.touchDelegate.onTouchEvent(event))
+            true
+        else
+            super.dispatchTouchEvent(event)
+    }
 
 }

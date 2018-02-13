@@ -111,13 +111,23 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             fActivity = activity
 
         val activity = fActivity!!
-
+        hasPermissions = checkLocationPermission(context, true)
         if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
-            fragmentView = inflater.inflate(R.layout.fragment_map, container, false)
+            fragmentView = inflater.inflate(R.layout.fragment_new_map, container, false)
         } else {
             fragmentView = inflater.inflate(R.layout.layout_error, container, false)
             (fragmentView!!.findViewById<View>(R.id.activity_error_text) as TextView).setText(if (hasPermissions) R.string.error_play_services_not_available else R.string.error_missing_permission)
             return fragmentView
+        }
+
+
+        val callback = this
+        async {
+            val mapFragment = SupportMapFragment.newInstance()
+            val fragmentTransaction = fragmentManager!!.beginTransaction()
+            fragmentTransaction.add(R.id.container_map, mapFragment)
+            fragmentTransaction.commit()
+            mapFragment.getMapAsync(callback)
         }
 
         mapLayerFilterRule = MapFilterRule()
@@ -143,21 +153,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         }
 
         return fragmentView
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        hasPermissions = checkLocationPermission(context, true)
-        if (hasPermissions) {
-            val callback = this
-            async {
-                val mapFragment = SupportMapFragment.newInstance()
-                val fragmentTransaction = fragmentManager!!.beginTransaction()
-                fragmentTransaction.add(R.id.container_map, mapFragment)
-                fragmentTransaction.commit()
-                mapFragment.getMapAsync(callback)
-            }
-        }
     }
 
     override fun onDestroyView() {

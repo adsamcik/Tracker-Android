@@ -6,7 +6,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/background_tracker_data"
+    android:background="@drawable/background_component_info"
     android:orientation="vertical"
     android:padding="16dp"
     app:layout_flexGrow="1"
