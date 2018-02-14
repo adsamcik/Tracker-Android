@@ -2,16 +2,19 @@ package com.adsamcik.signalcollector.uitools
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.support.annotation.ColorInt
 import android.support.v4.content.ContextCompat
+import android.support.v4.graphics.ColorUtils
 import android.support.v7.widget.CardView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import kotlin.math.roundToInt
 
 
 class ColorManager(val context: Context) {
@@ -59,27 +62,24 @@ class ColorManager(val context: Context) {
         update(view, currentColor, currentBackground, currentForeground)
     }
 
-    fun watchElement(view: View) = watchElement(ColorView(view))
+    fun watchElement(view: View) = watchElement(ColorView(view, 0))
 
     fun stopWatchingElement(view: View) {
         watchedElements.removeAt(watchedElements.indexOfFirst { it.view == view })
     }
 
-    private fun red(@ColorInt color: Int) = (color shr 16) and 255
-    private fun relRed(@ColorInt color: Int) = red(color) / 255.0
+    private fun relRed(@ColorInt color: Int) = Color.red(color) / 255.0
+    private fun relGreen(@ColorInt color: Int) = Color.green(color) / 255.0
+    private fun relBlue(@ColorInt color: Int) = Color.blue(color) / 255.0
 
-    private fun green(@ColorInt color: Int) = (color shr 8) and 255
-    private fun relGreen(@ColorInt color: Int) = green(color) / 255.0
+    private fun perceivedLuminance(@ColorInt color: Int) = 0.299 * relRed(color) + 0.587 * relGreen(color) + 0.114 * relBlue(color)
 
-    private fun blue(@ColorInt color: Int) = color and 255
-    private fun relBlue(@ColorInt color: Int) = blue(color) / 255.0
-
-    private fun luminance(@ColorInt color: Int) = 0.299 * relRed(color) + 0.587 * relGreen(color) + 0.114 * relBlue(color)
-    private fun relLuminance(@ColorInt color: Int) = Math.signum(luminance(color) - 0.5)
+    private fun perceivedRelLuminance(@ColorInt color: Int) = Math.signum(perceivedLuminance(color) - 0.5)
+    private fun relLuminance(@ColorInt color: Int) = Math.signum(ColorUtils.calculateLuminance(color) - 0.5)
 
     private fun update(@ColorInt color: Int) {
         currentColor = color
-        val lum = relLuminance(color)
+        val lum = perceivedRelLuminance(color)
         if (currentLuminance != lum) {
             currentLuminance = lum
             val bgColor: Int
@@ -97,14 +97,14 @@ class ColorManager(val context: Context) {
 
             watchedElements.forEach { update(it, color, bgColor, fgColor) }
         } else {
-            watchedElements.forEach { if (it.rootIsBackground) updateBackground(it.view, color) }
+            watchedElements.forEach { if (it.rootIsBackground && !it.ignoreRoot) updateBackground(it.view, color, it.layer) }
         }
     }
 
     private fun update(view: ColorView, @ColorInt color: Int, @ColorInt bgColor: Int, @ColorInt fgColor: Int) {
         if (!view.ignoreRoot) {
             if (view.rootIsBackground)
-                updateBackground(view.view, color)
+                updateBackground(view.view, color, view.layer)
             else
                 updateStyleBackground(view.view, bgColor)
         }
@@ -117,8 +117,22 @@ class ColorManager(val context: Context) {
         }
     }
 
-    private fun updateBackground(view: View, @ColorInt color: Int) {
-        view.setBackgroundColor(color)
+    private fun brightenComponent(component: Int, value: Int) = Math.min(component + value, 255)
+
+    private fun brightenColor(@ColorInt color: Int, value: Int): Int {
+        val r = brightenComponent(Color.red(color), value)
+        val g = brightenComponent(Color.green(color), value)
+        val b = brightenComponent(Color.blue(color), value)
+        return Color.rgb(r, g, b)
+    }
+
+    private fun updateBackground(view: View, @ColorInt color: Int, layer: Int) {
+        if(layer == 0)
+            view.setBackgroundColor(color)
+        else {
+            val layerValue = (25.5 * layer - 1).roundToInt()
+            view.setBackgroundColor(brightenColor(color, layerValue))
+        }
     }
 
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt bgColor: Int) {

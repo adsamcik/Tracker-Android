@@ -16,6 +16,8 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
+import com.crashlytics.android.Crashlytics
+import io.fabric.sdk.android.Fabric
 import kotlinx.android.synthetic.main.activity_new_ui.*
 
 
@@ -24,12 +26,14 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Fabric.with(this, Crashlytics())
+
         setContentView(R.layout.activity_new_ui)
 
         colorManager = ColorManager(this)
         val colorManager = colorManager!!
 
-        colorManager.watchElement(ColorView(root, false, true))
+        colorManager.watchElement(ColorView(root, 0, false, true, false))
 
         colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
         colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
@@ -62,7 +66,10 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.backgroundColor = Color.WHITE
         statsButton.addPayload(statsPayload)
         statsButton.targetTranslationZ = 12f
-        statsPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
+        statsPayload.onInitialized = {
+            it.view!!.elevation = 12f
+            colorManager.watchElement(ColorView(it.view!!, 1, true, true))
+        }
 
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.TopLeft, -10)
@@ -71,7 +78,7 @@ class NewUIActivity : FragmentActivity() {
         val activityPayload = DraggablePayload(this, FragmentActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityButton.addPayload(activityPayload)
-        activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, true, true)) }
+        activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
@@ -81,7 +88,7 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(20f)
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
-        mapPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!.findViewById(R.id.map_search), true, true)) }
+        mapPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!.findViewById(R.id.map_search), 2, true, true)) }
         mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(it.view!!.findViewById(R.id.map_search)) }
         mapDraggable.addPayload(mapPayload)
 
