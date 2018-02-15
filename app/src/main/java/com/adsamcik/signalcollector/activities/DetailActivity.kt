@@ -1,17 +1,16 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.Activity
 import android.os.Bundle
 import android.support.v4.app.NavUtils
+import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Preferences
 
-abstract class DetailActivity : Activity() {
+abstract class DetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Preferences.setTheme(this)
@@ -43,6 +42,7 @@ abstract class DetailActivity : Activity() {
             linearLayout.setPadding(padding, padding, padding, padding)
         }
         linearLayout.layoutParams = lp
+        linearLayout.id = CONTENT_ID
 
         linearLayout.orientation = LinearLayout.VERTICAL
         return linearLayout
@@ -67,5 +67,9 @@ abstract class DetailActivity : Activity() {
 
         root.addView(scrollView)
         return contentParent
+    }
+
+    companion object {
+        const val CONTENT_ID = 2668368
     }
 }

@@ -65,14 +65,11 @@
             android:alwaysRetainTaskState="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"/>
-
-
         <activity
             android:name=".activities.NewUIActivity"
             android:exported="true"
             android:label="@string/title_activity_new_ui"
             android:theme="@style/AppThemeTransluscent"/>
-
         <activity
             android:name=".activities.IntroActivity"
             android:screenOrientation="portrait"
@@ -115,6 +112,10 @@
             android:name=".activities.LicenseActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
+
+
+        <activity android:name=".activities.SettingsActivity"
+                  android:parentActivityName=".activities.NewUIActivity"/>
 
         <receiver android:name=".receivers.BootReceiver">
             <intent-filter>
@@ -166,6 +167,7 @@
         <meta-data
             android:name="com.google.android.gms.games.APP_ID"
             android:value="@string/google_app_id2"/>
+
     </application>
 
 </manifest>

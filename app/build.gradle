@@ -78,6 +78,8 @@ dependencies {
     implementation "com.android.support:appcompat-v7:$support_version"
     implementation "com.android.support:support-compat:$support_version"
     implementation "com.android.support:cardview-v7:$support_version"
+    implementation "com.android.support:preference-v14:$support_version"
+    implementation "com.android.support:preference-v7:$support_version"
 
     implementation "com.google.android.gms:play-services-maps:$play_services_version"
     implementation "com.google.android.gms:play-services-location:$play_services_version"

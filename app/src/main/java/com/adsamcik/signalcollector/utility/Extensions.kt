@@ -4,8 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.support.v4.app.FragmentManager
-import android.support.v4.app.FragmentTransaction
 
 
 inline fun <reified T : Any> Activity.launchActivity(
@@ -30,8 +28,10 @@ inline fun <reified T : Any> Context.launchActivity(
 inline fun <reified T : Any> newIntent(context: Context): Intent =
         Intent(context, T::class.java)
 
-inline fun FragmentManager.inTransaction(func: FragmentTransaction.() -> Unit) {
-    val fragmentTransaction = beginTransaction()
-    fragmentTransaction.func()
-    fragmentTransaction.commit()
+inline fun android.support.v4.app.FragmentManager.transaction(func: android.support.v4.app.FragmentTransaction.() -> android.support.v4.app.FragmentTransaction) {
+    beginTransaction().func().commit()
+}
+
+inline fun android.app.FragmentManager.transaction(func: android.app.FragmentTransaction.() -> android.app.FragmentTransaction) {
+    beginTransaction().func().commit()
 }
