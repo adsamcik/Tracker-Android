@@ -34,6 +34,7 @@
             tools:text="06:00:00"/>
 
         <ImageButton
+            android:id="@+id/buttonSettings"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="?attr/selectableItemBackgroundBorderless"
