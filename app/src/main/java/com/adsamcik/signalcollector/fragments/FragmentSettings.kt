@@ -39,9 +39,9 @@ import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
-import com.adsamcik.slider.IntSlider
-import com.adsamcik.slider.IntValueSlider
-import com.adsamcik.slider.Slider
+import com.adsamcik.slider.Stringify
+import com.adsamcik.slider.implementations.IntSlider
+import com.adsamcik.slider.implementations.IntValueSlider
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.common.SignInButton
 import com.google.gson.Gson
@@ -306,13 +306,13 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         val activityFrequencySlider = rootView.findViewById<IntValueSlider>(R.id.settings_seekbar_watcher_frequency)
         //todo update to not set useless values because of setItems below
-        activityFrequencySlider.items = arrayOf(0, 5, 10, 30, 60, 120, 240, 300, 600)
+        activityFrequencySlider.setItems(arrayOf(0, 5, 10, 30, 60, 120, 240, 300, 600))
         activityFrequencySlider.setPreferences(Preferences.getPref(activity), Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE)
         activityFrequencySlider.setTextView(rootView.findViewById(R.id.settings_text_activity_frequency), { progress ->
             when {
                 progress == 0 -> return@setTextView getString(R.string.frequency_asap)
                 progress < 60 -> return@setTextView getString(R.string.frequency_seconds, progress)
-                progress!! % 60 == 0 -> return@setTextView getString(R.string.frequency_minute, progress / 60)
+                progress % 60 == 0 -> return@setTextView getString(R.string.frequency_minute, progress / 60)
                 else -> {
                     val minutes = progress / 60
                     return@setTextView getString(R.string.frequency_minute_second, minutes, progress - minutes * 60)
@@ -350,7 +350,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 1,
                 Preferences.PREF_AUTO_UPLOAD_AT_MB,
                 Preferences.DEFAULT_AUTO_UPLOAD_AT_MB,
-                Slider.IStringify { progress -> getString(R.string.settings_autoupload_at_value, progress) }, null)
+                { progress -> getString(R.string.settings_autoupload_at_value, progress) }, null)
 
         setSwitchChangeListener(activity, Preferences.PREF_AUTO_UPLOAD_SMART, rootView.findViewById(R.id.switchAutoUploadSmart), Preferences.DEFAULT_AUTO_UPLOAD_SMART, { value -> (seekAutoUploadAt.parent as ViewGroup).visibility = if (value) View.GONE else View.VISIBLE })
 
@@ -521,15 +521,15 @@ class FragmentSettings : Fragment(), ITabFragment {
                            step: Int,
                            preference: String,
                            defaultValue: Int,
-                           textGenerationFuncton: Slider.IStringify<Int>,
+                           textGenerationFunction: Stringify<Int>,
                            valueCallback: ((Int) -> Unit)?) {
         slider.maxValue = maxValue
         slider.setPreferences(Preferences.getPref(context), preference, defaultValue)
         slider.step = step
         slider.minValue = minValue
-        slider.setTextView(title, textGenerationFuncton)
+        slider.setTextView(title, textGenerationFunction)
         if (valueCallback != null)
-            slider.setOnValueChangeListener { _, _ -> valueCallback.invoke(slider.value!!) }
+            slider.setOnValueChangeListener { _, _ -> valueCallback.invoke(slider.value) }
     }
 
     private fun setSwitchChangeListener(context: Context, name: String, s: Switch, defaultState: Boolean, callback: ((Boolean) -> Unit)?) {

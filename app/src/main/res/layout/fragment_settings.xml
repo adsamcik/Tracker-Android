@@ -204,7 +204,7 @@
             </LinearLayout>
 
 
-            <com.adsamcik.slider.IntValueSlider
+            <com.adsamcik.slider.implementations.IntValueSlider
                 android:id="@+id/settings_seekbar_watcher_frequency"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"
@@ -305,7 +305,7 @@
                     android:text="@string/settings_autoupload_at_value"/>
             </LinearLayout>
 
-            <com.adsamcik.slider.IntSlider
+            <com.adsamcik.slider.implementations.IntSlider
                 android:id="@+id/settings_autoupload_at_seekbar"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"
