@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.components
 
 import android.content.Context
+import android.content.res.TypedArray
 import android.support.annotation.IntegerRes
 import android.support.v7.preference.Preference
 import android.support.v7.preference.PreferenceViewHolder
@@ -37,19 +38,23 @@ class IntValueSliderPreference : Preference {
     }
 
     private var mTextViewString = "$1%d"
-
     @IntegerRes
     private var mValuesResource: Int? = null
+    private var mInitialValue: Int = 0
 
-    var mSlider: IntValueSlider? = null
+    var slider: IntValueSlider? = null
 
     init {
         layoutResource = R.layout.layout_settings_string_slider
     }
 
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+        return a.getString(index).toInt()
+    }
+
     override fun onSetInitialValue(restorePersistedValue: Boolean, defaultValue: Any?) {
         if (defaultValue != null)
-            mSlider?.value = defaultValue as Int
+            mInitialValue = defaultValue as Int
     }
 
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
@@ -61,8 +66,8 @@ class IntValueSliderPreference : Preference {
         slider.setPadding(Assist.dpToPx(context, 8))
         slider.setTextView(textView) { String.format(mTextViewString, it) }
 
-        slider.setPreferences(sharedPreferences, key, 0)
+        slider.setPreferences(sharedPreferences, key, mInitialValue)
 
-        this.mSlider = slider
+        this.slider = slider
     }
 }

@@ -97,5 +97,15 @@
     </integer-array>
 
     <string name="settings_disabled_recharge_title">Disabled till recharge</string>
-    <string name="settings_disabled_recharge_summary">Automatic tracking will resume once you start charging your phone</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until phone is connected to charger</string>
+    <string name="settings_disabled_recharge_key">stoppedTillRecharge</string>
+    <string name="settings_disabled_recharge_default">true</string>
+
+    <string name="settings_activity_freq_title">Activity update rate</string>
+    <string name="settings_activity_freq_key">activityUpdateRate</string>
+    <string name="settings_activity_freq_default">30</string>
+
+    <string name="settings_tracking_activity_title">Automatic tracking trigger activity</string>
+    <string name="settings_tracking_activity_key">backgroundTracking</string>
+    <string name="settings_tracking_activity_default">1</string>
 </resources>

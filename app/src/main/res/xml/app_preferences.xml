@@ -35,21 +35,23 @@
         android:title="Tracking">
 
         <com.adsamcik.signalcollector.components.ImageSwitchPreference
-            android:key="tracking"
-            android:title="Automatic tracking"
+            android:defaultValue="@string/settings_tracking_activity_default"
+            android:key="@string/settings_tracking_activity_key"
+            android:title="@string/settings_tracking_activity_title"
             app:drawables="@array/tracking_options_drawables"
             app:foregroundStateColors="@color/image_switch_colors"
             app:titles="@array/tracking_options_titles"/>
 
         <com.adsamcik.signalcollector.components.IntValueSliderPreference
-            android:key="intslider"
-            android:title="Activity update frequency"
+            android:defaultValue="@string/settings_activity_freq_default"
+            android:key="@string/settings_activity_freq_key"
+            android:title="@string/settings_activity_freq_title"
             app:items="@array/activity_watching_interval"
             app:stringFormat="%1$d s"/>
 
         <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="true"
-            android:key="key3"
+            android:defaultValue="@string/settings_disabled_recharge_default"
+            android:key="@string/settings_disabled_recharge_key"
             android:summary="@string/settings_disabled_recharge_summary"
             android:title="@string/settings_disabled_recharge_title"/>
 

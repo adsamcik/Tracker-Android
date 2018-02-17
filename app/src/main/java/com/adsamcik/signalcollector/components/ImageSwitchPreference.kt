@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.components
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.content.res.TypedArray
 import android.graphics.Color
 import android.support.annotation.DrawableRes
 import android.support.v7.preference.Preference
@@ -25,6 +26,7 @@ class ImageSwitchPreference : Preference {
     private var mImageRoot: ViewGroup? = null
 
     private var mInitialized = false
+    private var mInitialValue: Int = -1
     private val mImageSizePx = Assist.dpToPx(context, 50)
     private val mMarginPx = Assist.dpToPx(context, 10)
 
@@ -82,8 +84,6 @@ class ImageSwitchPreference : Preference {
     }
 
     private fun onClick(index: Int) {
-
-
         select(index)
     }
 
@@ -104,6 +104,16 @@ class ImageSwitchPreference : Preference {
             return
         }
     }
+
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+        return a.getString(index).toInt()
+    }
+
+    override fun onSetInitialValue(restorePersistedValue: Boolean, defaultValue: Any?) {
+        if (defaultValue != null)
+            mInitialValue = defaultValue as Int
+    }
+
 
     private fun initializeItem(item: SwitchItem, index: Int) {
         val view = ImageView(context)
@@ -128,7 +138,7 @@ class ImageSwitchPreference : Preference {
             initializeItem(switchItem, index)
         }
 
-        select(getPersistedInt(-1))
+        select(getPersistedInt(mInitialValue))
 
         mInitialized = true
     }
