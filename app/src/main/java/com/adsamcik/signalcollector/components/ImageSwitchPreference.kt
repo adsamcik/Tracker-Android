@@ -132,7 +132,7 @@ class ImageSwitchPreference : Preference {
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
         holder.itemView.isClickable = false
-        mTextView = holder.findViewById(R.id.title) as TextView
+        mTextView = holder.findViewById(R.id.selected_item) as TextView
         mImageRoot = holder.findViewById(R.id.option_root) as ViewGroup
         mItems.forEachIndexed { index, switchItem ->
             initializeItem(switchItem, index)

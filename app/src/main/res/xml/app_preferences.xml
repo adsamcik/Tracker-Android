@@ -33,14 +33,33 @@
         android:key="tracking_key"
         android:persistent="false"
         android:title="Tracking">
+        <android.support.v7.preference.PreferenceCategory
+            android:title="@string/settings_tracking_activity_title">
 
-        <com.adsamcik.signalcollector.components.ImageSwitchPreference
-            android:defaultValue="@string/settings_tracking_activity_default"
-            android:key="@string/settings_tracking_activity_key"
-            android:title="@string/settings_tracking_activity_title"
-            app:drawables="@array/tracking_options_drawables"
-            app:foregroundStateColors="@color/image_switch_colors"
-            app:titles="@array/tracking_options_titles"/>
+            <com.adsamcik.signalcollector.components.ImageSwitchPreference
+                android:defaultValue="@string/settings_tracking_activity_default"
+                android:key="@string/settings_tracking_activity_key"
+                app:drawables="@array/tracking_options_drawables"
+                app:foregroundStateColors="@color/image_switch_colors"
+                app:titles="@array/tracking_options_titles"/>
+        </android.support.v7.preference.PreferenceCategory>
+
+        <android.support.v7.preference.PreferenceCategory
+            android:title="@string/settings_tracking_activity_title">
+
+            <com.adsamcik.signalcollector.components.ImageSwitchPreference
+                android:defaultValue="@string/settings_tracking_activity_default"
+                android:key="@string/settings_tracking_activity_key"
+                app:drawables="@array/tracking_options_drawables"
+                app:foregroundStateColors="@color/image_switch_colors"
+                app:titles="@array/tracking_options_titles"/>
+        </android.support.v7.preference.PreferenceCategory>
+
+        <android.support.v7.preference.CheckBoxPreference
+            android:defaultValue="@string/settings_activity_watcher_default"
+            android:key="@string/settings_activity_watcher_key"
+            android:summary="@string/settings_activity_watcher_summary"
+            android:title="@string/settings_activity_watcher_title"/>
 
         <com.adsamcik.signalcollector.components.IntValueSliderPreference
             android:defaultValue="@string/settings_activity_freq_default"

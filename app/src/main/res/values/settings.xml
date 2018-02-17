@@ -101,6 +101,11 @@
     <string name="settings_disabled_recharge_key">stoppedTillRecharge</string>
     <string name="settings_disabled_recharge_default">true</string>
 
+    <string name="settings_activity_watcher_title">Activity watcher</string>
+    <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
+    <string name="settings_activity_watcher_key">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_default">false</string>
+
     <string name="settings_activity_freq_title">Activity update rate</string>
     <string name="settings_activity_freq_key">activityUpdateRate</string>
     <string name="settings_activity_freq_default">30</string>
