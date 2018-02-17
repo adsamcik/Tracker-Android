@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         tools:text="SLIDER VALUE"/>
 
-    <com.adsamcik.slider.implementations.StringValueSlider
+    <com.adsamcik.slider.implementations.IntValueSlider
         android:id="@+id/slider"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

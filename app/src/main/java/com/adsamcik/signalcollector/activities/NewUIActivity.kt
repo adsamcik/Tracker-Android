@@ -16,6 +16,7 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.launchActivity
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric
@@ -27,6 +28,7 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         Fabric.with(this, Crashlytics())
 
         setContentView(R.layout.activity_new_ui)

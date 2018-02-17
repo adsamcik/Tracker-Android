@@ -71,4 +71,30 @@
     <string name="user_cost_per_month">%1$s wireless points per month</string>
     <string name="user_renew_personal_map">Renew personal map</string>
     <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
+
+
+
+
+    <string-array name="tracking_options_titles">
+        <item>Disabled</item>
+        <item>On foot</item>
+        <item>In motion</item>
+    </string-array>
+    <integer-array name="tracking_options_drawables">
+        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_directions_walk_white_24dp</item>
+        <item>@drawable/ic_directions_car_white_24dp</item>
+    </integer-array>
+
+    <integer-array name="activity_watching_interval">
+        <item>0</item>
+        <item>5</item>
+        <item>10</item>
+        <item>30</item>
+        <item>60</item>
+        <item>120</item>
+        <item>240</item>
+        <item>300</item>
+        <item>600</item>
+    </integer-array>
 </resources>

@@ -12,4 +12,9 @@
         <attr name="drawables" format="reference"/>
         <attr name="titles" format="reference"/>
     </declare-styleable>
+
+    <declare-styleable name="IntValueSliderPreference">
+        <attr name="items" format="reference"/>
+        <attr name="stringFormat" format="string"/>
+    </declare-styleable>
 </resources>

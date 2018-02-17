@@ -35,6 +35,8 @@
         android:title="Tracking">
 
         <com.adsamcik.signalcollector.components.ImageSwitchPreference
+            android:key="tracking"
+            android:title="Automatic tracking"
             app:drawables="@array/tracking_options_drawables"
             app:foregroundStateColors="@color/image_switch_colors"
             app:titles="@array/tracking_options_titles"/>
@@ -45,8 +47,10 @@
             android:min="1"
             android:title="Upload at"/>
 
-        <com.adsamcik.signalcollector.components.ValueSliderPreference
-            android:key="key2"/>
+        <com.adsamcik.signalcollector.components.IntValueSliderPreference
+            android:key="intslider"
+            app:items="@array/activity_watching_interval"
+            app:stringFormat="%1$d s"/>
 
         <android.support.v7.preference.CheckBoxPreference
             android:defaultValue="true"
