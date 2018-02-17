@@ -4,7 +4,6 @@ import android.content.Context
 import android.support.v7.preference.Preference
 import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
-import android.view.ViewGroup
 import android.widget.TextView
 import androidx.view.setPadding
 import com.adsamcik.signalcollector.R

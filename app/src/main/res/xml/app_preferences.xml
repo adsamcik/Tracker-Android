@@ -1,5 +1,6 @@
 <android.support.v7.preference.PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     key="root"
     title="Settings">
 
@@ -32,6 +33,11 @@
         android:key="tracking_key"
         android:persistent="false"
         android:title="Tracking">
+
+        <com.adsamcik.signalcollector.components.ImageSwitchPreference
+            app:drawables="@array/tracking_options_drawables"
+            app:foregroundStateColors="@color/image_switch_colors"
+            app:titles="@array/tracking_options_titles"/>
         <android.support.v7.preference.SeekBarPreference
             android:defaultValue="true"
             android:key="key5"
