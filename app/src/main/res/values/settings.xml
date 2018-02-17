@@ -72,9 +72,7 @@
     <string name="user_renew_personal_map">Renew personal map</string>
     <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
 
-
-
-
+    <!--- NEW SETTINGS -->
     <string-array name="tracking_options_titles">
         <item>Disabled</item>
         <item>On foot</item>
@@ -97,4 +95,7 @@
         <item>300</item>
         <item>600</item>
     </integer-array>
+
+    <string name="settings_disabled_recharge_title">Disabled till recharge</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking will resume once you start charging your phone</string>
 </resources>

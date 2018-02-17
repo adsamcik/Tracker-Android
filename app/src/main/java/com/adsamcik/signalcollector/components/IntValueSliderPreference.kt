@@ -55,8 +55,7 @@ class IntValueSliderPreference : Preference {
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
         val slider = holder.findViewById(R.id.slider) as IntValueSlider
-
-        val textView = holder.findViewById(R.id.title) as TextView
+        val textView = holder.findViewById(R.id.slider_value) as TextView
 
         slider.setItems(context.resources.getIntArray(mValuesResource!!).toTypedArray())
         slider.setPadding(Assist.dpToPx(context, 8))

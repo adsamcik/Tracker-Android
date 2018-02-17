@@ -40,23 +40,18 @@
             app:drawables="@array/tracking_options_drawables"
             app:foregroundStateColors="@color/image_switch_colors"
             app:titles="@array/tracking_options_titles"/>
-        <android.support.v7.preference.SeekBarPreference
-            android:defaultValue="true"
-            android:key="key5"
-            android:max="10"
-            android:min="1"
-            android:title="Upload at"/>
 
         <com.adsamcik.signalcollector.components.IntValueSliderPreference
             android:key="intslider"
+            android:title="Activity update frequency"
             app:items="@array/activity_watching_interval"
             app:stringFormat="%1$d s"/>
 
         <android.support.v7.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="key3"
-            android:summary="CheckBox Summary"
-            android:title="CheckBox Preference"/>
+            android:summary="@string/settings_disabled_recharge_summary"
+            android:title="@string/settings_disabled_recharge_title"/>
 
     </android.support.v7.preference.PreferenceScreen>
 

@@ -10,10 +10,19 @@
     android:padding="@dimen/edge_margin">
 
     <TextView
-        android:id="@+id/title"
+        android:id="@android:id/title"
+        style="@style/Base.TextAppearance.AppCompat.Subhead"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        tools:text="SLIDER VALUE"/>
+        android:paddingBottom="@dimen/edge_margin"
+        tools:text="Title"/>
+
+    <TextView
+        android:id="@+id/slider_value"
+        style="@style/Base.TextAppearance.AppCompat.Body1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        tools:text="Slider value"/>
 
     <com.adsamcik.slider.implementations.IntValueSlider
         android:id="@+id/slider"
