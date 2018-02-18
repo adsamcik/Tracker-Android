@@ -99,7 +99,7 @@
     <string name="settings_disabled_recharge_title">Disabled till recharge</string>
     <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until phone is connected to charger</string>
     <string name="settings_disabled_recharge_key">stoppedTillRecharge</string>
-    <string name="settings_disabled_recharge_default">true</string>
+    <string name="settings_disabled_recharge_default">false</string>
 
     <string name="settings_activity_watcher_title">Activity watcher</string>
     <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
@@ -110,7 +110,63 @@
     <string name="settings_activity_freq_key">activityUpdateRate</string>
     <string name="settings_activity_freq_default">30</string>
 
-    <string name="settings_tracking_activity_title">Automatic tracking trigger activity</string>
     <string name="settings_tracking_activity_key">backgroundTracking</string>
     <string name="settings_tracking_activity_default">1</string>
+
+    <string name="settings_auto_tracking_category">Automatic tracking</string>
+    <string name="settings_tracking_enable_category">Tracking options</string>
+
+    <string name="settings_location_enabled_title">Location tracking</string>
+    <string name="settings_location_enabled_key">trackingLocationEnabled</string>
+    <string name="settings_location_enabled_default">true</string>
+
+    <string name="settings_wifi_enabled_title">Wifi tracking</string>
+    <string name="settings_wifi_enabled_key">trackingWifiEnabled</string>
+    <string name="settings_wifi_enabled_default">true</string>
+
+    <string name="settings_cell_enabled_title">Cell tracking</string>
+    <string name="settings_cell_enabled_key">trackingCellEnabled</string>
+    <string name="settings_cell_enabled_default">true</string>
+
+    <!-- STYLE -->
+
+    <string name="settings_color_day_title">Day color</string>
+    <string name="settings_color_day_key">colorDay</string>
+    <color name="settings_color_day_default">#001848</color>
+
+    <string name="settings_color_night_title">Night color</string>
+    <string name="settings_color_night_key">colorNight</string>
+    <color name="settings_color_night_default">#E0FEF0</color>
+
+    <!-- DEBUG -->
+
+    <string name="settings_browse_files_title">Browse files</string>
+    <string name="settings_browse_files_key">browseFiles</string>
+
+    <string name="settings_browse_cache_title">Browse cache</string>
+    <string name="settings_browse_cache_key">browseCache</string>
+
+    <string name="settings_activity_debug_title">Activity recognition logger</string>
+    <string name="settings_activity_debug_key">activityLogger</string>
+
+    <string name="settings_hello_world_title">Hello world!</string>
+    <string name="settings_hello_world_key">helloWorld</string>
+
+    <string name="settings_clear_data_title">Clear tracked data</string>
+    <string name="settings_clear_data_key">clearData</string>
+
+    <string name="settings_clear_reports_title">Clear upload reports</string>
+    <string name="settings_clear_reports_key">clearUploadReports</string>
+
+    <string name="settings_clear_cache_title">Clear cache</string>
+    <string name="settings_clear_cache_key">clearCache</string>
+
+    <!-- OTHER -->
+
+    <string name="settings_export_title">Share tracked data</string>
+    <string name="settings_export_key">shareButton</string>
+    <string name="settings_export_summary">Share/Export your tracked data to app of your choice</string>
+
+    <string name="settings_licenses_title">Open source licenses</string>
+    <string name="settings_licenses_key">openSourceLicenses</string>
 </resources>

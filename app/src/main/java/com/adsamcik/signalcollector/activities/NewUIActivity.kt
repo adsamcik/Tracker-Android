@@ -17,7 +17,7 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.launchActivity
+import com.adsamcik.signalcollector.utility.startActivity
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric
 import kotlinx.android.synthetic.main.activity_new_ui.*
@@ -98,7 +98,7 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(it.view!!.findViewById(R.id.map_search)) }
         mapDraggable.addPayload(mapPayload)
 
-        buttonSettings.setOnClickListener { launchActivity<SettingsActivity> { } }
+        buttonSettings.setOnClickListener { startActivity<SettingsActivity> { } }
 
         //findViewById<ViewStub>(R.id.stub_import).inflate()
 

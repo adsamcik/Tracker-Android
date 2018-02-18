@@ -4,9 +4,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.support.v4.app.Fragment
 
 
-inline fun <reified T : Any> Activity.launchActivity(
+inline fun <reified T : Any> Activity.startActivity(
         requestCode: Int = -1,
         options: Bundle? = null,
         noinline init: Intent.() -> Unit = {}) {
@@ -16,11 +17,20 @@ inline fun <reified T : Any> Activity.launchActivity(
     startActivityForResult(intent, requestCode, options)
 }
 
-inline fun <reified T : Any> Context.launchActivity(
+inline fun <reified T : Any> Context.startActivity(
         options: Bundle? = null,
         noinline init: Intent.() -> Unit = {}) {
 
     val intent = newIntent<T>(this)
+    intent.init()
+    startActivity(intent, options)
+}
+
+inline fun <reified T : Any> Fragment.startActivity(
+        options: Bundle? = null,
+        noinline init: Intent.() -> Unit = {}) {
+
+    val intent = newIntent<T>(context!!)
     intent.init()
     startActivity(intent, options)
 }

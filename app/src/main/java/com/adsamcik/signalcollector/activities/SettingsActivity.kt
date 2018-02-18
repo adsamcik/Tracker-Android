@@ -1,10 +1,12 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
+import android.support.annotation.StringRes
 import android.support.v7.preference.PreferenceFragmentCompat
 import android.support.v7.preference.PreferenceScreen
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentNewSettings
+import com.adsamcik.signalcollector.utility.startActivity
 import com.adsamcik.signalcollector.utility.transaction
 
 
@@ -21,10 +23,29 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         if (savedInstanceState == null) {
             supportFragmentManager.transaction {
                 replace(CONTENT_ID, fragment, FragmentNewSettings.TAG)
+                runOnCommit { initializeRoot() }
             }
         }
 
+
         title = "Settings"
+    }
+
+    private fun initializeRoot() {
+        addOnClickListener(R.string.settings_export_key) {
+            startActivity<FileSharingActivity> {}
+        }
+
+        addOnClickListener(R.string.settings_licenses_key) {
+            startActivity<LicenseActivity> { }
+        }
+    }
+
+    private fun addOnClickListener(@StringRes key: Int, listener: () -> Unit) {
+        fragment.findPreference(getString(key)).setOnPreferenceClickListener {
+            listener.invoke()
+            false
+        }
     }
 
     override fun onBackPressed() {
@@ -39,9 +60,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 fragment.setPreferencesFromResource(R.xml.app_preferences, null)
                 backstack.clear()
                 title = "Settings"
+                initializeRoot()
                 true
             }
             else -> onPreferenceStartScreen(fragment, backstack[backstack.size - 2])
+        }
+    }
+
+    fun initializeStartScreen(key: String) {
+        when (key) {
+
         }
     }
 
@@ -56,6 +84,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             backstack.add(pref)
 
         title = pref.title
+
+
         return true
     }
 }

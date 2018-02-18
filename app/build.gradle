@@ -64,6 +64,7 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.9.1'
     implementation 'com.google.code.gson:gson:2.8.2'
     implementation 'com.github.apl-devs:appintro:v4.2.2'
+    implementation 'com.jaredrummler:colorpicker:1.0.2'
     implementation "com.vimeo.stag:stag-library:$stag_version", {
         exclude group: 'com.intellij', module: 'annotations'
     }

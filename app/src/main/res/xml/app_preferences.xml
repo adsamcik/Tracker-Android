@@ -34,7 +34,7 @@
         android:persistent="false"
         android:title="Tracking">
         <android.support.v7.preference.PreferenceCategory
-            android:title="@string/settings_tracking_activity_title">
+            android:title="@string/settings_auto_tracking_category">
 
             <com.adsamcik.signalcollector.components.ImageSwitchPreference
                 android:defaultValue="@string/settings_tracking_activity_default"
@@ -42,86 +42,110 @@
                 app:drawables="@array/tracking_options_drawables"
                 app:foregroundStateColors="@color/image_switch_colors"
                 app:titles="@array/tracking_options_titles"/>
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_activity_watcher_default"
+                android:key="@string/settings_activity_watcher_key"
+                android:summary="@string/settings_activity_watcher_summary"
+                android:title="@string/settings_activity_watcher_title"/>
+
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@string/settings_activity_freq_default"
+                android:key="@string/settings_activity_freq_key"
+                android:title="@string/settings_activity_freq_title"
+                app:items="@array/activity_watching_interval"
+                app:stringFormat="%1$d s"/>
+
+            <android.support.v7.preference.SwitchPreferenceCompat
+                android:defaultValue="@string/settings_disabled_recharge_default"
+                android:key="@string/settings_disabled_recharge_key"
+                android:summary="@string/settings_disabled_recharge_summary"
+                android:thumbTint="@color/negative_switch_color"
+                android:thumbTintMode="src_in"
+                android:title="@string/settings_disabled_recharge_title"/>
         </android.support.v7.preference.PreferenceCategory>
 
         <android.support.v7.preference.PreferenceCategory
-            android:title="@string/settings_tracking_activity_title">
+            android:title="@string/settings_tracking_enable_category">
 
-            <com.adsamcik.signalcollector.components.ImageSwitchPreference
-                android:defaultValue="@string/settings_tracking_activity_default"
-                android:key="@string/settings_tracking_activity_key"
-                app:drawables="@array/tracking_options_drawables"
-                app:foregroundStateColors="@color/image_switch_colors"
-                app:titles="@array/tracking_options_titles"/>
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_location_enabled_default"
+                android:key="@string/settings_location_enabled_key"
+                android:title="@string/settings_location_enabled_title"/>
+
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_wifi_enabled_default"
+                android:key="@string/settings_wifi_enabled_key"
+                android:title="@string/settings_wifi_enabled_title"/>
+
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_cell_enabled_default"
+                android:key="@string/settings_cell_enabled_key"
+                android:title="@string/settings_cell_enabled_title"/>
         </android.support.v7.preference.PreferenceCategory>
 
-        <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="@string/settings_activity_watcher_default"
-            android:key="@string/settings_activity_watcher_key"
-            android:summary="@string/settings_activity_watcher_summary"
-            android:title="@string/settings_activity_watcher_title"/>
 
-        <com.adsamcik.signalcollector.components.IntValueSliderPreference
-            android:defaultValue="@string/settings_activity_freq_default"
-            android:key="@string/settings_activity_freq_key"
-            android:title="@string/settings_activity_freq_title"
-            app:items="@array/activity_watching_interval"
-            app:stringFormat="%1$d s"/>
+    </android.support.v7.preference.PreferenceScreen>
 
-        <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="@string/settings_disabled_recharge_default"
-            android:key="@string/settings_disabled_recharge_key"
-            android:summary="@string/settings_disabled_recharge_summary"
-            android:title="@string/settings_disabled_recharge_title"/>
+    <android.support.v7.preference.PreferenceScreen
+        android:key="style_key"
+        android:persistent="true"
+        android:title="Style">
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_day_default"
+            android:key="@string/settings_color_day_key"
+            android:title="@string/settings_color_day_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_night_default"
+            android:key="@string/settings_color_night_key"
+            android:title="@string/settings_color_night_title"/>
 
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
         android:key="debug_key"
-        android:persistent="false"
+        android:persistent="true"
         android:title="Debug">
-        <android.support.v7.preference.SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="key1"
-            android:summary="Switch Summary"
-            android:title="Switch Preference"/>
 
-        <android.support.v7.preference.EditTextPreference
-            android:defaultValue="Default value"
-            android:dialogMessage="Dialog Message"
-            android:key="key2"
-            android:summary="EditText Summary"
-            android:title="EditText Preference"/>
-
-        <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="true"
-            android:key="key3"
-            android:summary="CheckBox Summary"
-            android:title="CheckBox Preference"/>
+        <Preference
+            android:key="@string/settings_browse_files_key"
+            android:title="@string/settings_browse_files_title"/>
+        <Preference
+            android:key="@string/settings_browse_cache_key"
+            android:title="@string/settings_browse_cache_title"/>
+        <Preference
+            android:key="@string/settings_activity_debug_key"
+            android:title="@string/settings_activity_debug_title"/>
+        <Preference
+            android:key="@string/settings_hello_world_key"
+            android:title="@string/settings_hello_world_title"/>
+        <Preference
+            android:key="@string/settings_clear_data_key"
+            android:title="@string/settings_clear_data_title"/>
+        <Preference
+            android:key="@string/settings_clear_reports_key"
+            android:title="@string/settings_clear_reports_title"/>
+        <Preference
+            android:key="@string/settings_clear_cache_key"
+            android:title="@string/settings_clear_cache_title"/>
 
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceCategory
         android:title="Export">
 
-        <android.support.v7.preference.SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="key1"
-            android:summary="Switch Summary"
-            android:title="Switch Preference"/>
+        <Preference
+            android:key="@string/settings_export_key"
+            android:summary="@string/settings_export_summary"
+            android:title="@string/settings_export_title"/>
 
-        <android.support.v7.preference.EditTextPreference
-            android:defaultValue="Default value"
-            android:dialogMessage="Dialog Message"
-            android:key="key2"
-            android:summary="EditText Summary"
-            android:title="EditText Preference"/>
-
-        <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="true"
-            android:key="key3"
-            android:summary="CheckBox Summary"
-            android:title="CheckBox Preference"/>
+        <Preference
+            android:key="@string/settings_licenses_key"
+            android:title="@string/settings_licenses_title"/>
 
     </android.support.v7.preference.PreferenceCategory>
 
