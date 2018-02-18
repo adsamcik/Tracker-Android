@@ -60,7 +60,7 @@ class LicenseActivity : DetailActivity() {
             rMeta.forEachLine { line ->
                 val split = line.split(' ')
                 val fromTo = split[0].split(':')
-                val lObject = LicenseObject(split[1], fromTo[0].toInt() - 1, fromTo[1].toInt())
+                val lObject = LicenseObject(split[1], fromTo[0].toInt(), fromTo[1].toInt())
                 val button = addButton(parent, lObject.name)
                 addLicenseDialogListener(button, lObject)
             }
