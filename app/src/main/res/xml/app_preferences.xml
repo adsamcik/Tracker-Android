@@ -2,37 +2,22 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     key="root"
-    title="Settings">
+    title="@string/settings_title">
 
     <android.support.v7.preference.PreferenceScreen
         android:key="account_key"
         android:persistent="false"
-        android:title="Account">
-        <android.support.v7.preference.SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="key1"
-            android:summary="Switch Summary"
-            android:title="Switch Preference"/>
+        android:title="@string/settings_account_title">
+        <Preference
+            android:title="TBD"/>
 
-        <android.support.v7.preference.EditTextPreference
-            android:defaultValue="Default value"
-            android:dialogMessage="Dialog Message"
-            android:key="key2"
-            android:summary="EditText Summary"
-            android:title="EditText Preference"/>
-
-        <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="true"
-            android:key="key3"
-            android:summary="CheckBox Summary"
-            android:title="CheckBox Preference"/>
 
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
         android:key="tracking_key"
         android:persistent="false"
-        android:title="Tracking">
+        android:title="@string/settings_tracking_title">
         <android.support.v7.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
 
@@ -90,9 +75,24 @@
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
+        android:key="upload_key"
+        android:persistent="true"
+        android:title="@string/settings_upload_title">
+
+        <com.adsamcik.signalcollector.components.ImageSwitchPreference
+            android:defaultValue="@string/settings_uploading_network_default"
+            android:key="@string/settings_uploading_network_key"
+            app:drawables="@array/auto_upload_options_drawables"
+            app:foregroundStateColors="@color/image_switch_colors"
+            app:titles="@array/auto_upload_options_titles"/>
+
+
+    </android.support.v7.preference.PreferenceScreen>
+
+    <android.support.v7.preference.PreferenceScreen
         android:key="style_key"
         android:persistent="true"
-        android:title="Style">
+        android:title="@string/settings_style_title">
 
         <com.adsamcik.signalcollector.components.ColorSupportPreference
             android:defaultValue="@color/settings_color_day_default"
@@ -109,7 +109,7 @@
     <android.support.v7.preference.PreferenceScreen
         android:key="debug_key"
         android:persistent="true"
-        android:title="Debug">
+        android:title="@string/settings_debug_title">
 
         <Preference
             android:key="@string/settings_browse_files_key"
@@ -134,9 +134,23 @@
             android:title="@string/settings_clear_cache_title"/>
 
     </android.support.v7.preference.PreferenceScreen>
+    <android.support.v7.preference.PreferenceCategory
+        android:title="@string/settings_other_title">
+
+        <Preference
+            android:key="@string/settings_export_key"
+            android:summary="@string/settings_export_summary"
+            android:title="@string/settings_export_title"/>
+
+        <Preference
+            android:key="@string/settings_licenses_key"
+            android:title="@string/settings_licenses_title"/>
+
+    </android.support.v7.preference.PreferenceCategory>
+
 
     <android.support.v7.preference.PreferenceCategory
-        android:title="Export">
+        android:title="@string/settings_other_title">
 
         <Preference
             android:key="@string/settings_export_key"

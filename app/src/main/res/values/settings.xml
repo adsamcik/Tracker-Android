@@ -72,30 +72,18 @@
     <string name="user_renew_personal_map">Renew personal map</string>
     <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
 
+
     <!--- NEW SETTINGS -->
-    <string-array name="tracking_options_titles">
-        <item>Disabled</item>
-        <item>On foot</item>
-        <item>In motion</item>
-    </string-array>
-    <integer-array name="tracking_options_drawables">
-        <item>@drawable/ic_close_black_24dp</item>
-        <item>@drawable/ic_directions_walk_white_24dp</item>
-        <item>@drawable/ic_directions_car_white_24dp</item>
-    </integer-array>
+    <!--- TITLES -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_account_title">Account</string>
+    <string name="settings_tracking_title">Tracking</string>
+    <string name="settings_upload_title">Upload</string>
+    <string name="settings_style_title">Style</string>
+    <string name="settings_debug_title">Debug</string>
+    <string name="settings_other_title">Other</string>
 
-    <integer-array name="activity_watching_interval">
-        <item>0</item>
-        <item>5</item>
-        <item>10</item>
-        <item>30</item>
-        <item>60</item>
-        <item>120</item>
-        <item>240</item>
-        <item>300</item>
-        <item>600</item>
-    </integer-array>
-
+    <!--- TRACKING -->
     <string name="settings_disabled_recharge_title">Disabled till recharge</string>
     <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until phone is connected to charger</string>
     <string name="settings_disabled_recharge_key">stoppedTillRecharge</string>
@@ -127,6 +115,48 @@
     <string name="settings_cell_enabled_title">Cell tracking</string>
     <string name="settings_cell_enabled_key">trackingCellEnabled</string>
     <string name="settings_cell_enabled_default">true</string>
+
+    <string-array name="tracking_options_titles">
+        <item>Disabled</item>
+        <item>On foot</item>
+        <item>In motion</item>
+    </string-array>
+
+    <integer-array name="tracking_options_drawables">
+        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_directions_walk_white_24dp</item>
+        <item>@drawable/ic_directions_car_white_24dp</item>
+    </integer-array>
+
+    <integer-array name="activity_watching_interval">
+        <item>0</item>
+        <item>5</item>
+        <item>10</item>
+        <item>30</item>
+        <item>60</item>
+        <item>120</item>
+        <item>240</item>
+        <item>300</item>
+        <item>600</item>
+    </integer-array>
+
+    <!--- UPLOAD -->
+    <string name="settings_auto_upload_category">Automatic uploading</string>
+
+    <string name="settings_uploading_network_key">autoUpload</string>
+    <string name="settings_uploading_network_default">1</string>
+
+    <string-array name="auto_upload_options_titles">
+        <item>Disabled</item>
+        <item>On WiFi</item>
+        <item>Always</item>
+    </string-array>
+
+    <integer-array name="auto_upload_options_drawables">
+        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_network_wifi_24dp</item>
+        <item>@drawable/ic_network_cell_black_24dp</item>
+    </integer-array>
 
     <!-- STYLE -->
 
@@ -162,6 +192,10 @@
     <string name="settings_clear_cache_key">clearCache</string>
 
     <!-- OTHER -->
+    <string name="settings_notifications_title">Notifications</string>
+    <string name="settings_allow_upload_notification_title">Show upload notifications</string>
+    <string name="settings_allow_upload_notification_key">uploadNotificationsEnabled</string>
+    <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
 
     <string name="settings_export_title">Share tracked data</string>
     <string name="settings_export_key">shareButton</string>
