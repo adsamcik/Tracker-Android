@@ -193,6 +193,7 @@
 
     <!-- OTHER -->
     <string name="settings_notifications_title">Notifications</string>
+
     <string name="settings_allow_upload_notification_title">Show upload notifications</string>
     <string name="settings_allow_upload_notification_key">uploadNotificationsEnabled</string>
     <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>

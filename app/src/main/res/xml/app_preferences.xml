@@ -135,16 +135,12 @@
 
     </android.support.v7.preference.PreferenceScreen>
     <android.support.v7.preference.PreferenceCategory
-        android:title="@string/settings_other_title">
+        android:title="@string/settings_notifications_title">
 
-        <Preference
-            android:key="@string/settings_export_key"
-            android:summary="@string/settings_export_summary"
-            android:title="@string/settings_export_title"/>
-
-        <Preference
-            android:key="@string/settings_licenses_key"
-            android:title="@string/settings_licenses_title"/>
+        <android.support.v7.preference.CheckBoxPreference
+            android:key="@string/settings_allow_upload_notification_key"
+            android:summary="@string/settings_allow_upload_notification_summary"
+            android:title="@string/settings_allow_upload_notification_title"/>
 
     </android.support.v7.preference.PreferenceCategory>
 
