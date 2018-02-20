@@ -138,6 +138,7 @@
         android:title="@string/settings_notifications_title">
 
         <android.support.v7.preference.CheckBoxPreference
+            android:defaultValue="@string/settings_allow_upload_notification_default"
             android:key="@string/settings_allow_upload_notification_key"
             android:summary="@string/settings_allow_upload_notification_summary"
             android:title="@string/settings_allow_upload_notification_title"/>
@@ -155,6 +156,10 @@
 
         <Preference
             android:key="@string/settings_licenses_key"
+            android:title="@string/settings_licenses_title"/>
+
+        <Preference
+                android:key="@string/settings_licenses_key"
             android:title="@string/settings_licenses_title"/>
 
     </android.support.v7.preference.PreferenceCategory>
