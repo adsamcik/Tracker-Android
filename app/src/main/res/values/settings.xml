@@ -158,6 +158,11 @@
         <item>@drawable/ic_network_cell_black_24dp</item>
     </integer-array>
 
+    <string name="settings_smart_upload_title">Use smart upload</string>
+    <string name="settings_smart_upload_summary">Smart upload decides for you when to upload data based on multiple factors</string>
+    <string name="settings_smart_upload_key">smartAutoUpload</string>
+    <string name="settings_smart_upload_default">true</string>
+
     <!-- STYLE -->
 
     <string name="settings_color_day_title">Day color</string>

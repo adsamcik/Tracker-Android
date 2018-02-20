@@ -79,14 +79,23 @@
         android:persistent="true"
         android:title="@string/settings_upload_title">
 
-        <com.adsamcik.signalcollector.components.ImageSwitchPreference
-            android:defaultValue="@string/settings_uploading_network_default"
-            android:key="@string/settings_uploading_network_key"
-            app:drawables="@array/auto_upload_options_drawables"
-            app:foregroundStateColors="@color/image_switch_colors"
-            app:titles="@array/auto_upload_options_titles"/>
+        <android.support.v7.preference.PreferenceCategory
+            android:title="@string/settings_auto_upload_category">
 
+            <com.adsamcik.signalcollector.components.ImageSwitchPreference
+                android:defaultValue="@string/settings_uploading_network_default"
+                android:key="@string/settings_uploading_network_key"
+                app:drawables="@array/auto_upload_options_drawables"
+                app:foregroundStateColors="@color/image_switch_colors"
+                app:titles="@array/auto_upload_options_titles"/>
 
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_smart_upload_default"
+                android:key="@string/settings_smart_upload_key"
+                android:summary="@string/settings_smart_upload_summary"
+                android:title="@string/settings_smart_upload_title"/>
+
+        </android.support.v7.preference.PreferenceCategory>
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
@@ -159,7 +168,7 @@
             android:title="@string/settings_licenses_title"/>
 
         <Preference
-                android:key="@string/settings_licenses_key"
+            android:key="@string/settings_licenses_key"
             android:title="@string/settings_licenses_title"/>
 
     </android.support.v7.preference.PreferenceCategory>

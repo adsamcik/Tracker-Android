@@ -1,13 +1,25 @@
 package com.adsamcik.signalcollector.activities
 
+import android.app.AlertDialog
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.support.annotation.StringRes
+import android.support.v4.app.NotificationCompat
+import android.support.v4.content.ContextCompat
 import android.support.v7.preference.PreferenceFragmentCompat
 import android.support.v7.preference.PreferenceScreen
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.file.CacheStore
+import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentNewSettings
+import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.startActivity
 import com.adsamcik.signalcollector.utility.transaction
+import java.io.File
+import java.util.*
 
 
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
@@ -15,6 +27,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             ?: FragmentNewSettings()
 
     private val backstack = ArrayList<PreferenceScreen>()
+
+    private var dummyIndex = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,17 +73,110 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             backstack.size == 1 -> {
                 fragment.setPreferencesFromResource(R.xml.app_preferences, null)
                 backstack.clear()
-                title = "Settings"
+                title = getString(R.string.settings_title)
                 initializeRoot()
                 true
             }
-            else -> onPreferenceStartScreen(fragment, backstack[backstack.size - 2])
+            else -> {
+                onPreferenceStartScreen(fragment, backstack[backstack.size - 2])
+            }
         }
     }
 
-    fun initializeStartScreen(key: String) {
-        when (key) {
+    private fun createClearDialog(clearFunction: (Context) -> Unit, @StringRes snackBarString: Int) {
+        val alertDialogBuilder = AlertDialog.Builder(this)
+        alertDialogBuilder
+                .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
+                    clearFunction.invoke(this)
+                }
+                .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
+                .setMessage(resources.getText(R.string.alert_confirm_generic))
 
+        alertDialogBuilder.show()
+    }
+
+    private fun createFileAlertDialog(directory: File, verifyFunction: ((File) -> Boolean)?) {
+        val files = directory.listFiles()
+        val temp = files
+                .filter { verifyFunction == null || verifyFunction.invoke(it) }
+                .map { it.name + "|  " + Assist.humanReadableByteCount(it.length(), true) }
+
+        Collections.sort(temp) { obj, s -> obj.compareTo(s) }
+
+        val alertDialogBuilder = AlertDialog.Builder(this)
+        val fileNames = temp.toTypedArray()
+        alertDialogBuilder
+                .setTitle(getString(R.string.dev_browse_files))
+                .setItems(fileNames) { _, which ->
+                    val intent = Intent(this, DebugFileActivity::class.java)
+                    intent.putExtra("directory", directory.path)
+                    intent.putExtra("fileName", fileNames[which].substring(0, fileNames[which].lastIndexOf('|')))
+                    startActivity(intent)
+                }
+                .setNegativeButton(R.string.cancel) { _, _ -> }
+
+        alertDialogBuilder.show()
+    }
+
+
+    private fun initializeStartScreen(key: String) {
+        when (key) {
+            "debug_key" -> {
+                //val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
+                //devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE
+
+                fragment.findPreference(getString(R.string.settings_clear_cache_key)).setOnPreferenceClickListener { _ ->
+                    createClearDialog({ CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files)
+                    false
+                }
+                fragment.findPreference(getString(R.string.settings_clear_data_key)).setOnPreferenceClickListener { _ ->
+                    createClearDialog({ DataStore.clearAll(it) }, R.string.settings_cleared_all_data_files)
+                    false
+                }
+                fragment.findPreference(getString(R.string.settings_clear_reports_key)).setOnPreferenceClickListener { _ ->
+                    createClearDialog({ _ ->
+                        DataStore.delete(this, DataStore.RECENT_UPLOADS_FILE)
+                        Preferences.getPref(this).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
+                    }, R.string.settings_cleared_all_upload_reports)
+                    false
+                }
+
+                fragment.findPreference(getString(R.string.settings_browse_files_key)).setOnPreferenceClickListener { _ ->
+                    createFileAlertDialog(filesDir, { file ->
+                        val name = file.name
+                        !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
+                    })
+                    false
+                }
+
+                fragment.findPreference(getString(R.string.settings_browse_cache_key)).setOnPreferenceClickListener { _ ->
+                    createFileAlertDialog(cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory })
+                    false
+                }
+
+                fragment.findPreference(getString(R.string.settings_hello_world_key)).setOnPreferenceClickListener { _ ->
+                    val helloWorld = getString(R.string.dev_notification_dummy)
+                    val color = ContextCompat.getColor(this, R.color.color_primary)
+                    val rng = Random(System.currentTimeMillis())
+                    val facts = resources.getStringArray(R.array.lorem_ipsum_facts)
+                    val notiBuilder = NotificationCompat.Builder(this, getString(R.string.channel_other_id))
+                            .setSmallIcon(R.drawable.ic_signals)
+                            .setTicker(helloWorld)
+                            .setColor(color)
+                            .setLights(color, 2000, 5000)
+                            .setContentTitle(getString(R.string.did_you_know))
+                            .setContentText(facts[rng.nextInt(facts.size)])
+                            .setWhen(System.currentTimeMillis())
+                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    notificationManager.notify(dummyIndex++, notiBuilder.build())
+                    false
+                }
+
+                fragment.findPreference(getString(R.string.settings_activity_debug_key)).setOnPreferenceClickListener { _ ->
+                    startActivity(Intent(this, ActivityRecognitionActivity::class.java))
+                    false
+                }
+            }
         }
     }
 
@@ -85,6 +192,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         title = pref.title
 
+        initializeStartScreen(pref.key)
 
         return true
     }
