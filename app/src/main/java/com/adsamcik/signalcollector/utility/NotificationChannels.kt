@@ -10,7 +10,7 @@ import android.support.annotation.StringRes
 import com.adsamcik.signalcollector.R
 
 @RequiresApi(26)
-object NotificationTools {
+object NotificationChannels {
 
     fun prepareChannels(context: Context) {
         createChannel(context, R.string.channel_track_id, R.string.channel_track_name, R.string.channel_track_description, true, android.app.NotificationManager.IMPORTANCE_LOW)

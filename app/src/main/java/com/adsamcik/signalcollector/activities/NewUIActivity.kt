@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.activities
 
 import android.graphics.Color
 import android.graphics.Point
+import android.os.Build
 import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.view.MotionEvent
@@ -17,6 +18,7 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.NotificationChannels
 import com.adsamcik.signalcollector.utility.startActivity
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric
@@ -30,6 +32,8 @@ class NewUIActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         Fabric.with(this, Crashlytics())
+        if (Build.VERSION.SDK_INT >= 26)
+            NotificationChannels.prepareChannels(this)
 
         setContentView(R.layout.activity_new_ui)
 

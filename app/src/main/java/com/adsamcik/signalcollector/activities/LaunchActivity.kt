@@ -14,7 +14,7 @@ import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.NotificationTools
+import com.adsamcik.signalcollector.utility.NotificationChannels
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
@@ -79,7 +79,7 @@ class LaunchActivity : Activity() {
             Shortcuts.initializeShortcuts(this)
 
         if (Build.VERSION.SDK_INT >= 26)
-            NotificationTools.prepareChannels(this)
+            NotificationChannels.prepareChannels(this)
 
         ActivityWakerService.poke(this)
 
