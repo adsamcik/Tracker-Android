@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.view.MotionEvent
 import android.view.View
+import android.widget.ListView
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
@@ -15,6 +16,7 @@ import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -26,7 +28,7 @@ import kotlinx.android.synthetic.main.activity_new_ui.*
 
 
 class NewUIActivity : FragmentActivity() {
-    var colorManager: ColorManager? = null
+    private var colorManager: ColorManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,13 +39,13 @@ class NewUIActivity : FragmentActivity() {
 
         setContentView(R.layout.activity_new_ui)
 
-        colorManager = ColorManager(this)
+        colorManager = ColorSupervisor.createColorManager(this)
         val colorManager = colorManager!!
 
         colorManager.watchElement(ColorView(root as View, 0, false, true, false))
 
-        colorManager.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
-        colorManager.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        ColorSupervisor.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
 
         trackerWifiComponent.addSecondaryText("found 6 meters before collection")
         trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")

@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.uitools
 
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -17,8 +16,7 @@ import com.adsamcik.signalcollector.R
 import kotlin.math.roundToInt
 
 
-class ColorManager(val context: Context) {
-    private val colorList = ArrayList<@ColorInt Int>()
+internal class ColorManager(private val mContext: Context) {
     private val watchedElements = ArrayList<ColorView>()
 
     private var currentLuminance = 0.0
@@ -31,31 +29,6 @@ class ColorManager(val context: Context) {
 
     @ColorInt
     private var currentColor = 0
-
-    private var animation: ValueAnimator? = null
-
-    private fun initializeAnimation() {
-        animation?.end()
-
-        val anim = ValueAnimator.ofArgb(*colorList.toIntArray())
-        anim.duration = 30000
-        anim.repeatMode = ValueAnimator.REVERSE
-        anim.repeatCount = ValueAnimator.INFINITE
-        anim.addUpdateListener { update(it.animatedValue as Int) }
-        anim.start()
-
-        animation = anim
-    }
-
-
-    fun addColors(@ColorInt vararg varargs: Int) {
-        colorList.ensureCapacity(colorList.size + varargs.size)
-        varargs.forEach { colorList.add(it) }
-        if (colorList.size == 1) {
-            update(colorList[0])
-        } else
-            initializeAnimation()
-    }
 
     fun watchElement(view: ColorView) {
         watchedElements.add(view)
@@ -77,7 +50,7 @@ class ColorManager(val context: Context) {
     private fun perceivedRelLuminance(@ColorInt color: Int) = Math.signum(perceivedLuminance(color) - 0.5)
     private fun relLuminance(@ColorInt color: Int) = Math.signum(ColorUtils.calculateLuminance(color) - 0.5)
 
-    private fun update(@ColorInt color: Int) {
+    internal fun update(@ColorInt color: Int) {
         currentColor = color
         val lum = perceivedRelLuminance(color)
         if (currentLuminance != lum) {
@@ -85,11 +58,11 @@ class ColorManager(val context: Context) {
             val bgColor: Int
             val fgColor: Int
             if (lum > 0) {
-                fgColor = ContextCompat.getColor(context, R.color.text_primary_dark)
-                bgColor = ContextCompat.getColor(context, R.color.background_new_dark)
+                fgColor = ContextCompat.getColor(mContext, R.color.text_primary_dark)
+                bgColor = ContextCompat.getColor(mContext, R.color.background_new_dark)
             } else {
-                fgColor = ContextCompat.getColor(context, R.color.text_primary)
-                bgColor = ContextCompat.getColor(context, R.color.background_new_light)
+                fgColor = ContextCompat.getColor(mContext, R.color.text_primary)
+                bgColor = ContextCompat.getColor(mContext, R.color.background_new_light)
             }
 
             currentBackground = bgColor
@@ -127,7 +100,7 @@ class ColorManager(val context: Context) {
     }
 
     private fun updateBackground(view: View, @ColorInt color: Int, layer: Int) {
-        if(layer == 0)
+        if (layer == 0)
             view.setBackgroundColor(color)
         else {
             val layerValue = (25.5 * layer - 1).roundToInt()

@@ -64,6 +64,7 @@ class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
         refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40))
 
         val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
+        listView.setRecyclerListener {  }
         listView.adapter = adapter
         updateStats()
         return fragmentView
