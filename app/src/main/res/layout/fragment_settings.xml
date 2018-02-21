@@ -301,8 +301,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingEnd="0dp"
-                    android:paddingStart="0dp"
-                    android:text="@string/settings_autoupload_at_value"/>
+                    android:paddingStart="0dp"/>
             </LinearLayout>
 
             <com.adsamcik.slider.implementations.IntSlider

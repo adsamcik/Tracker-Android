@@ -54,7 +54,7 @@
     <string name="settings_use_dark_theme">Dark theme</string>
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="settings_autoupload_at">Autoupload at</string>
-    <string name="settings_autoupload_at_value">%1$d MB</string>
+    <string name="settings_autoupload_at_value">%s MB</string>
     <string name="internet_connection_required">Internet connection required</string>
 
     <string name="signout">Sign out</string>
