@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.uitools
 
 import android.content.Context
+import android.graphics.Color
 import android.support.annotation.ColorInt
 import android.support.v4.graphics.ColorUtils
 import com.adsamcik.signalcollector.utility.Constants
@@ -12,12 +13,16 @@ import kotlin.collections.ArrayList
 internal object ColorSupervisor {
     private val colorList = ArrayList<@ColorInt Int>()
     private val timer = Timer("ColorUpdate", true)
+    private var timerTask: ColorUpdateTask? = null
     private var timerActive = false
 
     private val colorManagers = ArrayList<ColorManager>()
-    private const val PERIOD = Constants.MINUTE_IN_MILLISECONDS.toLong()
+
+    private const val CHANGE_LENGTH = (6 * Constants.SECOND_IN_MILLISECONDS).toLong()
 
     private var currentIndex = 0
+
+    private val nextIndex get () = (currentIndex + 1).rem(colorList.size)
 
     private var updateLock: Lock = ReentrantLock()
 
@@ -31,19 +36,48 @@ internal object ColorSupervisor {
     private fun ensureUpdate() {
         if (colorManagers.size == 1 && colorList.size > 1) {
             synchronized(updateLock) {
-                if (!timerActive) {
-                    timerActive = true
-                    timer.scheduleAtFixedRate(ColorUpdateTask(PERIOD, (6 * Constants.HOUR_IN_MILLISECONDS).toLong()), 0L, PERIOD)
-                }
+                if (!timerActive)
+                    startUpdate()
             }
         }
+    }
+
+    private fun updateUpdate() {
+        if (colorManagers.size == 1 && colorList.size > 1) {
+            synchronized(updateLock) {
+                stopUpdate()
+                startUpdate()
+            }
+        }
+    }
+
+    private fun startUpdate() {
+        timerActive = true
+        val period = calculateUpdatePeriod()
+        timerTask = ColorUpdateTask(period, CHANGE_LENGTH)
+        timer.scheduleAtFixedRate(timerTask, 0L, period)
+    }
+
+    private fun calculateUpdatePeriod() = CHANGE_LENGTH / calculateUpdateCount()
+
+    private fun calculateUpdateCount(): Int {
+        if (colorList.size < 2)
+            throw RuntimeException("Update rate cannot be calculated for less than 2 colors")
+
+        val currentColor = colorList[currentIndex]
+        val targetColor = colorList[nextIndex]
+        val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
+        val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
+        val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
+        return rDiff + gDiff + bDiff
     }
 
     private fun stopUpdate() {
         synchronized(updateLock) {
             if (timerActive) {
                 timerActive = false
-                timer.cancel()
+                timerTask!!.cancel()
+                timer.purge()
             }
         }
     }
@@ -70,16 +104,12 @@ internal object ColorSupervisor {
     }
 
     fun deltaUpdate(delta: Float, newPeriod: Boolean) {
-        if (newPeriod)
-            currentIndex = (currentIndex + 1).rem(colorList.size)
+        if (newPeriod) {
+            currentIndex = nextIndex
+            updateUpdate()
+        }
 
-        val targetIndex: Int =
-                if (currentIndex == colorList.size - 1)
-                    0
-                else
-                    currentIndex + 1
-
-        update(ColorUtils.blendARGB(colorList[currentIndex], colorList[targetIndex], delta))
+        update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
     }
 
     fun update(@ColorInt color: Int) {
@@ -90,13 +120,13 @@ internal object ColorSupervisor {
 
 }
 
-internal class ColorUpdateTask(private val period: Long, private val changePeriod: Long) : TimerTask() {
+internal class ColorUpdateTask(private val deltaTime: Long, private val periodLength: Long) : TimerTask() {
     private var currentTime = 0f
 
     override fun run() {
-        val newTime = currentTime + period
-        currentTime = newTime.rem(changePeriod)
-        val delta = currentTime / changePeriod
+        val newTime = currentTime + deltaTime
+        currentTime = newTime.rem(periodLength)
+        val delta = currentTime / periodLength
 
         if (newTime != currentTime)
             ColorSupervisor.deltaUpdate(delta, true)
