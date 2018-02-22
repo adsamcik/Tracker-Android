@@ -10,6 +10,7 @@ import android.support.v4.graphics.ColorUtils
 import android.support.v7.widget.CardView
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
@@ -37,8 +38,29 @@ internal class ColorManager(private val mContext: Context) {
 
     fun watchElement(view: View) = watchElement(ColorView(view, 0))
 
+    fun watchRecycler(view: ColorView) {
+        if (!view.recursive)
+            throw RuntimeException("Recycler view cannot be non recursive")
+
+        watchElement(view)
+
+        (view.view as AdapterView<*>).setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+            override fun onChildViewRemoved(parent: View, child: View) {
+                stopWatchingElement(child)
+            }
+
+            override fun onChildViewAdded(parent: View, child: View) {
+                watchElement(ColorView(child, view.layer))
+            }
+
+        })
+
+    }
+
     fun stopWatchingElement(view: View) {
-        watchedElements.removeAt(watchedElements.indexOfFirst { it.view == view })
+        val index = watchedElements.indexOfFirst { it.view == view }
+        if (index >= 0)
+            watchedElements.removeAt(index)
     }
 
     private fun relRed(@ColorInt color: Int) = Color.red(color) / 255.0

@@ -14,6 +14,7 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
+import com.adsamcik.signalcollector.fragments.FragmentNewStats
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
@@ -71,12 +72,13 @@ class NewUIActivity : FragmentActivity() {
 
         statsButton.dragAxis = DragAxis.X
         statsButton.setTarget(root, DragTargetAnchor.TopRight, -10)
-        val statsPayload = DraggablePayload(this, FragmentStats::class.java, Point(-size.x, 0), root, DragTargetAnchor.TopRight, 0)
+        val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, Point(-size.x, 0), root, DragTargetAnchor.TopRight, 0)
         statsPayload.backgroundColor = Color.WHITE
         statsButton.addPayload(statsPayload)
         statsButton.targetTranslationZ = 12f
         statsPayload.onInitialized = {
-            colorManager.watchElement(ColorView(it.view!!, 1, true, true))
+            val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
+            colorManager.watchRecycler(ColorView(recycler, 1, true, true))
         }
 
         activityButton.dragAxis = DragAxis.X
@@ -97,9 +99,8 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.setTranslationZ(20f)
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapPayload.onInitialized = {
-            val map = it.view!!.findViewById(R.id.map_search) as View?
-            if (map != null)
-                colorManager.watchElement(ColorView(map, 2, true, true))
+            val map = it.view!!.findViewById(R.id.map_search) as View
+            colorManager.watchElement(ColorView(map, 2, true, true))
         }
         mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(it.view!!.findViewById(R.id.map_search)) }
         mapDraggable.addPayload(mapPayload)
@@ -121,6 +122,12 @@ class NewUIActivity : FragmentActivity() {
             true
         else
             super.dispatchTouchEvent(event)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+
     }
 
 }
