@@ -14,6 +14,7 @@ import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.roundToInt
 
 
@@ -31,9 +32,13 @@ internal class ColorManager(private val mContext: Context) {
     @ColorInt
     private var currentColor = 0
 
+    private val arrayLock = ReentrantLock()
+
     fun watchElement(view: ColorView) {
-        watchedElements.add(view)
-        update(view, currentColor, currentBackground, currentForeground)
+        synchronized(arrayLock) {
+            watchedElements.add(view)
+            update(view, currentColor, currentBackground, currentForeground)
+        }
     }
 
     fun watchElement(view: View) = watchElement(ColorView(view, 0))
@@ -58,9 +63,11 @@ internal class ColorManager(private val mContext: Context) {
     }
 
     fun stopWatchingElement(view: View) {
-        val index = watchedElements.indexOfFirst { it.view == view }
-        if (index >= 0)
-            watchedElements.removeAt(index)
+        synchronized(arrayLock) {
+            val index = watchedElements.indexOfFirst { it.view == view }
+            if (index >= 0)
+                watchedElements.removeAt(index)
+        }
     }
 
     private fun relRed(@ColorInt color: Int) = Color.red(color) / 255.0
@@ -90,9 +97,13 @@ internal class ColorManager(private val mContext: Context) {
             currentBackground = bgColor
             currentForeground = fgColor
 
-            watchedElements.forEach { update(it, color, bgColor, fgColor) }
+            synchronized(arrayLock) {
+                watchedElements.forEach { update(it, color, bgColor, fgColor) }
+            }
         } else {
-            watchedElements.forEach { if (it.rootIsBackground && !it.ignoreRoot) updateBackground(it.view, color, it.layer) }
+            synchronized(arrayLock) {
+                watchedElements.forEach { if (it.rootIsBackground && !it.ignoreRoot) updateBackground(it.view, color, it.layer) }
+            }
         }
     }
 
