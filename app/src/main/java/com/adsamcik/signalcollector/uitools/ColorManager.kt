@@ -48,14 +48,12 @@ internal class ColorManager(private val mContext: Context) {
             throw RuntimeException("Recycler view cannot be non recursive")
 
         watchElement(view)
-
         (view.view as AdapterView<*>).setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
             override fun onChildViewRemoved(parent: View, child: View) {
-                stopWatchingElement(child)
             }
 
             override fun onChildViewAdded(parent: View, child: View) {
-                watchElement(ColorView(child, view.layer))
+                update(view, currentColor, currentBackground, currentForeground)
             }
 
         })
@@ -68,6 +66,11 @@ internal class ColorManager(private val mContext: Context) {
             if (index >= 0)
                 watchedElements.removeAt(index)
         }
+    }
+
+    fun stopWatchingRecycler(view: AdapterView<*>) {
+        view.setOnHierarchyChangeListener(null)
+        stopWatchingElement(view)
     }
 
     private fun relRed(@ColorInt color: Int) = Color.red(color) / 255.0
@@ -165,7 +168,7 @@ internal class ColorManager(private val mContext: Context) {
         val background = view.background
         if (view is CardView) {
             view.setCardBackgroundColor(bgColor)
-            view.cardElevation = 0f
+            //view.cardElevation = 0f
         } else if (background != null) {
             when (background) {
                 is ColorDrawable -> view.setBackgroundColor(bgColor)

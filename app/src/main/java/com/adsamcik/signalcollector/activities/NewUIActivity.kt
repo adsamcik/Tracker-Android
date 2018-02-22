@@ -83,6 +83,10 @@ class NewUIActivity : FragmentActivity() {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
             colorManager.watchRecycler(ColorView(recycler, 1, true, true))
         }
+        statsPayload.onBeforeDestroyed = {
+            val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
+            colorManager.stopWatchingRecycler(recycler)
+        }
         statsButton.addPayload(statsPayload)
 
         activityButton.dragAxis = DragAxis.X
@@ -100,6 +104,7 @@ class NewUIActivity : FragmentActivity() {
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
         mapDraggable.increaseTouchAreaBy(dp * 32)
+        mapDraggable.targetTranslationZ = 13f * dp
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
         mapPayload.backgroundColor = Color.WHITE

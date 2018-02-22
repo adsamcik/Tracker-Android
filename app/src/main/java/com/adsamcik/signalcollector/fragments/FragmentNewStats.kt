@@ -7,7 +7,6 @@ import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.widget.SwipeRefreshLayout
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -47,7 +46,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     private var refreshingCount = 0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
+        fragmentView = inflater.inflate(R.layout.fragment_new_stats, container, false)
 
         val activity = activity!!
 
