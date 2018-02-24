@@ -74,7 +74,7 @@ class NewUIActivity : FragmentActivity() {
         statsButton.dragAxis = DragAxis.X
         statsButton.setTarget(root, DragTargetAnchor.TopRight, -56)
         statsButton.targetTranslationZ = dp * 9f
-        statsButton.increaseTouchAreaBy(dp * 28, 0, 0, 0)
+        statsButton.increaseTouchAreaBy(dp * 56, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, Point(-size.x, 0), root, DragTargetAnchor.TopRight, 0)
         statsPayload.backgroundColor = Color.WHITE
@@ -92,7 +92,7 @@ class NewUIActivity : FragmentActivity() {
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.TopLeft, -56)
         activityButton.targetTranslationZ = dp * 9f
-        activityButton.increaseTouchAreaBy(0, 0, dp * 28, 0)
+        activityButton.increaseTouchAreaBy(0, 0, dp * 56, 0)
 
         val activityPayload = DraggablePayload(this, FragmentActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
@@ -114,7 +114,7 @@ class NewUIActivity : FragmentActivity() {
             val map = it.view!!.findViewById(R.id.map_search) as View
             colorManager.watchElement(ColorView(map, 2, true, true))
         }
-        mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(it.view!!.findViewById(R.id.map_search)) }
+        mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(findViewById(R.id.map_search)) }
         mapDraggable.addPayload(mapPayload)
 
         buttonSettings.setOnClickListener { startActivity<SettingsActivity> { } }

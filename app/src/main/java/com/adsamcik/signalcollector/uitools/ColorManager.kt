@@ -14,6 +14,8 @@ import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.roundToInt
 
@@ -100,12 +102,16 @@ internal class ColorManager(private val mContext: Context) {
             currentBackground = bgColor
             currentForeground = fgColor
 
-            synchronized(arrayLock) {
-                watchedElements.forEach { update(it, color, bgColor, fgColor) }
+            launch(UI) {
+                synchronized(arrayLock) {
+                    watchedElements.forEach { update(it, color, bgColor, fgColor) }
+                }
             }
         } else {
-            synchronized(arrayLock) {
-                watchedElements.forEach { if (it.rootIsBackground && !it.ignoreRoot) updateBackground(it.view, color, it.layer) }
+            launch(UI) {
+                synchronized(arrayLock) {
+                    watchedElements.forEach { if (it.rootIsBackground && !it.ignoreRoot) updateBackground(it.view, color, it.layer) }
+                }
             }
         }
     }
