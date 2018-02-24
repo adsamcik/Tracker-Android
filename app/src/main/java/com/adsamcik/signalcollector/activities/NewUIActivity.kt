@@ -44,8 +44,9 @@ class NewUIActivity : FragmentActivity() {
 
         colorManager.watchElement(ColorView(root as View, 0, false, true, false))
 
+        //ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        //ColorSupervisor.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
         ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
-        ColorSupervisor.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
 
         trackerWifiComponent.addSecondaryText("found 6 meters before collection")
         trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")

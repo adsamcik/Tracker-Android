@@ -4,6 +4,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
+import android.support.annotation.ColorInt
+import android.support.annotation.ColorRes
+import android.support.annotation.StringRes
+import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.StatDay
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
@@ -190,4 +194,20 @@ object Preferences {
                 .filterTo(statDays) { age <= 0 || it.age(age) < MAX_DAY_DIFF_STATS }
         return statDays
     }
+}
+
+fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): Int {
+    val resources = context.resources
+    return getInt(resources.getString(key), resources.getString(defaultResource).toInt())
+}
+
+fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
+    val resources = context.resources
+    return getString(resources.getString(key), resources.getString(defaultResource))
+}
+
+@ColorInt
+fun SharedPreferences.getColorResource(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
+    val defaultColor = ContextCompat.getColor(context, defaultResource)
+    return getInt(context.getString(key), defaultColor)
 }

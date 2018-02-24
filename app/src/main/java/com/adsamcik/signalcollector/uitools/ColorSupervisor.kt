@@ -3,8 +3,13 @@ package com.adsamcik.signalcollector.uitools
 import android.content.Context
 import android.graphics.Color
 import android.support.annotation.ColorInt
+import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.getColor
+import com.adsamcik.signalcollector.utility.getInt
 import java.util.*
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
@@ -87,6 +92,18 @@ internal object ColorSupervisor {
         if (colorManagers.isEmpty()) {
             colorManagers.trimToSize()
             stopUpdate()
+        }
+    }
+
+    fun initializeFromPreferences(context: Context) {
+        val resources = context.resources
+        val preferences = Preferences.getPref(context)
+        val mode = preferences.getInt(context, R.string.settings_style_mode_key, R.string.settings_style_mode_default)
+
+        var day = ContextCompat.getColor(context, R.color.settings_color_day_default)
+
+        if (mode == 0) {
+            addColors(preferences.getInt(resources.getString(R.string.settings_color_day_key), day))
         }
     }
 
