@@ -54,6 +54,10 @@ class KeyboardManager(private val rootView: View) {
 
     fun removeKeyboardListener(listener: KeyboardListener) = listeners.remove(listener)
 
+    fun removeAllListeners() = listeners.clear()
+
+    fun keyboardOpen() = wasOpen
+
     fun closeKeyboard() {
         if (wasOpen) {
             val imm = rootView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager

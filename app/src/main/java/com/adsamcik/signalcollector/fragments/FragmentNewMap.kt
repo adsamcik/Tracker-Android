@@ -19,7 +19,6 @@ import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -71,6 +70,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var hasPermissions = false
 
     private var keyboardManager: KeyboardManager? = null
+    private var searchOriginalMargin = 0
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -107,7 +107,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             menu?.hideAndDestroy()
         }
 
-        keyboardManager?.closeKeyboard()
+        if (keyboardManager != null) {
+            val keyboardManager = keyboardManager!!
+            keyboardManager.removeAllListeners()
+            keyboardManager.closeKeyboard()
+        }
     }
 
     override fun onEnter(activity: Activity) {
@@ -173,27 +177,27 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     private fun initializeKeyboardDetection() {
         val searchText = searchText!!
-        val originalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
         val navbarHeight = navbarHeight(activity!!)
 
-        val keyboardManager = KeyboardManager(fragmentView!!.rootView)
+        if (keyboardManager == null) {
+            searchOriginalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
+            keyboardManager = KeyboardManager(fragmentView!!.rootView)
+        }
 
-        keyboardManager.addKeyboardListener { opened, keyboardHeight ->
-            Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) originalMargin else (originalMargin + navbarHeight)))
+        keyboardManager!!.addKeyboardListener { opened, keyboardHeight ->
+            //Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) originalMargin else (originalMargin + navbarHeight)))
 
             when (opened) {
                 true -> {
-                    searchText.setBottomMargin(originalMargin + keyboardHeight)
-                    map!!.setPadding(searchText.leftMargin, 0, 0, originalMargin + keyboardHeight + searchText.height)
+                    searchText.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                    map?.setPadding(searchText.leftMargin, 0, 0, searchOriginalMargin + keyboardHeight + searchText.height)
                 }
                 false -> {
-                    searchText.setBottomMargin(originalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
-                    map!!.setPadding(0, 0, 0, navbarHeight)
+                    searchText.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
+                    map?.setPadding(0, 0, 0, navbarHeight)
                 }
             }
         }
-
-        this.keyboardManager = keyboardManager
     }
 
     /**
