@@ -13,6 +13,7 @@ fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
         is LinearLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
         is ConstraintLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
     }
+    requestLayout()
 }
 
 fun View.setBottomMargin(margin: Int) {
@@ -22,6 +23,7 @@ fun View.setBottomMargin(margin: Int) {
         is LinearLayout.LayoutParams -> layoutParams.bottomMargin = margin
         is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin = margin
     }
+    requestLayout()
 }
 
 fun View.addBottomMargin(margin: Int) {
@@ -31,6 +33,7 @@ fun View.addBottomMargin(margin: Int) {
         is LinearLayout.LayoutParams -> layoutParams.bottomMargin += margin
         is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin += margin
     }
+    requestLayout()
 }
 
 fun View.marginNavbar() {
@@ -54,3 +57,47 @@ fun View.paddingNavbar() {
         setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom + height)
     }
 }
+
+val View.leftMargin: Int
+    get() {
+        val layoutParams = layoutParams ?: return 0
+        return when (layoutParams) {
+            is RelativeLayout.LayoutParams -> layoutParams.leftMargin
+            is LinearLayout.LayoutParams -> layoutParams.leftMargin
+            is ConstraintLayout.LayoutParams -> layoutParams.leftMargin
+            else -> 0
+        }
+    }
+
+val View.topMargin: Int
+    get() {
+        val layoutParams = layoutParams ?: return 0
+        return when (layoutParams) {
+            is RelativeLayout.LayoutParams -> layoutParams.topMargin
+            is LinearLayout.LayoutParams -> layoutParams.topMargin
+            is ConstraintLayout.LayoutParams -> layoutParams.topMargin
+            else -> 0
+        }
+    }
+
+val View.rightMargin: Int
+    get() {
+        val layoutParams = layoutParams ?: return 0
+        return when (layoutParams) {
+            is RelativeLayout.LayoutParams -> layoutParams.rightMargin
+            is LinearLayout.LayoutParams -> layoutParams.rightMargin
+            is ConstraintLayout.LayoutParams -> layoutParams.rightMargin
+            else -> 0
+        }
+    }
+
+val View.bottomMargin: Int
+    get() {
+        val layoutParams = layoutParams ?: return 0
+        return when (layoutParams) {
+            is RelativeLayout.LayoutParams -> layoutParams.bottomMargin
+            is LinearLayout.LayoutParams -> layoutParams.bottomMargin
+            is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin
+            else -> 0
+        }
+    }

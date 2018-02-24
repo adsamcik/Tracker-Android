@@ -14,10 +14,12 @@ import android.location.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.support.constraint.ConstraintLayout
 import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -27,6 +29,10 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.network.SignalsTileProvider
+import com.adsamcik.signalcollector.uitools.KeyboardManager
+import com.adsamcik.signalcollector.uitools.leftMargin
+import com.adsamcik.signalcollector.uitools.navbarHeight
+import com.adsamcik.signalcollector.uitools.setBottomMargin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.FabMenu
 import com.adsamcik.signalcollector.utility.MapFilterRule
@@ -36,7 +42,6 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
-import kotlinx.coroutines.experimental.async
 import java.io.IOException
 
 class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
@@ -64,6 +69,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var mapLayerFilterRule: MapFilterRule? = null
 
     private var hasPermissions = false
+
+    private var keyboardManager: KeyboardManager? = null
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -99,11 +106,14 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
             menu?.hideAndDestroy()
         }
+
+        keyboardManager?.closeKeyboard()
     }
 
     override fun onEnter(activity: Activity) {
         this.fActivity = activity as FragmentActivity
         initializeLocationListener(activity)
+        initializeKeyboardDetection()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -121,19 +131,17 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         }
 
 
-        val callback = this
-        async {
-            val mapFragment = SupportMapFragment.newInstance()
-            val fragmentTransaction = fragmentManager!!.beginTransaction()
-            fragmentTransaction.add(R.id.container_map, mapFragment)
-            fragmentTransaction.commit()
-            mapFragment.getMapAsync(callback)
-        }
+        val mapFragment = SupportMapFragment.newInstance()
+        val fragmentTransaction = fragmentManager!!.beginTransaction()
+        fragmentTransaction.add(R.id.container_map, mapFragment)
+        fragmentTransaction.commit()
+        mapFragment.getMapAsync(this)
 
         mapLayerFilterRule = MapFilterRule()
 
-        searchText = fragmentView!!.findViewById(R.id.map_search)
-        searchText!!.setOnEditorActionListener { v, _, _ ->
+        val searchText = fragmentView!!.findViewById<EditText>(R.id.map_search)!!
+
+        searchText.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)
             try {
                 val addresses = geocoder.getFromLocationName(v.text.toString(), 1)
@@ -152,14 +160,40 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             true
         }
 
+        this.searchText = searchText
+
         return fragmentView
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        map = null
         fragmentView = null
         menu = null
+    }
+
+    private fun initializeKeyboardDetection() {
+        val searchText = searchText!!
+        val originalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
+        val navbarHeight = navbarHeight(activity!!)
+
+        val keyboardManager = KeyboardManager(fragmentView!!.rootView)
+
+        keyboardManager.addKeyboardListener { opened, keyboardHeight ->
+            Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) originalMargin else (originalMargin + navbarHeight)))
+
+            when (opened) {
+                true -> {
+                    searchText.setBottomMargin(originalMargin + keyboardHeight)
+                    map!!.setPadding(searchText.leftMargin, 0, 0, originalMargin + keyboardHeight + searchText.height)
+                }
+                false -> {
+                    searchText.setBottomMargin(originalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
+                    map!!.setPadding(0, 0, 0, navbarHeight)
+                }
+            }
+        }
+
+        this.keyboardManager = keyboardManager
     }
 
     /**
@@ -200,7 +234,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         map.setMapStyle(MapStyleOptions.loadRawResourceStyle(c, R.raw.map_style))
 
         //does not work well with bearing. Known bug in Google maps api since 2014.
-        //map.setPadding(0, Assist.dpToPx(c, 48 + 40 + 8), 0, 0);
+        //val padding = navbarHeight(c)
+        //map.setPadding(0, 0, 0, padding)
         tileProvider = SignalsTileProvider(c, MAX_ZOOM)
 
         initializeLocationListener(c)

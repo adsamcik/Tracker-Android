@@ -12,7 +12,7 @@
         android:id="@+id/map_search"
         android:layout_width="0dp"
         android:layout_height="48dp"
-        android:layout_marginBottom="@dimen/navbar_height_and_padding"
+        android:layout_marginBottom="@dimen/edge_margin"
         android:layout_marginEnd="@dimen/edge_margin"
         android:layout_marginStart="@dimen/edge_margin"
         android:background="?android:colorBackground"

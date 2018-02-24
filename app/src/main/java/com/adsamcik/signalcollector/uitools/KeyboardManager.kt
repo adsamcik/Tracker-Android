@@ -1,46 +1,72 @@
 package com.adsamcik.signalcollector.uitools
 
+import android.content.Context
 import android.graphics.Rect
 import android.view.View
+import android.view.ViewTreeObserver
+import android.view.inputmethod.InputMethodManager
+import com.adsamcik.signalcollector.utility.Assist
 
 
-typealias KeyboardListener = (state: Boolean) -> Unit
+typealias KeyboardListener = (state: Boolean, keyboardHeight: Int) -> Unit
 
 /**
  * Manages access to the Android soft keyboard.
  */
 class KeyboardManager(private val rootView: View) {
     private val listeners = ArrayList<KeyboardListener>()
-    private var state = KeyboardStatus.CLOSED
+    private var wasOpen = false
+    private var keyboardHeight = 0
+    private var defaultDiff = 0
 
-    fun addKeyboardListener(listener: KeyboardListener) = listeners.add(listener)
-    fun removeKeyboardListener(listener: KeyboardListener) = listeners.remove(listener)
+    private val threshold = Assist.dpToPx(rootView.context, KEYBOARD_VISIBLE_THRESHOLD_DP)
+
+    private val r = Rect()
 
     init {
-        rootView.viewTreeObserver.addOnGlobalLayoutListener {
-            val r = Rect()
-            rootView.getWindowVisibleDisplayFrame(r)
+        defaultDiff = calculateHeightDiff() - navbarHeight(rootView.context)
+    }
 
-            val heightDiff = rootView.rootView.height - (r.bottom - r.top)
-            if (heightDiff > rootView.rootView.height / 4) {
-                if (state == KeyboardStatus.CLOSED)
-                    onShow()
-            } else if (state == KeyboardStatus.OPEN)
-                onHide()
+    private fun calculateHeightDiff(): Int {
+        rootView.getWindowVisibleDisplayFrame(r)
+        return rootView.rootView.height - r.height()
+    }
+
+    private val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        val heightDiff = calculateHeightDiff()
+        val isOpen = heightDiff > threshold
+
+        if (isOpen != wasOpen) {
+            keyboardHeight = if (isOpen)
+                heightDiff - defaultDiff
+            else
+                0
+
+            wasOpen = isOpen
+            listeners.forEach { it.invoke(isOpen, keyboardHeight) }
         }
     }
 
-    private fun onShow() {
-        state = KeyboardStatus.OPEN
-        listeners.forEach { it.invoke(true) }
+    fun addKeyboardListener(listener: KeyboardListener) {
+        listeners.add(listener)
+        listener.invoke(wasOpen, keyboardHeight)
     }
 
-    private fun onHide() {
-        state = KeyboardStatus.CLOSED
-        listeners.forEach { it.invoke(false) }
-    }
-}
+    fun removeKeyboardListener(listener: KeyboardListener) = listeners.remove(listener)
 
-enum class KeyboardStatus {
-    OPEN, CLOSED
+    fun closeKeyboard() {
+        if (wasOpen) {
+            val imm = rootView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(rootView.windowToken, 0)
+        }
+    }
+
+    init {
+        rootView.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+
+    }
+
+    companion object {
+        private const val KEYBOARD_VISIBLE_THRESHOLD_DP = 100
+    }
 }
