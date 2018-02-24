@@ -4,15 +4,10 @@
     key="root"
     title="@string/settings_title">
 
-    <android.support.v7.preference.PreferenceScreen
+
+    <Preference
         android:key="account_key"
-        android:persistent="false"
-        android:title="@string/settings_account_title">
-        <Preference
-            android:title="TBD"/>
-
-
-    </android.support.v7.preference.PreferenceScreen>
+        android:title="@string/settings_account_title"/>
 
     <android.support.v7.preference.PreferenceScreen
         android:key="tracking_key"
@@ -102,11 +97,27 @@
         android:key="style_key"
         android:persistent="true"
         android:title="@string/settings_style_title">
+        <ListPreference
+            android:defaultValue="@string/settings_style_mode_default"
+            android:entries="@array/settings_style_mode_names"
+            android:entryValues="@array/settings_style_mode_values"
+            android:key="@string/settings_style_mode_key"
+            android:title="@string/settings_style_mode_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_morning_default"
+            android:key="@string/settings_color_morning_key"
+            android:title="@string/settings_color_morning_title"/>
 
         <com.adsamcik.signalcollector.components.ColorSupportPreference
             android:defaultValue="@color/settings_color_day_default"
             android:key="@string/settings_color_day_key"
             android:title="@string/settings_color_day_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_evening_default"
+            android:key="@string/settings_color_evening_key"
+            android:title="@string/settings_color_evening_title"/>
 
         <com.adsamcik.signalcollector.components.ColorSupportPreference
             android:defaultValue="@color/settings_color_night_default"
