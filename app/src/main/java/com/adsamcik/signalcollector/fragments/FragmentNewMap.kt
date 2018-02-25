@@ -19,6 +19,7 @@ import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -42,6 +43,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
     private var locationListener: UpdateLocationListener? = null
@@ -71,6 +73,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     private var keyboardManager: KeyboardManager? = null
     private var searchOriginalMargin = 0
+    private var keyboardInitialized = AtomicBoolean(false)
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -109,8 +112,9 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         if (keyboardManager != null) {
             val keyboardManager = keyboardManager!!
-            keyboardManager.removeAllListeners()
             keyboardManager.closeKeyboard()
+            keyboardManager.removeAllListeners()
+            keyboardInitialized.set(false)
         }
     }
 
@@ -175,28 +179,34 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         menu = null
     }
 
+    @Synchronized
     private fun initializeKeyboardDetection() {
-        val searchText = searchText!!
-        val navbarHeight = navbarHeight(activity!!)
+        if (keyboardInitialized.get())
+            keyboardManager!!.onDisplaySizeChanged()
+        else {
+            val navbarHeight = navbarHeight(activity!!)
+            val searchText = searchText!!
 
-        if (keyboardManager == null) {
-            searchOriginalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
-            keyboardManager = KeyboardManager(fragmentView!!.rootView)
-        }
+            if (keyboardManager == null) {
+                searchOriginalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
+                keyboardManager = KeyboardManager(fragmentView!!.rootView)
+            }
 
-        keyboardManager!!.addKeyboardListener { opened, keyboardHeight ->
-            //Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) originalMargin else (originalMargin + navbarHeight)))
-
-            when (opened) {
-                true -> {
-                    searchText.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                    map?.setPadding(searchText.leftMargin, 0, 0, searchOriginalMargin + keyboardHeight + searchText.height)
-                }
-                false -> {
-                    searchText.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
-                    map?.setPadding(0, 0, 0, navbarHeight)
+            keyboardManager!!.addKeyboardListener { opened, keyboardHeight ->
+                Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) searchOriginalMargin else (searchOriginalMargin + navbarHeight)))
+                when (opened) {
+                    true -> {
+                        searchText.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                        map?.setPadding(searchText.leftMargin, 0, 0, searchOriginalMargin + keyboardHeight + searchText.height)
+                    }
+                    false -> {
+                        searchText.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
+                        map?.setPadding(0, 0, 0, navbarHeight)
+                    }
                 }
             }
+
+            keyboardInitialized.set(true)
         }
     }
 
@@ -275,6 +285,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (locationManager == null)
             locationManager = c.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
+
+        initializeKeyboardDetection()
     }
 
     /**

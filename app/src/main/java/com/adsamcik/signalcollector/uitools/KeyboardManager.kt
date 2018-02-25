@@ -24,7 +24,7 @@ class KeyboardManager(private val rootView: View) {
     private val r = Rect()
 
     init {
-        defaultDiff = calculateHeightDiff() - navbarHeight(rootView.context)
+        onDisplaySizeChanged()
     }
 
     private fun calculateHeightDiff(): Int {
@@ -47,6 +47,10 @@ class KeyboardManager(private val rootView: View) {
         }
     }
 
+    fun onDisplaySizeChanged() {
+        defaultDiff = calculateHeightDiff() - navbarHeight(rootView.context)
+    }
+
     fun addKeyboardListener(listener: KeyboardListener) {
         listeners.add(listener)
         listener.invoke(wasOpen, keyboardHeight)
@@ -62,6 +66,8 @@ class KeyboardManager(private val rootView: View) {
         if (wasOpen) {
             val imm = rootView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(rootView.windowToken, 0)
+            listeners.forEach { it.invoke(false, 0) }
+            wasOpen = false
         }
     }
 
