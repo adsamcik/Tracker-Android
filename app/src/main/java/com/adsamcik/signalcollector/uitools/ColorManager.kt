@@ -18,7 +18,6 @@ import com.adsamcik.signalcollector.R
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.math.roundToInt
 
 
 internal class ColorManager(private val mContext: Context) {
@@ -30,9 +29,6 @@ internal class ColorManager(private val mContext: Context) {
     private var currentForeground = 0
 
     @ColorInt
-    private var currentBackground = 0
-
-    @ColorInt
     private var currentColor = 0
 
     private val arrayLock = ReentrantLock()
@@ -40,7 +36,7 @@ internal class ColorManager(private val mContext: Context) {
     fun watchElement(view: ColorView) {
         synchronized(arrayLock) {
             watchedElements.add(view)
-            update(view, currentColor, currentBackground, currentForeground)
+            update(view, currentColor, currentForeground)
         }
     }
 
@@ -56,7 +52,7 @@ internal class ColorManager(private val mContext: Context) {
             }
 
             override fun onChildViewAdded(parent: View, child: View) {
-                update(view, currentColor, currentBackground, currentForeground)
+                update(view, currentColor, currentForeground)
             }
 
         })
@@ -95,49 +91,41 @@ internal class ColorManager(private val mContext: Context) {
 
     internal fun update(@ColorInt color: Int) {
         currentColor = color
-        val lum = perceivedRelLuminance(color)
-        if (currentLuminance != lum) {
-            currentLuminance = lum
-            val bgColor: Int
-            val fgColor: Int
-            if (lum > 0) {
-                fgColor = ContextCompat.getColor(mContext, R.color.text_primary_dark)
-                bgColor = ContextCompat.getColor(mContext, R.color.background_new_dark)
-            } else {
-                fgColor = ContextCompat.getColor(mContext, R.color.text_primary)
-                bgColor = ContextCompat.getColor(mContext, R.color.background_new_light)
-            }
-
-            currentBackground = bgColor
-            currentForeground = fgColor
-
-            launch(UI) {
-                synchronized(arrayLock) {
-                    watchedElements.forEach { update(it, color, bgColor, fgColor) }
-                }
-            }
+        val lum = perceivedRelLuminance(getLayerColor(color, 1))
+        currentLuminance = lum
+        val fgColor: Int = if (lum > 0) {
+            ContextCompat.getColor(mContext, R.color.text_primary_dark)
         } else {
-            launch(UI) {
-                synchronized(arrayLock) {
-                    watchedElements.forEach { if (it.rootIsBackground && !it.ignoreRoot) updateBackground(it.view, color, it.layer) }
+            ContextCompat.getColor(mContext, R.color.text_primary)
+        }
+
+        currentForeground = fgColor
+
+        launch(UI) {
+            synchronized(arrayLock) {
+                watchedElements.forEach {
+                    if (it.backgroundIsForeground)
+                        update(it, fgColor, color)
+                    else
+                        update(it, color, fgColor)
                 }
             }
         }
     }
 
-    private fun update(view: ColorView, @ColorInt color: Int, @ColorInt bgColor: Int, @ColorInt fgColor: Int) {
+    private fun update(view: ColorView, @ColorInt color: Int, @ColorInt fgColor: Int) {
         if (!view.ignoreRoot) {
             if (view.rootIsBackground)
-                updateBackground(view.view, color, view.layer)
+                setBackgroundColor(view.view, color, view.layer)
             else
-                updateStyleBackground(view.view, bgColor)
+                updateStyleBackground(view.view, color, view.layer)
+
+            updateStyleForeground(view.view, fgColor)
         }
 
         if (view.recursive && view.view is ViewGroup) {
             for (i in 0 until view.view.childCount)
-                updateStyleRecursive(view.view.getChildAt(i), fgColor, bgColor)
-        } else if (!view.ignoreRoot) {
-            updateStyleForeground(view.view, fgColor)
+                updateStyleRecursive(view.view.getChildAt(i), fgColor, color, view.layer + 1)
         }
     }
 
@@ -150,20 +138,22 @@ internal class ColorManager(private val mContext: Context) {
         return Color.rgb(r, g, b)
     }
 
-    private fun updateBackground(view: View, @ColorInt color: Int, layer: Int) {
-        if (layer == 0)
-            view.setBackgroundColor(color)
-        else {
-            val layerValue = (25.5 * layer - 1).roundToInt()
-            view.setBackgroundColor(brightenColor(color, layerValue))
-        }
+    private fun getLayerColor(@ColorInt color: Int, layer: Int): Int {
+        return if (layer == 0)
+            color
+        else
+            brightenColor(color, 17 * layer)
     }
 
-    private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt bgColor: Int) {
-        updateStyleBackground(view, bgColor)
+    private fun setBackgroundColor(view: View, @ColorInt color: Int, layer: Int) {
+        view.setBackgroundColor(getLayerColor(color, layer))
+    }
+
+    private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
+        val updatedBg = updateStyleBackground(view, color, layer)
         if (view is ViewGroup) {
             for (i in 0 until view.childCount)
-                updateStyleRecursive(view.getChildAt(i), fgColor, bgColor)
+                updateStyleRecursive(view.getChildAt(i), fgColor, color, if (updatedBg) layer + 1 else layer)
         } else {
             updateStyleForeground(view, fgColor)
         }
@@ -179,16 +169,24 @@ internal class ColorManager(private val mContext: Context) {
         }
     }
 
-    private fun updateStyleBackground(view: View, @ColorInt bgColor: Int) {
+    private fun updateStyleBackground(view: View, @ColorInt bgColor: Int, layer: Int): Boolean {
         val background = view.background
+        val layerColor = getLayerColor(bgColor, layer)
         if (view is CardView) {
-            view.setCardBackgroundColor(bgColor)
-            //view.cardElevation = 0f
+            view.setCardBackgroundColor(layerColor)
+            return true
         } else if (background != null) {
             when (background) {
-                is ColorDrawable -> view.setBackgroundColor(bgColor)
-                is GradientDrawable -> view.setBackgroundColor(bgColor)
+                is ColorDrawable -> {
+                    background.color = layerColor
+                    return true
+                }
+                is GradientDrawable -> {
+                    background.setColor(layerColor)
+                    return true
+                }
             }
         }
+        return false
     }
 }

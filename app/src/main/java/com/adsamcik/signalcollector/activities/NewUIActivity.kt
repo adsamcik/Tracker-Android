@@ -16,6 +16,7 @@ import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.fragments.FragmentActivities
+import com.adsamcik.signalcollector.fragments.FragmentNewActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentNewStats
 import com.adsamcik.signalcollector.uitools.ColorManager
@@ -103,7 +104,7 @@ class NewUIActivity : FragmentActivity() {
         activityButton.targetTranslationZ = dp * 9f
         activityButton.increaseTouchAreaBy(0, 0, dp * 56, 0)
 
-        val activityPayload = DraggablePayload(this, FragmentActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
+        val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityPayload.targetTranslationZ = dp * 8f
         activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
@@ -136,6 +137,10 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(trackerDemoComponent)
         colorManager.watchElement(topPanelLayout)
         colorManager.watchElement(topInfoBar)
+
+        colorManager.watchElement(ColorView(statsButton, 3, false, false, false, true))
+        colorManager.watchElement(ColorView(mapDraggable, 3, false, false, false, true))
+        colorManager.watchElement(ColorView(activityButton, 3, false, false, false, true))
     }
 
     private fun initializeColors() {

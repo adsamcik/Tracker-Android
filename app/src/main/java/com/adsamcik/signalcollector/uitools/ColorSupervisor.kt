@@ -63,11 +63,11 @@ internal object ColorSupervisor {
     private fun startUpdate() {
         timerActive = true
         val period = calculateUpdatePeriod()
-        val timeOfDay = calculateTimeOfDay()
+        val (changeLength, progress) = calculateTimeOfDay()
 
-        Log.d("ColorSupervisor", "Now is $currentIndex with length of ${timeOfDay.first} and progress ${timeOfDay.second}")
+        Log.d("ColorSupervisor", "Now is $currentIndex with length of $changeLength and progress $progress")
 
-        timerTask = ColorUpdateTask(period, timeOfDay.first.toLong(), timeOfDay.second)
+        timerTask = ColorUpdateTask(period, changeLength.toLong(), progress)
         timer.scheduleAtFixedRate(timerTask, 0L, period)
     }
 
