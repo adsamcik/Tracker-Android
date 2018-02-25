@@ -43,12 +43,27 @@ object Assist {
         get() {
             val c = Calendar.getInstance()
             c.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            c.set(Calendar.HOUR_OF_DAY, 0)
-            c.set(Calendar.MINUTE, 0)
-            c.set(Calendar.SECOND, 0)
-            c.set(Calendar.MILLISECOND, 0)
-            return c.timeInMillis
+            return dayFromCalendar(c).timeInMillis
         }
+
+    val day: Long
+        get() = dayFromCalendar(Calendar.getInstance()).timeInMillis
+
+    val time: Int
+        get() {
+            val calendar = Calendar.getInstance()
+            return calendar.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +
+                    calendar.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS +
+                    calendar.get(Calendar.SECOND) * Constants.SECOND_IN_MILLISECONDS
+        }
+
+    fun dayFromCalendar(calendar: Calendar): Calendar {
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar
+    }
 
     val deviceID: String
         get() = Build.MANUFACTURER + Build.DEVICE

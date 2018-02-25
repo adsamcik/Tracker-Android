@@ -207,7 +207,7 @@ fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRe
 }
 
 @ColorInt
-fun SharedPreferences.getColorResource(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
+fun SharedPreferences.getColor(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
     val defaultColor = ContextCompat.getColor(context, defaultResource)
     return getInt(context.getString(key), defaultColor)
 }

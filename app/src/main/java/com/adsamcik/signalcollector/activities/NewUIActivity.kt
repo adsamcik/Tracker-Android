@@ -1,10 +1,13 @@
 package com.adsamcik.signalcollector.activities
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
 import android.support.v4.app.FragmentActivity
+import android.support.v4.content.ContextCompat
 import android.view.MotionEvent
 import android.view.View
 import android.widget.ListView
@@ -23,12 +26,17 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.NotificationChannels
 import com.adsamcik.signalcollector.utility.startActivity
 import com.crashlytics.android.Crashlytics
+import com.google.android.gms.location.LocationServices
+import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
+import com.luckycatlabs.sunrisesunset.dto.Location
 import io.fabric.sdk.android.Fabric
 import kotlinx.android.synthetic.main.activity_new_ui.*
+import java.util.*
 
 
 class NewUIActivity : FragmentActivity() {
     private var colorManager: ColorManager? = null
+    private var themeLocationRequestCode = 4513
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,9 +52,9 @@ class NewUIActivity : FragmentActivity() {
 
         colorManager.watchElement(ColorView(root as View, 0, false, true, false))
 
+        initializeColors()
         //ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
         //ColorSupervisor.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
-        ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
 
         trackerWifiComponent.addSecondaryText("found 6 meters before collection")
         trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
@@ -115,7 +123,7 @@ class NewUIActivity : FragmentActivity() {
             val map = it.view!!.findViewById(R.id.map_search) as View
             colorManager.watchElement(ColorView(map, 2, true, true))
         }
-        mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(findViewById(R.id.map_search)) }
+        mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(R.id.map_search) }
         mapDraggable.addPayload(mapPayload)
 
         buttonSettings.setOnClickListener { startActivity<SettingsActivity> { } }
@@ -130,6 +138,31 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(topInfoBar)
     }
 
+    private fun initializeColors() {
+        ColorSupervisor.initializeFromPreferences(this)
+        initializeSunriseSunset()
+    }
+
+    private fun initializeSunriseSunset() {
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient.lastLocation.addOnCompleteListener {
+                if (it.isSuccessful) {
+                    val loc = it.result
+                    if (loc != null) {
+                        val calendar = Calendar.getInstance()
+                        val calculator = SunriseSunsetCalculator(Location(loc.latitude, loc.longitude), calendar.timeZone)
+                        val sunrise = calculator.getOfficialSunriseCalendarForDate(calendar)
+                        val sunset = calculator.getOfficialSunsetCalendarForDate(calendar)
+                        ColorSupervisor.setSunsetSunrise(sunrise, sunset)
+                    }
+                }
+            }
+        } else if (Build.VERSION.SDK_INT >= 23)
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), themeLocationRequestCode)
+    }
+
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         return if (root.touchDelegate.onTouchEvent(event))
             true
@@ -138,9 +171,10 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-
+        if (requestCode == themeLocationRequestCode) {
+            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED })
+                initializeSunriseSunset()
+        }
     }
 
 }

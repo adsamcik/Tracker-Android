@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.support.annotation.ColorInt
+import android.support.annotation.IdRes
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.support.v7.widget.CardView
@@ -62,12 +63,20 @@ internal class ColorManager(private val mContext: Context) {
 
     }
 
-    fun stopWatchingElement(view: View) {
+    fun stopWatchingElement(predicate: (ColorView) -> Boolean) {
         synchronized(arrayLock) {
-            val index = watchedElements.indexOfFirst { it.view == view }
+            val index = watchedElements.indexOfFirst(predicate)
             if (index >= 0)
                 watchedElements.removeAt(index)
         }
+    }
+
+    fun stopWatchingElement(view: View) {
+        stopWatchingElement { it.view == view }
+    }
+
+    fun stopWatchingElement(@IdRes id: Int) {
+        stopWatchingElement { it.view.id == id }
     }
 
     fun stopWatchingRecycler(view: AdapterView<*>) {

@@ -68,6 +68,7 @@ dependencies {
 
     implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     implementation 'de.psdev.licensesdialog:licensesdialog:1.8.3'
+    implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
 
     //Google dependencies
     implementation 'com.google.android:flexbox:0.3.2'
