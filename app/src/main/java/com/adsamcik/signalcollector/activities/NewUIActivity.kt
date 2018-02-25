@@ -83,12 +83,12 @@ class NewUIActivity : FragmentActivity() {
 
         statsButton.dragAxis = DragAxis.X
         statsButton.setTarget(root, DragTargetAnchor.TopRight, -56)
-        statsButton.targetTranslationZ = dp * 9f
+        statsButton.targetTranslationZ = dp * 7f
         statsButton.increaseTouchAreaBy(dp * 56, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, Point(-size.x, 0), root, DragTargetAnchor.TopRight, 0)
         statsPayload.backgroundColor = Color.WHITE
-        statsPayload.targetTranslationZ = dp * 8f
+        statsPayload.targetTranslationZ = dp * 6f
         statsPayload.onInitialized = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
             colorManager.watchRecycler(ColorView(recycler, 1, true, true))
@@ -101,12 +101,12 @@ class NewUIActivity : FragmentActivity() {
 
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.TopLeft, -56)
-        activityButton.targetTranslationZ = dp * 9f
+        activityButton.targetTranslationZ = dp * 7f
         activityButton.increaseTouchAreaBy(0, 0, dp * 56, 0)
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
-        activityPayload.targetTranslationZ = dp * 8f
+        activityPayload.targetTranslationZ = dp * 6f
         activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         activityButton.addPayload(activityPayload)
@@ -114,11 +114,11 @@ class NewUIActivity : FragmentActivity() {
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.Top, 64)
         mapDraggable.increaseTouchAreaBy(dp * 32)
-        mapDraggable.targetTranslationZ = 13f * dp
+        mapDraggable.targetTranslationZ = 18f * dp
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
         mapPayload.backgroundColor = Color.WHITE
-        mapPayload.setTranslationZ(12f * dp)
+        mapPayload.setTranslationZ(13f * dp)
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapPayload.onInitialized = {
             val map = it.view!!.findViewById(R.id.map_search) as View
