@@ -31,6 +31,7 @@
 
             <com.adsamcik.signalcollector.components.IntValueSliderPreference
                 android:defaultValue="@string/settings_activity_freq_default"
+                android:dependency="@string/settings_activity_watcher_key"
                 android:key="@string/settings_activity_freq_key"
                 android:title="@string/settings_activity_freq_title"
                 app:items="@array/activity_watching_interval"
