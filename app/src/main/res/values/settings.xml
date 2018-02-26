@@ -198,6 +198,11 @@
     <color name="settings_color_night_default" translatable="false">#002733</color>
 
     <!-- DEBUG -->
+    <string name="settings_debug_already_available">You already have access to debug</string>
+    <string name="settings_debug_available_in">%d more taps to enable debug</string>
+    <string name="settings_debug_available">You now have access to debug section</string>
+    <string name="settings_debug_enabled">Debug enabled</string>
+    <string name="settings_debug_key">showDevSettings</string>
 
     <string name="settings_browse_files_title">Browse files</string>
     <string name="settings_browse_files_key" translatable="false">browseFiles</string>

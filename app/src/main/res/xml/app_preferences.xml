@@ -131,6 +131,10 @@
         android:persistent="true"
         android:title="@string/settings_debug_title">
 
+        <android.support.v7.preference.SwitchPreferenceCompat
+            android:key="@string/settings_debug_key"
+            android:title="@string/settings_debug_enabled"/>
+
         <Preference
             android:key="@string/settings_browse_files_key"
             android:title="@string/settings_browse_files_title"/>
@@ -179,8 +183,7 @@
             android:title="@string/settings_licenses_title"/>
 
         <Preference
-            android:key="@string/settings_licenses_key"
-            android:title="@string/settings_licenses_title"/>
+            android:key="@string/settings_app_version_key"/>
 
     </android.support.v7.preference.PreferenceCategory>
 

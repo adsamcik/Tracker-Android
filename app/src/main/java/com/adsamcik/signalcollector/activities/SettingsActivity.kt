@@ -10,6 +10,11 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.support.v7.preference.PreferenceFragmentCompat
 import android.support.v7.preference.PreferenceScreen
+import android.support.v7.preference.SwitchPreferenceCompat
+import android.util.Log
+import android.widget.Toast
+import androidx.content.edit
+import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
@@ -30,6 +35,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
     private var dummyIndex = 0
 
+    private var clickCount = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createContentParent(false)
@@ -46,16 +53,54 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeRoot() {
-        addOnClickListener(R.string.settings_export_key) {
+        setOnClickListener(R.string.settings_export_key) {
             startActivity<FileSharingActivity> {}
         }
 
-        addOnClickListener(R.string.settings_licenses_key) {
+        setOnClickListener(R.string.settings_licenses_key) {
             startActivity<LicenseActivity> { }
+        }
+
+        val devKey = getString(R.string.settings_debug_key)
+
+        fragment.findPreference("debug_key").isVisible = Preferences.getPref(this).getBoolean(devKey, false)
+
+        val version = fragment.findPreference(getString(R.string.settings_app_version_key))
+        try {
+            version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
+        } catch (e: Exception) {
+            Log.d("SignalsSettings", "Failed to set version")
+        }
+
+
+        version.setOnPreferenceClickListener {
+            val preferences = Preferences.getPref(this)
+
+            if (preferences.getBoolean(devKey, false)) {
+                showToast(getString(R.string.settings_debug_already_available))
+                return@setOnPreferenceClickListener false
+            }
+
+            clickCount++
+            if (clickCount >= 7) {
+                preferences.edit {
+                    putBoolean(devKey, true)
+                }
+                showToast(getString(R.string.settings_debug_available))
+                fragment.findPreference("debug_key").isVisible = true
+                (fragment.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
+            } else if (clickCount >= 4) {
+                showToast(getString(R.string.settings_debug_available_in, 7 - clickCount))
+            }
+            true
         }
     }
 
-    private fun addOnClickListener(@StringRes key: Int, listener: () -> Unit) {
+    private fun showToast(string: String) {
+        Toast.makeText(this, string, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun setOnClickListener(@StringRes key: Int, listener: () -> Unit) {
         fragment.findPreference(getString(key)).setOnPreferenceClickListener {
             listener.invoke()
             false
@@ -178,7 +223,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeStyle() {
-        fragment.findPreference(getString(R.string.settings_style_mode_key)).setOnPreferenceChangeListener { preference, newValue ->
+        fragment.findPreference(getString(R.string.settings_style_mode_key)).setOnPreferenceChangeListener { _, newValue ->
             val morning = fragment.findPreference(getString(R.string.settings_color_morning_key))
             val evening = fragment.findPreference(getString(R.string.settings_color_evening_key))
             val night = fragment.findPreference(getString(R.string.settings_color_night_key))
