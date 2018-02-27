@@ -55,11 +55,10 @@ dependencies {
     //1st party dependencies
     implementation 'com.adsamcik.android-components:slider:0.6.1'
     implementation 'com.adsamcik.android-components:table:0.1.2'
-    implementation 'com.adsamcik.android-components:draggable:0.5.3'
+    implementation 'com.adsamcik.android-components:draggable:0.6.0'
 
     //3rd party dependencies
     implementation 'com.squareup.okhttp3:okhttp:3.9.1'
-    implementation 'com.google.code.gson:gson:2.8.2'
     implementation 'com.github.apl-devs:appintro:v4.2.2'
     implementation 'com.jaredrummler:colorpicker:1.0.2'
     implementation "com.vimeo.stag:stag-library:$stag_version", {
@@ -71,6 +70,7 @@ dependencies {
     implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
 
     //Google dependencies
+    implementation 'com.google.code.gson:gson:2.8.2'
     implementation 'com.google.android:flexbox:0.3.2'
     implementation 'com.android.support.constraint:constraint-layout:1.1.0-beta5'
 
