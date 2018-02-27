@@ -8,14 +8,15 @@ import android.os.Build
 import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.support.v4.graphics.ColorUtils
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.ListView
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentNewStats
@@ -30,8 +31,13 @@ import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.LocationServices
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
+import com.takusemba.spotlight.SimpleTarget
+import com.takusemba.spotlight.Spotlight
 import io.fabric.sdk.android.Fabric
 import kotlinx.android.synthetic.main.activity_new_ui.*
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.launch
 import java.util.*
 
 
@@ -127,7 +133,7 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(R.id.map_search) }
         mapDraggable.addPayload(mapPayload)
 
-        buttonSettings.setOnClickListener { startActivity<SettingsActivity> { } }
+        settingsButton.setOnClickListener { startActivity<SettingsActivity> { } }
 
         //findViewById<ViewStub>(R.id.stub_import).inflate()
 
@@ -141,6 +147,21 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(ColorView(statsButton, 3, false, false, false, true))
         colorManager.watchElement(ColorView(mapDraggable, 3, false, false, false, true))
         colorManager.watchElement(ColorView(activityButton, 3, false, false, false, true))
+
+        val activity = this
+        launch {
+            delay(1000)
+            launch(UI) {
+                //val mapDraggableTarget = SimpleTarget.Builder(activity).setPoint(mapDraggable.x, mapDraggable.y).setTitle("Map holder").setDescription("Drag this up to pull up the map").build()
+                val radius = Math.sqrt(Math.pow(statsButton.height.toDouble(), 2.0) + Math.pow(statsButton.width.toDouble(), 2.0)) / 2
+                val statsButtonTarget = SimpleTarget.Builder(activity)
+                        .setPoint(statsButton.x + statsButton.pivotX, statsButton.y + statsButton.pivotY)
+                        .setTitle("Stats")
+                        .setRadius(radius.toFloat())
+                        .setDescription("Drag this to the left to access stats").build()
+                Spotlight.with(activity).setTargets(statsButtonTarget).setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 204)).setAnimation(DecelerateInterpolator(2f)).start()
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -161,16 +182,21 @@ class NewUIActivity : FragmentActivity() {
                 if (it.isSuccessful) {
                     val loc = it.result
                     if (loc != null) {
-                        val calendar = Calendar.getInstance()
-                        val calculator = SunriseSunsetCalculator(Location(loc.latitude, loc.longitude), calendar.timeZone)
-                        val sunrise = calculator.getOfficialSunriseCalendarForDate(calendar)
-                        val sunset = calculator.getOfficialSunsetCalendarForDate(calendar)
+                        val (sunrise, sunset) = calculateSunsetSunrise(loc)
                         ColorSupervisor.setSunsetSunrise(sunrise, sunset)
                     }
                 }
             }
         } else if (Build.VERSION.SDK_INT >= 23)
             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), themeLocationRequestCode)
+    }
+
+    private fun calculateSunsetSunrise(loc: android.location.Location): Pair<Calendar, Calendar> {
+        val calendar = Calendar.getInstance()
+        val calculator = SunriseSunsetCalculator(Location(loc.latitude, loc.longitude), calendar.timeZone)
+        val sunrise = calculator.getOfficialSunriseCalendarForDate(calendar)
+        val sunset = calculator.getOfficialSunsetCalendarForDate(calendar)
+        return Pair(sunrise, sunset)
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -186,5 +212,4 @@ class NewUIActivity : FragmentActivity() {
                 initializeSunriseSunset()
         }
     }
-
 }
