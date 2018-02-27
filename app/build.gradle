@@ -58,8 +58,9 @@ dependencies {
     implementation 'com.adsamcik.android-components:draggable:0.6.0'
 
     //3rd party dependencies
-    implementation 'com.squareup.okhttp3:okhttp:3.9.1'
+    implementation 'com.squareup.okhttp3:okhttp:3.10.0'
     implementation 'com.github.apl-devs:appintro:v4.2.2'
+    implementation 'com.github.takusemba:spotlight:1.3.2'
     implementation 'com.jaredrummler:colorpicker:1.0.2'
     implementation "com.vimeo.stag:stag-library:$stag_version", {
         exclude group: 'com.intellij', module: 'annotations'
