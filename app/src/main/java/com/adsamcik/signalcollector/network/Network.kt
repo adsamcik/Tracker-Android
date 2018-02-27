@@ -12,6 +12,7 @@ import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersisto
 import okhttp3.*
 import java.io.IOException
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 object Network {
     private val TAG = "SignalsNetwork"
@@ -68,7 +69,11 @@ object Network {
                         else {
                             response.request().newBuilder().header("userToken", userToken).build()
                         }
-                    }).build()
+                    })
+                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .build()
     }
 
     private fun client(context: Context): OkHttpClient {
