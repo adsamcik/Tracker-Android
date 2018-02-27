@@ -43,7 +43,7 @@ internal object ColorSupervisor {
     }
 
     private fun ensureUpdate() {
-        if (colorManagers.size == 1 && colorList.size > 1) {
+        if (colorList.size > 1) {
             synchronized(updateLock) {
                 if (!timerActive)
                     startUpdate()
@@ -52,7 +52,7 @@ internal object ColorSupervisor {
     }
 
     private fun updateUpdate() {
-        if (colorManagers.size == 1 && colorList.size > 1) {
+        if (colorList.size > 1) {
             synchronized(updateLock) {
                 stopUpdate()
                 startUpdate()
@@ -65,64 +65,76 @@ internal object ColorSupervisor {
         val period = calculateUpdatePeriod()
         val (changeLength, progress) = calculateTimeOfDay()
 
-        Log.d("ColorSupervisor", "Now is $currentIndex with length of $changeLength and progress $progress")
+        val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
+        val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
+        Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+                "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
+                "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")
 
-        timerTask = ColorUpdateTask(period, changeLength.toLong(), progress)
+        timerTask = ColorUpdateTask(period, changeLength.toLong(), progress.toLong())
         timer.scheduleAtFixedRate(timerTask, 0L, period)
     }
 
-    private fun calculateTimeOfDay(): Pair<Int, Float> {
+    private fun getTimeOfDay(value: Int) = when (value) {
+        0 -> "Morning"
+        1 -> "Noon"
+        2 -> "Evening"
+        3 -> "Night"
+        else -> "Bug"
+    }
+
+    private fun calculateTimeOfDay(): Pair<Int, Int> {
         val time = Assist.time
         val changeLength: Int
-        val progress: Float
+        val progress: Int
 
         if (time > sunsetTime) {
             if (nightTime > sunsetTime) {
                 if (time < nightTime) {
                     //Between sunset and night when night is before midnight and time is before midnight
                     changeLength = nightTime - sunsetTime
-                    progress = (time - sunsetTime) / changeLength.toFloat()
+                    progress = time - sunsetTime
                     currentIndex = 2
                 } else {
                     //Between night and sunrise when night is before midnight and time is before midnight
                     changeLength = 24 * Constants.HOUR_IN_MILLISECONDS - nightTime + sunriseTime
-                    progress = (time - nightTime) / changeLength.toFloat()
+                    progress = time - nightTime
                     currentIndex = 3
                 }
             } else {
                 //Between sunset and night when night is after midnight and time is before midnight
                 changeLength = 24 * Constants.HOUR_IN_MILLISECONDS - sunsetTime + nightTime
-                progress = (time - sunsetTime) / changeLength.toFloat()
+                progress = time - sunsetTime
                 currentIndex = 2
             }
         } else if (time > dayTime) {
             //Between day and sunset
             changeLength = sunsetTime - dayTime
-            progress = (time - dayTime) / changeLength.toFloat()
+            progress = time - dayTime
             currentIndex = 1
         } else if (time > sunriseTime) {
             //Between sunrise and day
             changeLength = dayTime - sunriseTime
-            progress = (time - sunriseTime) / changeLength.toFloat()
+            progress = time - sunriseTime
             currentIndex = 0
         } else {
             if (nightTime > sunsetTime) {
                 //Between night and sunrise when night is before midnight and time is after midnight
                 val beforeMidnight = 24 * Constants.HOUR_IN_MILLISECONDS - nightTime
                 changeLength = beforeMidnight + sunriseTime
-                progress = (time + beforeMidnight) / changeLength.toFloat()
+                progress = time + beforeMidnight
                 currentIndex = 3
             } else {
                 if (time < nightTime) {
                     //Between sunset and night when night is after midnight and time is after midnight
                     val beforeMidnight = 24 * Constants.HOUR_IN_MILLISECONDS - sunsetTime
                     changeLength = beforeMidnight + nightTime
-                    progress = (time + beforeMidnight) / changeLength.toFloat()
+                    progress = time + beforeMidnight
                     currentIndex = 2
                 } else {
                     //Between night and sunrise when night is after midnight and time is after midnight
                     changeLength = sunriseTime - nightTime
-                    progress = (time - nightTime) / changeLength.toFloat()
+                    progress = time - nightTime
                     currentIndex = 3
                 }
             }
@@ -184,6 +196,8 @@ internal object ColorSupervisor {
                 addColors(morning, day, evening, night)
             }
         }
+
+        startUpdate()
     }
 
     fun setSunsetSunrise(sunrise: Calendar, sunset: Calendar) {
@@ -227,11 +241,11 @@ internal object ColorSupervisor {
 
 }
 
-internal class ColorUpdateTask(private val deltaTime: Long, private val periodLength: Long, private var currentTime: Float = 0f) : TimerTask() {
+internal class ColorUpdateTask(private val deltaTime: Long, private val periodLength: Long, private var currentTime: Long = 0) : TimerTask() {
     override fun run() {
         val newTime = currentTime + deltaTime
         currentTime = newTime.rem(periodLength)
-        val delta = currentTime / periodLength
+        val delta = currentTime.toFloat() / periodLength
 
         if (newTime != currentTime)
             ColorSupervisor.deltaUpdate(delta, true)

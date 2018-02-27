@@ -143,6 +143,11 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(ColorView(activityButton, 3, false, false, false, true))
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        ColorSupervisor.recycleColorManager(colorManager!!)
+    }
+
     private fun initializeColors() {
         ColorSupervisor.initializeFromPreferences(this)
         initializeSunriseSunset()
