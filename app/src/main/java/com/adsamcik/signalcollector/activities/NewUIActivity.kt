@@ -54,32 +54,9 @@ class NewUIActivity : FragmentActivity() {
 
         setContentView(R.layout.activity_new_ui)
 
-        colorManager = ColorSupervisor.createColorManager(this)
-        val colorManager = colorManager!!
-
-        colorManager.watchElement(ColorView(root as View, 0, false, true, false))
-
         initializeColors()
         //ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
         //ColorSupervisor.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
-
-        trackerWifiComponent.addSecondaryText("found 6 meters before collection")
-        trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
-        trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
-        trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
-        trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
-        trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
-        trackerWifiComponent.addPrimaryText("In range of 150 Wifi's")
-
-        trackerCellComponent.addPrimaryText("LTE -89 dbm, 51 asu")
-        trackerCellComponent.addPrimaryText("In range of 12 base stations")
-
-        trackerDemo2Component.addSecondaryText("found 6 meters before collection")
-        trackerDemo2Component.addPrimaryText("In range of 150 Wifi's")
-        trackerDemo2Component.addPrimaryText("In range of 12 base stations")
-
-        trackerDemoComponent.addPrimaryText("LTE -89 dbm, 51 asu")
-        trackerDemoComponent.addPrimaryText("In range of 12 base stations")
 
         val display = windowManager.defaultDisplay
         val size = Point()
@@ -97,11 +74,11 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.targetTranslationZ = dp * 6f
         statsPayload.onInitialized = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
-            colorManager.watchRecycler(ColorView(recycler, 1, true, true))
+            colorManager!!.watchRecycler(ColorView(recycler, 1, true, true))
         }
         statsPayload.onBeforeDestroyed = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
-            colorManager.stopWatchingRecycler(recycler)
+            colorManager!!.stopWatchingRecycler(recycler)
         }
         statsButton.addPayload(statsPayload)
 
@@ -135,33 +112,39 @@ class NewUIActivity : FragmentActivity() {
 
         settingsButton.setOnClickListener { startActivity<SettingsActivity> { } }
 
-        //findViewById<ViewStub>(R.id.stub_import).inflate()
+        initializeColorElements()
 
-        colorManager.watchElement(trackerWifiComponent)
-        colorManager.watchElement(trackerCellComponent)
-        colorManager.watchElement(trackerDemo2Component)
-        colorManager.watchElement(trackerDemoComponent)
+        launch {
+            delay(1000)
+            launch(UI) {
+                startTutorial()
+            }
+        }
+    }
+
+    private fun initializeColorElements() {
+        colorManager = ColorSupervisor.createColorManager(this)
+        val colorManager = colorManager!!
+
+        colorManager.watchElement(ColorView(root as View, 0, false, true, false))
         colorManager.watchElement(topPanelLayout)
         colorManager.watchElement(topInfoBar)
 
         colorManager.watchElement(ColorView(statsButton, 3, false, false, false, true))
         colorManager.watchElement(ColorView(mapDraggable, 3, false, false, false, true))
         colorManager.watchElement(ColorView(activityButton, 3, false, false, false, true))
+    }
 
-        val activity = this
-        launch {
-            delay(1000)
-            launch(UI) {
-                //val mapDraggableTarget = SimpleTarget.Builder(activity).setPoint(mapDraggable.x, mapDraggable.y).setTitle("Map holder").setDescription("Drag this up to pull up the map").build()
-                val radius = Math.sqrt(Math.pow(statsButton.height.toDouble(), 2.0) + Math.pow(statsButton.width.toDouble(), 2.0)) / 2
-                val statsButtonTarget = SimpleTarget.Builder(activity)
-                        .setPoint(statsButton.x + statsButton.pivotX, statsButton.y + statsButton.pivotY)
-                        .setTitle("Stats")
-                        .setRadius(radius.toFloat())
-                        .setDescription("Drag this to the left to access stats").build()
-                Spotlight.with(activity).setTargets(statsButtonTarget).setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 204)).setAnimation(DecelerateInterpolator(2f)).start()
-            }
-        }
+    private fun startTutorial() {
+
+        //val mapDraggableTarget = SimpleTarget.Builder(activity).setPoint(mapDraggable.x, mapDraggable.y).setTitle("Map holder").setDescription("Drag this up to pull up the map").build()
+        val radius = Math.sqrt(Math.pow(statsButton.height.toDouble(), 2.0) + Math.pow(statsButton.width.toDouble(), 2.0)) / 2
+        val statsButtonTarget = SimpleTarget.Builder(this)
+                .setPoint(statsButton.x + statsButton.pivotX, statsButton.y + statsButton.pivotY)
+                .setTitle("Stats")
+                .setRadius(radius.toFloat())
+                .setDescription("Drag this to the left to access stats").build()
+        Spotlight.with(this).setTargets(statsButtonTarget).setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 204)).setAnimation(DecelerateInterpolator(2f)).start()
     }
 
     override fun onDestroy() {
