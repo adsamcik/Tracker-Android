@@ -80,10 +80,6 @@
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
         <activity
-            android:name=".activities.NoiseTestingActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
-            android:screenOrientation="portrait"/>
-        <activity
             android:name=".activities.ActivityRecognitionActivity"
             android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>

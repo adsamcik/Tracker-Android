@@ -455,8 +455,6 @@ class FragmentSettings : Fragment(), ITabFragment {
         rootView.findViewById<View>(R.id.dev_button_browse_cache_files).setOnClickListener { _ -> createFileAlertDialog(activity, activity.cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory }) }
 
 
-        rootView.findViewById<View>(R.id.dev_button_noise_tracking).setOnClickListener { _ -> startActivity(Intent(getActivity(), NoiseTestingActivity::class.java)) }
-
         rootView.findViewById<View>(R.id.dev_button_notification_dummy).setOnClickListener { _ ->
             val helloWorld = getString(R.string.dev_notification_dummy)
             val color = ContextCompat.getColor(activity, R.color.color_primary)

@@ -42,6 +42,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import kotlinx.android.synthetic.main.fragment_new_map.*
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -184,9 +185,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
         else {
-            val navbarHeight = navbarHeight(activity!!)
             val searchText = searchText!!
-
+            val navbarHeight = navbarHeight(activity!!)
             if (keyboardManager == null) {
                 searchOriginalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
                 keyboardManager = KeyboardManager(fragmentView!!.rootView)

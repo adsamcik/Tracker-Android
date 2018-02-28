@@ -90,7 +90,7 @@ class NewUIActivity : FragmentActivity() {
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, Point(size.x, 0), root, DragTargetAnchor.TopLeft, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityPayload.targetTranslationZ = dp * 6f
-        activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
+        activityPayload.onInitialized = { colorManager!!.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         activityButton.addPayload(activityPayload)
 
@@ -105,9 +105,9 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapPayload.onInitialized = {
             val map = it.view!!.findViewById(R.id.map_search) as View
-            colorManager.watchElement(ColorView(map, 2, true, true))
+            colorManager!!.watchElement(ColorView(map, 2, true, true))
         }
-        mapPayload.onBeforeDestroyed = { colorManager.stopWatchingElement(R.id.map_search) }
+        mapPayload.onBeforeDestroyed = { colorManager!!.stopWatchingElement(R.id.map_search) }
         mapDraggable.addPayload(mapPayload)
 
         settingsButton.setOnClickListener { startActivity<SettingsActivity> { } }

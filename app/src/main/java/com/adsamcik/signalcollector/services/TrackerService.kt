@@ -24,7 +24,6 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import com.adsamcik.signalcollector.NoiseTracker
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.data.RawData
@@ -35,7 +34,6 @@ import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Constants.NOISE_ENABLED
 import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
@@ -65,9 +63,6 @@ class TrackerService : Service() {
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
     private val gson = Gson()
-
-    private var noiseTracker: NoiseTracker? = null
-    private var noiseActive = false
 
     /**
      * True if previous collection was mocked
@@ -130,20 +125,6 @@ class TrackerService : Service() {
         }
 
         val activityInfo = ActivityService.lastActivity
-
-        if (noiseTracker != null) {
-            val MAX_NOISE_TRACKING_SPEED_M = (MAX_NOISE_TRACKING_SPEED_KM / 3.6).toFloat()
-            noiseActive = if ((activityInfo.resolvedActivity == ResolvedActivity.ON_FOOT || noiseActive && activityInfo.resolvedActivity == ResolvedActivity.UNKNOWN) && location.speed < MAX_NOISE_TRACKING_SPEED_M) {
-                noiseTracker!!.start()
-                val value = noiseTracker!!.getSample(10)
-                if (value >= 0)
-                    d.setNoise(value)
-                true
-            } else {
-                noiseTracker!!.stop()
-                false
-            }
-        }
 
         if (Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
             d.setLocation(location).setActivity(activityInfo.resolvedActivity)
@@ -336,8 +317,6 @@ class TrackerService : Service() {
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
         onServiceStateChange?.invoke()
-        if (NOISE_ENABLED && Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
-            noiseTracker = NoiseTracker(this).start()
         return super.onStartCommand(intent, flags, startId)
     }
 
