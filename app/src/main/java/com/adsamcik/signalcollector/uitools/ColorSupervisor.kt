@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.support.annotation.ColorInt
 import android.support.v4.graphics.ColorUtils
 import android.util.Log
+import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.*
 import java.util.*
@@ -42,7 +43,7 @@ internal object ColorSupervisor {
         return colorManager
     }
 
-    private fun ensureUpdate() {
+    fun ensureUpdate() {
         if (colorList.size > 1) {
             synchronized(updateLock) {
                 if (!timerActive)
@@ -62,14 +63,19 @@ internal object ColorSupervisor {
 
     private fun startUpdate() {
         timerActive = true
-        val period = calculateUpdatePeriod()
         val (changeLength, progress) = calculateTimeOfDay()
+        val period = calculateUpdatePeriod(changeLength).toLong()
 
         val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
         val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
-        Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-                "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
-                "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")
+
+        if (BuildConfig.DEBUG) {
+            Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+                    "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
+                    "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")
+
+            Log.d("ColorSupervisor", "Update rate is $period")
+        }
 
         timerTask = ColorUpdateTask(period, changeLength.toLong(), progress.toLong())
         timer.scheduleAtFixedRate(timerTask, 0L, period)
@@ -143,7 +149,7 @@ internal object ColorSupervisor {
         return Pair(changeLength, progress)
     }
 
-    private fun calculateUpdatePeriod() = CHANGE_LENGTH / calculateUpdateCount()
+    private fun calculateUpdatePeriod(changeLength: Int) = changeLength / calculateUpdateCount()
 
     private fun calculateUpdateCount(): Int {
         if (colorList.size < 2)
@@ -196,8 +202,6 @@ internal object ColorSupervisor {
                 addColors(morning, day, evening, night)
             }
         }
-
-        startUpdate()
     }
 
     fun setSunsetSunrise(sunrise: Calendar, sunset: Calendar) {
@@ -217,11 +221,6 @@ internal object ColorSupervisor {
 
         colorList.ensureCapacity(colorList.size + varargs.size)
         varargs.forEach { colorList.add(it) }
-
-        if (colorList.size == 1) {
-            update(colorList[0])
-        } else
-            ensureUpdate()
     }
 
     fun deltaUpdate(delta: Float, newPeriod: Boolean) {

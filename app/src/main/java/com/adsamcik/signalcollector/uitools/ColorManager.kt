@@ -9,6 +9,7 @@ import android.support.annotation.IdRes
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.support.v7.widget.CardView
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -184,6 +185,9 @@ internal class ColorManager(private val mContext: Context) {
                 is GradientDrawable -> {
                     background.setColor(layerColor)
                     return true
+                }
+                else -> {
+                    Log.d("Colors", background.javaClass.canonicalName)
                 }
             }
         }
