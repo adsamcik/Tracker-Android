@@ -103,16 +103,6 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(13f * dp)
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
-        mapPayload.onInitialized = {
-            val mapSearch = it.view!!.findViewById(R.id.map_search) as View
-            val mapMenuButton = it.view!!.findViewById(R.id.map_menu_button) as View
-            colorManager!!.watchElement(ColorView(mapSearch, 2, false, false))
-            colorManager!!.watchElement(ColorView(mapMenuButton, 3, false, false))
-        }
-        mapPayload.onBeforeDestroyed = {
-            colorManager!!.stopWatchingElement(R.id.map_search)
-            colorManager!!.stopWatchingElement(R.id.map_menu_button)
-        }
         mapDraggable.addPayload(mapPayload)
 
         settingsButton.setOnClickListener { startActivity<SettingsActivity> { } }

@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.uitools
 import android.content.Context
 import android.graphics.Color
 import android.support.annotation.ColorInt
+import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
@@ -22,8 +23,6 @@ internal object ColorSupervisor {
 
     private val colorManagers = ArrayList<ColorManager>()
 
-    private const val CHANGE_LENGTH = (6 * Constants.SECOND_IN_MILLISECONDS).toLong()
-
     private var currentIndex = 0
 
     private val nextIndex get () = (currentIndex + 1).rem(colorList.size)
@@ -35,8 +34,27 @@ internal object ColorSupervisor {
     private var sunsetTime = 21 * Constants.HOUR_IN_MILLISECONDS
     private var dayTime = 13 * Constants.HOUR_IN_MILLISECONDS
 
+    private var darkTextColor: Int = 0
+    private var lightTextColor: Int = 0
+
+    var currentLuminance = 0
+        private set
+
+    @ColorInt
+    var currentForegroundColor = 0
+        private set
+
+    @ColorInt
+    var currentBaseColor = 0
+        private set
+
     fun createColorManager(context: Context): ColorManager {
-        val colorManager = ColorManager(context)
+        if (darkTextColor == 0) {
+            darkTextColor = ContextCompat.getColor(context, android.R.color.primary_text_light)
+            lightTextColor = ContextCompat.getColor(context, android.R.color.primary_text_dark)
+        }
+
+        val colorManager = ColorManager()
         colorManagers.add(colorManager)
         ensureUpdate()
 
@@ -49,6 +67,46 @@ internal object ColorSupervisor {
                 if (!timerActive)
                     startUpdate()
             }
+        }
+    }
+
+    fun layerColor(@ColorInt color: Int, layer: Int): Int {
+        return if (layer == 0)
+            color
+        else
+            brightenColor(color, 17 * layer)
+    }
+
+    fun addColors(@ColorInt vararg varargs: Int) {
+        if (varargs.isEmpty())
+            throw RuntimeException("You can't just add no colors.")
+
+        colorList.ensureCapacity(colorList.size + varargs.size)
+        varargs.forEach { colorList.add(it) }
+    }
+
+    fun deltaUpdate(delta: Float, newPeriod: Boolean) {
+        if (newPeriod) {
+            currentIndex = nextIndex
+            updateUpdate()
+        }
+
+        update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
+    }
+
+    fun update(@ColorInt color: Int) {
+        val lum = perceivedRelLuminance(layerColor(color, 1))
+        val fgColor: Int = if (lum > 0)
+            darkTextColor
+        else
+            lightTextColor
+
+        currentLuminance = lum
+        currentForegroundColor = fgColor
+        currentBaseColor = color
+
+        colorManagers.forEach {
+            it.update(color, fgColor)
         }
     }
 
@@ -209,33 +267,6 @@ internal object ColorSupervisor {
         sunsetTime = sunset.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS + sunset.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS
         stopUpdate()
         startUpdate()
-    }
-
-    fun onSunrise() {
-
-    }
-
-    fun addColors(@ColorInt vararg varargs: Int) {
-        if (varargs.isEmpty())
-            throw RuntimeException("You can't just add no colors.")
-
-        colorList.ensureCapacity(colorList.size + varargs.size)
-        varargs.forEach { colorList.add(it) }
-    }
-
-    fun deltaUpdate(delta: Float, newPeriod: Boolean) {
-        if (newPeriod) {
-            currentIndex = nextIndex
-            updateUpdate()
-        }
-
-        update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
-    }
-
-    fun update(@ColorInt color: Int) {
-        colorManagers.forEach {
-            it.update(color)
-        }
     }
 
 }

@@ -23,18 +23,12 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.TextView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.network.SignalsTileProvider
-import com.adsamcik.signalcollector.uitools.KeyboardManager
-import com.adsamcik.signalcollector.uitools.leftMargin
-import com.adsamcik.signalcollector.uitools.navbarHeight
-import com.adsamcik.signalcollector.uitools.setBottomMargin
+import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.FabMenu
 import com.adsamcik.signalcollector.utility.MapFilterRule
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -54,19 +48,12 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var locationManager: LocationManager? = null
     private var activeOverlay: TileOverlay? = null
 
-    private var searchText: EditText? = null
-
     private var fragmentView: View? = null
 
     private var userRadius: Circle? = null
     private var userCenter: Marker? = null
 
     private var fActivity: FragmentActivity? = null
-    private var menu: FabMenu<MapLayer, MapFilterRule>? = null
-
-    //fab.isShown() is not fast enough (it probably changes on the next ui update)
-    private var fabOneVisible: Boolean = false
-    private var showFabTwo: Boolean = false
 
     private var mapLayerFilterRule: MapFilterRule? = null
 
@@ -75,6 +62,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var keyboardManager: KeyboardManager? = null
     private var searchOriginalMargin = 0
     private var keyboardInitialized = AtomicBoolean(false)
+
+    private var colorManager: ColorManager? = null
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -107,8 +96,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             if (locationManager != null)
                 locationManager!!.removeUpdates(locationListener)
             locationListener!!.cleanup()
-
-            menu?.hideAndDestroy()
         }
 
         if (keyboardManager != null) {
@@ -148,28 +135,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         mapLayerFilterRule = MapFilterRule()
 
-        val searchText = fragmentView!!.findViewById<EditText>(R.id.map_search)!!
-
-        searchText.setOnEditorActionListener { v, _, _ ->
-            val geocoder = Geocoder(context)
-            try {
-                val addresses = geocoder.getFromLocationName(v.text.toString(), 1)
-                if (addresses != null && addresses.size > 0) {
-                    if (map != null && locationListener != null) {
-                        val address = addresses[0]
-                        locationListener!!.stopUsingUserPosition(true)
-                        locationListener!!.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
-                    }
-                }
-
-            } catch (e: IOException) {
-                SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
-            }
-
-            true
-        }
-
-        this.searchText = searchText
+        this.colorManager = ColorSupervisor.createColorManager(context!!)
 
         return fragmentView
     }
@@ -177,36 +143,12 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onDestroyView() {
         super.onDestroyView()
         fragmentView = null
-        menu = null
+        colorManager!!.stopWatchingAll()
     }
 
-    @Synchronized
-    private fun initializeKeyboardDetection() {
-        if (keyboardInitialized.get())
-            keyboardManager!!.onDisplaySizeChanged()
-        else {
-            val navbarHeight = navbarHeight(activity!!)
-            if (keyboardManager == null) {
-                searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
-                keyboardManager = KeyboardManager(fragmentView!!.rootView)
-            }
-
-            keyboardManager!!.addKeyboardListener { opened, keyboardHeight ->
-                Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) searchOriginalMargin else (searchOriginalMargin + navbarHeight)))
-                when (opened) {
-                    true -> {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                        map?.setPadding(map_ui_parent.leftMargin, 0, 0, searchOriginalMargin + keyboardHeight + map_ui_parent.height)
-                    }
-                    false -> {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
-                        map?.setPadding(0, 0, 0, navbarHeight)
-                    }
-                }
-            }
-
-            keyboardInitialized.set(true)
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        ColorSupervisor.recycleColorManager(colorManager!!)
     }
 
     /**
@@ -232,11 +174,65 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             this.type = type
     }
 
+    @Synchronized
+    private fun initializeKeyboardDetection() {
+        if (keyboardInitialized.get())
+            keyboardManager!!.onDisplaySizeChanged()
+        else {
+            val navbarHeight = navbarHeight(activity!!)
+            if (keyboardManager == null) {
+                searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
+                keyboardManager = KeyboardManager(fragmentView!!.rootView)
+            }
+
+            keyboardManager!!.addKeyboardListener { opened, keyboardHeight ->
+                //Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) searchOriginalMargin else (searchOriginalMargin + navbarHeight)))
+                when (opened) {
+                    true -> {
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                        map?.setPadding(map_ui_parent.paddingLeft, 0, 0, searchOriginalMargin + keyboardHeight + map_ui_parent.height)
+                    }
+                    false -> {
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
+                        map?.setPadding(0, 0, 0, navbarHeight)
+                    }
+                }
+            }
+
+            keyboardInitialized.set(true)
+        }
+    }
+
     private fun initializeLocationListener(context: Context) {
         if (locationListener == null) {
             val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
             locationListener = UpdateLocationListener(sensorManager)
         }
+    }
+
+    private fun initializeUserElements() {
+        map_search.setOnEditorActionListener { v, _, _ ->
+            val geocoder = Geocoder(context)
+            try {
+                val addresses = geocoder.getFromLocationName(v.text.toString(), 1)
+                if (addresses != null && addresses.size > 0) {
+                    if (map != null && locationListener != null) {
+                        val address = addresses[0]
+                        locationListener!!.stopUsingUserPosition(true)
+                        locationListener!!.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
+                    }
+                }
+
+            } catch (e: IOException) {
+                SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
+            }
+
+            true
+        }
+
+        val colorManager = colorManager!!
+        colorManager.watchElement(ColorView(map_search, 3, false, false))
+        colorManager.watchElement(ColorView(map_menu_button, 2, false, false))
     }
 
     override fun onMapReady(map: GoogleMap) {
@@ -285,6 +281,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             locationManager = c.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
 
+        initializeUserElements()
         initializeKeyboardDetection()
     }
 
