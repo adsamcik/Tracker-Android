@@ -102,10 +102,10 @@ class NewUIActivity : FragmentActivity() {
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, Point(0, size.y), root, DragTargetAnchor.TopLeft, 0)
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(13f * dp)
-        mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
+        mapPayload.destroyPayloadAfter = (5 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapPayload.onInitialized = {
-            val map = it.view!!.findViewById(R.id.map_search) as View
-            colorManager!!.watchElement(ColorView(map, 2, true, true))
+            val mapUIParent = it.view!!.findViewById(R.id.map_ui_parent) as View
+            colorManager!!.watchElement(ColorView(mapUIParent, 2, true, false, true))
         }
         mapPayload.onBeforeDestroyed = { colorManager!!.stopWatchingElement(R.id.map_search) }
         mapDraggable.addPayload(mapPayload)

@@ -185,10 +185,9 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
         else {
-            val searchText = searchText!!
             val navbarHeight = navbarHeight(activity!!)
             if (keyboardManager == null) {
-                searchOriginalMargin = (searchText.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
+                searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
                 keyboardManager = KeyboardManager(fragmentView!!.rootView)
             }
 
@@ -196,11 +195,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) searchOriginalMargin else (searchOriginalMargin + navbarHeight)))
                 when (opened) {
                     true -> {
-                        searchText.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                        map?.setPadding(searchText.leftMargin, 0, 0, searchOriginalMargin + keyboardHeight + searchText.height)
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                        map?.setPadding(map_ui_parent.leftMargin, 0, 0, searchOriginalMargin + keyboardHeight + map_ui_parent.height)
                     }
                     false -> {
-                        searchText.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
                         map?.setPadding(0, 0, 0, navbarHeight)
                     }
                 }
