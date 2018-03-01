@@ -12,17 +12,16 @@
         android:id="@+id/map_ui_parent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="@dimen/edge_margin"
-        android:layout_marginEnd="@dimen/edge_margin"
-        android:layout_marginStart="@dimen/edge_margin"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:gravity="center_vertical"
         android:orientation="vertical"
+        android:padding="@dimen/edge_margin"
         android:translationZ="3dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent">
+
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/map_menu_button"

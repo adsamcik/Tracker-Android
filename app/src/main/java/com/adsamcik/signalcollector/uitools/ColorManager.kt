@@ -2,14 +2,12 @@ package com.adsamcik.signalcollector.uitools
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
 import android.support.annotation.ColorInt
 import android.support.annotation.IdRes
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.support.v7.widget.CardView
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -119,7 +117,7 @@ internal class ColorManager(private val mContext: Context) {
             if (view.rootIsBackground)
                 setBackgroundColor(view.view, color, view.layer)
             else
-                updateStyleBackground(view.view, color, view.layer)
+                updateBackgroundDrawable(view.view, getLayerColor(color, view.layer))
 
             updateStyleForeground(view.view, fgColor)
         }
@@ -151,7 +149,7 @@ internal class ColorManager(private val mContext: Context) {
     }
 
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
-        val updatedBg = updateStyleBackground(view, color, layer)
+        val updatedBg = updateBackgroundDrawable(view, getLayerColor(color, layer))
         if (view is ViewGroup) {
             for (i in 0 until view.childCount)
                 updateStyleRecursive(view.getChildAt(i), fgColor, color, if (updatedBg) layer + 1 else layer)
@@ -170,26 +168,14 @@ internal class ColorManager(private val mContext: Context) {
         }
     }
 
-    private fun updateStyleBackground(view: View, @ColorInt bgColor: Int, layer: Int): Boolean {
+    private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
         val background = view.background
-        val layerColor = getLayerColor(bgColor, layer)
         if (view is CardView) {
-            view.setCardBackgroundColor(layerColor)
+            view.setCardBackgroundColor(bgColor)
             return true
         } else if (background != null) {
-            when (background) {
-                is ColorDrawable -> {
-                    background.color = layerColor
-                    return true
-                }
-                is GradientDrawable -> {
-                    background.setColor(layerColor)
-                    return true
-                }
-                else -> {
-                    Log.d("Colors", background.javaClass.canonicalName)
-                }
-            }
+            background.setTint(bgColor)
+            return true
         }
         return false
     }
