@@ -30,9 +30,9 @@ class TranslateableString {
             id = getId(identifier, context)
             if (id == 0) {
                 if (defaultString == null)
-                    throw RuntimeException("Translation not found and default string is null for identifier " + identifier)
+                    throw RuntimeException("Translation not found and default string is null for identifier $identifier")
                 else
-                    Crashlytics.logException(RuntimeException("Missing translation for " + identifier))
+                    Crashlytics.logException(RuntimeException("Missing translation for $identifier"))
 
                 return defaultString!!
             }

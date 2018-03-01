@@ -26,7 +26,7 @@ class MockSignInClient : ISignInClient {
         }
 
         val state = (System.currentTimeMillis() % 4).toInt()
-        Log.d("MockSigninSignals", "State " + state)
+        Log.d("MockSigninSignals", "State $state")
         if (state == 2) {
             userValueCallback.invoke(context, null)
             return

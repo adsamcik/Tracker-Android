@@ -24,6 +24,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.SignalsTileProvider
@@ -144,6 +145,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         super.onDestroyView()
         fragmentView = null
         colorManager!!.stopWatchingAll()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        initializeUserElements()
     }
 
     override fun onDestroy() {
@@ -281,7 +287,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             locationManager = c.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
 
-        initializeUserElements()
         initializeKeyboardDetection()
     }
 
@@ -485,10 +490,10 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     }
 
     companion object {
-        private val MAX_ZOOM = 17
-        private val PERMISSION_LOCATION_CODE = 200
+        private const val MAX_ZOOM = 17
+        private const val PERMISSION_LOCATION_CODE = 200
 
-        private val TAG = "SignalsMap"
+        private const val TAG = "SignalsMap"
     }
 
 }

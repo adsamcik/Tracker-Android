@@ -141,7 +141,7 @@ object DataStore {
      */
     fun delete(context: Context, fileName: String) {
         if (!FileStore.delete(file(context, fileName)))
-            Crashlytics.logException(RuntimeException("Failed to delete " + fileName))
+            Crashlytics.logException(RuntimeException("Failed to delete $fileName"))
     }
 
     /**
@@ -326,7 +326,7 @@ object DataStore {
     }
 
     @Synchronized
-    private fun updateCurrentData(context: Context, @DataFile.FileType type: Long, userID: String?) {
+    private fun updateCurrentData(context: Context, @DataFile.FileType type: Int, userID: String?) {
         val dataFile: String
         val preference: String
 
@@ -343,7 +343,7 @@ object DataStore {
                 preference = PREF_DATA_FILE_INDEX
             }
             else -> {
-                Crashlytics.logException(Throwable("Unknown type " + type))
+                Crashlytics.logException(Throwable("Unknown type $type"))
                 return
             }
         }

@@ -15,7 +15,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 object Network {
-    private val TAG = "SignalsNetwork"
+    private const val TAG = "SignalsNetwork"
     val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
     val URL_TILES = Server.URL_TILES
     val URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES
@@ -108,7 +108,7 @@ object Network {
         val request = requestPOST(url, formBody)
         client(context, userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Crashlytics.log("Register " + preferencesName)
+                Crashlytics.log("Register $preferencesName")
                 Crashlytics.logException(e)
             }
 

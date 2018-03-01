@@ -174,7 +174,7 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
      * @return The tag
      */
     fun getFragmentTag(): String {
-        return "color_" + key
+        return "color_$key"
     }
 
     interface OnShowDialogListener {

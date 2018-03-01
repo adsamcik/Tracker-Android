@@ -144,7 +144,7 @@ object NetworkLoader {
                 override fun onFailure(call: Call, e: IOException) {
                     callbackNoData(context, preferenceString, callback, lastUpdate, -1)
 
-                    Crashlytics.log("Load " + preferenceString)
+                    Crashlytics.log("Load $preferenceString")
                     Crashlytics.logException(e)
                 }
 

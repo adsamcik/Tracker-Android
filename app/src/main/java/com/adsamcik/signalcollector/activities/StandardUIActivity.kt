@@ -85,7 +85,7 @@ class StandardUIActivity : FragmentActivity() {
             R.id.action_settings -> handleBottomNav(FragmentSettings::class.java, R.string.menu_settings)
             R.id.action_activities -> handleBottomNav(FragmentActivities::class.java, R.string.menu_activities)
             else -> {
-                Log.e(TAG, "Unknown fragment item id " + index)
+                Log.e(TAG, "Unknown fragment item id $index")
                 return false
             }
         }
@@ -159,6 +159,6 @@ class StandardUIActivity : FragmentActivity() {
     }
 
     companion object {
-        val TAG = "SignalsMainActivity"
+        const val TAG = "SignalsMainActivity"
     }
 }

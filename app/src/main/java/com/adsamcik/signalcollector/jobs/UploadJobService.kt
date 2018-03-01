@@ -113,7 +113,7 @@ class UploadJobService : JobService() {
                     return true
 
                 if (code >= 500 || code == 403)
-                    Crashlytics.logException(Throwable("Upload failed " + code))
+                    Crashlytics.logException(Throwable("Upload failed $code"))
                 return false
             } catch (e: IOException) {
                 Crashlytics.logException(e)

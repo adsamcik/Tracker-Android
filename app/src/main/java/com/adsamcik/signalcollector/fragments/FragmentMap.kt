@@ -563,10 +563,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     companion object {
-        private val MAX_ZOOM = 17
-        private val PERMISSION_LOCATION_CODE = 200
+        private const val MAX_ZOOM = 17
+        private const val PERMISSION_LOCATION_CODE = 200
 
-        private val TAG = "SignalsMap"
+        private const val TAG = "SignalsMap"
     }
 
 }

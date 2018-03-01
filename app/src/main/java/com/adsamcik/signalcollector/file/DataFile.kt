@@ -15,7 +15,7 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long, context: Context) {
+class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Int, context: Context) {
     var file: File = file
         private set
 
@@ -38,7 +38,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
      */
     @FileType
     @get:FileType
-    val type: Long
+    val type: Int
 
     /**
      * Returns preference string for index
@@ -192,8 +192,8 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
     fun size(): Long = file.length()
 
     companion object {
-        const val STANDARD = 0L
-        const val CACHE = 1L
+        const val STANDARD = 0
+        const val CACHE = 1
         const val SEPARATOR = " "
 
         /**

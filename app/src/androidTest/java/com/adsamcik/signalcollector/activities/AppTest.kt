@@ -57,7 +57,7 @@ class AppTest {
         Preferences.getPref(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply()
         Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false))
         Assert.assertEquals(true, DataStore.exists(context, testFileName))
-        Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName))
+        Assert.assertEquals("[$data", DataStore.loadString(context, testFileName))
         Assert.assertEquals("[$data]", DataStore.loadAppendableJsonArray(context, testFileName))
         //DataStore.removeOldRecentUploads();
         Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, us, true))
@@ -84,16 +84,16 @@ class AppTest {
         val SIZE = "uploadSize"
 
         val d = HashMap<String, String>(10)
-        d.put(WIFI, Integer.toString(us.wifi))
-        d.put(NEW_WIFI, Integer.toString(us.newWifi))
-        d.put(CELL, Integer.toString(us.cell))
-        d.put(NEW_CELL, Integer.toString(us.newCell))
-        d.put(COLLECTIONS, Integer.toString(us.collections))
-        d.put(NEW_LOCATIONS, Integer.toString(us.newLocations))
-        d.put(SIZE, java.lang.Long.toString(us.uploadSize))
+        d[WIFI] = Integer.toString(us.wifi)
+        d[NEW_WIFI] = Integer.toString(us.newWifi)
+        d[CELL] = Integer.toString(us.cell)
+        d[NEW_CELL] = Integer.toString(us.newCell)
+        d[COLLECTIONS] = Integer.toString(us.collections)
+        d[NEW_LOCATIONS] = Integer.toString(us.newLocations)
+        d[SIZE] = java.lang.Long.toString(us.uploadSize)
 
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
-        Assert.assertEquals('[' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
+        Assert.assertEquals("[$data", DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
 
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
         Assert.assertEquals("[$data,$data", DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
@@ -157,9 +157,9 @@ class AppTest {
     }
 
     companion object {
-        private val TAG = "SignalsSaveLoadTest"
-        private val PACKAGE = "com.adsamcik.signalcollector"
-        private val LAUNCH_TIMEOUT = 5000
+        private const val TAG = "SignalsSaveLoadTest"
+        private const val PACKAGE = "com.adsamcik.signalcollector"
+        private const val LAUNCH_TIMEOUT = 5000
 
         private fun childAtPosition(
                 parentMatcher: Matcher<View>, position: Int): Matcher<View> {

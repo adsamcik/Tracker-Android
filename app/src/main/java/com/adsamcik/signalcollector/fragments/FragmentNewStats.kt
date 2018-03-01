@@ -154,12 +154,12 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
         return list.toTypedArray()
     }
 
-    private fun generateMockStat(index: Int) = Stat("Mock " + index, "donut", false, generateStatData(index))
+    private fun generateMockStat(index: Int) = Stat("Mock $index", "donut", false, generateStatData(index))
 
     private fun generateStatData(index: Int): List<StatData> {
         val list = ArrayList<StatData>()
         for (i in 1..index) {
-            list.add(StatData("Title " + i, i.toString()))
+            list.add(StatData("Title $i", i.toString()))
         }
         return list
     }

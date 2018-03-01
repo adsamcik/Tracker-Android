@@ -85,11 +85,11 @@ class ActivityRecognitionActivity : DetailActivity() {
     }
 
     companion object {
-        private val FILE = "activityRecognitionDebug.tsv"
+        private const val FILE = "activityRecognitionDebug.tsv"
 
         private var instance: WeakReference<ActivityRecognitionActivity>? = null
 
-        private val delim = " - "
+        private const val delim = " - "
 
         /**
          * Adds line to the activity debug if tracking is enabled
