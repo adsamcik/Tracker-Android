@@ -58,7 +58,7 @@ fun View.paddingNavbar() {
     }
 }
 
-val View.leftMargin: Int
+val View.marginLeft: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
@@ -69,7 +69,7 @@ val View.leftMargin: Int
         }
     }
 
-val View.topMargin: Int
+val View.marginTop: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
@@ -80,7 +80,7 @@ val View.topMargin: Int
         }
     }
 
-val View.rightMargin: Int
+val View.marginRight: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
@@ -91,7 +91,7 @@ val View.rightMargin: Int
         }
     }
 
-val View.bottomMargin: Int
+val View.marginBottom: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
