@@ -21,8 +21,6 @@ import com.github.paolorotolo.appintro.AppIntro2
 import java.util.*
 
 class IntroActivity : AppIntro2() {
-    private val TAG = "SignalsIntro"
-    private val LOCATION_PERMISSION_REQUEST_CODE = 201
     private var autoUploadDialog: AlertDialog.Builder? = null
     private var openedTrackingAlert = false
     private var openedSigninAlert = false
@@ -221,5 +219,10 @@ class IntroActivity : AppIntro2() {
         if (requestCode == Signin.RC_SIGN_IN) {
             Signin.onSignResult(this, resultCode, data)
         }
+    }
+
+    companion object {
+        private const val TAG = "SignalsIntro"
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 201
     }
 }

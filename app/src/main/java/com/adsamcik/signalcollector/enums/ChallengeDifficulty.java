@@ -14,7 +14,7 @@ import static com.adsamcik.signalcollector.enums.ChallengeDifficulty.VERY_HARD;
 
 @IntDef({UNKNOWN, VERY_EASY, EASY, MEDIUM, HARD, VERY_HARD})
 @Retention(RetentionPolicy.SOURCE)
-public @interface ChallengeDifficulty {
+@interface ChallengeDifficulty {
 	int UNKNOWN = -1;
 	int VERY_EASY = 0;
 	int EASY = 1;

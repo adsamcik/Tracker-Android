@@ -14,7 +14,7 @@ import static com.adsamcik.signalcollector.enums.CloudStatus.UNKNOWN;
 
 @IntDef({UNKNOWN, NO_SYNC_REQUIRED, SYNC_AVAILABLE, SYNC_SCHEDULED, SYNC_IN_PROGRESS, ERROR})
 @Retention(RetentionPolicy.SOURCE)
-public @interface CloudStatus {
+@interface CloudStatus {
 	int UNKNOWN = -1;
 	int NO_SYNC_REQUIRED = 0;
 	int SYNC_AVAILABLE = 1;
