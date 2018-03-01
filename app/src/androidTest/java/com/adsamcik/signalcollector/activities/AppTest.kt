@@ -75,22 +75,14 @@ class AppTest {
         DataStore.delete(context, testFileName)
         DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE)
 
-        val WIFI = "wifi"
-        val NEW_WIFI = "newWifi"
-        val CELL = "cell"
-        val NEW_CELL = "newCell"
-        val COLLECTIONS = "collections"
-        val NEW_LOCATIONS = "newLocations"
-        val SIZE = "uploadSize"
-
         val d = HashMap<String, String>(10)
-        d[WIFI] = Integer.toString(us.wifi)
-        d[NEW_WIFI] = Integer.toString(us.newWifi)
-        d[CELL] = Integer.toString(us.cell)
-        d[NEW_CELL] = Integer.toString(us.newCell)
-        d[COLLECTIONS] = Integer.toString(us.collections)
-        d[NEW_LOCATIONS] = Integer.toString(us.newLocations)
-        d[SIZE] = java.lang.Long.toString(us.uploadSize)
+        d[MessageListenerService.WIFI] = Integer.toString(us.wifi)
+        d[MessageListenerService.NEW_WIFI] = Integer.toString(us.newWifi)
+        d[MessageListenerService.CELL] = Integer.toString(us.cell)
+        d[MessageListenerService.NEW_CELL] = Integer.toString(us.newCell)
+        d[MessageListenerService.COLLECTIONS] = Integer.toString(us.collections)
+        d[MessageListenerService.NEW_LOCATIONS] = Integer.toString(us.newLocations)
+        d[MessageListenerService.UPLOAD_SIZE] = java.lang.Long.toString(us.uploadSize)
 
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
         Assert.assertEquals("[$data", DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))

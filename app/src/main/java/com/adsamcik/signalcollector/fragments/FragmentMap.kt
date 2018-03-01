@@ -421,9 +421,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 stopUsingUserPosition(true)
         }
 
-        private val DURATION_STANDARD = 1000
-        private val DURATION_SHORT = 200
-
         internal var prevRotation: Float = 0.toFloat()
 
         internal var orientation = FloatArray(3)
@@ -567,6 +564,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         private const val PERMISSION_LOCATION_CODE = 200
 
         private const val TAG = "SignalsMap"
+        private const val DURATION_STANDARD = 1000
+        private const val DURATION_SHORT = 200
     }
 
 }

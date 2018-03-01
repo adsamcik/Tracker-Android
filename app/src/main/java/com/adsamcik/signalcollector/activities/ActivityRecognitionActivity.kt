@@ -12,7 +12,6 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
 import java.text.DateFormat.getDateTimeInstance

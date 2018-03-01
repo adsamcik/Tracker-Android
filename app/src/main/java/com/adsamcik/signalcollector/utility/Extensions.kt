@@ -3,9 +3,7 @@ package com.adsamcik.signalcollector.utility
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.os.Bundle
-import android.support.annotation.StringRes
 import android.support.v4.app.Fragment
 
 

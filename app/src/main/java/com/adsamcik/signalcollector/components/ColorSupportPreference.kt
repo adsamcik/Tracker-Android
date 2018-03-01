@@ -20,10 +20,6 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
         init(attrs)
     }
 
-
-    private val SIZE_NORMAL = 0
-    private val SIZE_LARGE = 1
-
     private var onShowDialogListener: OnShowDialogListener? = null
     private var color = Color.BLACK
     private var showDialog: Boolean = false
@@ -182,4 +178,9 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
         fun onShowColorPickerDialog(title: String, currentColor: Int)
     }
 
+
+    companion object {
+        private const val SIZE_NORMAL = 0
+        private const val SIZE_LARGE = 1
+    }
 }

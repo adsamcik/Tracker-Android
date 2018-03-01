@@ -169,7 +169,7 @@ class IntroActivity : AppIntro2() {
      *
      * @return true if all permissions are granted
      */
-    private fun CheckAllTrackingPermissions(): Boolean {
+    private fun checkAllTrackingPermissions(): Boolean {
         if (Build.VERSION.SDK_INT > 22) {
             val permissions = ArrayList<String>()
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)

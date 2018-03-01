@@ -25,27 +25,27 @@ class LicenseActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         val parent = createScrollableContentParent(true)
 
-        val GSON = "Gson"
-        addButton(parent, GSON).setOnClickListener { _ ->
-            val notice = Notice(GSON, "https://github.com/google/gson", "Copyright 2008 Google Inc", ApacheSoftwareLicense20())
+        val gsonString = "Gson"
+        addButton(parent, gsonString).setOnClickListener { _ ->
+            val notice = Notice(gsonString, "https://github.com/google/gson", "Copyright 2008 Google Inc", ApacheSoftwareLicense20())
             LicensesDialog.Builder(this)
                     .setNotices(notice)
                     .build()
                     .show()
         }
 
-        val OKHTTP = "OkHttp"
-        addButton(parent, OKHTTP).setOnClickListener { _ ->
-            val notice = Notice(OKHTTP, "https://github.com/square/okhttp", "Copyright 2016 Square, Inc.", ApacheSoftwareLicense20())
+        val okhttpString = "OkHttp"
+        addButton(parent, okhttpString).setOnClickListener { _ ->
+            val notice = Notice(okhttpString, "https://github.com/square/okhttp", "Copyright 2016 Square, Inc.", ApacheSoftwareLicense20())
             LicensesDialog.Builder(this)
                     .setNotices(notice)
                     .build()
                     .show()
         }
 
-        val LICENSE_DIALOG = "LicensesDialog"
-        addButton(parent, LICENSE_DIALOG).setOnClickListener { _ ->
-            val notice = Notice(LICENSE_DIALOG, "https://github.com/PSDev/LicensesDialog", "Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20())
+        val licenseDialogString = "LicensesDialog"
+        addButton(parent, licenseDialogString).setOnClickListener { _ ->
+            val notice = Notice(licenseDialogString, "https://github.com/PSDev/LicensesDialog", "Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20())
             LicensesDialog.Builder(this)
                     .setNotices(notice)
                     .build()

@@ -25,6 +25,7 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
+        <item name="android:windowBackground">@null</item>
     </style>
 
     <style name="SettingsButton" parent="SettingsItem">
