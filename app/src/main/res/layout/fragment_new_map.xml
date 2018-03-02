@@ -10,31 +10,45 @@
 
     <LinearLayout
         android:id="@+id/map_ui_parent"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="140dp"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:gravity="center_vertical"
+        android:gravity="bottom"
         android:orientation="vertical"
         android:padding="@dimen/edge_margin"
         android:translationZ="3dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent">
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
+        <FrameLayout
+            android:id="@+id/payload_parent"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginBottom="-24dp"
+            android:layout_weight="1"/>
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/map_menu_button"
             android:layout_width="match_parent"
             android:layout_height="24dp"
+            android:layout_weight="0"
             android:background="@drawable/background_map_menu"
             android:elevation="8dp"
-            android:src="@drawable/ic_arrow_upward_black_24dp"/>
+            android:src="@drawable/ic_arrow_upward_black_24dp"
+            app:axis="Y"
+            app:layout_constraintBottom_toTopOf="@id/payload_parent"
+            app:targetAnchor="top"
+            app:targetView="@id/map_ui_parent"/>
 
         <EditText
             android:id="@+id/map_search"
             android:layout_width="match_parent"
             android:layout_height="48dp"
+            android:layout_weight="0"
             android:background="@color/cardview_light_background"
             android:elevation="8dp"
             android:hint="@string/map_search"
@@ -46,7 +60,8 @@
             android:paddingTop="8dp"
             android:textColor="?android:textColorPrimary"
             android:textColorHint="?android:textColorSecondary"
-            android:textSize="16sp"/>
+            android:textSize="16sp"
+            app:layout_constraintBottom_toBottomOf="parent"/>
     </LinearLayout>
 
 </android.support.constraint.ConstraintLayout>

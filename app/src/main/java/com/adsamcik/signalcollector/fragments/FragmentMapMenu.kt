@@ -16,10 +16,12 @@ import kotlinx.android.synthetic.main.fragment_map_menu.*
 class FragmentMapMenu : Fragment(), IOnDemandView {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        val view = inflater.inflate(R.layout.fragment_map_menu, container, true)
+        return inflater.inflate(R.layout.fragment_map_menu, container, false)
+    }
 
+    override fun onStart() {
+        super.onStart()
         val adapter = MapFilterableAdapter(context!!, R.layout.spinner_item, { it.name })
-        list.adapter = adapter
 
         if (useMock) {
             adapter.addAll(arrayListOf(MapLayer("WiFi"),
@@ -30,7 +32,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
                     MapLayer("Filler04")))
         }
 
-        return view
+        list.adapter = adapter
     }
 
     override fun onEnter(activity: Activity) {

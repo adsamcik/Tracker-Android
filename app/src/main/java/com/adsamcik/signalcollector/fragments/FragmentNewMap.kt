@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Point
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -22,7 +23,10 @@ import android.support.v4.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.TextView
+import com.adsamcik.draggable.DragTargetAnchor
+import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.SignalsTileProvider
@@ -233,6 +237,17 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
             true
         }
+
+        var listener: ViewTreeObserver.OnGlobalLayoutListener? = null
+
+        listener = ViewTreeObserver.OnGlobalLayoutListener {
+            val payload = DraggablePayload(activity!!, FragmentMapMenu::class.java, Point(0, payload_parent.measuredHeight), map_ui_parent, DragTargetAnchor.MiddleTop, map_menu_button.measuredHeight)
+            map_menu_button.addPayload(payload)
+            map_ui_parent.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+            listener = null
+        }
+
+        map_ui_parent.viewTreeObserver.addOnGlobalLayoutListener(listener)
 
         val colorManager = colorManager!!
         colorManager.watchElement(ColorView(map_search, 3, false, false))
