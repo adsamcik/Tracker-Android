@@ -12,7 +12,7 @@ import static com.adsamcik.signalcollector.enums.ResolvedActivity.UNKNOWN;
 
 @IntDef({STILL, ON_FOOT, IN_VEHICLE, UNKNOWN})
 @Retention(RetentionPolicy.SOURCE)
-@interface ResolvedActivity {
+public @interface ResolvedActivity {
 	int STILL = 0;
 	int ON_FOOT = 1;
 	int IN_VEHICLE = 2;
