@@ -74,7 +74,7 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) = Failure()
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {}
 
     override fun onLeave(activity: FragmentActivity) {}
 

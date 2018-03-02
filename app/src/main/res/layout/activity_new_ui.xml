@@ -80,6 +80,9 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
+        app:axis="Y"
+        app:targetView="@id/root"
+        app:targetAnchor="top"
         />
 
 

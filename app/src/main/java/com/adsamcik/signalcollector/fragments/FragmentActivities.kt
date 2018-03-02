@@ -20,7 +20,6 @@ import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
-import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
@@ -60,7 +59,7 @@ class FragmentActivities : Fragment(), ITabFragment, IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) = Failure()
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {}
 
     override fun onLeave(activity: FragmentActivity) {}
 

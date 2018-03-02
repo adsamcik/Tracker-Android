@@ -31,6 +31,7 @@ import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.isEmulator
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -260,7 +261,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 val animation = ObjectAnimator.ofInt(progressBar, "progress", percentage)
                 animation.duration = 400
                 if (percentage == 100) {
-                    handler!!.postDelayed(handler@ {
+                    handler!!.postDelayed(handler@{
                         if (fabUp == null)
                             return@handler
                         fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
@@ -334,10 +335,8 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (layoutWifi != null)
             updateData(activity)
 
-        //todo move this check to upload scheduling
-        //if (Assist.isEmulator())
-        //	fabUp.hide();
-        return Failure()
+        if (isEmulator)
+            fabUp?.hide()
     }
 
     override fun onLeave(activity: FragmentActivity) {

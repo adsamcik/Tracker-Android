@@ -127,7 +127,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         this.fActivity = activity
 
         if (!Assist.checkPlayServices(activity))
-            return Failure(activity.getString(R.string.error_play_services_not_available))
+            return
 
         initializeLocationListener(activity)
         locationListener!!.setFAB(fabOne, activity)
@@ -142,8 +142,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         //fabTwo.setOnClickListener(v -> changeMapOverlay(typeIndex + 1 == availableTypes.length ? 0 : typeIndex + 1, fabTwo));
         fabTwo.setOnClickListener { _ -> menu!!.show(activity) }
-
-        return Failure()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {

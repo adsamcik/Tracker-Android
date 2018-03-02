@@ -133,11 +133,8 @@ class StandardUIActivity : FragmentActivity() {
             val str = getString(resId)
             fragmentTransaction.replace(R.id.container, currentFragment as Fragment?, str)
 
-            val state = currentFragment!!.onEnter(this, fabOne!!, fabTwo!!)
+            currentFragment!!.onEnter(this, fabOne!!, fabTwo!!)
             fragmentTransaction.commit()
-
-            if (state.hasFailed())
-                SnackMaker(this).showSnackbar(state.value!!)
         }
     }
 

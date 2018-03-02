@@ -726,7 +726,7 @@ class FragmentSettings : Fragment(), ITabFragment {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) = Failure()
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {}
 
     override fun onLeave(activity: FragmentActivity) {
         Signin.onStateChangeCallback = null

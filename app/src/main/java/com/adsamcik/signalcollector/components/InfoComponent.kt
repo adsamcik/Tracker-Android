@@ -8,7 +8,6 @@ import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Assist
@@ -16,7 +15,6 @@ import com.adsamcik.signalcollector.utility.Assist
 
 class InfoComponent : FrameLayout {
     private var titleTextView: TextView? = null
-    private var titleIconView: ImageView? = null
 
     private var root: ViewGroup? = null
 
@@ -44,7 +42,6 @@ class InfoComponent : FrameLayout {
         inflater.inflate(R.layout.layout_component_info, this)
         root = this.getChildAt(0) as ViewGroup
 
-        titleIconView = findViewById(R.id.tracker_item_icon)
         titleTextView = findViewById(R.id.tracker_item_title)
     }
 
@@ -63,7 +60,7 @@ class InfoComponent : FrameLayout {
             titleTextView!!.text = title
 
         if (drawable != null)
-            titleIconView!!.setImageDrawable(drawable)
+            titleTextView!!.setCompoundDrawables(drawable, null, null, null)
     }
 
     private fun createTextView(text: String): TextView {
