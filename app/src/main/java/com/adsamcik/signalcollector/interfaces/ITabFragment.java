@@ -4,17 +4,14 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.FragmentActivity;
 
-import com.adsamcik.signalcollector.utility.Failure;
-
 public interface ITabFragment {
 
 	/**
 	 * Called when entering the tab
 	 *
-	 * @return if tab successfully loaded
 	 */
 	@NonNull
-	Failure<String> onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo);
+	void onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo);
 
 	/**
 	 * Called when leaving tab

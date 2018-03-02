@@ -121,7 +121,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
      * @param fabOne fabOne (lower)
      * @param fabTwo fabTwo (above fabOne)
      */
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
         this.fabTwo = fabTwo
         this.fabOne = fabOne
         this.fActivity = activity

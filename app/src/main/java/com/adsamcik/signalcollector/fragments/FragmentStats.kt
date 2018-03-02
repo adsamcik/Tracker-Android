@@ -156,7 +156,7 @@ class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
         onEnter(activity)
         return Failure()
     }

@@ -296,7 +296,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fab!!.elevation = 6 * resources.displayMetrics.density
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
         fabTrack = fabOne
         fabUp = fabTwo
         progressBar = (fabTwo.parent as ViewGroup).findViewById(R.id.progressBar)
