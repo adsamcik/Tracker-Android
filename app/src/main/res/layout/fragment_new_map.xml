@@ -15,7 +15,7 @@
         android:layout_marginBottom="64dp"
         android:layout_marginEnd="@dimen/edge_margin"
         android:layout_marginStart="@dimen/edge_margin"
-        android:layout_marginTop="40dp"
+        android:layout_marginTop="39dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:gravity="bottom"
@@ -51,6 +51,7 @@
             android:elevation="4dp"
             android:src="@drawable/ic_arrow_upward_black_24dp"
             app:axis="Y"
+            app:interpolator="Decelerate"
             app:targetAnchor="top"
             app:targetTranslationZ="4dp"
             app:targetView="@id/map_ui_parent"/>
