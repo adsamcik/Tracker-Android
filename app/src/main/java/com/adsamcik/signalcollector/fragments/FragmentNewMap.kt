@@ -23,7 +23,6 @@ import android.support.v4.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import android.widget.TextView
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
@@ -219,6 +218,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     }
 
     private fun initializeUserElements() {
+        initializeKeyboardDetection()
         map_search.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)
             try {
@@ -238,16 +238,20 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             true
         }
 
-        var listener: ViewTreeObserver.OnGlobalLayoutListener? = null
-
-        listener = ViewTreeObserver.OnGlobalLayoutListener {
-            val payload = DraggablePayload(activity!!, FragmentMapMenu::class.java, Point(0, payload_parent.measuredHeight), map_ui_parent, DragTargetAnchor.MiddleTop, map_menu_button.measuredHeight)
+        map_menu_parent.post {
+            val payload = DraggablePayload(activity!!, FragmentMapMenu::class.java, map_menu_parent, map_menu_parent)
+            payload.initialTranslation = Point(0, map_menu_parent.height)
+            payload.anchor = DragTargetAnchor.LeftTop
+            payload.width = map_menu_parent.width
+            payload.height = map_menu_parent.height
+            payload.onInitialized = { colorManager!!.watchRecycler(ColorView(it.view!!, 2)) }
+            payload.onBeforeDestroyed = { colorManager?.stopWatchingRecycler(R.id.list) }
+            //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
+            //payload.setOffsetsDp(Offset(0, 24))
             map_menu_button.addPayload(payload)
-            map_ui_parent.viewTreeObserver.removeOnGlobalLayoutListener(listener)
-            listener = null
         }
 
-        map_ui_parent.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        map_menu_button.increaseTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
 
         val colorManager = colorManager!!
         colorManager.watchElement(ColorView(map_search, 3, false, false))
@@ -299,8 +303,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (locationManager == null)
             locationManager = c.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
-
-        initializeKeyboardDetection()
     }
 
     /**

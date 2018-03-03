@@ -68,6 +68,16 @@ internal class ColorManager {
         stopWatchingElement(view)
     }
 
+    fun stopWatchingRecycler(@IdRes id: Int) {
+        synchronized(arrayLock) {
+            val index = watchedElements.indexOfFirst { it.view.id == id }
+            if (index >= 0) {
+                (watchedElements[index].view as ViewGroup).setOnHierarchyChangeListener(null)
+                watchedElements.removeAt(index)
+            }
+        }
+    }
+
     fun stopWatchingAll() {
         synchronized(arrayLock) {
             watchedElements.clear()

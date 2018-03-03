@@ -8,6 +8,24 @@
                                              android:focusable="true"
                                              android:focusableInTouchMode="true">
 
+    <FrameLayout
+        android:id="@+id/map_menu_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="64dp"
+        android:layout_marginEnd="@dimen/edge_margin"
+        android:layout_marginStart="@dimen/edge_margin"
+        android:layout_marginTop="40dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="bottom"
+        android:orientation="vertical"
+        android:translationZ="3dp"
+        app:layout_constraintBottom_toBottomOf="@id/map_ui_parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="@id/map_ui_parent"/>
+
     <LinearLayout
         android:id="@+id/map_ui_parent"
         android:layout_width="0dp"
@@ -24,24 +42,17 @@
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <FrameLayout
-            android:id="@+id/payload_parent"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginBottom="-24dp"
-            android:layout_weight="1"/>
-
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/map_menu_button"
             android:layout_width="match_parent"
             android:layout_height="24dp"
             android:layout_weight="0"
             android:background="@drawable/background_map_menu"
-            android:elevation="8dp"
+            android:elevation="4dp"
             android:src="@drawable/ic_arrow_upward_black_24dp"
             app:axis="Y"
-            app:layout_constraintBottom_toTopOf="@id/payload_parent"
             app:targetAnchor="top"
+            app:targetTranslationZ="4dp"
             app:targetView="@id/map_ui_parent"/>
 
         <EditText
