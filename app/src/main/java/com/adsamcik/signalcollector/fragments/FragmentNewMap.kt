@@ -199,7 +199,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 when (opened) {
                     true -> {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                        map?.setPadding(map_ui_parent.paddingLeft, 0, 0, searchOriginalMargin + keyboardHeight + map_ui_parent.height)
+                        val top = searchOriginalMargin + keyboardHeight + map_menu_button.height + map_search.paddingBottom + map_search.paddingTop + map_search.height
+                        map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
                         map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
                     }
                     false -> {
