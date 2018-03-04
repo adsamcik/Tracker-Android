@@ -25,6 +25,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import com.adsamcik.draggable.DragTargetAnchor
+import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
@@ -51,6 +52,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var activeOverlay: TileOverlay? = null
 
     private var fragmentView: View? = null
+    private var menuFragment: FragmentMapMenu? = null
 
     private var userRadius: Circle? = null
     private var userCenter: Marker? = null
@@ -186,7 +188,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
         else {
-            val navbarHeight = navbarHeight(activity!!)
+            val navbarHeight = navbarSize(activity!!).y
             if (keyboardManager == null) {
                 searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
                 keyboardManager = KeyboardManager(fragmentView!!.rootView)
@@ -198,6 +200,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                     true -> {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
                         map?.setPadding(map_ui_parent.paddingLeft, 0, 0, searchOriginalMargin + keyboardHeight + map_ui_parent.height)
+                        map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
                     }
                     false -> {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
@@ -244,14 +247,17 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             payload.anchor = DragTargetAnchor.LeftTop
             payload.width = map_menu_parent.width
             payload.height = map_menu_parent.height
-            payload.onInitialized = { colorManager!!.watchRecycler(ColorView(it.view!!, 2)) }
+            payload.onInitialized = {
+                colorManager!!.watchRecycler(ColorView(it.view!!, 2))
+                menuFragment = it
+            }
             payload.onBeforeDestroyed = { colorManager?.stopWatchingRecycler(R.id.list) }
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
             //payload.setOffsetsDp(Offset(0, 24))
             map_menu_button.addPayload(payload)
         }
 
-        map_menu_button.increaseTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
+        map_menu_button.extendTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
 
         val colorManager = colorManager!!
         colorManager.watchElement(ColorView(map_search, 3, false, false))
@@ -362,9 +368,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
                 stopUsingUserPosition(true)
         }
-
-        private val DURATION_STANDARD = 1000
-        private val DURATION_SHORT = 200
 
         internal var prevRotation: Float = 0.toFloat()
 
@@ -507,6 +510,9 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     companion object {
         private const val MAX_ZOOM = 17
         private const val PERMISSION_LOCATION_CODE = 200
+
+        private const val DURATION_STANDARD = 1000
+        private const val DURATION_SHORT = 200
 
         private const val TAG = "SignalsMap"
     }

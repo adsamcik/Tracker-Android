@@ -197,6 +197,9 @@
     <string name="settings_color_night_key" translatable="false">colorNight</string>
     <color name="settings_color_night_default" translatable="false">#002733</color>
 
+    <string name="settings_color_default_title">Default colors</string>
+    <string name="settings_color_default_key" translatable="false">defaultColors</string>
+
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to debug</string>
     <string name="settings_debug_available_in">%d more taps to enable debug</string>

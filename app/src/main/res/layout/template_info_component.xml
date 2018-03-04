@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.adsamcik.signalcollector.components.InfoComponent
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="120dp"
+    android:layout_height="200dp"
+    app:layout_flexGrow="1"
+    app:layout_flexShrink="1"
+    app:layout_maxWidth="220dp"
+    app:layout_minWidth="80dp"/>

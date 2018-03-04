@@ -18,23 +18,23 @@ class InfoComponent : FrameLayout {
 
     private var root: ViewGroup? = null
 
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
-        initialize(context!!)
+    constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
+        initialize(context)
         initializeAttrs(context, attrs)
     }
 
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
-        initialize(context!!)
+    constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+        initialize(context)
         initializeAttrs(context, attrs)
     }
 
-    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs) {
-        initialize(context!!)
+    constructor(context: Context, attrs: AttributeSet) : super(context, attrs) {
+        initialize(context)
         initializeAttrs(context, attrs)
     }
 
-    constructor(context: Context?) : super(context) {
-        initialize(context!!)
+    constructor(context: Context) : super(context) {
+        initialize(context)
     }
 
     private fun initialize(context: Context) {

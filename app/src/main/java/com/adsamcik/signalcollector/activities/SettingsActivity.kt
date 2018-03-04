@@ -236,6 +236,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
             true
         }
+
+        fragment.findPreference(getString(R.string.settings_color_default_key)).setOnPreferenceClickListener {
+            fragment.preferenceManager.sharedPreferences.edit {
+                remove(getString(R.string.settings_color_morning_key))
+                remove(getString(R.string.settings_color_evening_key))
+                remove(getString(R.string.settings_color_day_key))
+                remove(getString(R.string.settings_color_night_key))
+            }
+            true
+        }
     }
 
 

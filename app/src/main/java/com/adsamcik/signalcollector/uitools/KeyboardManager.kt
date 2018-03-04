@@ -48,7 +48,7 @@ class KeyboardManager(private val rootView: View) {
     }
 
     fun onDisplaySizeChanged() {
-        defaultDiff = calculateHeightDiff() - navbarHeight(rootView.context)
+        defaultDiff = calculateHeightDiff() - navbarSize(rootView.context).y
     }
 
     fun addKeyboardListener(listener: KeyboardListener) {

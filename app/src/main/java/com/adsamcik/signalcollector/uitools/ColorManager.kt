@@ -30,6 +30,16 @@ internal class ColorManager {
 
     fun watchElement(view: View) = watchElement(ColorView(view, 0))
 
+    fun notififyChangeOn(view: View) {
+        var find: ColorView? = null
+        synchronized(arrayLock) {
+            find = watchedElements.find { it.view == view }
+        }
+
+        if (find != null)
+            update(find!!, currentBaseColor, currentForegroundColor)
+    }
+
     fun watchRecycler(view: ColorView) {
         if (!view.recursive)
             throw RuntimeException("Recycler view cannot be non recursive")
@@ -108,8 +118,9 @@ internal class ColorManager {
         }
 
         if (view.recursive && view.view is ViewGroup) {
+            val layer = if (!view.ignoreRoot) view.layer + 1 else view.layer
             for (i in 0 until view.view.childCount)
-                updateStyleRecursive(view.view.getChildAt(i), fgColor, color, view.layer + 1)
+                updateStyleRecursive(view.view.getChildAt(i), fgColor, color, layer)
         }
     }
 
@@ -118,10 +129,12 @@ internal class ColorManager {
     }
 
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
-        val updatedBg = updateBackgroundDrawable(view, layerColor(color, layer))
+        var newLayer = layer
+        if (updateBackgroundDrawable(view, layerColor(color, layer)))
+            newLayer++
         if (view is ViewGroup) {
             for (i in 0 until view.childCount)
-                updateStyleRecursive(view.getChildAt(i), fgColor, color, if (updatedBg) layer + 1 else layer)
+                updateStyleRecursive(view.getChildAt(i), fgColor, color, newLayer)
         } else {
             updateStyleForeground(view, fgColor)
         }
@@ -131,7 +144,10 @@ internal class ColorManager {
         when (view) {
             is TextView -> {
                 view.setTextColor(fgColor)
-                view.setHintTextColor(fgColor)
+                view.setHintTextColor(brightenColor(fgColor, 1))
+                view.compoundDrawables.forEach {
+                    it?.setTint(fgColor)
+                }
             }
             is ImageView -> view.setColorFilter(fgColor)
         }
@@ -142,7 +158,10 @@ internal class ColorManager {
         if (view is CardView) {
             view.setCardBackgroundColor(bgColor)
             return true
-        } else if (background != null) {
+        } else if (background != null && background.isVisible) {
+            if (background.alpha < 255)
+                return false
+
             background.setTint(bgColor)
             return true
         }

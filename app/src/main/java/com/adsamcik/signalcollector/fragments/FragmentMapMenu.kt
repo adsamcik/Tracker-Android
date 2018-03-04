@@ -11,6 +11,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signalcollector.utility.MapFilterRule
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
 class FragmentMapMenu : Fragment(), IOnDemandView {
@@ -29,10 +30,19 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
                     MapLayer("Filler01"),
                     MapLayer("Filler02"),
                     MapLayer("Filler03"),
-                    MapLayer("Filler04")))
+                    MapLayer("Filler04"),
+                    MapLayer("Filler"),
+                    MapLayer("Filler"),
+                    MapLayer("Filler"),
+                    MapLayer("Filler"),
+                    MapLayer("Filler")))
         }
 
         list.adapter = adapter
+    }
+
+    fun filter(filterRule: MapFilterRule) {
+        (list.adapter as MapFilterableAdapter).filter(filterRule)
     }
 
     override fun onEnter(activity: Activity) {

@@ -9,18 +9,22 @@ import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
+import android.text.format.DateFormat
 import android.view.MotionEvent
-import android.view.View
+import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.widget.ListView
+import androidx.view.children
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.fragments.FragmentNewActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentNewStats
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
@@ -69,7 +73,7 @@ class NewUIActivity : FragmentActivity() {
         statsButton.setTarget(root, DragTargetAnchor.RightTop)
         statsButton.setTargetOffsetDp(Offset(56))
         statsButton.targetTranslationZ = dp * 7f
-        statsButton.increaseTouchAreaBy(dp * 56, 0, 0, 0)
+        statsButton.extendTouchAreaBy(dp * 56, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
         statsPayload.initialTranslation = Point(-size.x, 0)
@@ -89,7 +93,7 @@ class NewUIActivity : FragmentActivity() {
         activityButton.setTarget(root, DragTargetAnchor.LeftTop)
         activityButton.setTargetOffsetDp(Offset(-56))
         activityButton.targetTranslationZ = dp * 7f
-        activityButton.increaseTouchAreaBy(0, 0, dp * 56, 0)
+        activityButton.extendTouchAreaBy(0, 0, dp * 56, 0)
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
         activityPayload.initialTranslation = Point(size.x, 0)
@@ -102,7 +106,7 @@ class NewUIActivity : FragmentActivity() {
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.MiddleTop)
         mapDraggable.setTargetOffsetDp(Offset(56))
-        mapDraggable.increaseTouchAreaBy(dp * 32)
+        mapDraggable.extendTouchAreaBy(dp * 32)
         mapDraggable.targetTranslationZ = 18f * dp
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
@@ -116,6 +120,9 @@ class NewUIActivity : FragmentActivity() {
 
         initializeColorElements()
 
+        if (useMock)
+            mock()
+
         launch {
             delay(1000)
             launch(UI) {
@@ -124,17 +131,50 @@ class NewUIActivity : FragmentActivity() {
         }
     }
 
+    private fun mock() {
+        val component = (layoutInflater.inflate(R.layout.template_info_component, content) as ViewGroup).children.last() as InfoComponent
+        val drawable = getDrawable(R.drawable.ic_network_wifi_24dp)
+        drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+        component.setTitle(drawable, getString(R.string.wifi))
+        component.addSecondaryText("Updated 5m before collection")
+        component.addPrimaryText("150 WiFi's in range")
+        component.addSecondaryText("MOCK")
+
+        launch {
+            delay(5000)
+            launch(UI) {
+                val component2 = (layoutInflater.inflate(R.layout.template_info_component, content) as ViewGroup).children.last() as InfoComponent
+                val drawable2 = getDrawable(R.drawable.ic_network_cell_black_24dp)
+                drawable2.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+                component2.setTitle(drawable, getString(R.string.cell))
+                component2.addPrimaryText("LTE - 140 asu")
+                component2.addSecondaryText("14 cell towers in range")
+                component2.addSecondaryText("MOCK")
+                colorManager?.notififyChangeOn(content)
+            }
+        }
+
+        time.text = DateFormat.format("HH:mm:ss", System.currentTimeMillis())
+        accuracy.text = getString(R.string.info_accuracy, 5)
+        altitude.text = getString(R.string.info_altitude, 5)
+        collection_count.text = getString(R.string.info_collections, 56)
+        data_size.text = getString(R.string.info_collected, Assist.humanReadableByteCount(654321, true))
+
+        colorManager?.notififyChangeOn(content)
+    }
+
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(this)
         val colorManager = colorManager!!
 
-        colorManager.watchElement(ColorView(root as View, 0, false, true, false))
-        colorManager.watchElement(topPanelLayout)
+        colorManager.watchElement(ColorView(root, 0, false))
+        colorManager.watchElement(ColorView(topPanelLayout, 1, true, false))
         colorManager.watchElement(topInfoBar)
+        colorManager.watchElement(ColorView(content, 1, true, false, true))
 
-        colorManager.watchElement(ColorView(statsButton, 3, false, false, false, true))
-        colorManager.watchElement(ColorView(mapDraggable, 3, false, false, false, true))
-        colorManager.watchElement(ColorView(activityButton, 3, false, false, false, true))
+        colorManager.watchElement(ColorView(statsButton, 1, false, false, false, true))
+        colorManager.watchElement(ColorView(mapDraggable, 1, false, false, false, true))
+        colorManager.watchElement(ColorView(activityButton, 1, false, false, false, true))
 
         ColorSupervisor.ensureUpdate()
     }

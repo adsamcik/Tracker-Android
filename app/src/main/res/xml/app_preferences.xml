@@ -125,6 +125,10 @@
             android:key="@string/settings_color_night_key"
             android:title="@string/settings_color_night_title"/>
 
+        <Preference
+            android:key="@string/settings_color_default_key"
+            android:title="@string/settings_color_default_title"/>
+
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
