@@ -12,8 +12,9 @@ import android.support.v4.graphics.ColorUtils
 import android.text.format.DateFormat
 import android.view.MotionEvent
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ListView
+import androidx.content.edit
 import androidx.view.children
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
@@ -28,10 +29,7 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.NotificationChannels
-import com.adsamcik.signalcollector.utility.startActivity
+import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.LocationServices
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
@@ -49,6 +47,8 @@ import java.util.*
 class NewUIActivity : FragmentActivity() {
     private var colorManager: ColorManager? = null
     private var themeLocationRequestCode = 4513
+
+    private var tutorialActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,12 +123,13 @@ class NewUIActivity : FragmentActivity() {
         if (useMock)
             mock()
 
-        launch {
-            delay(1000)
-            launch(UI) {
-                //startTutorial()
+        if (!Preferences.getPref(this).getBoolean(getString(R.string.tutorial_seen_key), false))
+            launch {
+                delay(1000)
+                launch(UI) {
+                    startTutorial()
+                }
             }
-        }
     }
 
     private fun mock() {
@@ -180,15 +181,52 @@ class NewUIActivity : FragmentActivity() {
     }
 
     private fun startTutorial() {
+        tutorialActive = true
 
         //val mapDraggableTarget = SimpleTarget.Builder(activity).setPoint(mapDraggable.x, mapDraggable.y).setTitle("Map holder").setDescription("Drag this up to pull up the map").build()
-        val radius = Math.sqrt(Math.pow(statsButton.height.toDouble(), 2.0) + Math.pow(statsButton.width.toDouble(), 2.0)) / 2
+        val welcome = SimpleTarget.Builder(this)
+                .setTitle(getString(R.string.tutorial_welcome_title))
+                .setRadius(0.00001f)
+                .setDescription(getString(R.string.tutorial_welcome_description)).build()
+
+        var radius = Math.sqrt(Math.pow(settingsButton.height.toDouble(), 2.0) + Math.pow(settingsButton.width.toDouble(), 2.0)) / 2
+        val settingsButtonTarget = SimpleTarget.Builder(this)
+                .setPoint(settingsButton.x + settingsButton.pivotX, settingsButton.y + settingsButton.pivotY)
+                .setTitle(getString(R.string.tutorial_settings_title))
+                .setRadius(radius.toFloat())
+                .setDescription(getString(R.string.tutorial_settings_description)).build()
+
+        radius = Math.sqrt(Math.pow(statsButton.height.toDouble(), 2.0) + Math.pow(statsButton.width.toDouble(), 2.0)) / 2
         val statsButtonTarget = SimpleTarget.Builder(this)
                 .setPoint(statsButton.x + statsButton.pivotX, statsButton.y + statsButton.pivotY)
-                .setTitle("Stats")
+                .setTitle(getString(R.string.tutorial_stats_title))
                 .setRadius(radius.toFloat())
-                .setDescription("Drag this to the left to access stats").build()
-        Spotlight.with(this).setTargets(statsButtonTarget).setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 204)).setAnimation(DecelerateInterpolator(2f)).start()
+                .setDescription(getString(R.string.tutorial_stats_description)).build()
+
+        radius = Math.sqrt(Math.pow(activityButton.height.toDouble(), 2.0) + Math.pow(activityButton.width.toDouble(), 2.0)) / 2
+        val activitiesButtonTarget = SimpleTarget.Builder(this)
+                .setPoint(activityButton.x + activityButton.pivotX, activityButton.y + activityButton.pivotY)
+                .setTitle(getString(R.string.tutorial_activity_title))
+                .setRadius(radius.toFloat())
+                .setDescription(getString(R.string.tutorial_activity_description)).build()
+
+        val mapButtonTarget = SimpleTarget.Builder(this)
+                .setPoint(mapDraggable.x + mapDraggable.pivotX, mapDraggable.y + mapDraggable.pivotY)
+                .setTitle(getString(R.string.tutorial_map_title))
+                .setRadius(Assist.dpToPx(this, 48).toFloat())
+                .setDescription(getString(R.string.tutorial_map_description)).build()
+
+        Spotlight.with(this)
+                .setTargets(welcome, settingsButtonTarget, mapButtonTarget, statsButtonTarget, activitiesButtonTarget)
+                .setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 204))
+                .setAnimation(AccelerateDecelerateInterpolator())
+                .setOnSpotlightEndedListener {
+                    tutorialActive = false
+                    Preferences.getPref(this).edit {
+                        putBoolean(getString(R.string.tutorial_seen_key), true)
+                    }
+                }
+                .start()
     }
 
     override fun onDestroy() {
@@ -227,7 +265,7 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        return if (root.touchDelegate.onTouchEvent(event))
+        return if (!tutorialActive && root.touchDelegate.onTouchEvent(event))
             true
         else
             super.dispatchTouchEvent(event)

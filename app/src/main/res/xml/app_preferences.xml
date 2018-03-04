@@ -183,6 +183,11 @@
             android:summary="@string/settings_export_summary"
             android:title="@string/settings_export_title"/>
 
+        <android.support.v7.preference.CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/tutorial_seen_key"
+            android:title="@string/tutorial_seen_title"/>
+
         <Preference
             android:key="@string/settings_licenses_key"
             android:title="@string/settings_licenses_title"/>
