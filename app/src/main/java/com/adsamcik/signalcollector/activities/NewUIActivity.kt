@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.activities
 
 import android.Manifest
+import android.arch.lifecycle.Lifecycle
+import android.arch.lifecycle.OnLifecycleEvent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Point
@@ -26,9 +28,7 @@ import com.adsamcik.signalcollector.fragments.FragmentNewActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentNewStats
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.uitools.ColorManager
-import com.adsamcik.signalcollector.uitools.ColorSupervisor
-import com.adsamcik.signalcollector.uitools.ColorView
+import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.LocationServices
@@ -49,6 +49,10 @@ class NewUIActivity : FragmentActivity() {
     private var themeLocationRequestCode = 4513
 
     private var tutorialActive = false
+
+    init {
+        lifecycle.addObserver(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,13 +76,13 @@ class NewUIActivity : FragmentActivity() {
         statsButton.dragAxis = DragAxis.X
         statsButton.setTarget(root, DragTargetAnchor.RightTop)
         statsButton.setTargetOffsetDp(Offset(56))
-        statsButton.targetTranslationZ = dp * 7f
+        statsButton.targetTranslationZ = dp * 8f
         statsButton.extendTouchAreaBy(dp * 56, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
         statsPayload.initialTranslation = Point(-size.x, 0)
         statsPayload.backgroundColor = Color.WHITE
-        statsPayload.targetTranslationZ = dp * 6f
+        statsPayload.targetTranslationZ = dp * 7f
         statsPayload.onInitialized = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
             colorManager!!.watchRecycler(ColorView(recycler, 1, true, true))
@@ -92,13 +96,13 @@ class NewUIActivity : FragmentActivity() {
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.LeftTop)
         activityButton.setTargetOffsetDp(Offset(-56))
-        activityButton.targetTranslationZ = dp * 7f
+        activityButton.targetTranslationZ = dp * 8f
         activityButton.extendTouchAreaBy(0, 0, dp * 56, 0)
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
         activityPayload.initialTranslation = Point(size.x, 0)
         activityPayload.backgroundColor = Color.WHITE
-        activityPayload.targetTranslationZ = dp * 6f
+        activityPayload.targetTranslationZ = dp * 7f
         activityPayload.onInitialized = { colorManager!!.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         activityButton.addPayload(activityPayload)
@@ -130,6 +134,19 @@ class NewUIActivity : FragmentActivity() {
                     startTutorial()
                 }
             }
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    private fun initializeButtons() {
+        val navDim = Assist.navbarSize(this)
+        val buttonBottomMargin = 80.dpAsPx + navDim.y
+        val buttonSideMargin = navDim.x
+        val draggableBottomMargin = 40.dpAsPx
+
+
+        mapDraggable.setBottomMargin(draggableBottomMargin)
+        activityButton.setMargin(buttonSideMargin, 0, buttonSideMargin, buttonBottomMargin)
+        statsButton.setMargin(buttonSideMargin, 0, buttonSideMargin, buttonBottomMargin)
     }
 
     private fun mock() {

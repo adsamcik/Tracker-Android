@@ -1,12 +1,11 @@
 package com.adsamcik.signalcollector.uitools
 
-import android.content.Context
-import android.graphics.Point
+import android.content.res.Resources
 import android.support.constraint.ConstraintLayout
 import android.view.View
-import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
+import com.adsamcik.signalcollector.utility.Assist.navbarSize
 
 
 fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
@@ -45,43 +44,15 @@ fun View.marginNavbar() {
         addBottomMargin(height)
 }
 
-fun getAppUsableScreenSize(context: Context): Point {
-    val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    val display = windowManager.defaultDisplay
-    val size = Point()
-    display.getSize(size)
-    return size
-}
-
-fun getRealScreenSize(context: Context): Point {
-    val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    val display = windowManager.defaultDisplay
-    val size = Point()
-    display.getRealSize(size)
-    return size
-}
-
-fun navbarSize(context: Context): Point {
-    val appUsableSize = getAppUsableScreenSize(context)
-    val realScreenSize = getRealScreenSize(context)
-
-    // navigation bar on the right
-    if (appUsableSize.x < realScreenSize.x) {
-        return Point(realScreenSize.x - appUsableSize.x, appUsableSize.y)
-    }
-
-    // navigation bar at the bottom
-    return if (appUsableSize.y < realScreenSize.y) {
-        Point(appUsableSize.x, realScreenSize.y - appUsableSize.y)
-    } else Point()
-}
-
 fun View.paddingNavbar() {
     val height = navbarSize(context).y
     if (height > 0) {
         setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom + height)
     }
 }
+
+val Int.pxAsDp get() = (this / Resources.getSystem().displayMetrics.density).toInt()
+val Int.dpAsPx get() = (this * Resources.getSystem().displayMetrics.density).toInt()
 
 val View.marginLeft: Int
     get() {

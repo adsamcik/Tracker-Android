@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.fragments
 
 import android.Manifest
 import android.app.Activity
+import android.arch.lifecycle.Lifecycle
+import android.arch.lifecycle.OnLifecycleEvent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -33,6 +35,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.Assist.navbarSize
 import com.adsamcik.signalcollector.utility.MapFilterRule
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.*
@@ -153,11 +156,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         colorManager!!.stopWatchingAll()
     }
 
-    override fun onStart() {
-        super.onStart()
-        initializeUserElements()
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         ColorSupervisor.recycleColorManager(colorManager!!)
@@ -186,7 +184,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             this.type = type
     }
 
-    @Synchronized
     private fun initializeKeyboardDetection() {
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
@@ -224,6 +221,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         }
     }
 
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     private fun initializeUserElements() {
         initializeKeyboardDetection()
         map_search.setOnEditorActionListener { v, _, _ ->

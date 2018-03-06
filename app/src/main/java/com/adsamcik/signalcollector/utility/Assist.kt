@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Color
+import android.graphics.Point
 import android.location.Location
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -93,16 +94,35 @@ object Assist {
         return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit.toDouble(), exp.toDouble()), pre)
     }
 
-    /**
-     * Gets SW navbar height
-     *
-     * @param c context
-     * @return height, 0 if HW navbar is present
-     */
-    fun getNavBarHeight(c: Context): Int {
-        val r = c.resources
-        val resourceId = r.getIdentifier("navigation_bar_height", "dimen", "android")
-        return if (resourceId > 0) r.getDimensionPixelSize(resourceId) else 0
+    fun getAppUsableScreenSize(context: Context): Point {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+        val size = Point()
+        display.getSize(size)
+        return size
+    }
+
+    fun getRealScreenSize(context: Context): Point {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+        val size = Point()
+        display.getRealSize(size)
+        return size
+    }
+
+    fun navbarSize(context: Context): Point {
+        val appUsableSize = getAppUsableScreenSize(context)
+        val realScreenSize = getRealScreenSize(context)
+
+        // navigation bar on the right
+        if (appUsableSize.x < realScreenSize.x) {
+            return Point(realScreenSize.x - appUsableSize.x, appUsableSize.y)
+        }
+
+        // navigation bar at the bottom
+        return if (appUsableSize.y < realScreenSize.y) {
+            Point(appUsableSize.x, realScreenSize.y - appUsableSize.y)
+        } else Point()
     }
 
     /**
