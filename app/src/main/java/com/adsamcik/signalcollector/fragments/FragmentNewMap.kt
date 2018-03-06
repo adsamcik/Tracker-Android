@@ -14,6 +14,7 @@ import android.hardware.SensorManager
 import android.location.*
 import android.os.Build
 import android.os.Bundle
+import android.os.Debug
 import android.os.Looper
 import android.support.constraint.ConstraintLayout
 import android.support.design.widget.FloatingActionButton
@@ -34,10 +35,7 @@ import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.MapFilterRule
 import com.adsamcik.signalcollector.utility.SnackMaker
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
 import java.io.IOException
@@ -114,6 +112,20 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         this.fActivity = activity as FragmentActivity
         initializeLocationListener(activity)
         initializeKeyboardDetection()
+
+        mapLayerFilterRule = MapFilterRule()
+        val mapFragment = SupportMapFragment.newInstance()
+        val fragmentTransaction = fragmentManager!!.beginTransaction()
+        fragmentTransaction.add(R.id.container_map, mapFragment)
+        fragmentTransaction.commit()
+        val callback = this
+        mapFragment.getMapAsync(callback)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        MapsInitializer.initialize(context)
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -121,7 +133,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             fActivity = activity
 
         val activity = fActivity!!
-        hasPermissions = checkLocationPermission(context, true)
+        hasPermissions = checkLocationPermission(activity, true)
         if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
             fragmentView = inflater.inflate(R.layout.fragment_new_map, container, false)
         } else {
@@ -130,16 +142,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             return fragmentView
         }
 
-
-        val mapFragment = SupportMapFragment.newInstance()
-        val fragmentTransaction = fragmentManager!!.beginTransaction()
-        fragmentTransaction.add(R.id.container_map, mapFragment)
-        fragmentTransaction.commit()
-        mapFragment.getMapAsync(this)
-
-        mapLayerFilterRule = MapFilterRule()
-
-        this.colorManager = ColorSupervisor.createColorManager(context!!)
+        this.colorManager = ColorSupervisor.createColorManager(activity)
 
         return fragmentView
     }
