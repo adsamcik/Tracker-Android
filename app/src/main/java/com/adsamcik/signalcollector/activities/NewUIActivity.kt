@@ -1,8 +1,6 @@
 package com.adsamcik.signalcollector.activities
 
 import android.Manifest
-import android.arch.lifecycle.Lifecycle
-import android.arch.lifecycle.OnLifecycleEvent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Point
@@ -50,9 +48,6 @@ class NewUIActivity : FragmentActivity() {
 
     private var tutorialActive = false
 
-    init {
-        lifecycle.addObserver(this)
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -136,8 +131,12 @@ class NewUIActivity : FragmentActivity() {
             }
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
-    private fun initializeButtons() {
+    override fun onResume() {
+        super.onResume()
+        initializeButtonsPosition()
+    }
+
+    private fun initializeButtonsPosition() {
         val navDim = Assist.navbarSize(this)
         val buttonBottomMargin = 80.dpAsPx + navDim.y
         val buttonSideMargin = navDim.x

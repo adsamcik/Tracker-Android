@@ -5,6 +5,9 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.arch.lifecycle.LiveData
+import android.arch.lifecycle.MutableLiveData
+import android.arch.lifecycle.ViewModelProviders
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -390,6 +393,7 @@ class TrackerService : Service() {
          * RawData from previous collection
          */
         var rawDataEcho: RawData = RawData(0)
+
         /**
          * Extra information about distance for tracker
          */
