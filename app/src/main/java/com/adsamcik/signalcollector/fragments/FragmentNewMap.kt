@@ -16,7 +16,6 @@ import android.hardware.SensorManager
 import android.location.*
 import android.os.Build
 import android.os.Bundle
-import android.os.Debug
 import android.os.Looper
 import android.support.constraint.ConstraintLayout
 import android.support.design.widget.FloatingActionButton
@@ -158,7 +157,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     override fun onDestroy() {
         super.onDestroy()
-        ColorSupervisor.recycleColorManager(colorManager!!)
+        if (colorManager != null)
+            ColorSupervisor.recycleColorManager(colorManager!!)
     }
 
     /**
