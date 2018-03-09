@@ -207,7 +207,6 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(ColorView(statsButton, 1, false, false, false, true))
         colorManager.watchElement(ColorView(mapDraggable, 1, false, false, false, true))
         colorManager.watchElement(ColorView(activityButton, 1, false, false, false, true))
-        colorManager.watchElement(ColorView(tracker_buttons_parent, 2, true, false, true, false))
 
         ColorSupervisor.ensureUpdate()
     }
