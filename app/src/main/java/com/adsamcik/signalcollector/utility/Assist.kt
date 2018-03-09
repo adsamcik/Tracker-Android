@@ -118,6 +118,11 @@ object Assist {
         UNKNOWN
     }
 
+    fun orientation(context: Context): Int {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        return windowManager.defaultDisplay.rotation
+    }
+
     fun navbarSize(context: Context): Pair<NavBarPosition, Point> {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display = windowManager.defaultDisplay

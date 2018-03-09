@@ -7,6 +7,7 @@ import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat.getDrawable
 import android.text.format.DateFormat
 import android.view.LayoutInflater
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import androidx.view.children
@@ -18,6 +19,7 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.startActivity
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
@@ -46,6 +48,14 @@ class FragmentNewTracker : Fragment(), ITabFragment {
     override fun onDestroy() {
         super.onDestroy()
         ColorSupervisor.recycleColorManager(colorManager)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val orientation = Assist.orientation(context!!)
+        if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
+            include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
+        }
     }
 
     private fun mock() {
