@@ -19,6 +19,7 @@ import android.support.v4.content.ContextCompat
 import android.support.v4.content.res.ResourcesCompat
 import android.telephony.TelephonyManager
 import android.util.DisplayMetrics
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -110,19 +111,34 @@ object Assist {
         return size
     }
 
-    fun navbarSize(context: Context): Point {
-        val appUsableSize = getAppUsableScreenSize(context)
-        val realScreenSize = getRealScreenSize(context)
+    enum class NavBarPosition {
+        BOTTOM,
+        LEFT,
+        RIGHT,
+        UNKNOWN
+    }
+
+    fun navbarSize(context: Context): Pair<NavBarPosition, Point> {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+
+        val appUsableSize = Point()
+        val realScreenSize = Point()
+
+        display.getRealSize(realScreenSize)
+        display.getSize(appUsableSize)
+        val rotation = display.rotation
 
         // navigation bar on the right
         if (appUsableSize.x < realScreenSize.x) {
-            return Point(realScreenSize.x - appUsableSize.x, appUsableSize.y)
+            //App supports only phones so there should be no scenario where orientation is 0 or 180
+            return Pair(if (rotation == Surface.ROTATION_90) NavBarPosition.RIGHT else NavBarPosition.LEFT, Point(realScreenSize.x - appUsableSize.x, appUsableSize.y))
         }
 
         // navigation bar at the bottom
         return if (appUsableSize.y < realScreenSize.y) {
-            Point(appUsableSize.x, realScreenSize.y - appUsableSize.y)
-        } else Point()
+            Pair(NavBarPosition.BOTTOM, Point(appUsableSize.x, realScreenSize.y - appUsableSize.y))
+        } else Pair(NavBarPosition.UNKNOWN, Point())
     }
 
     /**

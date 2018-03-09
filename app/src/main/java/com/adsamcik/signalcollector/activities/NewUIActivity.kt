@@ -137,19 +137,34 @@ class NewUIActivity : FragmentActivity() {
     }
 
     private fun initializeButtonsPosition() {
-        val navDim = Assist.navbarSize(this)
+        val (position, navDim) = Assist.navbarSize(this)
+        if (navDim.x > navDim.y)
+            navDim.x = 0
+        else
+            navDim.y = 0
+
         val buttonBottomMargin = 80.dpAsPx + navDim.y
-        val buttonSideMargin = navDim.x
-        val draggableBottomMargin = 40.dpAsPx
 
+        activityButton.setMargin(0, 0, 0, buttonBottomMargin)
+        statsButton.setMargin(0, 0, 0, buttonBottomMargin)
+        mapDraggable.setMargin(0, 0, 0, 40.dpAsPx + navDim.y)
 
-        mapDraggable.setBottomMargin(draggableBottomMargin)
-        activityButton.setMargin(buttonSideMargin, 0, buttonSideMargin, buttonBottomMargin)
-        statsButton.setMargin(buttonSideMargin, 0, buttonSideMargin, buttonBottomMargin)
+        when (position) {
+            Assist.NavBarPosition.RIGHT -> {
+                root.setPadding(0, 0, navDim.x, 0)
+            }
+            Assist.NavBarPosition.LEFT -> {
+                root.setPadding(navDim.x, 0, 0, 0)
+            }
+            Assist.NavBarPosition.BOTTOM -> {
+                root.setPadding(0, 0, 0, 0)
+            }
+            else -> throw RuntimeException("Unknown orientation, this should not happen.")
+        }
     }
 
     private fun mock() {
-        val component = (layoutInflater.inflate(R.layout.template_info_component, content) as ViewGroup).children.last() as InfoComponent
+        val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
         val drawable = getDrawable(R.drawable.ic_network_wifi_24dp)
         drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
         component.setTitle(drawable, getString(R.string.wifi))
@@ -160,7 +175,7 @@ class NewUIActivity : FragmentActivity() {
         launch {
             delay(5000)
             launch(UI) {
-                val component2 = (layoutInflater.inflate(R.layout.template_info_component, content) as ViewGroup).children.last() as InfoComponent
+                val component2 = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
                 val drawable2 = getDrawable(R.drawable.ic_network_cell_black_24dp)
                 drawable2.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
                 component2.setTitle(drawable, getString(R.string.cell))
@@ -192,6 +207,7 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(ColorView(statsButton, 1, false, false, false, true))
         colorManager.watchElement(ColorView(mapDraggable, 1, false, false, false, true))
         colorManager.watchElement(ColorView(activityButton, 1, false, false, false, true))
+        colorManager.watchElement(ColorView(tracker_buttons_parent, 2, true, false, true, false))
 
         ColorSupervisor.ensureUpdate()
     }

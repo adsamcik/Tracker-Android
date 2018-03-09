@@ -90,27 +90,31 @@
         />
 
     <LinearLayout
+        android:id="@+id/tracker_buttons_parent"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/edge_margin"
         android:layout_marginStart="@dimen/edge_margin"
         android:orientation="vertical"
+        android:elevation="4dp"
         app:layout_constraintBottom_toBottomOf="@id/activityButton"
         app:layout_constraintLeft_toRightOf="@id/statsButton"
         app:layout_constraintRight_toLeftOf="@id/activityButton">
 
         <Button
+            android:id="@+id/button_upload"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="@dimen/fab_margin"
-            android:background="@drawable/map_draggable"
+            android:background="@drawable/background_big_main_rounded_button"
             android:text="@string/upload_data"
             android:textColor="@color/color_accent"/>
 
         <Button
+            android:id="@+id/button_tracking"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/map_draggable"
+            android:background="@drawable/background_big_main_rounded_button"
             android:text="@string/start_tracking"
             android:textColor="@color/color_accent"/>
 

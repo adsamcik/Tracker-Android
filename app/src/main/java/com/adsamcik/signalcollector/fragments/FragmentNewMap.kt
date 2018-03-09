@@ -153,7 +153,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onDestroyView() {
         super.onDestroyView()
         fragmentView = null
-        colorManager!!.stopWatchingAll()
+        colorManager?.stopWatchingAll()
     }
 
     override fun onDestroy() {
@@ -188,7 +188,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
         else {
-            val navbarHeight = navbarSize(activity!!).y
+            val (position, navbarHeight) = navbarSize(activity!!)
             if (keyboardManager == null) {
                 searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
                 keyboardManager = KeyboardManager(fragmentView!!.rootView)
@@ -204,8 +204,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                         map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
                     }
                     false -> {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight + Assist.dpToPx(context!!, 32))
-                        map?.setPadding(0, 0, 0, navbarHeight)
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + Assist.dpToPx(context!!, 32))
+                        map?.setPadding(0, 0, 0, navbarHeight.y)
                     }
                 }
             }

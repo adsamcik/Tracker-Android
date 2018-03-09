@@ -38,19 +38,6 @@ fun View.addBottomMargin(margin: Int) {
     requestLayout()
 }
 
-fun View.marginNavbar() {
-    val height = navbarSize(context).y
-    if (height > 0)
-        addBottomMargin(height)
-}
-
-fun View.paddingNavbar() {
-    val height = navbarSize(context).y
-    if (height > 0) {
-        setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom + height)
-    }
-}
-
 val Int.pxAsDp get() = (this / Resources.getSystem().displayMetrics.density).toInt()
 val Int.dpAsPx get() = (this * Resources.getSystem().displayMetrics.density).toInt()
 
