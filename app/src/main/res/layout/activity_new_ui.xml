@@ -15,13 +15,13 @@
         android:layout_width="72dp"
         android:layout_height="80dp"
         android:layout_gravity="start"
-        android:layout_marginBottom="80dp"
+        android:layout_marginBottom="30dp"
         android:background="@drawable/side_button"
         android:elevation="6dp"
         android:src="@drawable/ic_pie_chart_black_24dp"
         android:translationX="-10dp"
         app:interpolator="Decelerate"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/mapDraggable"
         app:layout_constraintLeft_toLeftOf="parent"/>
 
     <com.adsamcik.draggable.DraggableImageButton
@@ -29,20 +29,20 @@
         android:layout_width="72dp"
         android:layout_height="80dp"
         android:layout_gravity="end"
-        android:layout_marginBottom="80dp"
+        android:layout_marginBottom="30dp"
         android:background="@drawable/side_button"
         android:elevation="6dp"
         android:src="@drawable/ic_directions_walk_black_24dp"
         android:translationX="10dp"
         app:interpolator="Decelerate"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/mapDraggable"
         app:layout_constraintRight_toRightOf="parent"/>
 
     <com.adsamcik.draggable.DraggableImageButton
         android:id="@+id/mapDraggable"
         android:layout_width="220dp"
-        android:layout_height="12dp"
-        android:layout_marginBottom="40dp"
+        android:layout_height="8dp"
+        android:layout_marginBottom="20dp"
         android:background="@drawable/map_draggable"
         android:translationZ="14dp"
         app:axis="Y"

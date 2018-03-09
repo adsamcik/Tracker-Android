@@ -47,6 +47,8 @@ class NewUIActivity : FragmentActivity() {
 
     private var tutorialActive = false
 
+    private var draggableOriginalMargin = Int.MIN_VALUE
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,8 +127,8 @@ class NewUIActivity : FragmentActivity() {
         mapDraggable.dragAxis = DragAxis.Y
         mapDraggable.setTarget(root, DragTargetAnchor.MiddleTop)
         mapDraggable.setTargetOffsetDp(Offset(56))
-        mapDraggable.extendTouchAreaBy(dp * 32)
-        mapDraggable.targetTranslationZ = 18f * dp
+        mapDraggable.extendTouchAreaBy(32.dpAsPx)
+        mapDraggable.targetTranslationZ = 18.dpAsPx.toFloat()
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
         mapPayload.initialTranslation = Point(0, realSize.y)
@@ -137,17 +139,16 @@ class NewUIActivity : FragmentActivity() {
     }
 
     private fun initializeButtonsPosition() {
+        if(draggableOriginalMargin == Int.MIN_VALUE)
+            draggableOriginalMargin = mapDraggable.marginBottom
+
         val (position, navDim) = Assist.navbarSize(this)
         if (navDim.x > navDim.y)
             navDim.x = 0
         else
             navDim.y = 0
 
-        val buttonBottomMargin = 80.dpAsPx + navDim.y
-
-        activityButton.setMargin(0, 0, 0, buttonBottomMargin)
-        statsButton.setMargin(0, 0, 0, buttonBottomMargin)
-        mapDraggable.setMargin(0, 0, 0, 40.dpAsPx + navDim.y)
+        mapDraggable.setMargin(0, 0, 0, draggableOriginalMargin + navDim.y)
 
         when (position) {
             Assist.NavBarPosition.RIGHT -> {
