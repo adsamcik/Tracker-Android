@@ -10,8 +10,6 @@
     android:clipChildren="false"
     tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
 
-    <include layout="@layout/fragment_new_tracker"/>
-
     <com.adsamcik.draggable.DraggableImageButton
         android:id="@+id/statsButton"
         android:layout_width="72dp"

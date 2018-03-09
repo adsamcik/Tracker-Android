@@ -22,9 +22,7 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.InfoComponent
-import com.adsamcik.signalcollector.fragments.FragmentNewActivities
-import com.adsamcik.signalcollector.fragments.FragmentNewMap
-import com.adsamcik.signalcollector.fragments.FragmentNewStats
+import com.adsamcik.signalcollector.fragments.*
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
@@ -36,6 +34,7 @@ import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
 import io.fabric.sdk.android.Fabric
 import kotlinx.android.synthetic.main.activity_new_ui.*
+import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
@@ -43,7 +42,7 @@ import java.util.*
 
 
 class NewUIActivity : FragmentActivity() {
-    private var colorManager: ColorManager? = null
+    private lateinit var colorManager: ColorManager
     private var themeLocationRequestCode = 4513
 
     private var tutorialActive = false
@@ -59,12 +58,31 @@ class NewUIActivity : FragmentActivity() {
         setContentView(R.layout.activity_new_ui)
 
         initializeColors()
-        //ColorSupervisor.addColors(Color.parseColor("#166f72"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
-        //ColorSupervisor.addColors(Color.parseColor("#cccccc"), Color.parseColor("#2e4482"), Color.parseColor("#ffc100"), Color.parseColor("#fff400"))
+        initializeButtons()
+        initializeColorElements()
 
+        if (!Preferences.getPref(this).getBoolean(getString(R.string.tutorial_seen_key), false))
+            launch {
+                delay(1000)
+                launch(UI) {
+                    startTutorial()
+                }
+            }
+
+        supportFragmentManager.transaction {
+            add(R.id.root, FragmentNewTracker())
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        initializeButtonsPosition()
+    }
+
+    private fun initializeButtons() {
         val display = windowManager.defaultDisplay
         val size = Point()
-        display.getRealSize(size)
+        display.getSize(size)
 
         val dp = Assist.dpToPx(this, 1)
 
@@ -80,11 +98,11 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.targetTranslationZ = dp * 7f
         statsPayload.onInitialized = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
-            colorManager!!.watchRecycler(ColorView(recycler, 1, true, true))
+            colorManager.watchRecycler(ColorView(recycler, 1, true, true))
         }
         statsPayload.onBeforeDestroyed = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
-            colorManager!!.stopWatchingRecycler(recycler)
+            colorManager.stopWatchingRecycler(recycler)
         }
         statsButton.addPayload(statsPayload)
 
@@ -98,7 +116,7 @@ class NewUIActivity : FragmentActivity() {
         activityPayload.initialTranslation = Point(size.x, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityPayload.targetTranslationZ = dp * 7f
-        activityPayload.onInitialized = { colorManager!!.watchElement(ColorView(it.view!!, 1, true, true)) }
+        activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         activityButton.addPayload(activityPayload)
 
@@ -114,26 +132,6 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.setTranslationZ(13f * dp)
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapDraggable.addPayload(mapPayload)
-
-        settingsButton.setOnClickListener { startActivity<SettingsActivity> { } }
-
-        initializeColorElements()
-
-        if (useMock)
-            mock()
-
-        if (!Preferences.getPref(this).getBoolean(getString(R.string.tutorial_seen_key), false))
-            launch {
-                delay(1000)
-                launch(UI) {
-                    startTutorial()
-                }
-            }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        initializeButtonsPosition()
     }
 
     private fun initializeButtonsPosition() {
@@ -163,46 +161,10 @@ class NewUIActivity : FragmentActivity() {
         }
     }
 
-    private fun mock() {
-        val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
-        val drawable = getDrawable(R.drawable.ic_network_wifi_24dp)
-        drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
-        component.setTitle(drawable, getString(R.string.wifi))
-        component.addSecondaryText("Updated 5m before collection")
-        component.addPrimaryText("150 WiFi's in range")
-        component.addSecondaryText("MOCK")
-
-        launch {
-            delay(5000)
-            launch(UI) {
-                val component2 = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
-                val drawable2 = getDrawable(R.drawable.ic_network_cell_black_24dp)
-                drawable2.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
-                component2.setTitle(drawable, getString(R.string.cell))
-                component2.addPrimaryText("LTE - 140 asu")
-                component2.addSecondaryText("14 cell towers in range")
-                component2.addSecondaryText("MOCK")
-                colorManager?.notififyChangeOn(content)
-            }
-        }
-
-        time.text = DateFormat.format("HH:mm:ss", System.currentTimeMillis())
-        accuracy.text = getString(R.string.info_accuracy, 5)
-        altitude.text = getString(R.string.info_altitude, 5)
-        collection_count.text = getString(R.string.info_collections, 56)
-        data_size.text = getString(R.string.info_collected, Assist.humanReadableByteCount(654321, true))
-
-        colorManager?.notififyChangeOn(content)
-    }
-
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(this)
-        val colorManager = colorManager!!
 
         colorManager.watchElement(ColorView(root, 0, false))
-        colorManager.watchElement(ColorView(topPanelLayout, 1, true, false))
-        colorManager.watchElement(topInfoBar)
-        colorManager.watchElement(ColorView(content, 1, true, false, true))
 
         colorManager.watchElement(ColorView(statsButton, 1, false, false, false, true))
         colorManager.watchElement(ColorView(mapDraggable, 1, false, false, false, true))
@@ -262,7 +224,7 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        ColorSupervisor.recycleColorManager(colorManager!!)
+        ColorSupervisor.recycleColorManager(colorManager)
     }
 
     private fun initializeColors() {
