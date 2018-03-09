@@ -42,6 +42,6 @@ inline fun android.support.v4.app.FragmentManager.transaction(func: android.supp
     beginTransaction().func().commit()
 }
 
-inline fun android.app.FragmentManager.transaction(func: android.app.FragmentTransaction.() -> android.app.FragmentTransaction) {
-    beginTransaction().func().commit()
+inline fun android.support.v4.app.FragmentManager.transactionStateLoss(func: android.support.v4.app.FragmentTransaction.() -> android.support.v4.app.FragmentTransaction) {
+    beginTransaction().func().commitAllowingStateLoss()
 }

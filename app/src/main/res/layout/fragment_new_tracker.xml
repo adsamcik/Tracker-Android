@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <android.support.constraint.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
     <LinearLayout
         android:id="@+id/topPanelLayout"
@@ -13,17 +13,17 @@
         android:background="#FF1a8387"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:orientation="horizontal"
         android:gravity="bottom"
+        android:orientation="horizontal"
         >
 
         <TextView
             android:id="@+id/time"
-            android:paddingStart="@dimen/edge_margin"
             android:layout_width="0dp"
-            android:layout_weight="1"
             android:layout_height="48dp"
+            android:layout_weight="1"
             android:gravity="center_vertical"
+            android:paddingStart="@dimen/edge_margin"
             android:textColor="@color/text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
@@ -53,10 +53,10 @@
             android:id="@+id/settingsButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_settings_black_24dp"
             android:tint="@color/text_primary"
-            android:layout_marginEnd="8dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintRight_toRightOf="parent"/>
     </LinearLayout>
@@ -163,11 +163,12 @@
                 android:animateLayoutChanges="true"
                 android:filterTouchesWhenObscured="true"
                 app:alignItems="flex_start"
+                app:justifyContent="center"
                 app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
                 app:dividerDrawableVertical="@drawable/flexbox_spacing"
                 app:flexWrap="wrap"
                 app:showDividerHorizontal="middle"
-                app:showDividerVertical="middle" />
+                app:showDividerVertical="middle"/>
         </ScrollView>
     </LinearLayout>
 

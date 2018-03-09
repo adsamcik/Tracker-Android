@@ -81,7 +81,9 @@ class NewUIActivity : FragmentActivity() {
 
     private fun initializeButtons() {
         val display = windowManager.defaultDisplay
+        val realSize = Point()
         val size = Point()
+        display.getRealSize(realSize)
         display.getSize(size)
 
         val dp = Assist.dpToPx(this, 1)
@@ -127,7 +129,7 @@ class NewUIActivity : FragmentActivity() {
         mapDraggable.targetTranslationZ = 18f * dp
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
-        mapPayload.initialTranslation = Point(0, size.y)
+        mapPayload.initialTranslation = Point(0, realSize.y)
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(13f * dp)
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()

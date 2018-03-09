@@ -33,10 +33,8 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
-import com.adsamcik.signalcollector.utility.MapFilterRule
-import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
@@ -71,11 +69,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
-            val fragmentTransaction = fActivity!!.supportFragmentManager.beginTransaction()
             val newFrag = FragmentNewMap()
-            fragmentTransaction.replace(R.id.container, newFrag, getString(R.string.menu_map))
+            fActivity!!.supportFragmentManager.transactionStateLoss {
+                replace(R.id.container, newFrag, getString(R.string.menu_map))
+            }
             newFrag.onEnter(fActivity!!)
-            fragmentTransaction.commitAllowingStateLoss()
         }
     }
 
@@ -122,6 +120,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         fragmentTransaction.commit()
         val callback = this
         mapFragment.getMapAsync(callback)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        initializeUserElements()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -221,7 +224,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         }
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     private fun initializeUserElements() {
         initializeKeyboardDetection()
         map_search.setOnEditorActionListener { v, _, _ ->
