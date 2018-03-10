@@ -53,6 +53,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeRoot() {
+        setOnClickListener(R.string.settings_account_key) {
+            startActivity<UserActivity> { }
+        }
+
         setOnClickListener(R.string.settings_export_key) {
             startActivity<FileSharingActivity> {}
         }

@@ -20,7 +20,7 @@ abstract class DetailActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        NavUtils.navigateUpFromSameTask(this)
+        finish()
     }
 
     fun setTitle(title: String) {

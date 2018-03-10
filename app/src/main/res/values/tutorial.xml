@@ -5,6 +5,7 @@
 
     <string name="tutorial_welcome_title">Welcome to Signals</string>
     <string name="tutorial_welcome_description">Home of unskippable tutorials</string>
+    <style name="tutorial_welcome_skip">Skip tutorial</style>
 
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_settings_description">This button hides many options to customize your experience</string>

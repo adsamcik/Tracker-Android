@@ -6,7 +6,7 @@
 
 
     <Preference
-        android:key="account_key"
+        android:key="@string/settings_account_key"
         android:title="@string/settings_account_title"/>
 
     <android.support.v7.preference.PreferenceScreen

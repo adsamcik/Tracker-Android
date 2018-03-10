@@ -111,6 +111,10 @@
             android:name=".activities.SettingsActivity"
             android:parentActivityName=".activities.NewUIActivity"/>
 
+        <activity
+            android:name=".activities.UserActivity"/>
+
+
         <receiver android:name=".receivers.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>

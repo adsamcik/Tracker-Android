@@ -25,7 +25,7 @@
     <string name="autoupload_always_description">Automatic upload enabled on cellular and wifi networks</string>
     <string name="settings_autoupload_smart">Smart upload</string>
 
-    <string name="settings_playGames">Account</string>
+    <string name="settings_account">Account</string>
     <string name="settings_clear_data">Clear tracked data</string>
     <string name="settings_feedback">Feedback</string>
     <string name="settings_reopen_tutorial">Tutorial</string>
@@ -77,6 +77,7 @@
     <!--- TITLES -->
     <string name="settings_title">Settings</string>
     <string name="settings_account_title">Account</string>
+    <string name="settings_account_key">account_key</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>

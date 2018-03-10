@@ -11,12 +11,15 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Assist
+import java.util.*
 
 
 class InfoComponent : FrameLayout {
     private var titleTextView: TextView? = null
 
     private var root: ViewGroup? = null
+
+    private var items: MutableMap<String, TextView> = mutableMapOf()
 
     constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
         initialize(context)
@@ -81,13 +84,27 @@ class InfoComponent : FrameLayout {
         textView.setTextColor(ContextCompat.getColor(context, textColorResource))
     }
 
-    fun addPrimaryText(text: String) {
+    fun addPrimaryText(identifier: String, text: String) {
         val textView = createTextView(text)
         setTextViewTheme(textView, R.dimen.primary_text_size, R.color.text_primary)
+        items[identifier] = textView
     }
 
-    fun addSecondaryText(text: String) {
+    fun addSecondaryText(identifier: String, text: String) {
         val textView = createTextView(text)
         setTextViewTheme(textView, R.dimen.secondary_text_size, R.color.text_secondary)
+        items[identifier] = textView
+    }
+
+    fun setText(identifier: String, text: String) {
+        items[identifier]?.text = text
+    }
+
+    fun setVisibility(identifier: String, visiblity: Int) {
+        items[identifier]?.visibility = visiblity
+    }
+
+    fun detach() {
+        (parent as ViewGroup).removeView(this)
     }
 }
