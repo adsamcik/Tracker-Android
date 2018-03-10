@@ -75,8 +75,8 @@ class FragmentNewTracker : Fragment(), ITabFragment {
                 toggleCollecting(activity!!, !TrackerService.isRunning)
         }
 
-        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton() } }
-        TrackerService.onNewDataFound = { launch(UI) { updateData(it) }}
+        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton(TrackerService.isRunning) } }
+        TrackerService.onNewDataFound = { launch(UI) { updateData(it) } }
     }
 
     override fun onDestroy() {
@@ -92,6 +92,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
         }
+        updateTrackerButton(TrackerService.isRunning)
     }
 
     /**
@@ -119,6 +120,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
                     val trackerService = Intent(activity, TrackerService::class.java)
                     trackerService.putExtra("backTrack", false)
                     startForegroundService(activity, trackerService)
+                    updateTrackerButton(true)
                 }
             } else {
                 activity.stopService(Intent(activity, TrackerService::class.java))
@@ -147,8 +149,8 @@ class FragmentNewTracker : Fragment(), ITabFragment {
 
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(context!!)
-        colorManager.watchElement(ColorView(topPanelLayout, 1, true, false))
-        colorManager.watchElement(bar_info_top)
+        colorManager.watchElement(ColorView(top_panel, 1, true, false))
+        colorManager.watchElement(ColorView(bar_info_top, 1, true, false))
     }
 
     private fun setUploadButtonClickable() {
@@ -175,8 +177,8 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         collection_count!!.text = resources.getQuantityString(R.plurals.main_collections, count, count)
     }
 
-    private fun updateTrackerButton() {
-        if (TrackerService.isRunning) {
+    private fun updateTrackerButton(state: Boolean) {
+        if (state) {
             button_tracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
         } else
             button_tracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
@@ -230,8 +232,8 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
         component.setColorManager(colorManager)
         component.setTitle(drawable, getString(R.string.wifi))
-        component.addSecondaryText(WIFI_COMPONENT_DISTANCE, "")
         component.addPrimaryText(WIFI_COMPONENT_COUNT, "")
+        component.addSecondaryText(WIFI_COMPONENT_DISTANCE, "")
         wifiInfo = component
         return component
     }
@@ -245,8 +247,8 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
         component.setColorManager(colorManager)
         component.setTitle(drawable, getString(R.string.cell))
-        component.addSecondaryText(CELL_COMPONENT_COUNT, "")
         component.addPrimaryText(CELL_COMPONENT_CURRENT, "")
+        component.addSecondaryText(CELL_COMPONENT_COUNT, "")
         cellInfo = component
         return component
     }

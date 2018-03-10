@@ -18,7 +18,10 @@ import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.fragments.*
+import com.adsamcik.signalcollector.fragments.FragmentNewActivities
+import com.adsamcik.signalcollector.fragments.FragmentNewMap
+import com.adsamcik.signalcollector.fragments.FragmentNewStats
+import com.adsamcik.signalcollector.fragments.FragmentNewTracker
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
@@ -74,6 +77,7 @@ class NewUIActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         initializeButtonsPosition()
+        initializeSunriseSunset()
     }
 
     private fun initializeButtons() {
@@ -134,7 +138,7 @@ class NewUIActivity : FragmentActivity() {
     }
 
     private fun initializeButtonsPosition() {
-        if(draggableOriginalMargin == Int.MIN_VALUE)
+        if (draggableOriginalMargin == Int.MIN_VALUE)
             draggableOriginalMargin = mapDraggable.marginBottom
 
         val (position, navDim) = Assist.navbarSize(this)
@@ -162,7 +166,7 @@ class NewUIActivity : FragmentActivity() {
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(this)
 
-        colorManager.watchElement(ColorView(root, 0, false))
+        colorManager.watchElement(ColorView(root, 0, false, true, false))
 
         colorManager.watchElement(ColorView(statsButton, 1, false, false, false, true))
         colorManager.watchElement(ColorView(mapDraggable, 1, false, false, false, true))

@@ -1,5 +1,7 @@
 package com.adsamcik.signalcollector.uitools
 
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.support.annotation.ColorInt
 import android.support.annotation.IdRes
 import android.support.v7.widget.CardView
@@ -14,10 +16,6 @@ import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.locks.ReentrantLock
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
-
-
 
 
 internal class ColorManager {
@@ -134,7 +132,6 @@ internal class ColorManager {
 
     private fun setBackgroundColor(view: View, @ColorInt color: Int, layer: Int) {
         view.setBackgroundColor(layerColor(color, layer))
-        //view.background.colorFilter = PorterDuffColorFilter(layerColor(color, layer), PorterDuff.Mode.SRC_IN)
     }
 
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {

@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
+import android.support.v7.preference.ListPreference
 import android.support.v7.preference.PreferenceFragmentCompat
 import android.support.v7.preference.PreferenceScreen
 import android.support.v7.preference.SwitchPreferenceCompat
@@ -227,7 +228,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeStyle() {
-        fragment.findPreference(getString(R.string.settings_style_mode_key)).setOnPreferenceChangeListener { _, newValue ->
+        val onPreferenceChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
             val morning = fragment.findPreference(getString(R.string.settings_color_morning_key))
             val evening = fragment.findPreference(getString(R.string.settings_color_evening_key))
             val night = fragment.findPreference(getString(R.string.settings_color_night_key))
@@ -240,6 +241,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
             true
         }
+
+        val stylePreference = fragment.findPreference(getString(R.string.settings_style_mode_key)) as ListPreference
+        stylePreference.onPreferenceChangeListener = onPreferenceChange
+        onPreferenceChange.onPreferenceChange(stylePreference, stylePreference.value)
 
         fragment.findPreference(getString(R.string.settings_color_default_key)).setOnPreferenceClickListener {
             fragment.preferenceManager.sharedPreferences.edit {

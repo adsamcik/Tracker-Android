@@ -91,6 +91,7 @@ internal object ColorSupervisor {
             updateUpdate()
         }
 
+        Log.d("ColorSupervisor", "index $currentIndex current ${colorList[currentIndex]} next ${colorList[nextIndex]} delta $delta")
         update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
     }
 
@@ -124,10 +125,9 @@ internal object ColorSupervisor {
         val (changeLength, progress) = calculateTimeOfDay()
         val period = calculateUpdatePeriod(changeLength).toLong()
 
-        val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
-        val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
-
         if (BuildConfig.DEBUG) {
+            val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
+            val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
             Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
                     "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
                     "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")

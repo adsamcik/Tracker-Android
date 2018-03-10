@@ -7,15 +7,14 @@
     android:layout_height="match_parent">
 
     <LinearLayout
-        android:id="@+id/topPanelLayout"
+        android:id="@+id/top_panel"
         android:layout_width="match_parent"
         android:layout_height="72dp"
-        android:background="#FF1a8387"
+        android:background="#555555"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:gravity="bottom"
-        android:orientation="horizontal"
-        >
+        android:orientation="horizontal">
 
         <TextView
             android:id="@+id/textview_time"
