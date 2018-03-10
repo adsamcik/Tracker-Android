@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
+import android.util.Log
 import android.view.MotionEvent
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ListView
@@ -77,7 +78,7 @@ class NewUIActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         initializeButtonsPosition()
-        initializeSunriseSunset()
+        initializeColors()
     }
 
     private fun initializeButtons() {

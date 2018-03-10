@@ -17,7 +17,7 @@ import kotlin.collections.ArrayList
 
 internal object ColorSupervisor {
     private val colorList = ArrayList<@ColorInt Int>()
-    private val timer = Timer("ColorUpdate", true)
+    private var timer: Timer? = null
     private var timerTask: ColorUpdateTask? = null
     private var timerActive = false
 
@@ -91,7 +91,6 @@ internal object ColorSupervisor {
             updateUpdate()
         }
 
-        Log.d("ColorSupervisor", "index $currentIndex current ${colorList[currentIndex]} next ${colorList[nextIndex]} delta $delta")
         update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
     }
 
@@ -123,8 +122,10 @@ internal object ColorSupervisor {
     private fun startUpdate() {
         if (colorList.size >= 2) {
             timerActive = true
+            timer = Timer("ColorUpdate", true)
             val (changeLength, progress) = calculateTimeOfDay()
-            val period = calculateUpdatePeriod(changeLength).toLong()
+            //val period = calculateUpdatePeriod(changeLength).toLong()
+            val period = Constants.SECOND_IN_MILLISECONDS.toLong()
 
             if (BuildConfig.DEBUG) {
                 val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
@@ -137,7 +138,7 @@ internal object ColorSupervisor {
             }
 
             timerTask = ColorUpdateTask(period, changeLength.toLong(), progress.toLong())
-            timer.scheduleAtFixedRate(timerTask, 0L, period)
+            timer!!.scheduleAtFixedRate(timerTask, 0L, period)
         }
     }
 
@@ -263,8 +264,7 @@ internal object ColorSupervisor {
         synchronized(updateLock) {
             if (timerActive) {
                 timerActive = false
-                timerTask!!.cancel()
-                timer.purge()
+                timer!!.cancel()
             }
         }
     }
@@ -303,8 +303,10 @@ internal object ColorSupervisor {
     fun setSunsetSunrise(sunrise: Calendar, sunset: Calendar) {
         sunriseTime = sunrise.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS + sunrise.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS
         sunsetTime = sunset.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS + sunset.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS
-        stopUpdate()
-        startUpdate()
+        synchronized(updateLock) {
+            stopUpdate()
+            startUpdate()
+        }
     }
 
 }

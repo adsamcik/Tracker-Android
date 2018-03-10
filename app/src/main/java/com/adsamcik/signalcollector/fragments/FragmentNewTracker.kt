@@ -11,6 +11,7 @@ import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat.getDrawable
 import android.support.v4.content.ContextCompat.startForegroundService
 import android.text.format.DateFormat
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
@@ -58,9 +59,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
 
     override fun onStart() {
         super.onStart()
-        retainInstance = true
         initializeColorElements()
-
         button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
         updateUploadButton()
 
@@ -149,6 +148,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
 
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(context!!)
+        Log.d("ColorAdd", "Add color manager")
         colorManager.watchElement(ColorView(top_panel, 1, true, false))
         colorManager.watchElement(ColorView(bar_info_top, 1, true, false))
     }

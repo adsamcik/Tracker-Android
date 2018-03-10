@@ -5,6 +5,7 @@ import android.graphics.PorterDuffColorFilter
 import android.support.annotation.ColorInt
 import android.support.annotation.IdRes
 import android.support.v7.widget.CardView
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -115,10 +116,11 @@ internal class ColorManager {
 
     private fun update(view: ColorView, @ColorInt color: Int, @ColorInt fgColor: Int) {
         if (!view.ignoreRoot) {
+            val layerColor = layerColor(color, view.layer)
             if (view.rootIsBackground)
-                setBackgroundColor(view.view, color, view.layer)
+                view.view.setBackgroundColor(layerColor)
             else
-                updateBackgroundDrawable(view.view, layerColor(color, view.layer))
+                updateBackgroundDrawable(view.view, layerColor)
 
             updateStyleForeground(view.view, fgColor)
         }
@@ -131,7 +133,7 @@ internal class ColorManager {
     }
 
     private fun setBackgroundColor(view: View, @ColorInt color: Int, layer: Int) {
-        view.setBackgroundColor(layerColor(color, layer))
+
     }
 
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
@@ -168,7 +170,7 @@ internal class ColorManager {
             if (background.alpha < 255)
                 return false
 
-            //background.setTint(bgColor)
+            background.setTint(bgColor)
             view.background.colorFilter = PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
             return true
         }
