@@ -146,7 +146,6 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         colorManager = ColorSupervisor.createColorManager(context!!)
         colorManager.watchElement(ColorView(topPanelLayout, 1, true, false))
         colorManager.watchElement(bar_info_top)
-        colorManager.watchElement(ColorView(content, 1, true, false, true))
     }
 
     private fun setUploadButtonClickable() {
@@ -222,9 +221,11 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         if (wifiInfo != null)
             return wifiInfo!!
 
-        val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
         val drawable = getDrawable(context!!, R.drawable.ic_network_wifi_24dp)!!
         drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+
+        val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
+        component.setColorManager(colorManager)
         component.setTitle(drawable, getString(R.string.wifi))
         component.addSecondaryText(WIFI_COMPONENT_DISTANCE, "")
         component.addPrimaryText(WIFI_COMPONENT_COUNT, "")
@@ -235,10 +236,11 @@ class FragmentNewTracker : Fragment(), ITabFragment {
     private fun initializeCellInfo(): InfoComponent {
         if (cellInfo != null)
             return cellInfo!!
-
-        val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
         val drawable = getDrawable(context!!, R.drawable.ic_network_cell_black_24dp)!!
         drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+
+        val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
+        component.setColorManager(colorManager)
         component.setTitle(drawable, getString(R.string.cell))
         component.addSecondaryText(CELL_COMPONENT_COUNT, "")
         component.addPrimaryText(CELL_COMPONENT_CURRENT, "")

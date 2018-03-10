@@ -10,8 +10,9 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
-import java.util.*
 
 
 class InfoComponent : FrameLayout {
@@ -20,6 +21,8 @@ class InfoComponent : FrameLayout {
     private var root: ViewGroup? = null
 
     private var items: MutableMap<String, TextView> = mutableMapOf()
+
+    private var colorManager: ColorManager? = null
 
     constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
         initialize(context)
@@ -78,6 +81,13 @@ class InfoComponent : FrameLayout {
         return textView
     }
 
+    internal fun setColorManager(colorManager: ColorManager) {
+        this.colorManager = colorManager
+        this.post {
+            colorManager.watchElement(ColorView(this, 1, true, false, true))
+        }
+    }
+
     private fun setTextViewTheme(textView: TextView, textSizeResource: Int, textColorResource: Int) {
         val resources = context.resources
         textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(textSizeResource))
@@ -106,5 +116,7 @@ class InfoComponent : FrameLayout {
 
     fun detach() {
         (parent as ViewGroup).removeView(this)
+        colorManager?.stopWatchingElement(this)
+        colorManager = null
     }
 }

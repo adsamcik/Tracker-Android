@@ -157,7 +157,7 @@
                 app:layout_constraintEnd_toStartOf="@id/icon_activity"
                 app:layout_constraintHorizontal_bias="1"
                 app:layout_constraintStart_toEndOf="@id/guideline_info_top"
-                tools:text="8 m accuracydsdsadasdasdasdadasdasdas"
+                tools:text="8 m accuracy"
                 />
 
             <android.support.constraint.Guideline

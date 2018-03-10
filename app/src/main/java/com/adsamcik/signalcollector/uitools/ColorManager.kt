@@ -14,6 +14,10 @@ import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.locks.ReentrantLock
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+
+
 
 
 internal class ColorManager {
@@ -25,7 +29,7 @@ internal class ColorManager {
         synchronized(arrayLock) {
             watchedElements.add(view)
         }
-        update(view, currentBaseColor, currentForegroundColor)
+        updateInternal(view, currentBaseColor, currentForegroundColor)
     }
 
     fun watchElement(view: View) = watchElement(ColorView(view, 0))
@@ -98,13 +102,17 @@ internal class ColorManager {
         launch(UI) {
             synchronized(arrayLock) {
                 watchedElements.forEach {
-                    if (it.backgroundIsForeground)
-                        update(it, fgColor, baseColor)
-                    else
-                        update(it, baseColor, fgColor)
+                    updateInternal(it, baseColor, fgColor)
                 }
             }
         }
+    }
+
+    private fun updateInternal(view: ColorView, @ColorInt baseColor: Int, @ColorInt fgColor: Int) {
+        if (view.backgroundIsForeground)
+            update(view, fgColor, baseColor)
+        else
+            update(view, baseColor, fgColor)
     }
 
     private fun update(view: ColorView, @ColorInt color: Int, @ColorInt fgColor: Int) {
@@ -126,6 +134,7 @@ internal class ColorManager {
 
     private fun setBackgroundColor(view: View, @ColorInt color: Int, layer: Int) {
         view.setBackgroundColor(layerColor(color, layer))
+        //view.background.colorFilter = PorterDuffColorFilter(layerColor(color, layer), PorterDuff.Mode.SRC_IN)
     }
 
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
@@ -162,7 +171,8 @@ internal class ColorManager {
             if (background.alpha < 255)
                 return false
 
-            background.setTint(bgColor)
+            //background.setTint(bgColor)
+            view.background.colorFilter = PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
             return true
         }
         return false
