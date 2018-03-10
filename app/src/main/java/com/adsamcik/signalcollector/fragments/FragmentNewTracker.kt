@@ -74,11 +74,16 @@ class FragmentNewTracker : Fragment(), ITabFragment {
             } else
                 toggleCollecting(activity!!, !TrackerService.isRunning)
         }
+
+        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton() } }
+        TrackerService.onNewDataFound = { launch(UI) { updateData(it) }}
     }
 
     override fun onDestroy() {
         super.onDestroy()
         ColorSupervisor.recycleColorManager(colorManager)
+        TrackerService.onServiceStateChange = null
+        TrackerService.onNewDataFound = null
     }
 
     override fun onResume() {
@@ -87,8 +92,6 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
         }
-
-        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton() } }
     }
 
     /**

@@ -138,7 +138,7 @@ class TrackerService : Service() {
 
         notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
 
-        onNewDataFound?.invoke()
+        onNewDataFound?.invoke(d)
 
         if (data.size > 5)
             saveData()
@@ -382,7 +382,7 @@ class TrackerService : Service() {
 
 
         var onServiceStateChange: (() -> Unit)? = null
-        var onNewDataFound: (() -> Unit)? = null
+        var onNewDataFound: ((RawData) -> Unit)? = null
 
         /**
          * RawData from previous collection
