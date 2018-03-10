@@ -1,10 +1,15 @@
 package com.adsamcik.signalcollector.fragments
 
+import android.app.Activity
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat.getDrawable
+import android.support.v4.content.ContextCompat.startForegroundService
 import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.Surface
@@ -33,7 +38,11 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
+import kotlinx.android.synthetic.main.activity_user.*
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
+import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.launch
+import java.util.*
 
 class FragmentNewTracker : Fragment(), ITabFragment {
     private lateinit var colorManager: ColorManager
@@ -57,6 +66,14 @@ class FragmentNewTracker : Fragment(), ITabFragment {
 
         if (useMock)
             mock()
+
+        button_tracking.setOnClickListener { _ ->
+            if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
+                val lockedForMinutes = TrackerService.setAutoLock()
+                SnackMaker(root).showSnackbar(activity!!.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+            } else
+                toggleCollecting(activity!!, !TrackerService.isRunning)
+        }
     }
 
     override fun onDestroy() {
@@ -69,6 +86,43 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         val orientation = Assist.orientation(context!!)
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
+        }
+
+        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton() } }
+    }
+
+    /**
+     * Enables or disables collecting service
+     *
+     * @param enable ensures intended action
+     */
+    private fun toggleCollecting(activity: Activity, enable: Boolean) {
+        if (TrackerService.isRunning == enable)
+            return
+
+        val requiredPermissions = Assist.checkTrackingPermissions(activity)
+
+        if (requiredPermissions == null) {
+            if (!TrackerService.isRunning) {
+                if (!Assist.isGNSSEnabled(activity)) {
+                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
+                        val gpsOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                        startActivity(gpsOptionsIntent)
+                    })
+                } else if (!Assist.canTrack(activity)) {
+                    SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
+                } else {
+                    Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply()
+                    val trackerService = Intent(activity, TrackerService::class.java)
+                    trackerService.putExtra("backTrack", false)
+                    startForegroundService(activity, trackerService)
+                }
+            } else {
+                activity.stopService(Intent(activity, TrackerService::class.java))
+            }
+
+        } else if (Build.VERSION.SDK_INT >= 23) {
+            activity.requestPermissions(requiredPermissions, 0)
         }
     }
 
@@ -119,6 +173,13 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         collection_count!!.text = resources.getQuantityString(R.plurals.main_collections, count, count)
     }
 
+    private fun updateTrackerButton() {
+        if (TrackerService.isRunning) {
+            button_tracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
+        } else
+            button_tracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
+    }
+
     private fun updateUploadButton() {
         if (!Signin.isSignedIn) {
             button_upload.setImageResource(R.drawable.ic_account_circle_black_24dp)
@@ -126,6 +187,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
                 startActivity<UserActivity> { }
             }
             button_upload.visibility = View.VISIBLE
+            return
         }
 
         when (Network.cloudStatus) {
@@ -194,7 +256,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
             updateUploadButton()
         }
 
-        time.text = res.getString(R.string.main_last_update, DateFormat.format("HH:mm:ss", d.time))
+        textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(d.time)))
 
         if (d.accuracy != null) {
             accuracy.visibility = View.VISIBLE
