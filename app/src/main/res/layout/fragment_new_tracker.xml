@@ -18,7 +18,7 @@
         >
 
         <TextView
-            android:id="@+id/time"
+            android:id="@+id/textview_time"
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_weight="1"
@@ -111,11 +111,11 @@
                 />
 
             <ImageView
+                android:padding="4dp"
                 android:id="@+id/icon_activity"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:padding="4dp"
-                android:src="@drawable/ic_directions_walk_white_24dp"
+                android:src="@drawable/ic_help_white_24dp"
                 android:tint="@android:color/white"
                 app:layout_constraintRight_toRightOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
@@ -165,10 +165,10 @@
                 android:animateLayoutChanges="true"
                 android:filterTouchesWhenObscured="true"
                 app:alignItems="flex_start"
+                app:justifyContent="center"
                 app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
                 app:dividerDrawableVertical="@drawable/flexbox_spacing"
                 app:flexWrap="wrap"
-                app:justifyContent="center"
                 app:showDividerHorizontal="middle"
                 app:showDividerVertical="middle"/>
         </ScrollView>
