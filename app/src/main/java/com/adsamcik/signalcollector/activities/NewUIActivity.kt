@@ -9,21 +9,16 @@ import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
-import android.text.format.DateFormat
 import android.view.MotionEvent
-import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ListView
 import androidx.content.edit
-import androidx.view.children
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.fragments.*
-import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
@@ -185,9 +180,9 @@ class NewUIActivity : FragmentActivity() {
                 .setRadius(0.00001f)
                 .setDescription(getString(R.string.tutorial_welcome_description)).build()
 
-        var radius = Math.sqrt(Math.pow(settingsButton.height.toDouble(), 2.0) + Math.pow(settingsButton.width.toDouble(), 2.0)) / 2
+        var radius = Math.sqrt(Math.pow(button_settings.height.toDouble(), 2.0) + Math.pow(button_settings.width.toDouble(), 2.0)) / 2
         val settingsButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(settingsButton.x + settingsButton.pivotX, settingsButton.y + settingsButton.pivotY)
+                .setPoint(button_settings.x + button_settings.pivotX, button_settings.y + button_settings.pivotY)
                 .setTitle(getString(R.string.tutorial_settings_title))
                 .setRadius(radius.toFloat())
                 .setDescription(getString(R.string.tutorial_settings_description)).build()
