@@ -83,7 +83,7 @@
                 android:padding="4dp"
                 android:src="@drawable/ic_storage_black_24dp"
                 android:tint="@android:color/white"
-                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
 
             <TextView
@@ -93,7 +93,7 @@
                 android:paddingEnd="8dp"
                 android:paddingStart="8dp"
                 android:paddingTop="4dp"
-                app:layout_constraintLeft_toRightOf="@id/image_storage"
+                app:layout_constraintStart_toEndOf="@id/image_storage"
                 app:layout_constraintTop_toTopOf="@id/image_storage"
                 tools:text="588 KB"
                 />
@@ -106,18 +106,18 @@
                 android:paddingEnd="8dp"
                 android:paddingStart="8dp"
                 app:layout_constraintBottom_toBottomOf="@id/image_storage"
-                app:layout_constraintLeft_toRightOf="@id/image_storage"
+                app:layout_constraintStart_toEndOf="@id/image_storage"
                 tools:text="170 collections"
                 />
 
             <ImageView
-                android:padding="4dp"
                 android:id="@+id/icon_activity"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:padding="4dp"
                 android:src="@drawable/ic_help_white_24dp"
                 android:tint="@android:color/white"
-                app:layout_constraintRight_toRightOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
 
             <TextView
@@ -128,7 +128,7 @@
                 android:paddingStart="8dp"
                 android:paddingTop="4dp"
                 android:textAlignment="textEnd"
-                app:layout_constraintRight_toLeftOf="@id/icon_activity"
+                app:layout_constraintEnd_toStartOf="@id/icon_activity"
                 app:layout_constraintTop_toTopOf="@id/icon_activity"
                 tools:text="237 m altitude"
                 />
@@ -142,7 +142,7 @@
                 android:paddingStart="8dp"
                 android:textAlignment="textEnd"
                 app:layout_constraintBottom_toBottomOf="@id/icon_activity"
-                app:layout_constraintRight_toLeftOf="@id/icon_activity"
+                app:layout_constraintEnd_toStartOf="@id/icon_activity"
                 tools:text="8 m accuracy"
                 />
 
@@ -165,10 +165,10 @@
                 android:animateLayoutChanges="true"
                 android:filterTouchesWhenObscured="true"
                 app:alignItems="flex_start"
-                app:justifyContent="center"
                 app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
                 app:dividerDrawableVertical="@drawable/flexbox_spacing"
                 app:flexWrap="wrap"
+                app:justifyContent="center"
                 app:showDividerHorizontal="middle"
                 app:showDividerVertical="middle"/>
         </ScrollView>
