@@ -77,6 +77,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         rawData.activity = ResolvedActivity.ON_FOOT
         rawData.wifi = arrayOf(WifiData(), WifiData(), WifiData())
         rawData.accuracy = 6f
+        rawData.cellCount = 8
         rawData.registeredCells = arrayOf(CellData("MOCK", 2, 0, 123, 456, -30, 90, 0))
         rawData.latitude = 15.0
         rawData.longitude = 15.0
