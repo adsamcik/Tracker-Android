@@ -23,6 +23,7 @@
             android:layout_height="48dp"
             android:layout_weight="1"
             android:gravity="center_vertical"
+            android:paddingEnd="@dimen/edge_margin"
             android:paddingStart="@dimen/edge_margin"
             android:textColor="@color/text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -86,26 +87,32 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
 
-            <TextView
+            <android.support.v7.widget.AppCompatTextView
                 android:id="@+id/data_size"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:ellipsize="marquee"
                 android:paddingEnd="8dp"
                 android:paddingStart="8dp"
                 android:paddingTop="4dp"
+                android:singleLine="true"
+                app:layout_constraintEnd_toStartOf="@id/guideline_info_top"
                 app:layout_constraintStart_toEndOf="@id/image_storage"
                 app:layout_constraintTop_toTopOf="@id/image_storage"
                 tools:text="588 KB"
                 />
 
-            <TextView
+            <android.support.v7.widget.AppCompatTextView
                 android:id="@+id/collection_count"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:ellipsize="marquee"
                 android:paddingBottom="4dp"
                 android:paddingEnd="8dp"
                 android:paddingStart="8dp"
+                android:singleLine="true"
                 app:layout_constraintBottom_toBottomOf="@id/image_storage"
+                app:layout_constraintEnd_toStartOf="@id/guideline_info_top"
                 app:layout_constraintStart_toEndOf="@id/image_storage"
                 tools:text="170 collections"
                 />
@@ -120,31 +127,45 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
 
-            <TextView
+            <android.support.v7.widget.AppCompatTextView
                 android:id="@+id/altitude"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:ellipsize="marquee"
                 android:paddingEnd="8dp"
                 android:paddingStart="8dp"
                 android:paddingTop="4dp"
+                android:singleLine="true"
                 android:textAlignment="textEnd"
                 app:layout_constraintEnd_toStartOf="@id/icon_activity"
+                app:layout_constraintStart_toEndOf="@id/guideline_info_top"
                 app:layout_constraintTop_toTopOf="@id/icon_activity"
                 tools:text="237 m altitude"
                 />
 
-            <TextView
+            <android.support.v7.widget.AppCompatTextView
                 android:id="@+id/accuracy"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:ellipsize="marquee"
                 android:paddingBottom="4dp"
                 android:paddingEnd="8dp"
                 android:paddingStart="8dp"
+                android:singleLine="true"
                 android:textAlignment="textEnd"
                 app:layout_constraintBottom_toBottomOf="@id/icon_activity"
                 app:layout_constraintEnd_toStartOf="@id/icon_activity"
-                tools:text="8 m accuracy"
+                app:layout_constraintHorizontal_bias="1"
+                app:layout_constraintStart_toEndOf="@id/guideline_info_top"
+                tools:text="8 m accuracydsdsadasdasdasdadasdasdas"
                 />
+
+            <android.support.constraint.Guideline
+                android:id="@+id/guideline_info_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                app:layout_constraintGuide_percent="0.5"/>
 
         </android.support.constraint.ConstraintLayout>
 
