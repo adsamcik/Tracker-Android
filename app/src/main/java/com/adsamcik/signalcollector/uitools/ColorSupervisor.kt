@@ -121,22 +121,24 @@ internal object ColorSupervisor {
     }
 
     private fun startUpdate() {
-        timerActive = true
-        val (changeLength, progress) = calculateTimeOfDay()
-        val period = calculateUpdatePeriod(changeLength).toLong()
+        if (colorList.size >= 2) {
+            timerActive = true
+            val (changeLength, progress) = calculateTimeOfDay()
+            val period = calculateUpdatePeriod(changeLength).toLong()
 
-        if (BuildConfig.DEBUG) {
-            val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
-            val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
-            Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-                    "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
-                    "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")
+            if (BuildConfig.DEBUG) {
+                val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
+                val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
+                Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+                        "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
+                        "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")
 
-            Log.d("ColorSupervisor", "Update rate is $period")
+                Log.d("ColorSupervisor", "Update rate is $period")
+            }
+
+            timerTask = ColorUpdateTask(period, changeLength.toLong(), progress.toLong())
+            timer.scheduleAtFixedRate(timerTask, 0L, period)
         }
-
-        timerTask = ColorUpdateTask(period, changeLength.toLong(), progress.toLong())
-        timer.scheduleAtFixedRate(timerTask, 0L, period)
     }
 
     private fun getTimeOfDay(value: Int) = when (value) {
@@ -147,7 +149,43 @@ internal object ColorSupervisor {
         else -> "Bug"
     }
 
-    private fun calculateTimeOfDay(): Pair<Int, Int> {
+    private fun calculateTimeOfDay(): Pair<Int, Int> =
+            when {
+                colorList.size == 4 -> calculateTimeOfDay4()
+                colorList.size == 2 -> calculateTimeOfDay2()
+                else -> throw RuntimeException("Invalid size of color list (${colorList.size}) for time of day ")
+            }
+
+    private fun calculateTimeOfDay2(): Pair<Int, Int> {
+        val time = Assist.time
+        val changeLength: Int
+        val progress: Int
+
+        when {
+            time > sunsetTime -> {
+                //Between sunset and the end of the day
+                changeLength = Constants.DAY_IN_MILLISECONDS - (sunsetTime - sunriseTime)
+                progress = time - sunsetTime
+                currentIndex = 1
+            }
+            time > sunriseTime -> {
+                //Between sunrise and sunset
+                changeLength = sunsetTime - sunriseTime
+                progress = time - sunriseTime
+                currentIndex = 0
+            }
+            else -> {
+                //Between start of the day and sunrise
+                changeLength = Constants.DAY_IN_MILLISECONDS - (sunsetTime - sunriseTime)
+                progress = time + Constants.DAY_IN_MILLISECONDS - sunsetTime
+                currentIndex = 1
+            }
+        }
+
+        return Pair(changeLength, progress)
+    }
+
+    private fun calculateTimeOfDay4(): Pair<Int, Int> {
         val time = Assist.time
         val changeLength: Int
         val progress: Int
