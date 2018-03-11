@@ -5,13 +5,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat.getDrawable
 import android.support.v4.content.ContextCompat.startForegroundService
 import android.text.format.DateFormat
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
@@ -27,7 +24,6 @@ import com.adsamcik.signalcollector.data.WifiData
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
@@ -76,6 +72,8 @@ class FragmentNewTracker : Fragment() {
 
         TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton(TrackerService.isRunning) } }
         TrackerService.onNewDataFound = { launch(UI) { updateData(it) } }
+        DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
+        DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
     }
 
     override fun onDestroy() {
@@ -83,6 +81,8 @@ class FragmentNewTracker : Fragment() {
         ColorSupervisor.recycleColorManager(colorManager)
         TrackerService.onServiceStateChange = null
         TrackerService.onNewDataFound = null
+        DataStore.setOnDataChanged(null)
+        DataStore.setOnUploadProgress(null)
     }
 
     override fun onResume() {
@@ -91,7 +91,12 @@ class FragmentNewTracker : Fragment() {
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
         }
+
         updateTrackerButton(TrackerService.isRunning)
+
+        val context = context!!
+        setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
+        updateUploadButton()
     }
 
     /**
