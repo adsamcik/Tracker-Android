@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.activities
 
 import android.content.res.ColorStateList
+import android.graphics.Paint
 import android.os.Bundle
 import android.support.design.widget.TextInputLayout
 import android.text.Editable
@@ -20,6 +21,9 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Response
 import java.io.IOException
+import android.graphics.Paint.UNDERLINE_TEXT_FLAG
+
+
 
 class FeedbackActivity : DetailActivity() {
     private var currentType: FeedbackType? = null
@@ -131,10 +135,15 @@ class FeedbackActivity : DetailActivity() {
     private fun updateType(v: View, select: FeedbackType) {
         currentType = select
 
-        if (selected != null)
-            (selected as TextView).setTextColor(mDefaultState)
+        if (selected != null) {
+            val selectedTextView = selected as TextView
+            selectedTextView.setTextColor(mDefaultState)
+            selectedTextView.paintFlags = selectedTextView.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
+        }
 
-        (v as TextView).setTextColor(mSelectedState)
+        val newTextView = v as TextView
+        newTextView.setTextColor(mSelectedState)
+        newTextView.paintFlags = newTextView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
         selected = v
     }
 
