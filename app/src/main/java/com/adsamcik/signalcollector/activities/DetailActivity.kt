@@ -13,7 +13,6 @@ import kotlinx.android.synthetic.main.activity_content_detail.*
 abstract class DetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_content_detail)
         back_button.setOnClickListener({ _ -> onBackPressed() })

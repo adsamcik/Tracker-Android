@@ -38,7 +38,8 @@ class UserActivity : DetailActivity() {
         setTitle(R.string.settings_account)
         Signin.onStateChangeCallback = { status, user -> onUserStateChange(status, user) }
         launch {
-            Signin.signIn(this@UserActivity, true)
+            val user = Signin.signIn(this@UserActivity, true)
+            onUserStateChange(Signin.status, user)
         }
     }
 
