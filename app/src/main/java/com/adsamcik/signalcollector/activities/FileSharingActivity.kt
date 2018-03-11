@@ -26,7 +26,7 @@ class FileSharingActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE) }
+        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE) || name.startsWith(DataStore.TMP_NAME) }
         if (files.isEmpty()) {
             val tv = TextView(this)
             tv.setText(R.string.share_nothing_to_share)

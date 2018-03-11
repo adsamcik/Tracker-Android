@@ -32,6 +32,8 @@ object DataStore {
     private var onDataChanged: (() -> Unit)? = null
     private var onUploadProgress: ((Int) -> Unit)? = null
 
+    const val TMP_NAME = "5GeVPiYk6J"
+
     @Volatile
     private var approxSize: Long = -1
     @Volatile
@@ -42,8 +44,6 @@ object DataStore {
 
     var currentDataFile: DataFile? = null
         private set
-
-    private const val collectionInDataFile = 0
 
     fun getDir(context: Context): File = context.filesDir
 
@@ -157,21 +157,29 @@ object DataStore {
      */
     @Synchronized
     fun cleanup(context: Context) {
-        val tmpName = "5GeVPiYk6J"
         val files = getDir(context).listFiles()
         Arrays.sort(files) { a: File, b: File -> a.name.compareTo(b.name) }
         val renamedFiles = ArrayList<Pair<Int, String>>()
+        val random = Random()
         for (file in files) {
             val name = file.name
             if (name.startsWith(DATA_FILE)) {
-                val tempFileName = tmpName + DataFile.getCollectionCount(file)
+                val tempFileName = "$TMP_NAME${DataFile.getCollectionCount(file)}-${random.nextInt()}"
                 if (FileStore.rename(file, tempFileName))
                     renamedFiles.add(Pair(renamedFiles.size, tempFileName))
-            }
+            } else if (name.startsWith(TMP_NAME))
+                renamedFiles.add(Pair(renamedFiles.size, name))
+            else if (name.length == 15 && name.startsWith("up"))
+                delete(context, name)
         }
 
-        for (item in renamedFiles)
-            rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(tmpName.length))
+        for (item in renamedFiles) {
+            val substr = item.second.substring(TMP_NAME.length)
+            val separatorIndex = substr.indexOf('-')
+            if (!rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + substr.substring(0, separatorIndex))) {
+                Crashlytics.logException(Throwable("Failed to rename $"))
+            }
+        }
 
         Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, if (renamedFiles.size == 0) 0 else renamedFiles.size - 1).apply()
         currentDataFile = null
