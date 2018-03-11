@@ -175,10 +175,7 @@ class NewUIActivity : FragmentActivity() {
             Assist.NavBarPosition.LEFT -> {
                 root.setPadding(navDim.x, 0, 0, 0)
             }
-            Assist.NavBarPosition.BOTTOM -> {
-                root.setPadding(0, 0, 0, 0)
-            }
-            else -> throw RuntimeException("Unknown orientation, this should not happen.")
+            else -> root.setPadding(0, 0, 0, 0)
         }
     }
 
