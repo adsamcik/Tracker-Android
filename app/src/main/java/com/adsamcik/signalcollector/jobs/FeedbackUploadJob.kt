@@ -1,9 +1,13 @@
 package com.adsamcik.signalcollector.jobs
 
+import android.app.NotificationManager
 import android.app.job.JobParameters
 import android.app.job.JobService
 import android.content.Context
 import android.os.AsyncTask
+import android.support.v4.app.NotificationCompat
+import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.R.string.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import kotlinx.coroutines.experimental.launch
@@ -29,12 +33,25 @@ class FeedbackUploadJob : JobService() {
                 val type = params.extras[TYPE] as Int
                 val description = params.extras[DESCRIPTION] as String
                 worker = UploadTask(this@FeedbackUploadJob, user.token) {
+                    notify(it)
                     jobFinished(params, !it)
                 }
                 worker!!.execute(summary, type.toString(), description)
             }
         }
         return true
+    }
+
+    private fun notify(status: Boolean) {
+        val nBuilder = NotificationCompat.Builder(this@FeedbackUploadJob, getString(channel_other_id))
+        if (status)
+            nBuilder.setContentTitle(getString(notification_feedback_success))
+        else
+            nBuilder.setContentTitle(getString(notification_feedback_failed))
+        nBuilder.setSmallIcon(R.drawable.ic_signals)
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(33332225, nBuilder.build())
     }
 
     private class UploadTask(context: Context,
