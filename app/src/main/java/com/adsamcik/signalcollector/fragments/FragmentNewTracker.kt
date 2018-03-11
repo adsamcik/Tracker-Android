@@ -45,7 +45,7 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.*
 
-class FragmentNewTracker : Fragment(), ITabFragment {
+class FragmentNewTracker : Fragment() {
     private lateinit var colorManager: ColorManager
 
     private var wifiInfo: InfoComponent? = null
@@ -148,7 +148,6 @@ class FragmentNewTracker : Fragment(), ITabFragment {
 
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(context!!)
-        Log.d("ColorAdd", "Add color manager")
         colorManager.watchElement(ColorView(top_panel, 1, true, false))
         colorManager.watchElement(ColorView(bar_info_top, 1, true, false))
     }
@@ -195,7 +194,7 @@ class FragmentNewTracker : Fragment(), ITabFragment {
         }
 
         when (Network.cloudStatus) {
-            CloudStatus.NO_SYNC_REQUIRED -> {
+            CloudStatus.NO_SYNC_REQUIRED, CloudStatus.UNKNOWN -> {
                 button_upload.setOnClickListener(null)
                 button_upload.visibility = View.GONE
             }
@@ -307,22 +306,6 @@ class FragmentNewTracker : Fragment(), ITabFragment {
             ResolvedActivity.IN_VEHICLE -> icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
             else -> icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
         }
-    }
-
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
-        //TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onLeave(activity: FragmentActivity) {
-        //TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onPermissionResponse(requestCode: Int, success: Boolean) {
-        //TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onHomeAction() {
-        //TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     companion object {

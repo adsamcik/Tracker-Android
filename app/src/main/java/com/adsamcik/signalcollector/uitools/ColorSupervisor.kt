@@ -67,7 +67,8 @@ internal object ColorSupervisor {
                 if (!timerActive)
                     startUpdate()
             }
-        }
+        } else if (colorList.size == 1)
+            update(colorList[0])
     }
 
     fun layerColor(@ColorInt color: Int, layer: Int): Int {
@@ -83,6 +84,8 @@ internal object ColorSupervisor {
 
         colorList.ensureCapacity(colorList.size + varargs.size)
         varargs.forEach { colorList.add(it) }
+
+        ensureUpdate()
     }
 
     fun deltaUpdate(delta: Float, newPeriod: Boolean) {

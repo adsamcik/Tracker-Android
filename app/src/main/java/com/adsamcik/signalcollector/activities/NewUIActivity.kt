@@ -19,10 +19,16 @@ import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentNewActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
 import com.adsamcik.signalcollector.fragments.FragmentNewStats
 import com.adsamcik.signalcollector.fragments.FragmentNewTracker
+import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.services.ActivityService
+import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
@@ -51,16 +57,29 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_new_ui)
 
         Fabric.with(this, Crashlytics())
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
 
-        setContentView(R.layout.activity_new_ui)
+        Assist.initialize(this)
+        Signin.signIn(this, null, true)
+
+        if (Assist.checkPlayServices(this))
+            ActivityService.requestAutoTracking(this, javaClass)
 
         initializeColors()
         initializeButtons()
         initializeColorElements()
+
+        if (Network.cloudStatus == CloudStatus.UNKNOWN) {
+            val scheduleSource = UploadJobService.getUploadScheduled(this)
+            when (scheduleSource) {
+                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
+                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
+            }
+        }
 
         if (!Preferences.getPref(this).getBoolean(getString(R.string.tutorial_seen_key), false))
             launch {
