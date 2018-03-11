@@ -8,10 +8,7 @@ import android.os.Bundle
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
-import android.support.v7.preference.ListPreference
-import android.support.v7.preference.PreferenceFragmentCompat
-import android.support.v7.preference.PreferenceScreen
-import android.support.v7.preference.SwitchPreferenceCompat
+import android.support.v7.preference.*
 import android.util.Log
 import android.widget.Toast
 import androidx.content.edit
@@ -20,6 +17,9 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentNewSettings
+import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
+import com.adsamcik.signalcollector.services.ActivityService
+import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.startActivity
@@ -53,7 +53,33 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         title = "Settings"
     }
 
+    private fun initializeTracking() {
+        fragment.findPreference(getString(R.string.settings_activity_watcher_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            ActivityWakerService.poke(this@SettingsActivity, newValue as Boolean)
+            return@OnPreferenceChangeListener true
+        }
+
+        fragment.findPreference(getString(R.string.settings_activity_freq_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            ActivityService.requestActivity(this, NewUIActivity::class.java, newValue as Int)
+            ActivityWakerService.poke(this)
+            return@OnPreferenceChangeListener true
+        }
+
+        fragment.findPreference(getString(R.string.settings_disabled_recharge_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            if (newValue as Boolean) {
+                return@OnPreferenceChangeListener DisableTillRechargeJobService.stopTillRecharge(this)
+            } else
+                DisableTillRechargeJobService.enableTracking(this)
+
+            return@OnPreferenceChangeListener true
+        }
+    }
+
     private fun initializeRoot() {
+        setOnClickListener(R.string.settings_feedback_key) {
+            startActivity<FeedbackActivity> {  }
+        }
+
         setOnClickListener(R.string.settings_account_key) {
             startActivity<UserActivity> { }
         }
@@ -262,6 +288,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         when (key) {
             "debug_key" -> initializeDebug()
             "style_key" -> initializeStyle()
+            "tracking_key" -> initializeTracking()
         }
     }
 

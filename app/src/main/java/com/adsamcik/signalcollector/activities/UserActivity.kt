@@ -37,13 +37,8 @@ class UserActivity : DetailActivity() {
         layoutInflater.inflate(R.layout.activity_user, parent)
         setTitle(R.string.settings_account)
         Signin.onStateChangeCallback = { status, user -> onUserStateChange(status, user) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        val context = this
         launch {
-            onUserStateChange(Signin.status, Signin.getUserAsync(context))
+            Signin.signIn(this@UserActivity, true)
         }
     }
 

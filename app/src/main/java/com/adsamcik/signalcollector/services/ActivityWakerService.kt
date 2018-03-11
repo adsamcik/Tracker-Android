@@ -103,5 +103,20 @@ class ActivityWakerService : Service() {
                 instance!!.stopSelf()
             }
         }
+
+        /**
+         * Pokes Activity Waker Service which checks if it should run
+         *
+         * @param context context
+         */
+        @Synchronized
+        fun poke(context: Context, state: Boolean) {
+            if (state) {
+                if (instance == null)
+                    Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
+            } else if (instance != null) {
+                instance!!.stopSelf()
+            }
+        }
     }
 }

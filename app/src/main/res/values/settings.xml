@@ -241,6 +241,10 @@
     <string name="settings_export_key" translatable="false">shareButton</string>
     <string name="settings_export_summary">Share/Export your tracked data to app of your choice</string>
 
+    <string name="settings_feedback_title">Send feedback about the app</string>
+    <string name="settings_feedback_key" translatable="false">feedbackButton</string>
+    <string name="settings_feedback_summary">You can send valuable feedback about the app such as new ideas for improvements or bug reports</string>
+
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
 

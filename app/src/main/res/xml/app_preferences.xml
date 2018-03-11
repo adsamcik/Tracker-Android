@@ -179,6 +179,11 @@
         android:title="@string/settings_other_title">
 
         <Preference
+            android:key="@string/settings_feedback_key"
+            android:summary="@string/settings_feedback_summary"
+            android:title="@string/settings_feedback_title"/>
+
+        <Preference
             android:key="@string/settings_export_key"
             android:summary="@string/settings_export_summary"
             android:title="@string/settings_export_title"/>
