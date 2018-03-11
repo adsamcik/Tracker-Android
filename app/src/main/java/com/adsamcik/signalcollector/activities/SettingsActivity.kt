@@ -20,6 +20,7 @@ import com.adsamcik.signalcollector.fragments.FragmentNewSettings
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.startActivity
@@ -76,13 +77,17 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeRoot() {
-        setOnClickListener(R.string.settings_feedback_key) {
-            startActivity<FeedbackActivity> {  }
-        }
+        if (Signin.isSignedIn)
+            setOnClickListener(R.string.settings_feedback_key) {
+                startActivity<FeedbackActivity> { }
+            }
+        else
+            fragment.findPreference(getString(R.string.settings_feedback_key)).isEnabled = false
 
         setOnClickListener(R.string.settings_account_key) {
             startActivity<UserActivity> { }
         }
+
 
         setOnClickListener(R.string.settings_export_key) {
             startActivity<FileSharingActivity> {}
