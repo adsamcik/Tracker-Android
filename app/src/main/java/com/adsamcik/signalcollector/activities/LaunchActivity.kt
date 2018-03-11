@@ -13,10 +13,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.NotificationChannels
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.Shortcuts
+import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
@@ -70,10 +67,7 @@ class LaunchActivity : Activity() {
             }
         }
 
-        if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || useMock)
-            startActivity(Intent(this, NewUIActivity::class.java))
-        else
-            startActivity(Intent(this, IntroActivity::class.java))
+        startActivity<NewUIActivity> {  }
 
         if (Build.VERSION.SDK_INT >= 25)
             Shortcuts.initializeShortcuts(this)
