@@ -127,8 +127,7 @@ internal object ColorSupervisor {
             timerActive = true
             timer = Timer("ColorUpdate", true)
             val (changeLength, progress) = calculateTimeOfDay()
-            //val period = calculateUpdatePeriod(changeLength).toLong()
-            val period = Constants.SECOND_IN_MILLISECONDS.toLong()
+            val period = calculateUpdatePeriod(changeLength).toLong()
 
             if (BuildConfig.DEBUG) {
                 val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS

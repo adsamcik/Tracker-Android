@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
-import android.util.Log
 import android.view.MotionEvent
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ListView
@@ -288,7 +287,7 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (requestCode == themeLocationRequestCode) {
-            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED })
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED })
                 initializeSunriseSunset()
         }
     }
