@@ -26,7 +26,7 @@ class FileSharingActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE) }
+        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE) || name.startsWith(DataStore.TMP_NAME) }
         if (files.isEmpty()) {
             val tv = TextView(this)
             tv.setText(R.string.share_nothing_to_share)
@@ -48,7 +48,7 @@ class FileSharingActivity : DetailActivity() {
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
                         temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD).close()
+                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD, this).close()
                     }
 
                 if (temp.size == 0)
@@ -90,7 +90,6 @@ class FileSharingActivity : DetailActivity() {
                             shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
                             shareIntent.type = "application/zip"
                             startActivityForResult(Intent.createChooser(shareIntent, resources.getText(R.string.export_share_button)), SHARE_RESULT)
-
                         }
                     }
 
@@ -102,7 +101,7 @@ class FileSharingActivity : DetailActivity() {
             val bottomSheetMenu = BottomSheetMenu(layout)
             bottomSheetMenu.addItem(R.string.export_share_button, shareOnClickListener)
 
-            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener{ _ ->
+            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener { _ ->
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, true)
             })
@@ -128,7 +127,7 @@ class FileSharingActivity : DetailActivity() {
     }
 
     companion object {
-        private val SHARE_RESULT = 1
-        private val SHAREABLE_DIR_NAME = "shareable"
+        private const val SHARE_RESULT = 1
+        private const val SHAREABLE_DIR_NAME = "shareable"
     }
 }

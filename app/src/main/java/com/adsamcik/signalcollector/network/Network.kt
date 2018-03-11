@@ -12,23 +12,24 @@ import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersisto
 import okhttp3.*
 import java.io.IOException
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 object Network {
-    private val TAG = "SignalsNetwork"
-    val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
-    val URL_TILES = Server.URL_TILES
-    val URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES
-    val URL_USER_STATS = Server.URL_USER_STATS
-    val URL_STATS = Server.URL_STATS
-    val URL_GENERAL_STATS = Server.URL_GENERAL_STATS
-    val URL_MAPS_AVAILABLE = Server.URL_MAPS_AVAILABLE
-    val URL_FEEDBACK = Server.URL_FEEDBACK
-    val URL_USER_INFO = Server.URL_USER_INFO
-    val URL_USER_PRICES = Server.URL_USER_PRICES
-    val URL_CHALLENGES_LIST = Server.URL_CHALLENGES_LIST
+    private const val TAG = "SignalsNetwork"
+    const val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
+    const val URL_TILES = Server.URL_TILES
+    const val URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES
+    const val URL_USER_STATS = Server.URL_USER_STATS
+    const val URL_STATS = Server.URL_STATS
+    const val URL_GENERAL_STATS = Server.URL_GENERAL_STATS
+    const val URL_MAPS_AVAILABLE = Server.URL_MAPS_AVAILABLE
+    const val URL_FEEDBACK = Server.URL_FEEDBACK
+    const val URL_USER_INFO = Server.URL_USER_INFO
+    const val URL_USER_PRICES = Server.URL_USER_PRICES
+    const val URL_CHALLENGES_LIST = Server.URL_CHALLENGES_LIST
 
-    val URL_USER_UPDATE_MAP_PREFERENCE = Server.URL_USER_UPDATE_MAP_PREFERENCE
-    val URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE
+    const val URL_USER_UPDATE_MAP_PREFERENCE = Server.URL_USER_UPDATE_MAP_PREFERENCE
+    const val URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE
 
     @CloudStatus
     var cloudStatus = CloudStatus.UNKNOWN
@@ -68,7 +69,11 @@ object Network {
                         else {
                             response.request().newBuilder().header("userToken", userToken).build()
                         }
-                    }).build()
+                    })
+                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .build()
     }
 
     private fun client(context: Context): OkHttpClient {
@@ -103,7 +108,7 @@ object Network {
         val request = requestPOST(url, formBody)
         client(context, userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Crashlytics.log("Register " + preferencesName)
+                Crashlytics.log("Register $preferencesName")
                 Crashlytics.logException(e)
             }
 

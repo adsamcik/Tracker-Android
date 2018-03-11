@@ -23,7 +23,7 @@ class SnackMaker {
     }
 
     constructor(activity: Activity) {
-        this.view = activity.findViewById(R.id.fabCoordinator)
+        this.view = activity.findViewById(R.id.fabCoordinator) ?: activity.findViewById(R.id.root)
     }
 
     fun showSnackbar(@StringRes message: Int) {

@@ -8,7 +8,7 @@ import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.data.UploadStats
@@ -86,7 +86,7 @@ class MessageListenerService : FirebaseMessagingService() {
      */
     private fun sendNotification(messageType: MessageType, title: String, message: String, pendingIntent: PendingIntent?, time: Long) {
         var pendingIntent = pendingIntent
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, StandardUIActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (pendingIntent == null)
             pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT)
@@ -130,17 +130,15 @@ class MessageListenerService : FirebaseMessagingService() {
         private const val TAG = "SignalsMessageService"
         internal var notificationIndex = 1
 
-        fun parseAndSaveUploadReport(context: Context, time: Long, data: Map<String, String>): UploadStats {
-            val WIFI = "wifi"
-            val NEW_WIFI = "newWifi"
-            val CELL = "cell"
-            val NEW_CELL = "newCell"
-            val NOISE = "noise"
-            val NEW_NOISE_LOCATIONS = "newNoiseLocations"
-            val COLLECTIONS = "collections"
-            val NEW_LOCATIONS = "newLocations"
-            val SIZE = "uploadSize"
+        const val WIFI = "wifi"
+        const val NEW_WIFI = "newWifi"
+        const val CELL = "cell"
+        const val NEW_CELL = "newCell"
+        const val COLLECTIONS = "collections"
+        const val NEW_LOCATIONS = "newLocations"
+        const val UPLOAD_SIZE = "uploadSize"
 
+        fun parseAndSaveUploadReport(context: Context, time: Long, data: Map<String, String>): UploadStats {
             var wifi = 0
             var cell = 0
             var noise = 0
@@ -158,16 +156,12 @@ class MessageListenerService : FirebaseMessagingService() {
                 cell = Integer.parseInt(data[CELL])
             if (data.containsKey(NEW_CELL))
                 newCell = Integer.parseInt(data[NEW_CELL])
-            if (data.containsKey(NOISE))
-                noise = Integer.parseInt(data[NOISE])
             if (data.containsKey(COLLECTIONS))
                 collections = Integer.parseInt(data[COLLECTIONS])
             if (data.containsKey(NEW_LOCATIONS))
                 newLocations = Integer.parseInt(data[NEW_LOCATIONS])
-            if (data.containsKey(NEW_NOISE_LOCATIONS))
-                newNoiseLocations = Integer.parseInt(data[NEW_NOISE_LOCATIONS])
-            if (data.containsKey(SIZE))
-                uploadSize = java.lang.Long.parseLong(data[SIZE])
+            if (data.containsKey(UPLOAD_SIZE))
+                uploadSize = java.lang.Long.parseLong(data[UPLOAD_SIZE])
 
             val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations)
             DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)

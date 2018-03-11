@@ -1,23 +1,25 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.Activity
 import android.os.Bundle
 import android.support.v4.app.NavUtils
-import android.view.View
+import android.support.v7.app.AppCompatActivity
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.utility.Preferences
+import kotlinx.android.synthetic.main.activity_content_detail.*
 
-abstract class DetailActivity : Activity() {
+abstract class DetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_content_detail)
-        findViewById<View>(R.id.back_button).setOnClickListener({ _ -> NavUtils.navigateUpFromSameTask(this) })
+        back_button.setOnClickListener({ _ -> onBackPressed() })
+    }
+
+    override fun onBackPressed() {
+        finish()
     }
 
     fun setTitle(title: String) {
@@ -43,6 +45,7 @@ abstract class DetailActivity : Activity() {
             linearLayout.setPadding(padding, padding, padding, padding)
         }
         linearLayout.layoutParams = lp
+        linearLayout.id = CONTENT_ID
 
         linearLayout.orientation = LinearLayout.VERTICAL
         return linearLayout
@@ -67,5 +70,9 @@ abstract class DetailActivity : Activity() {
 
         root.addView(scrollView)
         return contentParent
+    }
+
+    companion object {
+        const val CONTENT_ID = 2668368
     }
 }

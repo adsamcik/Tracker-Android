@@ -10,7 +10,7 @@ import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -66,7 +66,7 @@ class ActivityWakerService : Service() {
     }
 
     private fun updateNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, StandardUIActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
@@ -97,6 +97,21 @@ class ActivityWakerService : Service() {
         @Synchronized
         fun poke(context: Context) {
             if (Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
+                if (instance == null)
+                    Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
+            } else if (instance != null) {
+                instance!!.stopSelf()
+            }
+        }
+
+        /**
+         * Pokes Activity Waker Service which checks if it should run
+         *
+         * @param context context
+         */
+        @Synchronized
+        fun poke(context: Context, state: Boolean) {
+            if (state) {
                 if (instance == null)
                     Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
             } else if (instance != null) {

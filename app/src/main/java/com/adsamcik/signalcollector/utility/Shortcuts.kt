@@ -14,9 +14,9 @@ import java.util.*
 
 @RequiresApi(25)
 object Shortcuts {
-    val TRACKING_ID = "Tracking"
-    val ACTION = "com.adsamcik.signalcollector.SHORTCUT"
-    val ACTION_STRING = "ShortcutAction"
+    const val TRACKING_ID = "Tracking"
+    const val ACTION = "com.adsamcik.signalcollector.SHORTCUT"
+    const val ACTION_STRING = "ShortcutAction"
 
     /**
      * Initializes shortcuts

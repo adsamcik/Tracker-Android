@@ -14,13 +14,12 @@ import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.NotificationTools
+import com.adsamcik.signalcollector.utility.NotificationChannels
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.perf.FirebasePerformance
 import io.fabric.sdk.android.Fabric
 
 
@@ -32,7 +31,6 @@ class LaunchActivity : Activity() {
 
         if (BuildConfig.DEBUG) {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
-            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
         } else
@@ -73,7 +71,7 @@ class LaunchActivity : Activity() {
         }
 
         if (sp.getBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, false) || useMock)
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, StandardUIActivity::class.java))
         else
             startActivity(Intent(this, IntroActivity::class.java))
 
@@ -81,7 +79,7 @@ class LaunchActivity : Activity() {
             Shortcuts.initializeShortcuts(this)
 
         if (Build.VERSION.SDK_INT >= 26)
-            NotificationTools.prepareChannels(this)
+            NotificationChannels.prepareChannels(this)
 
         ActivityWakerService.poke(this)
 

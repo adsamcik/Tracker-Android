@@ -83,8 +83,7 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-/.idea/workspace.xml
-/.idea/libraries
+/.idea/*
 
 key.gradle
 keys.xml
@@ -95,3 +94,6 @@ app/release/*
 app/src/main/java/com/adsamcik/signalcollector/network/Server.java
 app/google-services.json
 app/src/main/java/com/adsamcik/signalcollector/network/Server.kt
+.idea/caches/build_file_checksums.ser
+app/src/main/res/raw/third_party_licenses
+app/src/main/res/raw/third_party_license_metadata

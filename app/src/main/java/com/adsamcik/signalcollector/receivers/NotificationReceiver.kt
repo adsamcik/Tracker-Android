@@ -27,11 +27,11 @@ class NotificationReceiver : BroadcastReceiver() {
                 FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_EVENT, params)
                 context.stopService(Intent(context, TrackerService::class.java))
             }
-            else -> Log.w(TAG, "Unknown value " + value)
+            else -> Log.w(TAG, "Unknown value $value")
         }
     }
 
     companion object {
-        val ACTION_STRING = "action"
+        const val ACTION_STRING = "action"
     }
 }

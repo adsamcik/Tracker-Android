@@ -5,6 +5,7 @@ import android.location.Location
 import android.net.wifi.ScanResult
 import android.os.Build
 import android.telephony.*
+import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.crashlytics.android.Crashlytics
 import com.vimeo.stag.UseStag
 import java.io.Serializable
@@ -67,9 +68,8 @@ class RawData : Serializable {
     /**
      * Current resolved activity
      */
+    @ResolvedActivity
     var activity: Int? = null
-
-    var noise: Short? =  null
 
     /**
      * Stag constructor
@@ -125,18 +125,6 @@ class RawData : Serializable {
         return this
     }
 
-    /**
-     * Sets noise value.
-     *
-     * @param noise Noise value. Must be absolute amplitude.
-     * @return this
-     */
-    fun setNoise(noise: Short): RawData {
-        if (noise > 0)
-            this.noise = noise
-        return this
-    }
-
     fun addCell(telephonyManager: TelephonyManager) {
 //Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
         @SuppressLint("MissingPermission") val cellInfos = telephonyManager.allCellInfo
@@ -152,18 +140,21 @@ class RawData : Serializable {
                     if (ci.isRegistered) {
                         var cd: CellData? = null
                         when (ci) {
-                            is CellInfoLte -> cd = if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-                                CellData.newInstance(ci, telephonyManager.networkOperatorName)
-                            else
-                                CellData.newInstance(ci, null as String?)
-                            is CellInfoGsm -> cd = if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-                                CellData.newInstance(ci, telephonyManager.networkOperatorName)
-                            else
-                                CellData.newInstance(ci, null as String?)
-                            is CellInfoWcdma -> cd = if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-                                CellData.newInstance(ci, telephonyManager.networkOperatorName)
-                            else
-                                CellData.newInstance(ci, null as String?)
+                            is CellInfoLte -> cd =
+                                    if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
+                                        CellData.newInstance(ci, telephonyManager.networkOperatorName)
+                                    else
+                                        CellData.newInstance(ci, null as String?)
+                            is CellInfoGsm -> cd =
+                                    if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
+                                        CellData.newInstance(ci, telephonyManager.networkOperatorName)
+                                    else
+                                        CellData.newInstance(ci, null as String?)
+                            is CellInfoWcdma -> cd =
+                                    if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
+                                        CellData.newInstance(ci, telephonyManager.networkOperatorName)
+                                    else
+                                        CellData.newInstance(ci, null as String?)
                             is CellInfoCdma -> /*if (cic.getCellIdentity().getMnc() == mnc && cic.getCellIdentity().getMcc() == mcc)
                 addCell(CellData.newInstance(cic, telephonyManager.getNetworkOperatorName()));
                 else*/

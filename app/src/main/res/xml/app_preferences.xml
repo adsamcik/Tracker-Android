@@ -1,0 +1,205 @@
+<android.support.v7.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    key="root"
+    title="@string/settings_title">
+
+
+    <Preference
+        android:key="@string/settings_account_key"
+        android:title="@string/settings_account_title"/>
+
+    <android.support.v7.preference.PreferenceScreen
+        android:key="tracking_key"
+        android:persistent="false"
+        android:title="@string/settings_tracking_title">
+        <android.support.v7.preference.PreferenceCategory
+            android:title="@string/settings_auto_tracking_category">
+
+            <com.adsamcik.signalcollector.components.ImageSwitchPreference
+                android:defaultValue="@string/settings_tracking_activity_default"
+                android:key="@string/settings_tracking_activity_key"
+                app:drawables="@array/tracking_options_drawables"
+                app:foregroundStateColors="@color/image_switch_colors"
+                app:titles="@array/tracking_options_titles"/>
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_activity_watcher_default"
+                android:key="@string/settings_activity_watcher_key"
+                android:summary="@string/settings_activity_watcher_summary"
+                android:title="@string/settings_activity_watcher_title"/>
+
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@string/settings_activity_freq_default"
+                android:dependency="@string/settings_activity_watcher_key"
+                android:key="@string/settings_activity_freq_key"
+                android:title="@string/settings_activity_freq_title"
+                app:items="@array/activity_watching_interval"
+                app:stringFormat="%1$d s"/>
+
+            <android.support.v7.preference.SwitchPreferenceCompat
+                android:defaultValue="@string/settings_disabled_recharge_default"
+                android:key="@string/settings_disabled_recharge_key"
+                android:summary="@string/settings_disabled_recharge_summary"
+                android:thumbTint="@color/negative_switch_color"
+                android:thumbTintMode="src_in"
+                android:title="@string/settings_disabled_recharge_title"/>
+        </android.support.v7.preference.PreferenceCategory>
+
+        <android.support.v7.preference.PreferenceCategory
+            android:title="@string/settings_tracking_enable_category">
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_location_enabled_default"
+                android:key="@string/settings_location_enabled_key"
+                android:title="@string/settings_location_enabled_title"/>
+
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_wifi_enabled_default"
+                android:key="@string/settings_wifi_enabled_key"
+                android:title="@string/settings_wifi_enabled_title"/>
+
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_cell_enabled_default"
+                android:key="@string/settings_cell_enabled_key"
+                android:title="@string/settings_cell_enabled_title"/>
+        </android.support.v7.preference.PreferenceCategory>
+
+
+    </android.support.v7.preference.PreferenceScreen>
+
+    <android.support.v7.preference.PreferenceScreen
+        android:key="upload_key"
+        android:persistent="true"
+        android:title="@string/settings_upload_title">
+
+        <android.support.v7.preference.PreferenceCategory
+            android:title="@string/settings_auto_upload_category">
+
+            <com.adsamcik.signalcollector.components.ImageSwitchPreference
+                android:defaultValue="@string/settings_uploading_network_default"
+                android:key="@string/settings_uploading_network_key"
+                app:drawables="@array/auto_upload_options_drawables"
+                app:foregroundStateColors="@color/image_switch_colors"
+                app:titles="@array/auto_upload_options_titles"/>
+
+            <android.support.v7.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_smart_upload_default"
+                android:key="@string/settings_smart_upload_key"
+                android:summary="@string/settings_smart_upload_summary"
+                android:title="@string/settings_smart_upload_title"/>
+
+        </android.support.v7.preference.PreferenceCategory>
+    </android.support.v7.preference.PreferenceScreen>
+
+    <android.support.v7.preference.PreferenceScreen
+        android:key="style_key"
+        android:persistent="true"
+        android:title="@string/settings_style_title">
+        <ListPreference
+            android:defaultValue="@string/settings_style_mode_default"
+            android:entries="@array/settings_style_mode_names"
+            android:entryValues="@array/settings_style_mode_values"
+            android:key="@string/settings_style_mode_key"
+            android:title="@string/settings_style_mode_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_morning_default"
+            android:key="@string/settings_color_morning_key"
+            android:title="@string/settings_color_morning_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_day_default"
+            android:key="@string/settings_color_day_key"
+            android:title="@string/settings_color_day_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_evening_default"
+            android:key="@string/settings_color_evening_key"
+            android:title="@string/settings_color_evening_title"/>
+
+        <com.adsamcik.signalcollector.components.ColorSupportPreference
+            android:defaultValue="@color/settings_color_night_default"
+            android:key="@string/settings_color_night_key"
+            android:title="@string/settings_color_night_title"/>
+
+        <Preference
+            android:key="@string/settings_color_default_key"
+            android:title="@string/settings_color_default_title"/>
+
+    </android.support.v7.preference.PreferenceScreen>
+
+    <android.support.v7.preference.PreferenceScreen
+        android:key="debug_key"
+        android:persistent="true"
+        android:title="@string/settings_debug_title">
+
+        <android.support.v7.preference.SwitchPreferenceCompat
+            android:key="@string/settings_debug_key"
+            android:title="@string/settings_debug_enabled"/>
+
+        <Preference
+            android:key="@string/settings_browse_files_key"
+            android:title="@string/settings_browse_files_title"/>
+        <Preference
+            android:key="@string/settings_browse_cache_key"
+            android:title="@string/settings_browse_cache_title"/>
+        <Preference
+            android:key="@string/settings_activity_debug_key"
+            android:title="@string/settings_activity_debug_title"/>
+        <Preference
+            android:key="@string/settings_hello_world_key"
+            android:title="@string/settings_hello_world_title"/>
+        <Preference
+            android:key="@string/settings_clear_data_key"
+            android:title="@string/settings_clear_data_title"/>
+        <Preference
+            android:key="@string/settings_clear_reports_key"
+            android:title="@string/settings_clear_reports_title"/>
+        <Preference
+            android:key="@string/settings_clear_cache_key"
+            android:title="@string/settings_clear_cache_title"/>
+
+    </android.support.v7.preference.PreferenceScreen>
+    <android.support.v7.preference.PreferenceCategory
+        android:title="@string/settings_notifications_title">
+
+        <android.support.v7.preference.CheckBoxPreference
+            android:defaultValue="@string/settings_allow_upload_notification_default"
+            android:key="@string/settings_allow_upload_notification_key"
+            android:summary="@string/settings_allow_upload_notification_summary"
+            android:title="@string/settings_allow_upload_notification_title"/>
+
+    </android.support.v7.preference.PreferenceCategory>
+
+
+    <android.support.v7.preference.PreferenceCategory
+        android:title="@string/settings_other_title">
+
+        <Preference
+            android:key="@string/settings_feedback_key"
+            android:summary="@string/settings_feedback_summary"
+            android:title="@string/settings_feedback_title"/>
+
+        <Preference
+            android:key="@string/settings_export_key"
+            android:summary="@string/settings_export_summary"
+            android:title="@string/settings_export_title"/>
+
+        <android.support.v7.preference.CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/tutorial_seen_key"
+            android:title="@string/tutorial_seen_title"/>
+
+        <Preference
+            android:key="@string/settings_licenses_key"
+            android:title="@string/settings_licenses_title"/>
+
+        <Preference
+            android:key="@string/settings_app_version_key"/>
+
+    </android.support.v7.preference.PreferenceCategory>
+
+</android.support.v7.preference.PreferenceScreen>

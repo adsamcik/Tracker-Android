@@ -21,8 +21,6 @@ import com.github.paolorotolo.appintro.AppIntro2
 import java.util.*
 
 class IntroActivity : AppIntro2() {
-    private val TAG = "SignalsIntro"
-    private val LOCATION_PERMISSION_REQUEST_CODE = 201
     private var autoUploadDialog: AlertDialog.Builder? = null
     private var openedTrackingAlert = false
     private var openedSigninAlert = false
@@ -84,7 +82,7 @@ class IntroActivity : AppIntro2() {
         }
 
 
-        val uploadSetCallback = { value : Int ->
+        val uploadSetCallback = { value: Int ->
             Preferences.getPref(this).edit().putInt(Preferences.PREF_AUTO_UPLOAD, value).apply()
             nextSlide(1)
         }
@@ -169,7 +167,7 @@ class IntroActivity : AppIntro2() {
      *
      * @return true if all permissions are granted
      */
-    private fun CheckAllTrackingPermissions(): Boolean {
+    private fun checkAllTrackingPermissions(): Boolean {
         if (Build.VERSION.SDK_INT > 22) {
             val permissions = ArrayList<String>()
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
@@ -202,7 +200,7 @@ class IntroActivity : AppIntro2() {
     override fun onDonePressed(currentFragment: Fragment?) {
         Preferences.getPref(this).edit().putBoolean(Preferences.PREF_HAS_BEEN_LAUNCHED, true).apply()
         if (isTaskRoot)
-            startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+            startActivity(Intent(this, StandardUIActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
         finish()
     }
 
@@ -221,5 +219,10 @@ class IntroActivity : AppIntro2() {
         if (requestCode == Signin.RC_SIGN_IN) {
             Signin.onSignResult(this, resultCode, data)
         }
+    }
+
+    companion object {
+        private const val TAG = "SignalsIntro"
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 201
     }
 }

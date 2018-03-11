@@ -31,6 +31,7 @@ import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.isEmulator
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -260,7 +261,7 @@ class FragmentTracker : Fragment(), ITabFragment {
                 val animation = ObjectAnimator.ofInt(progressBar, "progress", percentage)
                 animation.duration = 400
                 if (percentage == 100) {
-                    handler!!.postDelayed(handler@ {
+                    handler!!.postDelayed(handler@{
                         if (fabUp == null)
                             return@handler
                         fabUp!!.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.color_accent))
@@ -296,7 +297,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fab!!.elevation = 6 * resources.displayMetrics.density
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
         fabTrack = fabOne
         fabUp = fabTwo
         progressBar = (fabTwo.parent as ViewGroup).findViewById(R.id.progressBar)
@@ -334,10 +335,8 @@ class FragmentTracker : Fragment(), ITabFragment {
         if (layoutWifi != null)
             updateData(activity)
 
-        //todo move this check to upload scheduling
-        //if (Assist.isEmulator())
-        //	fabUp.hide();
-        return Failure()
+        if (isEmulator)
+            fabUp?.hide()
     }
 
     override fun onLeave(activity: FragmentActivity) {

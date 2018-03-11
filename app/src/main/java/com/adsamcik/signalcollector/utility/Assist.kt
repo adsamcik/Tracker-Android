@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Color
+import android.graphics.Point
 import android.location.Location
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -18,6 +19,7 @@ import android.support.v4.content.ContextCompat
 import android.support.v4.content.res.ResourcesCompat
 import android.telephony.TelephonyManager
 import android.util.DisplayMetrics
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -43,12 +45,27 @@ object Assist {
         get() {
             val c = Calendar.getInstance()
             c.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            c.set(Calendar.HOUR_OF_DAY, 0)
-            c.set(Calendar.MINUTE, 0)
-            c.set(Calendar.SECOND, 0)
-            c.set(Calendar.MILLISECOND, 0)
-            return c.timeInMillis
+            return dayFromCalendar(c).timeInMillis
         }
+
+    val day: Long
+        get() = dayFromCalendar(Calendar.getInstance()).timeInMillis
+
+    val time: Int
+        get() {
+            val calendar = Calendar.getInstance()
+            return calendar.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +
+                    calendar.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS +
+                    calendar.get(Calendar.SECOND) * Constants.SECOND_IN_MILLISECONDS
+        }
+
+    fun dayFromCalendar(calendar: Calendar): Calendar {
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar
+    }
 
     val deviceID: String
         get() = Build.MANUFACTURER + Build.DEVICE
@@ -75,19 +92,58 @@ object Assist {
         if (bytes < unit) return bytes.toString() + " B"
         val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
         val pre = (if (si) "kMGTPE" else "KMGTPE")[exp - 1] + if (si) "" else "i"
-        return String.format(Locale.ENGLISH, "%.1f %sB", bytes / Math.pow(unit.toDouble(), exp.toDouble()), pre)
+        return String.format(Locale.getDefault(), "%.1f %sB", bytes / Math.pow(unit.toDouble(), exp.toDouble()), pre)
     }
 
-    /**
-     * Gets SW navbar height
-     *
-     * @param c context
-     * @return height, 0 if HW navbar is present
-     */
-    fun getNavBarHeight(c: Context): Int {
-        val r = c.resources
-        val resourceId = r.getIdentifier("navigation_bar_height", "dimen", "android")
-        return if (resourceId > 0) r.getDimensionPixelSize(resourceId) else 0
+    fun getAppUsableScreenSize(context: Context): Point {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+        val size = Point()
+        display.getSize(size)
+        return size
+    }
+
+    fun getRealScreenSize(context: Context): Point {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+        val size = Point()
+        display.getRealSize(size)
+        return size
+    }
+
+    enum class NavBarPosition {
+        BOTTOM,
+        LEFT,
+        RIGHT,
+        UNKNOWN
+    }
+
+    fun orientation(context: Context): Int {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        return windowManager.defaultDisplay.rotation
+    }
+
+    fun navbarSize(context: Context): Pair<NavBarPosition, Point> {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = windowManager.defaultDisplay
+
+        val appUsableSize = Point()
+        val realScreenSize = Point()
+
+        display.getRealSize(realScreenSize)
+        display.getSize(appUsableSize)
+        val rotation = display.rotation
+
+        // navigation bar on the right
+        if (appUsableSize.x < realScreenSize.x) {
+            //App supports only phones so there should be no scenario where orientation is 0 or 180
+            return Pair(if (rotation == Surface.ROTATION_90) NavBarPosition.RIGHT else NavBarPosition.LEFT, Point(realScreenSize.x - appUsableSize.x, appUsableSize.y))
+        }
+
+        // navigation bar at the bottom
+        return if (appUsableSize.y < realScreenSize.y) {
+            Pair(NavBarPosition.BOTTOM, Point(appUsableSize.x, realScreenSize.y - appUsableSize.y))
+        } else Pair(NavBarPosition.UNKNOWN, Point())
     }
 
     /**

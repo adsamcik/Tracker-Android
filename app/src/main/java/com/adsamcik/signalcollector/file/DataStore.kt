@@ -2,13 +2,9 @@ package com.adsamcik.signalcollector.file
 
 import android.content.Context
 import android.os.Bundle
-import android.support.annotation.IntRange
-import android.util.MalformedJsonException
-import android.util.Pair
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -19,29 +15,35 @@ import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.google.gson.stream.MalformedJsonException
 import java.io.File
 import java.util.*
 
 object DataStore {
-    val TAG = "SignalsDatastore"
+    const val TAG = "SignalsDatastore"
 
-    val RECENT_UPLOADS_FILE = "recentUploads"
-    val DATA_FILE = "dataStore"
-    val DATA_CACHE_FILE = "dataCacheFile"
-    val PREF_DATA_FILE_INDEX = "saveFileID"
-    val PREF_CACHE_FILE_INDEX = "saveCacheID"
-    private val PREF_COLLECTED_DATA_SIZE = "totalSize"
+    const val RECENT_UPLOADS_FILE = "recentUploads"
+    const val DATA_FILE = "dataStore"
+    const val DATA_CACHE_FILE = "dataCacheFile"
+    const val PREF_DATA_FILE_INDEX = "saveFileID"
+    const val PREF_CACHE_FILE_INDEX = "saveCacheID"
+    private const val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: (() -> Unit)? = null
     private var onUploadProgress: ((Int) -> Unit)? = null
 
-    @Volatile private var approxSize: Long = -1
-    @Volatile private var collectionsOnDevice = -1
+    const val TMP_NAME = "5GeVPiYk6J"
+
+    @Volatile
+    private var approxSize: Long = -1
+    @Volatile
+    private var collectionsOnDevice = -1
+
+    @Volatile
+    private var dataLocked = false
 
     var currentDataFile: DataFile? = null
         private set
-
-    private val collectionInDataFile = 0
 
     fun getDir(context: Context): File = context.filesDir
 
@@ -94,14 +96,33 @@ object DataStore {
     }
 
     /**
+     * Locks datafile writes
+     */
+    fun lockData() {
+        dataLocked = true
+    }
+
+    /**
+     * Unlocks datafile writes
+     */
+    fun unlockData() {
+        dataLocked = false
+    }
+
+    /**
      * Generates array of all data files
      *
      * @param context               context
      * @param lastFileSizeThreshold Include last datafile if it exceeds this size
      * @return array of datafile names
      */
-    fun getDataFiles(context: Context, @IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? =
-            getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
+    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
+        val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
+        return if (list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
+            list.dropLast(1).toTypedArray()
+        else
+            list
+    }
 
     /**
      * Move file
@@ -120,7 +141,7 @@ object DataStore {
      */
     fun delete(context: Context, fileName: String) {
         if (!FileStore.delete(file(context, fileName)))
-            Crashlytics.logException(RuntimeException("Failed to delete " + fileName))
+            Crashlytics.logException(RuntimeException("Failed to delete $fileName"))
     }
 
     /**
@@ -136,21 +157,29 @@ object DataStore {
      */
     @Synchronized
     fun cleanup(context: Context) {
-        val tmpName = "5GeVPiYk6J"
         val files = getDir(context).listFiles()
         Arrays.sort(files) { a: File, b: File -> a.name.compareTo(b.name) }
         val renamedFiles = ArrayList<Pair<Int, String>>()
+        val random = Random()
         for (file in files) {
             val name = file.name
             if (name.startsWith(DATA_FILE)) {
-                val tempFileName = tmpName + DataFile.getCollectionCount(file)
+                val tempFileName = "$TMP_NAME${DataFile.getCollectionCount(file)}-${random.nextInt()}"
                 if (FileStore.rename(file, tempFileName))
                     renamedFiles.add(Pair(renamedFiles.size, tempFileName))
-            }
+            } else if (name.startsWith(TMP_NAME))
+                renamedFiles.add(Pair(renamedFiles.size, name))
+            else if (name.length == 15 && name.startsWith("up"))
+                delete(context, name)
         }
 
-        for (item in renamedFiles)
-            rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(tmpName.length))
+        for (item in renamedFiles) {
+            val substr = item.second.substring(TMP_NAME.length)
+            val separatorIndex = substr.indexOf('-')
+            if (!rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + substr.substring(0, separatorIndex))) {
+                Crashlytics.logException(Throwable("Failed to rename $"))
+            }
+        }
 
         Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, if (renamedFiles.size == 0) 0 else renamedFiles.size - 1).apply()
         currentDataFile = null
@@ -258,7 +287,10 @@ object DataStore {
         onDataChanged(context)
 
         val bundle = Bundle()
-        bundle.putString(FirebaseAssist.PARAM_SOURCE, "settings")
+        bundle.putString(
+                FirebaseAssist.PARAM_SOURCE,
+                "settings"
+        )
         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle)
     }
 
@@ -301,7 +333,8 @@ object DataStore {
         return currentDataFile
     }
 
-    @Synchronized private fun updateCurrentData(context: Context, @DataFile.FileType type: Long, userID: String?) {
+    @Synchronized
+    private fun updateCurrentData(context: Context, @DataFile.FileType type: Int, userID: String?) {
         val dataFile: String
         val preference: String
 
@@ -318,14 +351,14 @@ object DataStore {
                 preference = PREF_DATA_FILE_INDEX
             }
             else -> {
-                Crashlytics.logException(Throwable("Unknown type " + type))
+                Crashlytics.logException(Throwable("Unknown type $type"))
                 return
             }
         }
 
         if (currentDataFile?.type != type || currentDataFile!!.isFull) {
             val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
-            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type)
+            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type, context)
         }
     }
 
@@ -337,14 +370,15 @@ object DataStore {
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
         val userID = Signin.getUserID(context)
-        if (UploadJobService.isUploading || userID == null)
+        if (dataLocked || userID == null)
             updateCurrentData(context, DataFile.CACHE, userID)
         else
             updateCurrentData(context, DataFile.STANDARD, userID)
         return saveData(context, currentDataFile, rawData)
     }
 
-    @Synchronized private fun writeTempData(context: Context) {
+    @Synchronized
+    private fun writeTempData(context: Context) {
         val userId = Signin.getUserID(context)
         if (currentDataFile!!.type != DataFile.STANDARD || userId == null)
             return
@@ -381,7 +415,7 @@ object DataStore {
                 while (i < files.size) {
                     val data = FileStore.loadString(files[0])!!
                     val nameTemplate = DATA_FILE + (currentDataIndex + i)
-                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD)
+                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD, context)
                     if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
                         throw RuntimeException()
 
@@ -397,7 +431,8 @@ object DataStore {
         }
     }
 
-    @Synchronized private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
+    @Synchronized
+    private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
         val prevSize = file!!.size()
 
         if (file.type == DataFile.STANDARD)

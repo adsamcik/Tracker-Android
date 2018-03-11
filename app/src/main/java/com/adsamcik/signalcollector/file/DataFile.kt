@@ -1,23 +1,21 @@
 package com.adsamcik.signalcollector.file
 
+import android.content.Context
 import android.os.Build
 import android.support.annotation.IntDef
 import android.util.MalformedJsonException
-
-import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signalcollector.utility.Constants
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
-
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Long) {
+class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Int, context: Context) {
     var file: File = file
         private set
 
@@ -40,7 +38,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
      */
     @FileType
     @get:FileType
-    val type: Long
+    val type: Int
 
     /**
      * Returns preference string for index
@@ -70,7 +68,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                         "\"model\":\"" + Build.MODEL +
                         "\",\"manufacturer\":\"" + Build.MANUFACTURER +
                         "\",\"api\":" + Build.VERSION.SDK_INT +
-                        ",\"version\":" + BuildConfig.VERSION_CODE + "," +
+                        ",\"version\":" + context.packageManager.getPackageInfo(context.packageName, 0).versionCode + "," +
                         "\"data\":", false)
             empty = true
             isWriteable = true
@@ -89,7 +87,8 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
         }
     }
 
-    @Synchronized private fun updateCollectionCount(collectionCount: Int) {
+    @Synchronized
+    private fun updateCollectionCount(collectionCount: Int) {
         this.collectionCount += collectionCount
         val newFile: File = if (fileNameTemplate != null)
             File(file.parentFile, fileNameTemplate + SEPARATOR + this.collectionCount)
@@ -150,7 +149,8 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             false
     }
 
-    @Synchronized private fun saveData(jsonArray: String): Boolean {
+    @Synchronized
+    private fun saveData(jsonArray: String): Boolean {
         return try {
             val status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty)
             if (status)
@@ -192,8 +192,8 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
     fun size(): Long = file.length()
 
     companion object {
-        const val STANDARD = 0L
-        const val CACHE = 1L
+        const val STANDARD = 0
+        const val CACHE = 1
         const val SEPARATOR = " "
 
         /**

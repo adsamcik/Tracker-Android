@@ -24,17 +24,16 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import com.adsamcik.signalcollector.NoiseTracker
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Constants.*
+import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
+import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
@@ -46,10 +45,6 @@ import java.text.DecimalFormat
 import java.util.*
 
 class TrackerService : Service() {
-    private val MIN_DISTANCE_M = 5f
-
-    private val MAX_NOISE_TRACKING_SPEED_KM = 18f
-    private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
     private val data = ArrayList<RawData>()
 
     private var wifiScanTime: Long = 0
@@ -67,9 +62,6 @@ class TrackerService : Service() {
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
     private val gson = Gson()
-
-    private var noiseTracker: NoiseTracker? = null
-    private var noiseActive = false
 
     /**
      * True if previous collection was mocked
@@ -133,20 +125,6 @@ class TrackerService : Service() {
 
         val activityInfo = ActivityService.lastActivity
 
-        if (noiseTracker != null) {
-            val MAX_NOISE_TRACKING_SPEED_M = (MAX_NOISE_TRACKING_SPEED_KM / 3.6).toFloat()
-            noiseActive = if ((activityInfo.resolvedActivity == ResolvedActivity.ON_FOOT || noiseActive && activityInfo.resolvedActivity == ResolvedActivity.UNKNOWN) && location.speed < MAX_NOISE_TRACKING_SPEED_M) {
-                noiseTracker!!.start()
-                val value = noiseTracker!!.getSample(10)
-                if (value >= 0)
-                    d.setNoise(value)
-                true
-            } else {
-                noiseTracker!!.stop()
-                false
-            }
-        }
-
         if (Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
             d.setLocation(location).setActivity(activityInfo.resolvedActivity)
 
@@ -160,7 +138,7 @@ class TrackerService : Service() {
 
         notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
 
-        onNewDataFound?.invoke()
+        onNewDataFound?.invoke(d)
 
         if (data.size > 5)
             saveData()
@@ -215,7 +193,7 @@ class TrackerService : Service() {
     }
 
     private fun generateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, StandardUIActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setSmallIcon(R.drawable.ic_signals)  // the done icon
@@ -250,8 +228,6 @@ class TrackerService : Service() {
             sb.append(d.wifi!!.size).append(" wifi ")
         if (d.cellCount != null)
             sb.append(d.cellCount!!).append(" cell ")
-        if (d.noise != null)
-            sb.append(df.format(Assist.amplitudeToDbm(d.noise!!))).append(" dB ")
         if (sb.isNotEmpty())
             sb.setLength(sb.length - 1)
         else
@@ -294,7 +270,6 @@ class TrackerService : Service() {
             }
         }
 
-        val UPDATE_TIME_MILLISEC = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC.toLong(), MIN_DISTANCE_M, locationListener)
         else {
@@ -339,8 +314,6 @@ class TrackerService : Service() {
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
         onServiceStateChange?.invoke()
-        if (NOISE_ENABLED && Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false))
-            noiseTracker = NoiseTracker(this).start()
         return super.onStartCommand(intent, flags, startId)
     }
 
@@ -399,15 +372,23 @@ class TrackerService : Service() {
         private const val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
         private const val NOTIFICATION_ID_SERVICE = 7643
 
-        val UPDATE_TIME_SEC = 2
+        private const val MIN_DISTANCE_M = 5f
+        private const val MAX_NOISE_TRACKING_SPEED_KM = 18f
+
+        const val UPDATE_TIME_SEC = 2
+        private const val UPDATE_TIME_MILLISEC = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
+
+        private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
+
 
         var onServiceStateChange: (() -> Unit)? = null
-        var onNewDataFound: (() -> Unit)? = null
+        var onNewDataFound: ((RawData) -> Unit)? = null
 
         /**
          * RawData from previous collection
          */
         var rawDataEcho: RawData = RawData(0)
+
         /**
          * Extra information about distance for tracker
          */

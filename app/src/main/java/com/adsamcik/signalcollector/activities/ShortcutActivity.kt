@@ -31,7 +31,7 @@ class ShortcutActivity : Activity() {
                         stopService(serviceIntent)
                 }
             } else {
-                Crashlytics.logException(Throwable("Invalid value " + value))
+                Crashlytics.logException(Throwable("Invalid value $value"))
             }
         }
         finishAffinity()

@@ -4,23 +4,12 @@ import com.vimeo.stag.UseStag
 import java.util.*
 
 @UseStag
-class MapLayer(name: String, top: Double = MAX_LATITUDE, right: Double = MAX_LONGITUDE, bottom: Double = MIN_LATITUDE, left: Double = MIN_LONGITUDE) {
-    //internal SETTERS for STAG
-    var name: String = name
-        internal set
+data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right: Double = MAX_LONGITUDE, var bottom: Double = MIN_LATITUDE, var left: Double = MIN_LONGITUDE) {
     var values: ArrayList<ValueColor>? = null
-        internal set
-
-    var top = top
-        internal set
-    var right = right
-        internal set
-    var bottom = bottom
-        internal set
-    var left = left
-        internal set
 
     inner class ValueColor(val name: String, val color: Int)
+
+    constructor() : this("")
 
     companion object {
 

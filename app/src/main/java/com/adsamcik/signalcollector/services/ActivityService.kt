@@ -51,8 +51,8 @@ class ActivityService : IntentService("ActivityService") {
 
     companion object {
         private val TAG = "Signals" + ActivityService::class.java.simpleName
-        private val REQUIRED_CONFIDENCE = 75
-        private val REQUEST_CODE_PENDING_INTENT = 4561201
+        private const val REQUIRED_CONFIDENCE = 75
+        private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
         var lastActivity = ActivityInfo(DetectedActivity.UNKNOWN, 0)
             private set

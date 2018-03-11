@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <attr name="titleColor" format="reference|color" />
+    <attr name="titleColor" format="reference|color"/>
+
+    <declare-styleable name="InfoComponent">
+        <attr name="title" format="string"/>
+        <attr name="titleImage" format="integer"/>
+    </declare-styleable>
+
+    <declare-styleable name="ImageSwitchPreference">
+        <attr name="foregroundStateColors" format="reference"/>
+        <attr name="drawables" format="reference"/>
+        <attr name="titles" format="reference"/>
+    </declare-styleable>
+
+    <declare-styleable name="IntValueSliderPreference">
+        <attr name="items" format="reference"/>
+        <attr name="stringFormat" format="string"/>
+    </declare-styleable>
 </resources>

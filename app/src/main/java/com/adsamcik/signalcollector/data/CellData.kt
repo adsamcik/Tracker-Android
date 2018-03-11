@@ -19,46 +19,41 @@ class CellData
  * @param dbm          [CellData.dbm]
  * @param asu          [CellData.asu]
  * @param level        [CellData.level]
- */(operatorName: String,
-        /**
-         * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
-         */
-    var type: Int,
-        /**
-         * Cell id
-         * GSM - cid
-         * CDMA - baseStationId
-         * WCDMA - cid
-         * LTE - ci
-         */
-    var id: Int,
-        /**
-         * Mobile country code
-         * Replaced with System ID on CDMA
-         */
-    var mcc: Int,
-        /**
-         * Mobile network code
-         * Replaced with Network ID on CDMA
-         */
-    var mnc: Int,
-        /**
-         * Strength of signal in decibels
-         */
-    var dbm: Int,
-        /**
-         * Strength of signal in asu
-         */
-    var asu: Int,
-        /**
-         * Signal strength as int 0...4 calculated by device
-         */
-    var level: Int) : Serializable {
-
+ */(var operatorName: String,
     /**
-     * Network operator name
+     * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
      */
-    var operatorName: String? = operatorName
+    var type: Int,
+    /**
+     * Cell id
+     * GSM - cid
+     * CDMA - baseStationId
+     * WCDMA - cid
+     * LTE - ci
+     */
+    var id: Int,
+    /**
+     * Mobile country code
+     * Replaced with System ID on CDMA
+     */
+    var mcc: Int,
+    /**
+     * Mobile network code
+     * Replaced with Network ID on CDMA
+     */
+    var mnc: Int,
+    /**
+     * Strength of signal in decibels
+     */
+    var dbm: Int,
+    /**
+     * Strength of signal in asu
+     */
+    var asu: Int,
+    /**
+     * Signal strength as int 0...4 calculated by device
+     */
+    var level: Int) : Serializable {
 
     /**
      * Converts int type to string
@@ -74,10 +69,10 @@ class CellData
     }
 
     companion object {
-        val GSM = 0
-        val CDMA = 1
-        val WCDMA = 2
-        val LTE = 3
+        const val GSM = 0
+        const val CDMA = 1
+        const val WCDMA = 2
+        const val LTE = 3
 
         /**
          * Finds carrier name in subscriptions
@@ -93,7 +88,7 @@ class CellData
                 return null
 
             return subscriptionInfoList
-                        .firstOrNull { it.mcc == mcc && it.mnc == mnc }?.carrierName?.toString()
+                    .firstOrNull { it.mcc == mcc && it.mnc == mnc }?.carrierName?.toString()
         }
 
         @RequiresApi(22)

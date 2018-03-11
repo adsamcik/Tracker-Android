@@ -11,7 +11,6 @@ import android.widget.BaseAdapter
 import android.widget.TextView
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
-import java.util.*
 
 abstract class FilterableAdapter<T, F> : BaseAdapter {
 
@@ -23,7 +22,7 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
     /**
      * Collection contains elements that will FilterableAdapter primarily display
      */
-    private var mDisplayCollection: MutableList<T>? = null
+    private var mDisplayCollection: ArrayList<T> = ArrayList(0)
 
     /**
      * Used to convert objects to titles
@@ -75,7 +74,7 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
     fun add(item: T) {
         mRawCollection!!.add(item)
         if (filter(item, filterObject)) {
-            mDisplayCollection!!.add(item)
+            mDisplayCollection.add(item)
             launch(UI) {
                 notifyDataSetChanged()
             }
@@ -88,7 +87,7 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         mRawCollection!!.addAll(items)
         for (item in items) {
             if (filter(item, filterObject)) {
-                mDisplayCollection!!.add(item)
+                mDisplayCollection.add(item)
                 anyPassed = true
             }
         }
@@ -101,21 +100,20 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
 
     fun clear() {
         mRawCollection!!.clear()
-        if (mDisplayCollection != null)
-            mDisplayCollection!!.clear()
+        mDisplayCollection.clear()
         notifyDataSetChanged()
     }
 
     override fun getCount(): Int {
-        return mDisplayCollection!!.size
+        return mDisplayCollection.size
     }
 
     override fun getItem(position: Int): T {
-        return mDisplayCollection!![position]
+        return mDisplayCollection[position]
     }
 
     fun getItemName(position: Int): String {
-        return mStringify.invoke(mDisplayCollection!![position])
+        return mStringify.invoke(mDisplayCollection[position])
     }
 
     override fun getItemId(position: Int): Long {
@@ -123,19 +121,19 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
     }
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        var convertView = convertView
+        var cView = convertView
         val holder: ViewHolder
-        if (convertView == null) {
-            convertView = mInflater.inflate(res, null)
+        if (cView == null) {
+            cView = mInflater.inflate(res, null)
             holder = ViewHolder()
-            holder.text = convertView as TextView?
-            convertView!!.tag = holder
+            holder.text = cView as TextView
+            cView.tag = holder
         } else {
-            holder = convertView.tag as ViewHolder
+            holder = cView.tag as ViewHolder
         }
         holder.text!!.text = getItemName(position)
 
-        return convertView
+        return cView
     }
 
     fun filter() {
@@ -147,7 +145,7 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         mDisplayCollection = ArrayList(mRawCollection!!.size)
         mRawCollection!!
                 .filter { filter(it, filterObject) }
-                .forEach { mDisplayCollection!!.add(it) }
+                .forEach { mDisplayCollection.add(it) }
         notifyDataSetChanged()
     }
 

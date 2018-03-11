@@ -1,17 +1,22 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/action_tracker"
-          android:title="@string/menu_tracker"
-          android:icon="@drawable/ic_signals" />
-    <item android:id="@+id/action_map"
-          android:title="@string/menu_map"
-          android:icon="@drawable/ic_map_black_24dp" />
-    <item android:id="@+id/action_stats"
-          android:title="@string/menu_stats"
-        android:icon="@drawable/ic_equalizer_black_24dp"/>
-    <item android:id="@+id/action_activities"
-          android:title="@string/menu_activities"
-          android:icon="@drawable/ic_directions_run_white_24dp"/>
-    <item android:id="@+id/action_settings"
-          android:title="@string/menu_settings"
-          android:icon="@drawable/ic_settings_black_24dp" />
+    <item
+        android:id="@+id/action_tracker"
+        android:icon="@drawable/ic_signals"
+        android:title="@string/menu_tracker"/>
+    <item
+        android:id="@+id/action_map"
+        android:icon="@drawable/ic_map_black_24dp"
+        android:title="@string/menu_map"/>
+    <item
+        android:id="@+id/action_stats"
+        android:icon="@drawable/ic_equalizer_black_24dp"
+        android:title="@string/menu_stats"/>
+    <item
+        android:id="@+id/action_activities"
+        android:icon="@drawable/ic_directions_run_white_24dp"
+        android:title="@string/menu_activities"/>
+    <item
+        android:id="@+id/action_settings"
+        android:icon="@drawable/ic_settings_black_24dp"
+        android:title="@string/menu_settings"/>
 </menu>

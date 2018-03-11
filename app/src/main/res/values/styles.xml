@@ -7,6 +7,7 @@
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="titleColor">@color/text_primary</item>
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
     </style>
 
     <style name="AppThemeDark" parent="Theme.AppCompat.NoActionBar">
@@ -16,6 +17,15 @@
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="titleColor">@color/text_primary</item>
+    </style>
+
+    <style name="AppThemeTransluscent" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
+        <item name="android:windowBackground">@null</item>
     </style>
 
     <style name="SettingsButton" parent="SettingsItem">
@@ -116,4 +126,8 @@
         <item name="android:scrollbars">vertical</item>
         <item name="android:inputType">textMultiLine</item>
     </style>
+
+    <style name="AppThemeLight.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
+
+    <style name="AppThemeLight.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"/>
 </resources>

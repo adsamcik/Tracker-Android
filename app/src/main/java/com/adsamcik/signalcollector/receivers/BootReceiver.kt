@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.activities.MainActivity
+import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.crashlytics.android.Crashlytics
@@ -17,7 +17,7 @@ class BootReceiver : BroadcastReceiver() {
             if (!BuildConfig.DEBUG)
                 Fabric.with(context, Crashlytics())
             ActivityWakerService.poke(context)
-            ActivityService.requestAutoTracking(context, MainActivity::class.java)
+            ActivityService.requestAutoTracking(context, StandardUIActivity::class.java)
         }
     }
 }

@@ -7,9 +7,9 @@ import com.vimeo.stag.UseStag
 @UseStag
 class TranslateableString {
     //Stag
-    internal var defaultString: String? = null
-    internal var identifier: String? = null
-    internal var identifierResolver: IIdentifierResolver? = null
+    var defaultString: String? = null
+    var identifier: String? = null
+    var identifierResolver: IIdentifierResolver? = null
 
     constructor() {
         defaultString = null
@@ -30,9 +30,9 @@ class TranslateableString {
             id = getId(identifier, context)
             if (id == 0) {
                 if (defaultString == null)
-                    throw RuntimeException("Translation not found and default string is null for identifier " + identifier)
+                    throw RuntimeException("Translation not found and default string is null for identifier $identifier")
                 else
-                    Crashlytics.logException(RuntimeException("Missing translation for " + identifier))
+                    Crashlytics.logException(RuntimeException("Missing translation for $identifier"))
 
                 return defaultString!!
             }

@@ -32,11 +32,11 @@ class MapFragmentTest {
 
     @Rule
     @JvmField
-    val mActivityTestRule = ActivityTestRule(MainActivity::class.java)
+    val mActivityTestRule = ActivityTestRule(StandardUIActivity::class.java)
 
     @Test
     fun mapFragmentTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
         sleep(3000)
 

@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/top_panel"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:background="#555555"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/textview_time"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:paddingEnd="@dimen/edge_margin"
+            android:paddingStart="@dimen/edge_margin"
+            android:textColor="@color/text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"
+            tools:text="06:00:00"/>
+
+        <ImageButton
+            android:id="@+id/button_upload"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_cloud_upload_24dp"
+            android:tint="@color/text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintRight_toRightOf="parent"/>
+
+        <ImageButton
+            android:id="@+id/button_tracking"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play_circle_filled_black_24dp"
+            android:tint="@color/text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintRight_toRightOf="parent"/>
+
+        <ImageButton
+            android:id="@+id/button_settings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_settings_black_24dp"
+            android:tint="@color/text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintRight_toRightOf="parent"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:paddingLeft="@dimen/edge_margin"
+        android:paddingRight="@dimen/edge_margin">
+
+        <android.support.constraint.ConstraintLayout
+            android:id="@+id/bar_info_top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="90dp">
+
+            <ImageView
+                android:id="@+id/image_storage"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_storage_black_24dp"
+                android:tint="@android:color/white"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+
+            <android.support.v7.widget.AppCompatTextView
+                android:id="@+id/data_size"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="marquee"
+                android:paddingEnd="8dp"
+                android:paddingStart="8dp"
+                android:paddingTop="4dp"
+                android:singleLine="true"
+                app:layout_constraintEnd_toStartOf="@id/guideline_info_top"
+                app:layout_constraintStart_toEndOf="@id/image_storage"
+                app:layout_constraintTop_toTopOf="@id/image_storage"
+                tools:text="588 KB"
+                />
+
+            <android.support.v7.widget.AppCompatTextView
+                android:id="@+id/collection_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="marquee"
+                android:paddingBottom="4dp"
+                android:paddingEnd="8dp"
+                android:paddingStart="8dp"
+                android:singleLine="true"
+                app:layout_constraintBottom_toBottomOf="@id/image_storage"
+                app:layout_constraintEnd_toStartOf="@id/guideline_info_top"
+                app:layout_constraintStart_toEndOf="@id/image_storage"
+                tools:text="170 collections"
+                />
+
+            <ImageView
+                android:id="@+id/icon_activity"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_help_white_24dp"
+                android:tint="@android:color/white"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+
+            <android.support.v7.widget.AppCompatTextView
+                android:id="@+id/altitude"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="marquee"
+                android:paddingEnd="8dp"
+                android:paddingStart="8dp"
+                android:paddingTop="4dp"
+                android:singleLine="true"
+                android:textAlignment="textEnd"
+                app:layout_constraintEnd_toStartOf="@id/icon_activity"
+                app:layout_constraintStart_toEndOf="@id/guideline_info_top"
+                app:layout_constraintTop_toTopOf="@id/icon_activity"
+                tools:text="237 m altitude"
+                />
+
+            <android.support.v7.widget.AppCompatTextView
+                android:id="@+id/accuracy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="marquee"
+                android:paddingBottom="4dp"
+                android:paddingEnd="8dp"
+                android:paddingStart="8dp"
+                android:singleLine="true"
+                android:textAlignment="textEnd"
+                app:layout_constraintBottom_toBottomOf="@id/icon_activity"
+                app:layout_constraintEnd_toStartOf="@id/icon_activity"
+                app:layout_constraintHorizontal_bias="1"
+                app:layout_constraintStart_toEndOf="@id/guideline_info_top"
+                tools:text="8 m accuracy"
+                />
+
+            <android.support.constraint.Guideline
+                android:id="@+id/guideline_info_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                app:layout_constraintGuide_percent="0.5"/>
+
+        </android.support.constraint.ConstraintLayout>
+
+
+        <ScrollView
+            android:id="@+id/include"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:translationZ="-1dp">
+
+            <com.google.android.flexbox.FlexboxLayout
+                xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                android:id="@+id/content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:animateLayoutChanges="true"
+                android:filterTouchesWhenObscured="true"
+                app:alignItems="flex_start"
+                app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
+                app:dividerDrawableVertical="@drawable/flexbox_spacing"
+                app:flexWrap="wrap"
+                app:justifyContent="center"
+                app:showDividerHorizontal="middle"
+                app:showDividerVertical="middle"/>
+        </ScrollView>
+    </LinearLayout>
+
+</android.support.constraint.ConstraintLayout>

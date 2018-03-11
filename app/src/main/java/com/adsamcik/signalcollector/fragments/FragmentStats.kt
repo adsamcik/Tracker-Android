@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
+import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Stat
@@ -32,7 +33,7 @@ import com.adsamcik.table.TableAdapter
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentStats : Fragment(), ITabFragment {
+class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
     private var fragmentView: View? = null
 
     private var adapter: TableAdapter? = null
@@ -63,6 +64,7 @@ class FragmentStats : Fragment(), ITabFragment {
         refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40))
 
         val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
+        listView.setRecyclerListener {  }
         listView.adapter = adapter
         updateStats()
         return fragmentView
@@ -103,13 +105,18 @@ class FragmentStats : Fragment(), ITabFragment {
 
         NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehavior.Any) })
 
-        if (!useMock && Signin.getUserID(appContext) != null) {
-            refreshingCount++
-            NetworkLoader.requestSigned(Network.URL_USER_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
-                if (value != null && value.size == 1 && value[0].name.isEmpty())
-                    value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
-                handleResponse(activity, state, value, AppendBehavior.First)
-            })
+        if (!useMock) {
+            launch {
+                val user = Signin.getUserAsync(activity)
+                if (user != null) {
+                    refreshingCount++
+                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
+                        if (value != null && value.size == 1 && value[0].name.isEmpty())
+                            value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
+                        handleResponse(activity, state, value, AppendBehavior.First)
+                    })
+                }
+            }
         }
 
         if (refreshingCount > 0) {
@@ -149,15 +156,23 @@ class FragmentStats : Fragment(), ITabFragment {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton): Failure<String> {
-        adapter = TableAdapter(activity, 16, Preferences.getTheme(activity))
-        return Failure()
+    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
+        onEnter(activity)
     }
 
     override fun onLeave(activity: FragmentActivity) {
+        onLeave(activity as Activity)
+    }
+
+    override fun onEnter(activity: Activity) {
+        adapter = TableAdapter(activity, 16, Preferences.getTheme(activity))
+    }
+
+    override fun onLeave(activity: Activity) {
         if (refreshLayout != null && refreshLayout!!.isRefreshing)
             refreshLayout!!.isRefreshing = false
     }
+
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 

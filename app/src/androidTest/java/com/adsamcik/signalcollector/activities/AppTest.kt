@@ -57,7 +57,7 @@ class AppTest {
         Preferences.getPref(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply()
         Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false))
         Assert.assertEquals(true, DataStore.exists(context, testFileName))
-        Assert.assertEquals('[' + data, DataStore.loadString(context, testFileName))
+        Assert.assertEquals("[$data", DataStore.loadString(context, testFileName))
         Assert.assertEquals("[$data]", DataStore.loadAppendableJsonArray(context, testFileName))
         //DataStore.removeOldRecentUploads();
         Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, us, true))
@@ -75,25 +75,17 @@ class AppTest {
         DataStore.delete(context, testFileName)
         DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE)
 
-        val WIFI = "wifi"
-        val NEW_WIFI = "newWifi"
-        val CELL = "cell"
-        val NEW_CELL = "newCell"
-        val COLLECTIONS = "collections"
-        val NEW_LOCATIONS = "newLocations"
-        val SIZE = "uploadSize"
-
         val d = HashMap<String, String>(10)
-        d.put(WIFI, Integer.toString(us.wifi))
-        d.put(NEW_WIFI, Integer.toString(us.newWifi))
-        d.put(CELL, Integer.toString(us.cell))
-        d.put(NEW_CELL, Integer.toString(us.newCell))
-        d.put(COLLECTIONS, Integer.toString(us.collections))
-        d.put(NEW_LOCATIONS, Integer.toString(us.newLocations))
-        d.put(SIZE, java.lang.Long.toString(us.uploadSize))
+        d[MessageListenerService.WIFI] = Integer.toString(us.wifi)
+        d[MessageListenerService.NEW_WIFI] = Integer.toString(us.newWifi)
+        d[MessageListenerService.CELL] = Integer.toString(us.cell)
+        d[MessageListenerService.NEW_CELL] = Integer.toString(us.newCell)
+        d[MessageListenerService.COLLECTIONS] = Integer.toString(us.collections)
+        d[MessageListenerService.NEW_LOCATIONS] = Integer.toString(us.newLocations)
+        d[MessageListenerService.UPLOAD_SIZE] = java.lang.Long.toString(us.uploadSize)
 
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
-        Assert.assertEquals('[' + data, DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
+        Assert.assertEquals("[$data", DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
 
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
         Assert.assertEquals("[$data,$data", DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
@@ -103,7 +95,7 @@ class AppTest {
     @Test
     @Throws(Exception::class)
     fun uploadFABTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
 
         Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
@@ -157,9 +149,9 @@ class AppTest {
     }
 
     companion object {
-        private val TAG = "SignalsSaveLoadTest"
-        private val PACKAGE = "com.adsamcik.signalcollector"
-        private val LAUNCH_TIMEOUT = 5000
+        private const val TAG = "SignalsSaveLoadTest"
+        private const val PACKAGE = "com.adsamcik.signalcollector"
+        private const val LAUNCH_TIMEOUT = 5000
 
         private fun childAtPosition(
                 parentMatcher: Matcher<View>, position: Int): Matcher<View> {
@@ -183,7 +175,7 @@ class AppTest {
          * and is matched by the given view matcher.
          */
         fun matches(viewMatcher: Matcher<View>): ViewAssertion {
-            return ViewAssertion{ view: View?, noViewException: NoMatchingViewException? ->
+            return ViewAssertion { view: View?, noViewException: NoMatchingViewException? ->
                 val description = StringDescription()
                 description.appendText("'")
                 viewMatcher.describeTo(description)

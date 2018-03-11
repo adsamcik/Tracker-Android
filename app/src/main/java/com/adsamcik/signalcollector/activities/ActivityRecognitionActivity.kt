@@ -12,7 +12,6 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
 import java.text.DateFormat.getDateTimeInstance
@@ -58,14 +57,13 @@ class ActivityRecognitionActivity : DetailActivity() {
         }
 
         val activity = this
-        //todo Rewrite code below this comment
-        async {
-            //I think this is here to load data asynchronously
-            val items = Parser.parseTSVFromFile(activity, FILE) ?: ArrayList()
-            adapter = StringFilterableAdapter(activity, R.layout.spinner_item, {item ->
-                item.joinToString(delim)
-            })
-        }
+
+        val items = Parser.parseTSVFromFile(activity, FILE) ?: ArrayList()
+        adapter = StringFilterableAdapter(activity, R.layout.spinner_item, { item ->
+            item.joinToString(delim)
+        })
+
+        adapter!!.addAll(items)
 
         findViewById<View>(R.id.dev_activity_recognition_filter).setOnClickListener { f ->
             if (usingFilter) {
@@ -86,11 +84,11 @@ class ActivityRecognitionActivity : DetailActivity() {
     }
 
     companion object {
-        private val FILE = "activityRecognitionDebug.tsv"
+        private const val FILE = "activityRecognitionDebug.tsv"
 
         private var instance: WeakReference<ActivityRecognitionActivity>? = null
 
-        private val delim = " - "
+        private const val delim = " - "
 
         /**
          * Adds line to the activity debug if tracking is enabled

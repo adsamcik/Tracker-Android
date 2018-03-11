@@ -15,7 +15,7 @@
 
         <TextView
             style="@style/SettingsTitle"
-            android:text="@string/settings_playGames"/>
+            android:text="@string/settings_account"/>
 
         <com.google.android.gms.common.SignInButton
             android:id="@+id/sign_in_button"
@@ -204,7 +204,7 @@
             </LinearLayout>
 
 
-            <com.adsamcik.slider.IntValueSlider
+            <com.adsamcik.slider.implementations.IntValueSlider
                 android:id="@+id/settings_seekbar_watcher_frequency"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"
@@ -301,11 +301,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingEnd="0dp"
-                    android:paddingStart="0dp"
-                    android:text="@string/settings_autoupload_at_value"/>
+                    android:paddingStart="0dp"/>
             </LinearLayout>
 
-            <com.adsamcik.slider.IntSlider
+            <com.adsamcik.slider.implementations.IntSlider
                 android:id="@+id/settings_autoupload_at_seekbar"
                 style="@style/SettingsItem"
                 android:layout_width="match_parent"

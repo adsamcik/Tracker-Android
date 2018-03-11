@@ -13,7 +13,7 @@
     <string name="settings_battery_optimalizations_enabled_tracking">Battery optimalizations are enabled! Automatic tracking may be unreliable. Tap to disable.</string>
     <string name="settings_battery_optimalizations_disabled">Battery optimalizations are disabled.</string>
     <string name="settings_battery_optimalizations_unknown">Battery optimalizations status is unknown.</string>
-    
+
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
         <item>Disabled</item>
@@ -25,7 +25,7 @@
     <string name="autoupload_always_description">Automatic upload enabled on cellular and wifi networks</string>
     <string name="settings_autoupload_smart">Smart upload</string>
 
-    <string name="settings_playGames">Account</string>
+    <string name="settings_account">Account</string>
     <string name="settings_clear_data">Clear tracked data</string>
     <string name="settings_feedback">Feedback</string>
     <string name="settings_reopen_tutorial">Tutorial</string>
@@ -54,7 +54,7 @@
     <string name="settings_use_dark_theme">Dark theme</string>
     <string name="settings_default_map_overlay">Default overlay</string>
     <string name="settings_autoupload_at">Autoupload at</string>
-    <string name="settings_autoupload_at_value">%1$d MB</string>
+    <string name="settings_autoupload_at_value">%s MB</string>
     <string name="internet_connection_required">Internet connection required</string>
 
     <string name="signout">Sign out</string>
@@ -71,4 +71,182 @@
     <string name="user_cost_per_month">%1$s wireless points per month</string>
     <string name="user_renew_personal_map">Renew personal map</string>
     <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
+
+
+    <!--- NEW SETTINGS -->
+    <!--- TITLES -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_account_title">Account</string>
+    <string name="settings_account_key">account_key</string>
+    <string name="settings_tracking_title">Tracking</string>
+    <string name="settings_upload_title">Upload</string>
+    <string name="settings_style_title">Style</string>
+    <string name="settings_debug_title">Debug</string>
+    <string name="settings_other_title">Other</string>
+
+    <!--- TRACKING -->
+    <string name="settings_disabled_recharge_title">Disabled till recharge</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until phone is connected to charger</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedTillRecharge</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+
+    <string name="settings_activity_watcher_title">Activity watcher</string>
+    <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_default" translatable="false">false</string>
+
+    <string name="settings_activity_freq_title">Activity update rate</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+
+    <string name="settings_tracking_activity_key">backgroundTracking</string>
+    <string name="settings_tracking_activity_default">1</string>
+
+    <string name="settings_auto_tracking_category">Automatic tracking</string>
+    <string name="settings_tracking_enable_category">Tracking options</string>
+
+    <string name="settings_location_enabled_title">Location tracking</string>
+    <string name="settings_location_enabled_key" translatable="false">trackingLocationEnabled</string>
+    <string name="settings_location_enabled_default" translatable="false">true</string>
+
+    <string name="settings_wifi_enabled_title">Wifi tracking</string>
+    <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
+    <string name="settings_wifi_enabled_default" translatable="false">true</string>
+
+    <string name="settings_cell_enabled_title">Cell tracking</string>
+    <string name="settings_cell_enabled_key" translatable="false">trackingCellEnabled</string>
+    <string name="settings_cell_enabled_default" translatable="false">true</string>
+
+    <string-array name="tracking_options_titles">
+        <item>Disabled</item>
+        <item>On foot</item>
+        <item>In motion</item>
+    </string-array>
+
+    <integer-array name="tracking_options_drawables">
+        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_directions_walk_white_24dp</item>
+        <item>@drawable/ic_directions_car_white_24dp</item>
+    </integer-array>
+
+    <integer-array name="activity_watching_interval">
+        <item>0</item>
+        <item>5</item>
+        <item>10</item>
+        <item>30</item>
+        <item>60</item>
+        <item>120</item>
+        <item>240</item>
+        <item>300</item>
+        <item>600</item>
+    </integer-array>
+
+    <!--- UPLOAD -->
+    <string name="settings_auto_upload_category">Automatic uploading</string>
+
+    <string name="settings_uploading_network_key" translatable="false">autoUpload</string>
+    <string name="settings_uploading_network_default" translatable="false">1</string>
+
+    <string-array name="auto_upload_options_titles">
+        <item>Disabled</item>
+        <item>On WiFi</item>
+        <item>Always</item>
+    </string-array>
+
+    <integer-array name="auto_upload_options_drawables">
+        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_network_wifi_24dp</item>
+        <item>@drawable/ic_network_cell_black_24dp</item>
+    </integer-array>
+
+    <string name="settings_smart_upload_title">Use smart upload</string>
+    <string name="settings_smart_upload_summary">Smart upload decides for you when to upload data based on multiple factors</string>
+    <string name="settings_smart_upload_key" translatable="false">smartAutoUpload</string>
+    <string name="settings_smart_upload_default" translatable="false">true</string>
+
+    <!-- STYLE -->
+    <string name="settings_style_mode_title">Style mode</string>
+    <string name="settings_style_mode_key" translatable="false">styleMode</string>
+    <string name="settings_style_mode_default" translatable="false">2</string>
+
+    <string-array name="settings_style_mode_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="settings_style_mode_names">
+        <item>Single color</item>
+        <item>Day/Night</item>
+        <item>Cycle</item>
+    </string-array>
+
+
+    <string name="settings_color_morning_title">Morning color</string>
+    <string name="settings_color_morning_key" translatable="false">colorMorning</string>
+    <color name="settings_color_morning_default" translatable="false">#bf9615</color>
+
+    <string name="settings_color_day_title">Day color</string>
+    <string name="settings_color_day_key" translatable="false">colorDay</string>
+    <color name="settings_color_day_default" translatable="false">#559676</color>
+
+    <string name="settings_color_evening_title">Evening color</string>
+    <string name="settings_color_evening_key" translatable="false">colorEvening</string>
+    <color name="settings_color_evening_default" translatable="false">#6a4e39</color>
+
+    <string name="settings_color_night_title">Night color</string>
+    <string name="settings_color_night_key" translatable="false">colorNight</string>
+    <color name="settings_color_night_default" translatable="false">#002733</color>
+
+    <string name="settings_color_default_title">Default colors</string>
+    <string name="settings_color_default_key" translatable="false">defaultColors</string>
+
+    <!-- DEBUG -->
+    <string name="settings_debug_already_available">You already have access to debug</string>
+    <string name="settings_debug_available_in">%d more taps to enable debug</string>
+    <string name="settings_debug_available">You now have access to debug section</string>
+    <string name="settings_debug_enabled">Debug enabled</string>
+    <string name="settings_debug_key">showDevSettings</string>
+
+    <string name="settings_browse_files_title">Browse files</string>
+    <string name="settings_browse_files_key" translatable="false">browseFiles</string>
+
+    <string name="settings_browse_cache_title">Browse cache</string>
+    <string name="settings_browse_cache_key" translatable="false">browseCache</string>
+
+    <string name="settings_activity_debug_title">Activity recognition logger</string>
+    <string name="settings_activity_debug_key" translatable="false">activityLogger</string>
+
+    <string name="settings_hello_world_title">Hello world!</string>
+    <string name="settings_hello_world_key" translatable="false">helloWorld</string>
+
+    <string name="settings_clear_data_title">Clear tracked data</string>
+    <string name="settings_clear_data_key" translatable="false">clearData</string>
+
+    <string name="settings_clear_reports_title">Clear upload reports</string>
+    <string name="settings_clear_reports_key" translatable="false">clearUploadReports</string>
+
+    <string name="settings_clear_cache_title">Clear cache</string>
+    <string name="settings_clear_cache_key" translatable="false">clearCache</string>
+
+    <!-- OTHER -->
+    <string name="settings_notifications_title">Notifications</string>
+
+    <string name="settings_allow_upload_notification_title">Show upload notifications</string>
+    <string name="settings_allow_upload_notification_key" translatable="false">uploadNotificationsEnabled</string>
+    <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
+    <string name="settings_allow_upload_notification_default" translatable="false">true</string>
+
+    <string name="settings_export_title">Share tracked data</string>
+    <string name="settings_export_key" translatable="false">shareButton</string>
+    <string name="settings_export_summary">Share/Export your tracked data to app of your choice</string>
+
+    <string name="settings_feedback_title">Send feedback about the app</string>
+    <string name="settings_feedback_key" translatable="false">feedbackButton</string>
+    <string name="settings_feedback_summary">You can send valuable feedback about the app such as new ideas for improvements or bug reports</string>
+
+    <string name="settings_licenses_title">Open source licenses</string>
+    <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
+
+    <string name="settings_app_version_key" translatable="false">appVersion</string>
 </resources>
