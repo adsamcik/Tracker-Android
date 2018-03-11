@@ -90,7 +90,6 @@ class FileSharingActivity : DetailActivity() {
                             shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
                             shareIntent.type = "application/zip"
                             startActivityForResult(Intent.createChooser(shareIntent, resources.getText(R.string.export_share_button)), SHARE_RESULT)
-
                         }
                     }
 

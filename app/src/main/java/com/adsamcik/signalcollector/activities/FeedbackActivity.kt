@@ -1,8 +1,12 @@
 package com.adsamcik.signalcollector.activities
 
+import android.app.job.JobInfo
+import android.app.job.JobInfo.NETWORK_TYPE_ANY
+import android.content.ComponentName
 import android.content.res.ColorStateList
 import android.graphics.Paint
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.support.design.widget.TextInputLayout
 import android.text.Editable
 import android.text.TextWatcher
@@ -11,18 +15,13 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.jobs.FeedbackUploadJob
+import com.adsamcik.signalcollector.jobs.scheduler
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Response
-import java.io.IOException
-import android.graphics.Paint.UNDERLINE_TEXT_FLAG
-
 
 
 class FeedbackActivity : DetailActivity() {
@@ -91,39 +90,32 @@ class FeedbackActivity : DetailActivity() {
                             summaryTextLayout.error = getString(R.string.feedback_error_long_summary)
                             summaryText.addTextChangedListener(textWatcher)
                         } else {
-                            val result = summaryText.text.toString().trim { it <= ' ' }.replace("\\s+".toRegex(), " ")
-                            if (result.length <= MIN_TEXT_LENGTH)
+                            val summary = summaryText.text.toString().trim { it <= ' ' }.replace("\\s+".toRegex(), " ")
+                            if (summary.length <= MIN_TEXT_LENGTH)
                                 summaryTextLayout.error = getString(R.string.feedback_error_spaces_summary)
                             else {
-                                val builder = Network.generateAuthBody(user.token).addFormDataPart("summary", result).addFormDataPart("type", Integer.toString(currentType!!.ordinal))
-
                                 val descriptionTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_description_wrap)
                                 val descriptionText = descriptionTextLayout.editText!!
-
                                 val description = descriptionText.text.toString().trim { it <= ' ' }
-                                builder.addFormDataPart("description", if (description.isNotEmpty()) description else "")
 
-                                Network.client(activity, null).newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).enqueue(object : Callback {
-                                    override fun onFailure(call: Call, e: IOException) {
-                                        SnackMaker(groupRoot).showSnackbar(R.string.error_connection_failed)
-                                    }
+                                val pb = PersistableBundle(3)
+                                pb.putString(FeedbackUploadJob.SUMMARY, summary)
+                                pb.putString(FeedbackUploadJob.DESCRIPTION, description)
+                                pb.putInt(FeedbackUploadJob.TYPE, currentType!!.ordinal)
 
-                                    @Throws(IOException::class)
-                                    override fun onResponse(call: Call, response: Response) {
-                                        if (response.isSuccessful)
-                                            finish()
-                                        else
-                                            SnackMaker(groupRoot).showSnackbar(R.string.error_general)
-                                    }
-                                })
+                                val jobInfo = JobInfo.Builder(jobId++, ComponentName(this@FeedbackActivity, FeedbackUploadJob::class.java))
+                                        .setRequiredNetworkType(NETWORK_TYPE_ANY)
+                                        .setPersisted(true)
+                                        .setExtras(pb)
+                                        .build()
 
+                                scheduler(this@FeedbackActivity).schedule(jobInfo)
+                                finish()
                             }
                         }
                     }
                 }
-            } else
-                finish()
-
+            }
         }
     }
 
@@ -150,6 +142,7 @@ class FeedbackActivity : DetailActivity() {
     companion object {
         const val MIN_TEXT_LENGTH = 8
         const val MAX_TEXT_LENGTH = 140
+        var jobId = 6578
     }
 
     private enum class FeedbackType {

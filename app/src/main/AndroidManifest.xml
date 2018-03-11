@@ -153,6 +153,10 @@
             android:name=".jobs.UploadJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <service
+            android:name=".jobs.FeedbackUploadJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWakerService"/>
         <service
             android:name=".jobs.DisableTillRechargeJobService"
