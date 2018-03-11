@@ -73,19 +73,15 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"/>
         <activity
             android:name=".activities.UploadReportsActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
         <activity
             android:name=".activities.DebugFileActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
         <activity
             android:name=".activities.ActivityRecognitionActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
         <activity
             android:name=".activities.FileSharingActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.PICK"/>
