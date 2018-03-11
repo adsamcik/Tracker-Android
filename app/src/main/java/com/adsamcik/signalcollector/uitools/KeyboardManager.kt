@@ -24,15 +24,6 @@ class KeyboardManager(private val rootView: View) {
 
     private val r = Rect()
 
-    init {
-        onDisplaySizeChanged()
-    }
-
-    private fun calculateHeightDiff(): Int {
-        rootView.getWindowVisibleDisplayFrame(r)
-        return rootView.rootView.height - r.height()
-    }
-
     private val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
         val heightDiff = calculateHeightDiff()
         val isOpen = heightDiff > threshold
@@ -48,8 +39,24 @@ class KeyboardManager(private val rootView: View) {
         }
     }
 
-    fun onDisplaySizeChanged() {
+    init {
+        calculateDefaultDiff()
+        rootView.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+    }
+
+    private fun calculateHeightDiff(): Int {
+        rootView.getWindowVisibleDisplayFrame(r)
+        return rootView.rootView.height - r.height()
+    }
+
+    private fun calculateDefaultDiff() {
         defaultDiff = calculateHeightDiff() - navbarSize(rootView.context).second.y
+    }
+
+    fun onDisplaySizeChanged() {
+        calculateDefaultDiff()
+        layoutListener.onGlobalLayout()
+        listeners.forEach { it.invoke(wasOpen, keyboardHeight) }
     }
 
     fun addKeyboardListener(listener: KeyboardListener) {
@@ -70,11 +77,6 @@ class KeyboardManager(private val rootView: View) {
             listeners.forEach { it.invoke(false, 0) }
             wasOpen = false
         }
-    }
-
-    init {
-        rootView.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
-
     }
 
     companion object {

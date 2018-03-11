@@ -3,8 +3,6 @@ package com.adsamcik.signalcollector.fragments
 
 import android.Manifest
 import android.app.Activity
-import android.arch.lifecycle.Lifecycle
-import android.arch.lifecycle.OnLifecycleEvent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -33,8 +31,11 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
+import com.adsamcik.signalcollector.utility.MapFilterRule
+import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signalcollector.utility.transactionStateLoss
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
@@ -313,6 +314,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (locationManager == null)
             locationManager = c.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
+
+        initializeKeyboardDetection()
     }
 
     /**
