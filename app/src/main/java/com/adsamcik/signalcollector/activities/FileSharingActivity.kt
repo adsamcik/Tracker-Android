@@ -117,7 +117,7 @@ class FileSharingActivity : DetailActivity() {
         setTitle(R.string.export_share_button)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent) {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode == SHARE_RESULT)
