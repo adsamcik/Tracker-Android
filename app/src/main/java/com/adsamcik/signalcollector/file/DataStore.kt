@@ -176,7 +176,12 @@ object DataStore {
         for (item in renamedFiles) {
             val substr = item.second.substring(TMP_NAME.length)
             val separatorIndex = substr.indexOf('-')
-            if (!rename(context, item.second, DATA_FILE + item.first + DataFile.SEPARATOR + substr.substring(0, separatorIndex))) {
+            val name =
+                    if (separatorIndex == -1)
+                        DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(TMP_NAME.length)
+                    else
+                        DATA_FILE + item.first + DataFile.SEPARATOR + substr.substring(0, separatorIndex)
+            if (!rename(context, item.second, name)) {
                 Crashlytics.logException(Throwable("Failed to rename $"))
             }
         }
