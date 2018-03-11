@@ -111,13 +111,13 @@ class NewUIActivity : FragmentActivity() {
         statsButton.dragAxis = DragAxis.X
         statsButton.setTarget(root, DragTargetAnchor.RightTop)
         statsButton.setTargetOffsetDp(Offset(56))
-        statsButton.targetTranslationZ = dp * 8f
+        statsButton.targetTranslationZ = 8.dpAsPx.toFloat()
         statsButton.extendTouchAreaBy(dp * 56, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
         statsPayload.initialTranslation = Point(-size.x, 0)
         statsPayload.backgroundColor = Color.WHITE
-        statsPayload.targetTranslationZ = dp * 7f
+        statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
         statsPayload.onInitialized = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
             colorManager.watchRecycler(ColorView(recycler, 1, true, true))
@@ -131,13 +131,13 @@ class NewUIActivity : FragmentActivity() {
         activityButton.dragAxis = DragAxis.X
         activityButton.setTarget(root, DragTargetAnchor.LeftTop)
         activityButton.setTargetOffsetDp(Offset(-56))
-        activityButton.targetTranslationZ = dp * 8f
+        activityButton.targetTranslationZ = 8.dpAsPx.toFloat()
         activityButton.extendTouchAreaBy(0, 0, dp * 56, 0)
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
         activityPayload.initialTranslation = Point(size.x, 0)
         activityPayload.backgroundColor = Color.WHITE
-        activityPayload.targetTranslationZ = dp * 7f
+        activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
         activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         activityButton.addPayload(activityPayload)
@@ -151,7 +151,7 @@ class NewUIActivity : FragmentActivity() {
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
         mapPayload.initialTranslation = Point(0, realSize.y)
         mapPayload.backgroundColor = Color.WHITE
-        mapPayload.setTranslationZ(13f * dp)
+        mapPayload.setTranslationZ(16.dpAsPx.toFloat())
         mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
         mapDraggable.addPayload(mapPayload)
     }
