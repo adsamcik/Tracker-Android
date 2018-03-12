@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Point
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -15,6 +16,7 @@ import android.location.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.support.annotation.DrawableRes
 import android.support.constraint.ConstraintLayout
 import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
@@ -51,7 +53,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var activeOverlay: TileOverlay? = null
 
     private var fragmentView: View? = null
-    private var menuFragment: FragmentMapMenu? = null
 
     private var userRadius: Circle? = null
     private var userCenter: Marker? = null
@@ -247,16 +248,25 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         }
 
         map_menu_parent.post {
-            val payload = DraggablePayload(activity!!, FragmentMapMenu::class.java, map_menu_parent, map_menu_parent)
+            val activity = activity!!
+            val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_parent)
             payload.initialTranslation = Point(0, map_menu_parent.height)
             payload.anchor = DragTargetAnchor.LeftTop
             payload.width = map_menu_parent.width
             payload.height = map_menu_parent.height
             payload.onInitialized = {
                 colorManager!!.watchRecycler(ColorView(it.view!!, 2))
-                menuFragment = it
             }
-            payload.onBeforeDestroyed = { colorManager?.stopWatchingRecycler(R.id.list) }
+            payload.onBeforeDestroyed = {
+                colorManager?.stopWatchingRecycler(R.id.list)
+            }
+
+            map_menu_button.onEnterStateListener= {_, state, _ ->
+                if(state == DraggableImageButton.State.TARGET)
+                    animateMenuDrawable(R.drawable.up_to_down)
+                else if(state == DraggableImageButton.State.INITIAL)
+                    animateMenuDrawable(R.drawable.down_to_up)
+            }
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
             //payload.setOffsetsDp(Offset(0, 24))
             map_menu_button.addPayload(payload)
@@ -267,6 +277,15 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         val colorManager = colorManager!!
         colorManager.watchElement(ColorView(map_search, 3, false, false))
         colorManager.watchElement(ColorView(map_menu_button, 2, false, false))
+    }
+
+    private fun animateMenuDrawable(@DrawableRes drawableRes: Int) {
+        val context = context
+        if(context != null) {
+            val drawable = context.getDrawable(drawableRes) as AnimatedVectorDrawable
+            map_menu_button.setImageDrawable(drawable)
+            drawable.start()
+        }
     }
 
     override fun onMapReady(map: GoogleMap) {
