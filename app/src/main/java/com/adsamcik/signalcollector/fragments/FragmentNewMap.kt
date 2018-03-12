@@ -113,7 +113,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onEnter(activity: Activity) {
         this.fActivity = activity as FragmentActivity
         initializeLocationListener(activity)
-        initializeKeyboardDetection()
 
         mapLayerFilterRule = MapFilterRule()
         val mapFragment = SupportMapFragment.newInstance()
