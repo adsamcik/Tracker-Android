@@ -53,12 +53,18 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
     private fun initializeTracking(caller: PreferenceFragmentCompat) {
         caller.findPreference(getString(R.string.settings_activity_watcher_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-            ActivityWakerService.poke(this@SettingsActivity, newValue as Boolean)
+            if (newValue as Boolean) {
+                val updateRate = caller.preferenceManager.sharedPreferences.getInt(getString(R.string.settings_activity_freq_key), getString(R.string.settings_activity_freq_default).toInt())
+                ActivityService.requestActivity(this, LaunchActivity::class.java, updateRate)
+            } else
+                ActivityService.removeActivityRequest(this, LaunchActivity::class.java)
+
+            ActivityWakerService.poke(this@SettingsActivity, newValue)
             return@OnPreferenceChangeListener true
         }
 
         caller.findPreference(getString(R.string.settings_activity_freq_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-            ActivityService.requestActivity(this, NewUIActivity::class.java, newValue as Int)
+            ActivityService.requestActivity(this, LaunchActivity::class.java, newValue as Int)
             ActivityWakerService.poke(this)
             return@OnPreferenceChangeListener true
         }

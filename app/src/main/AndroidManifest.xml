@@ -94,12 +94,10 @@
         </activity>
         <activity
             android:name=".activities.FeedbackActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
         <activity
             android:name=".activities.LicenseActivity"
-            android:parentActivityName=".activities.StandardUIActivity"
             android:screenOrientation="portrait"/>
 
 
