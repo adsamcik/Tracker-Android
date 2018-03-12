@@ -13,5 +13,6 @@
         android:dividerHeight="0dp"
         android:listSelector="@android:color/transparent"
         android:paddingBottom="@dimen/navbar_height_new_padding"
-        android:paddingTop="@dimen/status_bar_height"/>
+        android:paddingTop="@dimen/status_bar_height"
+        android:verticalScrollbarPosition="left"/>
 </android.support.v4.widget.SwipeRefreshLayout>
