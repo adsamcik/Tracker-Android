@@ -47,7 +47,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             replace(CONTENT_ID, fragment, FragmentNewSettings.TAG)
             runOnCommit { initializeRoot(fragment) }
         }
-        
+
         title = "Settings"
     }
 
