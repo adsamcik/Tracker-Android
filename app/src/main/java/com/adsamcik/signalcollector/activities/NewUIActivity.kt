@@ -13,10 +13,7 @@ import android.view.MotionEvent
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ListView
 import androidx.content.edit
-import com.adsamcik.draggable.DragAxis
-import com.adsamcik.draggable.DragTargetAnchor
-import com.adsamcik.draggable.DraggablePayload
-import com.adsamcik.draggable.Offset
+import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.DataStore
@@ -286,6 +283,15 @@ class NewUIActivity : FragmentActivity() {
         if (requestCode == themeLocationRequestCode) {
             if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED })
                 initializeSunriseSunset()
+        }
+    }
+
+    override fun onBackPressed() {
+        when {
+            mapDraggable.state == DraggableImageButton.State.TARGET -> mapDraggable.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            statsButton.state == DraggableImageButton.State.TARGET -> statsButton.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            activityButton.state == DraggableImageButton.State.TARGET -> activityButton.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            else -> super.onBackPressed()
         }
     }
 }
