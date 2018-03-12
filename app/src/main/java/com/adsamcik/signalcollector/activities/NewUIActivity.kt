@@ -89,7 +89,7 @@ class NewUIActivity : FragmentActivity() {
             }
 
         supportFragmentManager.transaction {
-            add(R.id.root, FragmentNewTracker())
+            replace(R.id.root, FragmentNewTracker())
         }
     }
 
