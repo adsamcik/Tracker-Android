@@ -55,12 +55,8 @@ class FragmentNewTracker : Fragment() {
 
     override fun onStart() {
         super.onStart()
-        initializeColorElements()
         button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
         updateUploadButton()
-
-        if (useMock)
-            mock()
 
         button_tracking.setOnClickListener { _ ->
             if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
@@ -69,20 +65,16 @@ class FragmentNewTracker : Fragment() {
             } else
                 toggleCollecting(activity!!, !TrackerService.isRunning)
         }
-
-        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton(TrackerService.isRunning) } }
-        TrackerService.onNewDataFound = { launch(UI) { updateData(it) } }
-        DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
-        DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+
+    override fun onStop() {
         ColorSupervisor.recycleColorManager(colorManager)
         TrackerService.onServiceStateChange = null
         TrackerService.onNewDataFound = null
         DataStore.setOnDataChanged(null)
         DataStore.setOnUploadProgress(null)
+        super.onStop()
     }
 
     override fun onResume() {
@@ -97,6 +89,15 @@ class FragmentNewTracker : Fragment() {
         val context = context!!
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
         updateUploadButton()
+
+        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton(TrackerService.isRunning) } }
+        TrackerService.onNewDataFound = { launch(UI) { updateData(it) } }
+        DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
+        DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
+
+        initializeColorElements()
+        if (useMock)
+            mock()
     }
 
     /**
