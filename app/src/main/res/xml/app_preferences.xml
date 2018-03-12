@@ -10,8 +10,6 @@
         android:title="@string/settings_account_title"/>
 
     <android.support.v7.preference.PreferenceScreen
-        android:key="tracking_key"
-        android:persistent="false"
         android:title="@string/settings_tracking_title">
         <android.support.v7.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
@@ -71,8 +69,6 @@
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
-        android:key="upload_key"
-        android:persistent="true"
         android:title="@string/settings_upload_title">
 
         <android.support.v7.preference.PreferenceCategory
@@ -95,8 +91,6 @@
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
-        android:key="style_key"
-        android:persistent="true"
         android:title="@string/settings_style_title">
         <ListPreference
             android:defaultValue="@string/settings_style_mode_default"
@@ -132,8 +126,7 @@
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
-        android:key="debug_key"
-        android:persistent="true"
+        android:key="debug_key_screen"
         android:title="@string/settings_debug_title">
 
         <android.support.v7.preference.SwitchPreferenceCompat

@@ -30,8 +30,7 @@ import java.util.*
 
 
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
-    val fragment: FragmentNewSettings = supportFragmentManager.findFragmentByTag(FragmentNewSettings.TAG) as FragmentNewSettings?
-            ?: FragmentNewSettings()
+    lateinit var fragment: FragmentNewSettings
 
     private val backstack = ArrayList<PreferenceScreen>()
 
@@ -41,32 +40,33 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        createContentParent(false)
 
-        if (savedInstanceState == null) {
-            supportFragmentManager.transaction {
-                replace(CONTENT_ID, fragment, FragmentNewSettings.TAG)
-                runOnCommit { initializeRoot() }
-            }
+        createContentParent(false)
+        fragment = FragmentNewSettings()
+        supportFragmentManager.transaction {
+            replace(CONTENT_ID, fragment, FragmentNewSettings.TAG)
+            runOnCommit { initializeRoot(fragment) }
         }
+
+
 
 
         title = "Settings"
     }
 
-    private fun initializeTracking() {
-        fragment.findPreference(getString(R.string.settings_activity_watcher_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+    private fun initializeTracking(caller: PreferenceFragmentCompat) {
+        caller.findPreference(getString(R.string.settings_activity_watcher_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             ActivityWakerService.poke(this@SettingsActivity, newValue as Boolean)
             return@OnPreferenceChangeListener true
         }
 
-        fragment.findPreference(getString(R.string.settings_activity_freq_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(getString(R.string.settings_activity_freq_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             ActivityService.requestActivity(this, NewUIActivity::class.java, newValue as Int)
             ActivityWakerService.poke(this)
             return@OnPreferenceChangeListener true
         }
 
-        fragment.findPreference(getString(R.string.settings_disabled_recharge_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(getString(R.string.settings_disabled_recharge_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
                 return@OnPreferenceChangeListener DisableTillRechargeJobService.stopTillRecharge(this)
             } else
@@ -76,13 +76,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
     }
 
-    private fun initializeRoot() {
+    private fun initializeRoot(caller: PreferenceFragmentCompat) {
         if (Signin.isSignedIn)
             setOnClickListener(R.string.settings_feedback_key) {
                 startActivity<FeedbackActivity> { }
             }
         else
-            fragment.findPreference(getString(R.string.settings_feedback_key)).isEnabled = false
+            caller.findPreference(getString(R.string.settings_feedback_key)).isEnabled = false
 
         setOnClickListener(R.string.settings_account_key) {
             startActivity<UserActivity> { }
@@ -99,9 +99,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         val devKey = getString(R.string.settings_debug_key)
 
-        fragment.findPreference("debug_key").isVisible = Preferences.getPref(this).getBoolean(devKey, false)
+        caller.findPreference("debug_key_screen").isVisible = Preferences.getPref(this).getBoolean(devKey, false)
 
-        val version = fragment.findPreference(getString(R.string.settings_app_version_key))
+        val version = caller.findPreference(getString(R.string.settings_app_version_key))
         try {
             version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
         } catch (e: Exception) {
@@ -123,8 +123,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     putBoolean(devKey, true)
                 }
                 showToast(getString(R.string.settings_debug_available))
-                fragment.findPreference("debug_key").isVisible = true
-                (fragment.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
+                caller.findPreference("debug_key").isVisible = true
+                (caller.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
             } else if (clickCount >= 4) {
                 showToast(getString(R.string.settings_debug_available_in, 7 - clickCount))
             }
@@ -155,7 +155,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 fragment.setPreferencesFromResource(R.xml.app_preferences, null)
                 backstack.clear()
                 title = getString(R.string.settings_title)
-                initializeRoot()
+                initializeRoot(fragment)
                 true
             }
             else -> {
@@ -200,19 +200,19 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
 
-    private fun initializeDebug() {
+    private fun initializeDebug(caller: PreferenceFragmentCompat) {
         //val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
         //devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE
 
-        fragment.findPreference(getString(R.string.settings_clear_cache_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_clear_cache_key)).setOnPreferenceClickListener { _ ->
             createClearDialog({ CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files)
             false
         }
-        fragment.findPreference(getString(R.string.settings_clear_data_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_clear_data_key)).setOnPreferenceClickListener { _ ->
             createClearDialog({ DataStore.clearAll(it) }, R.string.settings_cleared_all_data_files)
             false
         }
-        fragment.findPreference(getString(R.string.settings_clear_reports_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_clear_reports_key)).setOnPreferenceClickListener { _ ->
             createClearDialog({ _ ->
                 DataStore.delete(this, DataStore.RECENT_UPLOADS_FILE)
                 Preferences.getPref(this).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
@@ -220,7 +220,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
-        fragment.findPreference(getString(R.string.settings_browse_files_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_browse_files_key)).setOnPreferenceClickListener { _ ->
             createFileAlertDialog(filesDir, { file ->
                 val name = file.name
                 !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
@@ -228,12 +228,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
-        fragment.findPreference(getString(R.string.settings_browse_cache_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_browse_cache_key)).setOnPreferenceClickListener { _ ->
             createFileAlertDialog(cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory })
             false
         }
 
-        fragment.findPreference(getString(R.string.settings_hello_world_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_hello_world_key)).setOnPreferenceClickListener { _ ->
             val helloWorld = getString(R.string.dev_notification_dummy)
             val color = ContextCompat.getColor(this, R.color.color_primary)
             val rng = Random(System.currentTimeMillis())
@@ -251,18 +251,18 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
-        fragment.findPreference(getString(R.string.settings_activity_debug_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(getString(R.string.settings_activity_debug_key)).setOnPreferenceClickListener { _ ->
             startActivity(Intent(this, ActivityRecognitionActivity::class.java))
             false
         }
 
     }
 
-    private fun initializeStyle() {
+    private fun initializeStyle(caller: PreferenceFragmentCompat) {
         val onPreferenceChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
-            val morning = fragment.findPreference(getString(R.string.settings_color_morning_key))
-            val evening = fragment.findPreference(getString(R.string.settings_color_evening_key))
-            val night = fragment.findPreference(getString(R.string.settings_color_night_key))
+            val morning = caller.findPreference(getString(R.string.settings_color_morning_key))
+            val evening = caller.findPreference(getString(R.string.settings_color_evening_key))
+            val night = caller.findPreference(getString(R.string.settings_color_night_key))
 
             val newValueInt = (newValue as String).toInt()
             night.isVisible = newValueInt >= 1
@@ -273,12 +273,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             true
         }
 
-        val stylePreference = fragment.findPreference(getString(R.string.settings_style_mode_key)) as ListPreference
+        val stylePreference = caller.findPreference(getString(R.string.settings_style_mode_key)) as ListPreference
         stylePreference.onPreferenceChangeListener = onPreferenceChange
         onPreferenceChange.onPreferenceChange(stylePreference, stylePreference.value)
 
-        fragment.findPreference(getString(R.string.settings_color_default_key)).setOnPreferenceClickListener {
-            fragment.preferenceManager.sharedPreferences.edit {
+        caller.findPreference(getString(R.string.settings_color_default_key)).setOnPreferenceClickListener {
+            caller.preferenceManager.sharedPreferences.edit {
                 remove(getString(R.string.settings_color_morning_key))
                 remove(getString(R.string.settings_color_evening_key))
                 remove(getString(R.string.settings_color_day_key))
@@ -289,11 +289,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
 
-    private fun initializeStartScreen(key: String) {
+    private fun initializeStartScreen(caller: PreferenceFragmentCompat, key: String) {
+        val r = resources
         when (key) {
-            "debug_key" -> initializeDebug()
-            "style_key" -> initializeStyle()
-            "tracking_key" -> initializeTracking()
+            r.getString(R.string.settings_debug_title) -> initializeDebug(caller)
+            r.getString(R.string.settings_style_title) -> initializeStyle(caller)
+            r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
         }
     }
 
@@ -309,7 +310,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         title = pref.title
 
-        initializeStartScreen(pref.key)
+        initializeStartScreen(caller, pref.title.toString())
 
         return true
     }
