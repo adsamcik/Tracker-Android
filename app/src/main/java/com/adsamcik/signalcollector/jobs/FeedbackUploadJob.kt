@@ -10,6 +10,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.R.string.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
+import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.launch
 
 class FeedbackUploadJob : JobService() {
@@ -72,6 +73,7 @@ class FeedbackUploadJob : JobService() {
             builder.addFormDataPart("description", if (params[2].isNotEmpty()) params[2] else "")
 
             val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
+            Crashlytics.logException(Throwable(result.message()))
             return result.isSuccessful
         }
 
