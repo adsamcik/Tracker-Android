@@ -75,8 +75,6 @@ class FeedbackUploadJob : JobService() {
             builder.addFormDataPart("description", if (params[2].isNotEmpty()) params[2] else "")
 
             val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
-            if (!result.isSuccessful)
-                Crashlytics.logException(Throwable(result.message()))
             return result.isSuccessful
         }
 
