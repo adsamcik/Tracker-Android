@@ -128,10 +128,6 @@ internal class ColorManager {
         }
     }
 
-    private fun setBackgroundColor(view: View, @ColorInt color: Int, layer: Int) {
-
-    }
-
     private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
         var newLayer = layer
         if (updateBackgroundDrawable(view, layerColor(color, layer)))
