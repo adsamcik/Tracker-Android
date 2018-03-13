@@ -55,10 +55,22 @@ internal object ColorSupervisor {
         }
 
         val colorManager = ColorManager()
-        colorManagers.add(colorManager)
-        ensureUpdate()
+        synchronized(colorManagers) {
+            colorManagers.add(colorManager)
+            ensureUpdate()
+        }
 
         return colorManager
+    }
+
+    fun recycleColorManager(colorManager: ColorManager) {
+        synchronized(colorManagers) {
+            colorManagers.remove(colorManager)
+            if (colorManagers.isEmpty()) {
+                colorManagers.trimToSize()
+                stopUpdate()
+            }
+        }
     }
 
     fun ensureUpdate() {
@@ -108,8 +120,10 @@ internal object ColorSupervisor {
         currentForegroundColor = fgColor
         currentBaseColor = color
 
-        colorManagers.forEach {
-            it.update(color, fgColor)
+        synchronized(colorManagers) {
+            colorManagers.forEach {
+                it.update(color, fgColor)
+            }
         }
     }
 
@@ -268,14 +282,6 @@ internal object ColorSupervisor {
                 timerActive = false
                 timer!!.cancel()
             }
-        }
-    }
-
-    fun recycleColorManager(colorManager: ColorManager) {
-        colorManagers.remove(colorManager)
-        if (colorManagers.isEmpty()) {
-            colorManagers.trimToSize()
-            stopUpdate()
         }
     }
 

@@ -5,7 +5,6 @@ import android.graphics.PorterDuffColorFilter
 import android.support.annotation.ColorInt
 import android.support.annotation.IdRes
 import android.support.v7.widget.CardView
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -16,16 +15,13 @@ import com.adsamcik.signalcollector.uitools.ColorSupervisor.currentForegroundCol
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
-import java.util.concurrent.locks.ReentrantLock
 
 
 internal class ColorManager {
     private val watchedElements = ArrayList<ColorView>()
 
-    private val arrayLock = ReentrantLock()
-
     fun watchElement(view: ColorView) {
-        synchronized(arrayLock) {
+        synchronized(watchedElements) {
             watchedElements.add(view)
         }
         updateInternal(view, currentBaseColor, currentForegroundColor)
@@ -35,7 +31,7 @@ internal class ColorManager {
 
     fun notififyChangeOn(view: View) {
         var find: ColorView? = null
-        synchronized(arrayLock) {
+        synchronized(watchedElements) {
             find = watchedElements.find { it.view == view }
         }
 
@@ -61,7 +57,7 @@ internal class ColorManager {
     }
 
     fun stopWatchingElement(predicate: (ColorView) -> Boolean) {
-        synchronized(arrayLock) {
+        synchronized(watchedElements) {
             val index = watchedElements.indexOfFirst(predicate)
             if (index >= 0)
                 watchedElements.removeAt(index)
@@ -82,7 +78,7 @@ internal class ColorManager {
     }
 
     fun stopWatchingRecycler(@IdRes id: Int) {
-        synchronized(arrayLock) {
+        synchronized(watchedElements) {
             val index = watchedElements.indexOfFirst { it.view.id == id }
             if (index >= 0) {
                 (watchedElements[index].view as ViewGroup).setOnHierarchyChangeListener(null)
@@ -92,14 +88,14 @@ internal class ColorManager {
     }
 
     fun stopWatchingAll() {
-        synchronized(arrayLock) {
+        synchronized(watchedElements) {
             watchedElements.clear()
         }
     }
 
     internal fun update(@ColorInt baseColor: Int, @ColorInt fgColor: Int) {
         launch(UI) {
-            synchronized(arrayLock) {
+            synchronized(watchedElements) {
                 watchedElements.forEach {
                     updateInternal(it, baseColor, fgColor)
                 }
