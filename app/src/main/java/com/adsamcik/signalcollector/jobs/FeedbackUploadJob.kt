@@ -29,7 +29,9 @@ class FeedbackUploadJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         launch {
             val user = Signin.getUserAsync(this@FeedbackUploadJob)
-            if (user?.token != null) {
+            if (user?.token == null || user.token.isBlank())
+                throw RuntimeException("User token is null")
+            else {
                 val summary = params.extras[SUMMARY] as String
                 val type = params.extras[TYPE] as Int
                 val description = params.extras[DESCRIPTION] as String
@@ -73,7 +75,8 @@ class FeedbackUploadJob : JobService() {
             builder.addFormDataPart("description", if (params[2].isNotEmpty()) params[2] else "")
 
             val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
-            Crashlytics.logException(Throwable(result.message()))
+            if (!result.isSuccessful)
+                Crashlytics.logException(Throwable(result.message()))
             return result.isSuccessful
         }
 
