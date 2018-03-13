@@ -9,7 +9,7 @@
                                              android:focusableInTouchMode="true">
 
     <EditText
-        android:id="@+id/map_search"
+        android:id="@+id/edittext_map_search"
         android:layout_width="0dp"
         android:layout_height="48dp"
         android:layout_marginEnd="@dimen/edge_margin"

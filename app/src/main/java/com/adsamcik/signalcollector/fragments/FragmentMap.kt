@@ -210,7 +210,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             }
         }
 
-        searchText = fragmentView!!.findViewById(R.id.map_search)
+        searchText = fragmentView!!.findViewById(R.id.edittext_map_search)
         searchText!!.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)
             try {

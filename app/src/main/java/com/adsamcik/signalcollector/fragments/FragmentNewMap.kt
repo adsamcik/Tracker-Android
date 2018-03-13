@@ -5,7 +5,6 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.graphics.Point
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.hardware.Sensor
@@ -18,13 +17,13 @@ import android.os.Bundle
 import android.os.Looper
 import android.support.annotation.DrawableRes
 import android.support.constraint.ConstraintLayout
-import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.TextView
 import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggableImageButton
@@ -112,7 +111,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     override fun onEnter(activity: Activity) {
         this.fActivity = activity as FragmentActivity
-        initializeLocationListener(activity)
 
         mapLayerFilterRule = MapFilterRule()
         val mapFragment = SupportMapFragment.newInstance()
@@ -125,12 +123,12 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     override fun onStart() {
         super.onStart()
+        initializeLocationListener(context!!)
         initializeUserElements()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         MapsInitializer.initialize(context)
     }
 
@@ -203,7 +201,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 when (opened) {
                     true -> {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                        val top = searchOriginalMargin + keyboardHeight + map_menu_button.height + map_search.paddingBottom + map_search.paddingTop + map_search.height
+                        val top = searchOriginalMargin + keyboardHeight + map_menu_button.height + edittext_map_search.paddingBottom + edittext_map_search.paddingTop + edittext_map_search.height
                         map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
                         map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
                     }
@@ -227,7 +225,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     private fun initializeUserElements() {
         initializeKeyboardDetection()
-        map_search.setOnEditorActionListener { v, _, _ ->
+        edittext_map_search.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)
             try {
                 val addresses = geocoder.getFromLocationName(v.text.toString(), 1)
@@ -260,10 +258,10 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 colorManager?.stopWatchingRecycler(R.id.list)
             }
 
-            map_menu_button.onEnterStateListener= {_, state, _ ->
-                if(state == DraggableImageButton.State.TARGET)
+            map_menu_button.onEnterStateListener = { _, state, _ ->
+                if (state == DraggableImageButton.State.TARGET)
                     animateMenuDrawable(R.drawable.up_to_down)
-                else if(state == DraggableImageButton.State.INITIAL)
+                else if (state == DraggableImageButton.State.INITIAL)
                     animateMenuDrawable(R.drawable.down_to_up)
             }
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
@@ -273,14 +271,16 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         map_menu_button.extendTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
 
+        locationListener!!.setButton(button_map_my_location, context!!)
+
         val colorManager = colorManager!!
-        colorManager.watchElement(ColorView(map_search, 3, false, false))
         colorManager.watchElement(ColorView(map_menu_button, 2, false, false))
+        colorManager.watchElement(ColorView(layout_map_controls, 3, true, false))
     }
 
     private fun animateMenuDrawable(@DrawableRes drawableRes: Int) {
         val context = context
-        if(context != null) {
+        if (context != null) {
             val drawable = context.getDrawable(drawableRes) as AnimatedVectorDrawable
             map_menu_button.setImageDrawable(drawable)
             drawable.start()
@@ -305,7 +305,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         map.setMaxZoomPreference(MAX_ZOOM.toFloat())
         if (checkLocationPermission(c, false)) {
-            locationListener!!.setFollowMyPosition(true, c)
+            locationListener!!.followMyPosition = true
             if (locationManager == null)
                 locationManager = context!!.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             assert(locationManager != null)
@@ -313,7 +313,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             if (l != null) {
                 val cp = CameraPosition.builder().target(LatLng(l.latitude, l.longitude)).zoom(16f).build()
                 map.moveCamera(CameraUpdateFactory.newCameraPosition(cp))
-                locationListener!!.targetPosition = cp.target
+                locationListener!!.setUserPosition(cp.target)
                 drawUserPosition(cp.target, l.accuracy)
             }
         }
@@ -376,18 +376,18 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     }
 
     private inner class UpdateLocationListener(private val sensorManager: SensorManager) : LocationListener, SensorEventListener {
-        private var followMyPosition = false
+        var followMyPosition = false
         internal var useGyroscope = false
 
         private val rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
         private var lastUserPos: LatLng? = null
-        var targetPosition: LatLng? = null
+        private var targetPosition: LatLng? = null
         private var targetTilt: Float = 0f
         private var targetBearing: Float = 0f
         private var targetZoom: Float = 0f
 
-        private var fab: FloatingActionButton? = null
+        private var button: ImageButton? = null
 
         private val cameraChangeListener: GoogleMap.OnCameraMoveStartedListener = GoogleMap.OnCameraMoveStartedListener { i ->
             if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
@@ -399,6 +399,14 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         internal var orientation = FloatArray(3)
         internal var rMat = FloatArray(9)
 
+        fun setUserPosition(latlng: LatLng) {
+            this.lastUserPos = latlng
+
+            if (followMyPosition && map != null) {
+                moveTo(latlng)
+            }
+        }
+
         fun registerMap(map: GoogleMap) {
             map.setOnCameraMoveStartedListener(cameraChangeListener)
             val cameraPosition = map.cameraPosition
@@ -408,18 +416,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             targetZoom = cameraPosition.zoom
         }
 
-        fun setFAB(fab: FloatingActionButton, context: Context) {
-            this.fab = fab
-            setFollowMyPosition(followMyPosition, context)
-        }
-
-        fun setFollowMyPosition(value: Boolean, context: Context) {
-            this.followMyPosition = value
-            if (fab != null && getContext() != null) {
-                if (followMyPosition)
-                    fab!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_accent))
-                else
-                    fab!!.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_primary))
+        fun setButton(button: ImageButton, context: Context) {
+            this.button = button
+            button.setOnClickListener {
+                if (checkLocationPermission(context, true))
+                    onMyPositionButtonClick()
             }
         }
 
@@ -434,19 +435,17 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         fun stopUsingUserPosition(returnToDefault: Boolean) {
             if (followMyPosition) {
-                setFollowMyPosition(false, context!!)
+                this.followMyPosition = false
                 if (useGyroscope) {
                     stopUsingGyroscope(returnToDefault)
-                    fab!!.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
                 }
+                button!!.setImageResource(R.drawable.ic_gps_not_fixed_black_24dp)
             }
         }
 
         override fun onLocationChanged(location: Location) {
-            lastUserPos = LatLng(location.latitude, location.longitude)
             drawUserPosition(lastUserPos!!, location.accuracy)
-            if (followMyPosition && map != null)
-                moveTo(lastUserPos!!)
+            setUserPosition(LatLng(location.latitude, location.longitude))
         }
 
         fun animateToPositionZoom(position: LatLng, zoom: Float) {
@@ -470,20 +469,25 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             map!!.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null)
         }
 
-        fun onMyPositionFabClick() {
+        fun onMyPositionButtonClick() {
+            val button = button!!
             if (followMyPosition) {
-                if (useGyroscope) {
-                    fab!!.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
-                    stopUsingGyroscope(true)
-                } else if (rotationVector != null) {
-                    useGyroscope = true
-                    sensorManager.registerListener(this, rotationVector,
-                            SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
-                    animateToTilt(45f)
-                    fab!!.setImageResource(R.drawable.ic_compass)
+                when {
+                    useGyroscope -> {
+                        button.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
+                        stopUsingGyroscope(true)
+                    }
+                    rotationVector != null -> {
+                        useGyroscope = true
+                        sensorManager.registerListener(this, rotationVector,
+                                SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
+                        animateToTilt(45f)
+                        button.setImageResource(R.drawable.ic_compass)
+                    }
                 }
             } else {
-                setFollowMyPosition(true, context!!)
+                button.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
+                this.followMyPosition = true
             }
 
             if (lastUserPos != null)

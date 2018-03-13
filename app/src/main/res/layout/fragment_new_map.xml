@@ -56,24 +56,39 @@
             app:targetTranslationZ="4dp"
             app:targetView="@id/map_ui_parent"/>
 
-        <EditText
-            android:id="@+id/map_search"
+        <android.support.constraint.ConstraintLayout
+            android:id="@+id/layout_map_controls"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_weight="0"
             android:background="@color/cardview_light_background"
-            android:elevation="8dp"
-            android:hint="@string/map_search"
-            android:imeOptions="actionSearch"
-            android:inputType="text|textNoSuggestions"
-            android:paddingBottom="8dp"
-            android:paddingEnd="@dimen/edge_margin"
-            android:paddingStart="@dimen/edge_margin"
-            android:paddingTop="8dp"
-            android:textColor="?android:textColorPrimary"
-            android:textColorHint="?android:textColorSecondary"
-            android:textSize="16sp"
-            app:layout_constraintBottom_toBottomOf="parent"/>
+            android:elevation="8dp">
+
+            <EditText
+                android:id="@+id/edittext_map_search"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:hint="@string/map_search"
+                android:imeOptions="actionSearch"
+                android:inputType="text|textNoSuggestions"
+                android:paddingBottom="8dp"
+                android:paddingEnd="56dp"
+                android:paddingStart="@dimen/edge_margin"
+                android:paddingTop="8dp"
+                android:textColor="?android:textColorPrimary"
+                android:textColorHint="?android:textColorSecondary"
+                android:textSize="16sp"/>
+
+            <ImageButton
+                android:id="@+id/button_map_my_location"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_gps_fixed_black_24dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+        </android.support.constraint.ConstraintLayout>
     </LinearLayout>
 
 </android.support.constraint.ConstraintLayout>

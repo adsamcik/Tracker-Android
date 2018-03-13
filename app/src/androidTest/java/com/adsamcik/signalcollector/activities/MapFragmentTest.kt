@@ -100,7 +100,7 @@ class MapFragmentTest {
         sleep(1000)
 
         val editText = onView(
-                allOf(withId(R.id.map_search),
+                allOf(withId(R.id.edittext_map_search),
                         childAtPosition(
                                 allOf(withId(R.id.container_map),
                                         childAtPosition(
@@ -111,7 +111,7 @@ class MapFragmentTest {
         editText.perform(replaceText("Czech Republic"), closeSoftKeyboard())
 
         val editText2 = onView(
-                allOf(withId(R.id.map_search), withText("Czech Republic"),
+                allOf(withId(R.id.edittext_map_search), withText("Czech Republic"),
                         childAtPosition(
                                 allOf(withId(R.id.container_map),
                                         childAtPosition(
