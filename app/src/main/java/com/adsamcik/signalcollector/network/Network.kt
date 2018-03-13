@@ -70,9 +70,9 @@ object Network {
                             response.request().newBuilder().header("userToken", userToken).build()
                         }
                     })
-                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .writeTimeout(60, TimeUnit.SECONDS)
                     .readTimeout(60, TimeUnit.SECONDS)
-                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .connectTimeout(60, TimeUnit.SECONDS)
                     .build()
     }
 
