@@ -126,7 +126,6 @@
     </android.support.v7.preference.PreferenceScreen>
 
     <android.support.v7.preference.PreferenceScreen
-        android:key="debug_screen_key"
         android:title="@string/settings_debug_title">
 
         <android.support.v7.preference.SwitchPreferenceCompat

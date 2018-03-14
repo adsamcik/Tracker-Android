@@ -195,19 +195,3 @@ object Preferences {
         return statDays
     }
 }
-
-fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): Int {
-    val resources = context.resources
-    return getInt(resources.getString(key), resources.getString(defaultResource).toInt())
-}
-
-fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
-    val resources = context.resources
-    return getString(resources.getString(key), resources.getString(defaultResource))
-}
-
-@ColorInt
-fun SharedPreferences.getColor(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
-    val defaultColor = ContextCompat.getColor(context, defaultResource)
-    return getInt(context.getString(key), defaultColor)
-}

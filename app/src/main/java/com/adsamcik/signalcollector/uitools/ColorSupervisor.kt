@@ -8,7 +8,11 @@ import android.support.v4.graphics.ColorUtils
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.extensions.getColor
+import com.adsamcik.signalcollector.extensions.getString
+import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.Preferences
 import java.util.*
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock

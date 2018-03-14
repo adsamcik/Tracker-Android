@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.content.edit
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.extensions.findDirectPreferenceByTitle
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentNewSettings
@@ -100,8 +101,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
 
         val devKey = getString(R.string.settings_debug_key)
+        val debugTitle = getString(R.string.settings_debug_title)
 
-        caller.findPreference(DEBUG_KEY).isVisible = Preferences.getPref(this).getBoolean(devKey, false)
+        caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = Preferences.getPref(this).getBoolean(devKey, false)
 
         val version = caller.findPreference(getString(R.string.settings_app_version_key))
         version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
@@ -120,7 +122,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     putBoolean(devKey, true)
                 }
                 showToast(getString(R.string.settings_debug_available))
-                caller.findPreference(DEBUG_KEY).isVisible = true
+                caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = true
                 (caller.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
             } else if (clickCount >= 4) {
                 showToast(getString(R.string.settings_debug_available_in, 7 - clickCount))
@@ -310,9 +312,5 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         initializeStartScreen(caller, pref.title.toString())
 
         return true
-    }
-
-    companion object {
-        const val DEBUG_KEY = "debug_screen_key"
     }
 }
