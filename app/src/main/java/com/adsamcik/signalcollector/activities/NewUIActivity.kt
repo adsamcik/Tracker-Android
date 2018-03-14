@@ -55,7 +55,6 @@ class NewUIActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_new_ui)
 
-        Fabric.with(this, Crashlytics())
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
 

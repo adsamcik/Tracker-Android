@@ -35,7 +35,6 @@ class UploadJobService : JobService() {
     private var worker: JobWorker? = null
 
     override fun onStartJob(jobParameters: JobParameters): Boolean {
-        Fabric.with(this, Crashlytics())
         Preferences.getPref(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal).apply()
         val scheduleSource = UploadScheduleSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
         if (scheduleSource == UploadScheduleSource.NONE)

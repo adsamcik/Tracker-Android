@@ -12,7 +12,6 @@ import io.fabric.sdk.android.Fabric
 
 class OnAppUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        Fabric.with(context, Crashlytics())
         val action = intent.action
         if (action != null && action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             val sp = Preferences.getPref(context)

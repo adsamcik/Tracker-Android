@@ -30,8 +30,7 @@ class LaunchActivity : Activity() {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
-        } else
-            Fabric.with(this, Crashlytics())
+        }
 
         val scheduler = getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         val sp = Preferences.getPref(this)
