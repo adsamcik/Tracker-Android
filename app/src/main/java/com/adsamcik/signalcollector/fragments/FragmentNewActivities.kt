@@ -22,7 +22,6 @@ import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
-import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch

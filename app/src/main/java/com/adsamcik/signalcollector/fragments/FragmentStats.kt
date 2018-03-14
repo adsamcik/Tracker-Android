@@ -24,7 +24,6 @@ import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
-import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.table.AppendBehavior
@@ -64,7 +63,7 @@ class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
         refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40))
 
         val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
-        listView.setRecyclerListener {  }
+        listView.setRecyclerListener { }
         listView.adapter = adapter
         updateStats()
         return fragmentView

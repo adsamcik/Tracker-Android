@@ -10,7 +10,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.R.string.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
-import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.launch
 
 class FeedbackUploadJob : JobService() {

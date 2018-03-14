@@ -5,7 +5,6 @@ import android.support.constraint.ConstraintLayout
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
-import com.adsamcik.signalcollector.utility.Assist.navbarSize
 
 
 fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {

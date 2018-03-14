@@ -9,7 +9,6 @@ import android.support.v4.content.ContextCompat
 import android.support.v7.preference.Preference
 import android.support.v7.preference.PreferenceFragmentCompat
 import android.support.v7.preference.PreferenceGroup
-import android.util.Log
 
 /**
  * Searches for preference using title

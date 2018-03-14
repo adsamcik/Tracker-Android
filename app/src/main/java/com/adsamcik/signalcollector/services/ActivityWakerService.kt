@@ -11,7 +11,6 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
-import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants

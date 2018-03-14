@@ -27,13 +27,11 @@ import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
-import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.LocationServices
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
-import io.fabric.sdk.android.Fabric
 import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI

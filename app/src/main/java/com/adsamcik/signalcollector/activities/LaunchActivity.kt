@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.activities
 import android.app.Activity
 import android.app.job.JobScheduler
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,12 +11,10 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
-import io.fabric.sdk.android.Fabric
 
 
 class LaunchActivity : Activity() {
@@ -66,7 +63,7 @@ class LaunchActivity : Activity() {
             }
         }
 
-        startActivity<NewUIActivity> {  }
+        startActivity<NewUIActivity> { }
 
         if (Build.VERSION.SDK_INT >= 25)
             Shortcuts.initializeShortcuts(this)

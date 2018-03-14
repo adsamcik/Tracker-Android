@@ -37,8 +37,11 @@ import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.signalcollector.utility.FirebaseAssist
+import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.slider.Stringify
 import com.adsamcik.slider.implementations.IntSlider
 import com.adsamcik.slider.implementations.IntValueSlider

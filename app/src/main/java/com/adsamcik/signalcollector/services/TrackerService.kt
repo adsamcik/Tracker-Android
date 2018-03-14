@@ -26,7 +26,6 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
-import com.adsamcik.signalcollector.activities.StandardUIActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService

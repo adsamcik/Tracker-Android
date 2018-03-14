@@ -1,13 +1,11 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
-import android.support.v4.app.NavUtils
 import android.support.v7.app.AppCompatActivity
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
 abstract class DetailActivity : AppCompatActivity() {

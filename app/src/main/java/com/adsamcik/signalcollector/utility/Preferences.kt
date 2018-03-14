@@ -4,10 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
-import android.support.annotation.ColorInt
-import android.support.annotation.ColorRes
-import android.support.annotation.StringRes
-import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.StatDay
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS

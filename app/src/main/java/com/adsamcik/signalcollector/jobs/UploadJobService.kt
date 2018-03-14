@@ -23,7 +23,6 @@ import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import io.fabric.sdk.android.Fabric
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.File

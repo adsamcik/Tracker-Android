@@ -8,7 +8,6 @@ public interface ITabFragment {
 
 	/**
 	 * Called when entering the tab
-	 *
 	 */
 	@NonNull
 	void onEnter(@NonNull final FragmentActivity activity, @NonNull final FloatingActionButton fabOne, @NonNull final FloatingActionButton fabTwo);
