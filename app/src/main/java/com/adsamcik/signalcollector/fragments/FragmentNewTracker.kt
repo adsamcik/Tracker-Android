@@ -93,6 +93,10 @@ class FragmentNewTracker : Fragment() {
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
         updateUploadButton()
 
+        val data = TrackerService.rawDataEcho
+        if (data.time > 0)
+            updateData(data)
+
         TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton(TrackerService.isRunning) } }
         TrackerService.onNewDataFound = { launch(UI) { updateData(it) } }
         DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
