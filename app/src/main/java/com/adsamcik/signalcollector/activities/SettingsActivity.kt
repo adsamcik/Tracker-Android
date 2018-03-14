@@ -9,7 +9,6 @@ import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.support.v7.preference.*
-import android.util.Log
 import android.widget.Toast
 import androidx.content.edit
 import com.adsamcik.signalcollector.BuildConfig
@@ -102,15 +101,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         val devKey = getString(R.string.settings_debug_key)
 
-        caller.findPreference("debug_key_screen").isVisible = Preferences.getPref(this).getBoolean(devKey, false)
+        caller.findPreference(DEBUG_KEY).isVisible = Preferences.getPref(this).getBoolean(devKey, false)
 
         val version = caller.findPreference(getString(R.string.settings_app_version_key))
-        try {
-            version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
-        } catch (e: Exception) {
-            Log.d("SignalsSettings", "Failed to set version")
-        }
-
+        version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
 
         version.setOnPreferenceClickListener {
             val preferences = Preferences.getPref(this)
@@ -126,7 +120,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     putBoolean(devKey, true)
                 }
                 showToast(getString(R.string.settings_debug_available))
-                caller.findPreference("debug_key").isVisible = true
+                caller.findPreference(DEBUG_KEY).isVisible = true
                 (caller.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
             } else if (clickCount >= 4) {
                 showToast(getString(R.string.settings_debug_available_in, 7 - clickCount))
@@ -316,5 +310,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         initializeStartScreen(caller, pref.title.toString())
 
         return true
+    }
+
+    companion object {
+        const val DEBUG_KEY = "debug_screen_key"
     }
 }
