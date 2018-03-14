@@ -50,7 +50,10 @@ class FragmentNewTracker : Fragment() {
     private var lastWifiTime: Long = 0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        return inflater.inflate(R.layout.fragment_new_tracker, container, false)
+        return if (view != null)
+            view
+        else
+            inflater.inflate(R.layout.fragment_new_tracker, container, false)
     }
 
     override fun onStart() {

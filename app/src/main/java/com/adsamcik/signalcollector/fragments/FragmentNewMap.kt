@@ -139,7 +139,10 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         val activity = fActivity!!
         hasPermissions = checkLocationPermission(activity, true)
         if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
-            fragmentView = inflater.inflate(R.layout.fragment_new_map, container, false)
+            fragmentView = if (view != null)
+                view
+            else
+                inflater.inflate(R.layout.fragment_new_map, container, false)
         } else {
             fragmentView = inflater.inflate(R.layout.layout_error, container, false)
             (fragmentView!!.findViewById<View>(R.id.activity_error_text) as TextView).setText(if (hasPermissions) R.string.error_play_services_not_available else R.string.error_missing_permission)
