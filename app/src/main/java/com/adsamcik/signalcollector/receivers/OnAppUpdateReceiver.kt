@@ -8,9 +8,11 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
+import io.fabric.sdk.android.Fabric
 
 class OnAppUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        Fabric.with(context, Crashlytics())
         val action = intent.action
         if (action != null && action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             val sp = Preferences.getPref(context)

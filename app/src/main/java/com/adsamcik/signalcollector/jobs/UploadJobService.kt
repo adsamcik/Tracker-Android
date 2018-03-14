@@ -23,6 +23,7 @@ import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST
 import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
+import io.fabric.sdk.android.Fabric
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.File
@@ -34,6 +35,7 @@ class UploadJobService : JobService() {
     private var worker: JobWorker? = null
 
     override fun onStartJob(jobParameters: JobParameters): Boolean {
+        Fabric.with(this, Crashlytics())
         Preferences.getPref(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal).apply()
         val scheduleSource = UploadScheduleSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
         if (scheduleSource == UploadScheduleSource.NONE)
