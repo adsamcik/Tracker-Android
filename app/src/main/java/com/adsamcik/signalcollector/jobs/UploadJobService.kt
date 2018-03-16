@@ -260,7 +260,7 @@ class UploadJobService : JobService() {
                 val scheduler = scheduler(context)
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND)
-                    jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY.toLong())
+                    jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY)
                     addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb)
                     updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND)
 

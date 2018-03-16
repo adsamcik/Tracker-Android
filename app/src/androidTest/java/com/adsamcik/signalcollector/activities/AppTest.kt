@@ -100,14 +100,14 @@ class AppTest {
 
         Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
 
-        Thread.sleep(Constants.SECOND_IN_MILLISECONDS.toLong())
+        Thread.sleep(Constants.SECOND_IN_MILLISECONDS)
 
-        mDevice.waitForIdle((30 * Constants.SECOND_IN_MILLISECONDS).toLong())
+        mDevice.waitForIdle((30 * Constants.SECOND_IN_MILLISECONDS))
         val actionStats = mDevice.findObject(By.res(PACKAGE, "action_stats"))
         actionStats.click()
         mDevice.findObject(By.res(PACKAGE, "action_tracker")).click()
 
-        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2).toLong())
+        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2))
 
         val fabUpload = onView(
                 allOf(withId(R.id.fabTwo),
@@ -138,12 +138,12 @@ class AppTest {
         progressBar.check(matches(isDisplayed()))
 
         DataStore.onUpload(context, 50)
-        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2).toLong())
+        Thread.sleep((Constants.SECOND_IN_MILLISECONDS / 2))
 
         DataStore.onUpload(context, 100)
         DataStore.incData(context, 500, 25)
         Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
-        Thread.sleep((4 * Constants.SECOND_IN_MILLISECONDS).toLong())
+        Thread.sleep((4 * Constants.SECOND_IN_MILLISECONDS))
         fabUpload.check(matches(isDisplayed()))
         progressBar.check(doesNotExist())
     }

@@ -15,21 +15,21 @@ object EArray {
     }
 
     fun avg(array: ShortArray, startIndex: Int, batchSize: Int): Short {
-        var batchSize = batchSize
+        var bSize = batchSize
         if (startIndex >= array.size)
             throw IllegalArgumentException("Start index must be smaller than array length")
 
         //first index that shouldn't be used
         val endIndex: Int
-        if (startIndex + batchSize >= array.size) {
+        if (startIndex + bSize >= array.size) {
             endIndex = array.size
-            batchSize = array.size - startIndex
+            bSize = array.size - startIndex
         } else
-            endIndex = startIndex + batchSize
+            endIndex = startIndex + bSize
 
         val average = array[startIndex].toInt() + (startIndex + 1 until endIndex).sumBy { array[it].toInt() }
 
-        return (average / batchSize).toShort()
+        return (average / bSize).toShort()
     }
 
     fun sum(array: ShortArray): Int = array.sumBy { it.toInt() }

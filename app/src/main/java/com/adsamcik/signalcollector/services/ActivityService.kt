@@ -166,7 +166,7 @@ class ActivityService : IntentService("ActivityService") {
         private fun initializeActivityClient(context: Context, delayInS: Int): Boolean {
             return if (Assist.checkPlayServices(context)) {
                 val activityRecognitionClient = ActivityRecognition.getClient(context)
-                task = activityRecognitionClient.requestActivityUpdates((delayInS * Constants.SECOND_IN_MILLISECONDS).toLong(), getActivityDetectionPendingIntent(context))
+                task = activityRecognitionClient.requestActivityUpdates((delayInS * Constants.SECOND_IN_MILLISECONDS), getActivityDetectionPendingIntent(context))
                 true
             } else {
                 Crashlytics.logException(Throwable("Unavailable play services"))

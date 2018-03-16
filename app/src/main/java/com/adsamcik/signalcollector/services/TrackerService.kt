@@ -271,7 +271,7 @@ class TrackerService : Service() {
         }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC.toLong(), MIN_DISTANCE_M, locationListener)
+            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener)
         else {
             Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
             stopSelf()
