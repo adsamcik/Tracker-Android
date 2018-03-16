@@ -112,6 +112,7 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.initialTranslation = Point(-size.x, 0)
         statsPayload.backgroundColor = Color.WHITE
         statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
+        statsPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
         statsPayload.onInitialized = {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
             colorManager.watchRecycler(ColorView(recycler, 1, true, true))
@@ -132,6 +133,7 @@ class NewUIActivity : FragmentActivity() {
         activityPayload.initialTranslation = Point(size.x, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
+        activityPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
         activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
 
         activityButton.addPayload(activityPayload)
@@ -146,7 +148,7 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.initialTranslation = Point(0, realSize.y)
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(16.dpAsPx.toFloat())
-        mapPayload.destroyPayloadAfter = (30 * Constants.SECOND_IN_MILLISECONDS).toLong()
+        mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
         mapDraggable.addPayload(mapPayload)
     }
 
