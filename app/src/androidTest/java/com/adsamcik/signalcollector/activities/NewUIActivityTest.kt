@@ -4,10 +4,12 @@ package com.adsamcik.signalcollector.activities
 import android.support.test.espresso.Espresso.onView
 import android.support.test.espresso.action.ViewActions.click
 import android.support.test.espresso.assertion.ViewAssertions.matches
+import android.support.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition
 import android.support.test.espresso.matcher.ViewMatchers.*
 import android.support.test.rule.ActivityTestRule
 import android.support.test.rule.GrantPermissionRule
 import android.support.test.runner.AndroidJUnit4
+import android.support.v7.widget.RecyclerView
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
@@ -56,49 +58,33 @@ class NewUIActivityTest {
                     allOf(withClassName(`is`("com.takusemba.spotlight.SpotlightView")), isDisplayed()))
             spotlightView5.perform(click())
 
-            // Added a sleep statement to match the app's execution delay.
-            // The recommended way to handle such scenarios is to use Espresso idling resources:
-            // https://google.github.io/android-testing-support-library/docs/espresso/idling-resource/index.html
-            try {
-                Thread.sleep(1000)
-            } catch (e: InterruptedException) {
-                e.printStackTrace()
-            }
+            sleep()
         }
 
         val statsButton = onView(withId(R.id.statsButton)).check(matches(isDisplayed()))
         val mapDraggable = onView(withId(R.id.mapDraggable)).check(matches(isDisplayed()))
         val activityButton = onView(withId(R.id.activityButton)).check(matches(isDisplayed()))
-
         val topPanel = onView(withId(R.id.top_panel)).check(matches(isDisplayed()))
 
-        // Added a sleep statement to match the app's execution delay.
-        // The recommended way to handle such scenarios is to use Espresso idling resources:
-        // https://google.github.io/android-testing-support-library/docs/espresso/idling-resource/index.html
-        try {
-            Thread.sleep(1000)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
+        mapDraggable.perform(click())
+
+        sleep()
+
+        mapDraggable.perform(click())
+
+        sleep()
 
         val imageButton4 = onView(withId(R.id.button_settings)).check(matches(isDisplayed()))
         imageButton4.perform(click())
 
-        // Added a sleep statement to match the app's execution delay.
-        // The recommended way to handle such scenarios is to use Espresso idling resources:
-        // https://google.github.io/android-testing-support-library/docs/espresso/idling-resource/index.html
-        try {
-            Thread.sleep(1000)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
+        sleep()
 
-        /*val recyclerView = onView(
+        val recyclerView = onView(
                 allOf(withId(R.id.list),
                         childAtPosition(
                                 withId(android.R.id.list_container),
                                 0)))
-        recyclerView.perform(actionOnItemAtPosition<FilterableAdapter.ViewHolder>(0, click()))*/
+        recyclerView.perform(actionOnItemAtPosition<RecyclerView.ViewHolder>(0, click()))
 
         // Added a sleep statement to match the app's execution delay.
         // The recommended way to handle such scenarios is to use Espresso idling resources:
@@ -111,19 +97,9 @@ class NewUIActivityTest {
 
         val appCompatImageButton = onView(
                 allOf(withId(R.id.back_button), withContentDescription("back"), isDisplayed()))
-        appCompatImageButton.perform(click())
+        appCompatImageButton.perform(click()).perform(click())
 
-        try {
-            Thread.sleep(1000)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
-
-        try {
-            Thread.sleep(1000)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
+        sleep()
 
         val imageButton5 = onView(
                 allOf(withId(R.id.button_tracking),
@@ -136,11 +112,7 @@ class NewUIActivityTest {
                         isDisplayed()))
         imageButton5.perform(click())
 
-        try {
-            Thread.sleep(50)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
+        sleep()
 
         assert(TrackerService.isRunning)
         assert(!TrackerService.isBackgroundActivated)
@@ -156,6 +128,14 @@ class NewUIActivityTest {
                         isDisplayed()))
         imageButton6.perform(click())
 
+    }
+
+    private fun sleep(millis: Long = 200) {
+        try {
+            Thread.sleep(millis)
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        }
     }
 
     private fun childAtPosition(
