@@ -128,7 +128,7 @@ object Preferences {
         val dayDiff = (todayUTC - preferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
         if (dayDiff > 0) {
             var stringStats: MutableSet<String>? = preferences.getStringSet(PREF_STATS_LAST_7_DAYS, null)
-            val stats = fromJson(stringStats, dayDiff)
+            val stats = fromJson(stringStats, dayDiff.toInt())
 
             stats.add(getCurrent(preferences))
 

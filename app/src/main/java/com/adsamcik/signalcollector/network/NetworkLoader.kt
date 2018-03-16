@@ -26,7 +26,7 @@ object NetworkLoader {
      * @param callback            Callback which is called when the result is ready
      * @param <T>                 Value type
     </T> */
-    fun <T> request(url: String, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
+    fun <T> request(url: String, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
         requestString(Network.client(context, null),
                 Request.Builder().url(url).build(),
                 updateTimeInMinutes,
@@ -45,7 +45,7 @@ object NetworkLoader {
      * @param callback            Callback which is called when the result is ready
      * @param <T>                 Value type
     </T> */
-    fun <T> requestSigned(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
+    fun <T> requestSigned(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
         if (userToken != null)
             requestString(Network.client(context, userToken),
                     Request.Builder().url(url).build(),
@@ -66,7 +66,7 @@ object NetworkLoader {
      * @param tClass              Class of the type
      * @param <T>                 Value type
     </T> */
-    suspend fun <T> requestSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
+    suspend fun <T> requestSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
         if (userToken != null) {
             if (useMock)
                 cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.NETWORK else Source.NO_DATA, null))
@@ -88,7 +88,7 @@ object NetworkLoader {
      * @param context             Context
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      */
-    suspend fun requestStringSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String): Pair<Source, String?> = suspendCoroutine { cont ->
+    suspend fun requestStringSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String): Pair<Source, String?> = suspendCoroutine { cont ->
         if (userToken != null)
             requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, { source, string ->
                 cont.resume(Pair(source, string))
@@ -106,7 +106,7 @@ object NetworkLoader {
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      * @param callback            Callback which is called when the result is ready
      */
-    fun requestStringSigned(url: String, userToken: String?, updateTimeInMinutes: Int, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
+    fun requestStringSigned(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
         if (userToken != null)
             requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
         else
@@ -131,7 +131,7 @@ object NetworkLoader {
      * @param preferenceString    Name of the lastUpdate in sharedPreferences, also is used as file name + '.json'
      * @param callback            Callback which is called when the result is ready
      */
-    private fun requestString(client: OkHttpClient, request: Request, updateTimeInMinutes: Int, ctx: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
+    private fun requestString(client: OkHttpClient, request: Request, updateTimeInMinutes: Long, ctx: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
         val context = ctx.applicationContext
         val lastUpdate = Preferences.getPref(context).getLong(preferenceString, -1)
         if (System.currentTimeMillis() - lastUpdate > updateTimeInMinutes * MINUTE_IN_MILLISECONDS || lastUpdate == -1L || !CacheStore.exists(context, preferenceString)) {

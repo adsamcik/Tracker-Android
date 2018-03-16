@@ -179,8 +179,8 @@ internal object ColorSupervisor {
 
     private fun calculateTimeOfDay2(): Pair<Int, Int> {
         val time = Assist.time
-        val changeLength: Int
-        val progress: Int
+        val changeLength: Long
+        val progress: Long
 
         when {
             time > sunsetTime -> {
@@ -203,13 +203,13 @@ internal object ColorSupervisor {
             }
         }
 
-        return Pair(changeLength, progress)
+        return Pair(changeLength.toInt(), progress.toInt())
     }
 
     private fun calculateTimeOfDay4(): Pair<Int, Int> {
         val time = Assist.time
-        val changeLength: Int
-        val progress: Int
+        val changeLength: Long
+        val progress: Long
 
         if (time > sunsetTime) {
             if (nightTime > sunsetTime) {
@@ -263,7 +263,7 @@ internal object ColorSupervisor {
             }
         }
 
-        return Pair(changeLength, progress)
+        return Pair(changeLength.toInt(), progress.toInt())
     }
 
     private fun calculateUpdatePeriod(changeLength: Int) = changeLength / calculateUpdateCount()

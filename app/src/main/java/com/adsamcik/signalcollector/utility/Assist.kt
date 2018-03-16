@@ -51,7 +51,7 @@ object Assist {
     val day: Long
         get() = dayFromCalendar(Calendar.getInstance()).timeInMillis
 
-    val time: Int
+    val time: Long
         get() {
             val calendar = Calendar.getInstance()
             return calendar.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +

@@ -41,7 +41,7 @@ class ActivityWakerService : Service() {
 
             while (!Thread.currentThread().isInterrupted) {
                 try {
-                    Thread.sleep((500 + Preferences.getPref(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS)).toLong())
+                    Thread.sleep((500 + Preferences.getPref(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS.toInt())).toLong())
                     val newActivityInfo = ActivityService.lastActivity
                     if (newActivityInfo != activityInfo) {
                         activityInfo = newActivityInfo
