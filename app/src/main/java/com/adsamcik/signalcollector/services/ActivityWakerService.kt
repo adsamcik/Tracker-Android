@@ -96,12 +96,8 @@ class ActivityWakerService : Service() {
          */
         @Synchronized
         fun poke(context: Context) {
-            if (Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)) {
-                if (instance == null)
-                    Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
-            } else if (instance != null) {
-                instance!!.stopSelf()
-            }
+            val preference = Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)
+            poke(context, preference)
         }
 
         /**
@@ -111,7 +107,7 @@ class ActivityWakerService : Service() {
          */
         @Synchronized
         fun poke(context: Context, state: Boolean) {
-            if (state) {
+            if (state && !TrackerService.isRunning) {
                 if (instance == null)
                     Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
             } else if (instance != null) {
