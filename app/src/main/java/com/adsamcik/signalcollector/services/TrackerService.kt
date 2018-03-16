@@ -24,6 +24,7 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import androidx.content.edit
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
@@ -247,7 +248,6 @@ class TrackerService : Service() {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        assert(powerManager != null)
         wakeLock = powerManager!!.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock")
 
         //Enable location update
@@ -307,6 +307,8 @@ class TrackerService : Service() {
         }
 
         UploadJobService.cancelUploadSchedule(this)
+
+        ActivityWakerService.poke(this, false)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -319,11 +321,10 @@ class TrackerService : Service() {
 
 
     override fun onDestroy() {
+        ActivityWakerService.poke(this)
+
         stopForeground(true)
         service = null
-
-        /*if (noiseTracker != null)
-			noiseTracker.stop();*/
 
         ActivityService.removeActivityRequest(this, javaClass)
 
@@ -343,7 +344,9 @@ class TrackerService : Service() {
         }
 
         val sp = Preferences.getPref(this)
-        sp.edit().putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt()).apply()
+        sp.edit {
+            putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt())
+        }
 
         if (android.os.Build.VERSION.SDK_INT >= 25) {
             Shortcuts.initializeShortcuts(this)
