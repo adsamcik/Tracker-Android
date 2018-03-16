@@ -122,14 +122,12 @@ class ActivityRecognitionActivity : DetailActivity() {
             val time = getDateTimeInstance().format(System.currentTimeMillis())
             val line = time + '\t' + activity + '\t' + if (action != null) action + '\n' else '\n'
             DataStore.saveString(context, FILE, line, true)
-            if (instance != null && instance!!.get() != null) {
-                val inst = instance!!.get()!!
-                inst.runOnUiThread {
-                    val adapter = inst.adapter!!
-                    adapter.add(if (action == null) arrayOf(time, activity) else arrayOf(time, activity, action))
-                    if (inst.listView!!.lastVisiblePosition == adapter.count - 2)
-                        inst.listView!!.smoothScrollToPosition(adapter.count - 1)
-                }
+            val inst = instance?.get()
+            inst?.runOnUiThread {
+                val adapter = inst.adapter!!
+                adapter.add(if (action == null) arrayOf(time, activity) else arrayOf(time, activity, action))
+                if (inst.listView!!.lastVisiblePosition == adapter.count - 2)
+                    inst.listView!!.smoothScrollToPosition(adapter.count - 1)
             }
         }
     }
