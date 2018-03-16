@@ -60,7 +60,8 @@ class NewUIActivityTest {
 
             sleep()
         }
-
+        sleep(5000)
+        
         val statsButton = onView(withId(R.id.statsButton)).check(matches(isDisplayed()))
         val mapDraggable = onView(withId(R.id.mapDraggable)).check(matches(isDisplayed()))
         val activityButton = onView(withId(R.id.activityButton)).check(matches(isDisplayed()))
