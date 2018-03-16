@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.exists
 import com.adsamcik.signalcollector.services.TrackerService
+import com.adsamcik.signalcollector.test.isTestMode
 import org.hamcrest.Description
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.`is`
@@ -36,6 +37,9 @@ class NewUIActivityTest {
 
     @Test
     fun newUIActivityTest() {
+        if(isTestMode)
+            return
+
         val spotlightView = onView(
                 allOf(withClassName(`is`("com.takusemba.spotlight.SpotlightView")), isDisplayed()))
 
@@ -61,7 +65,7 @@ class NewUIActivityTest {
             sleep()
         }
         sleep(5000)
-        
+
         val statsButton = onView(withId(R.id.statsButton)).check(matches(isDisplayed()))
         val mapDraggable = onView(withId(R.id.mapDraggable)).check(matches(isDisplayed()))
         val activityButton = onView(withId(R.id.activityButton)).check(matches(isDisplayed()))
