@@ -38,7 +38,7 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
     private val res: Int
 
     val filteredCount: Int
-        get() = mDisplayCollection!!.size
+        get() = mDisplayCollection.size
 
 
     constructor(context: Context, @LayoutRes resource: Int, stringMethod: (T) -> String) {

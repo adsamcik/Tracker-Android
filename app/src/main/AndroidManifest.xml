@@ -64,7 +64,8 @@
             android:exported="true"
             android:label="@string/title_activity_new_ui"
             android:resizeableActivity="true"
-            android:theme="@style/AppThemeTransluscent"/>
+            android:theme="@style/AppThemeTransluscent"
+            tools:targetApi="n"/>
         <activity
             android:name=".activities.IntroActivity"
             android:screenOrientation="portrait"

@@ -141,12 +141,12 @@ class MessageListenerService : FirebaseMessagingService() {
         fun parseAndSaveUploadReport(context: Context, time: Long, data: Map<String, String>): UploadStats {
             var wifi = 0
             var cell = 0
-            var noise = 0
+            val noise = 0
             var collections = 0
             var newLocations = 0
             var newWifi = 0
             var newCell = 0
-            var newNoiseLocations = 0
+            val newNoiseLocations = 0
             var uploadSize: Long = 0
             if (data.containsKey(WIFI))
                 wifi = Integer.parseInt(data[WIFI])
