@@ -29,7 +29,7 @@ import org.junit.runner.RunWith
 class NewUIActivityTest {
 
     @get:Rule
-    val mPermissionRule = GrantPermissionRule.grant(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    val mPermissionRule = GrantPermissionRule.grant(android.Manifest.permission.ACCESS_FINE_LOCATION)!!
 
     @get:Rule
     val mActivityTestRule = ActivityTestRule(NewUIActivity::class.java)

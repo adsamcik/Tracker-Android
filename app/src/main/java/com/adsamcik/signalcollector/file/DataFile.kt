@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.file
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.support.annotation.IntDef
@@ -46,6 +47,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
      * @return Preference string for index
      */
     val preference: String?
+        @SuppressLint("SwitchIntDef")
         get() = when (type) {
             CACHE -> PREF_CACHE_FILE_INDEX
             STANDARD -> PREF_DATA_FILE_INDEX
