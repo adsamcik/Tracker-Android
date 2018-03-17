@@ -11,6 +11,7 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
+import kotlinx.android.synthetic.main.layout_activity_recognition.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
@@ -19,68 +20,64 @@ import java.util.*
 
 class ActivityRecognitionActivity : DetailActivity() {
 
-    private var startStopButton: Button? = null
-    private var adapter: StringFilterableAdapter? = null
-    private var listView: ListView? = null
+    private lateinit var adapter: StringFilterableAdapter
+    private lateinit var listView: ListView
 
     private var usingFilter = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        instance = WeakReference(this)
-
-        val v = layoutInflater.inflate(R.layout.layout_activity_recognition, createContentParent(false))
-        startStopButton = findViewById(R.id.dev_activity_debug_start_stop_button)
+        layoutInflater.inflate(R.layout.layout_activity_recognition, createContentParent(false))
 
         setTitle(R.string.dev_activity_recognition_title)
 
-        listView = v.findViewById(R.id.dev_activity_list_view)
+        listView = dev_activity_list_view
 
         if (Preferences.getPref(this).getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
-            startStopButton!!.text = getString(R.string.stop)
+            start_stop_button.text = getString(R.string.stop)
         else
-            startStopButton!!.text = getString(R.string.start)
+            start_stop_button.text = getString(R.string.start)
 
-        startStopButton!!.setOnClickListener { _ ->
+        start_stop_button.setOnClickListener { _ ->
             val sp = Preferences.getPref(this)
             val setEnabled = !sp.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)
             val editor = sp.edit()
             editor.putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, setEnabled)
             if (setEnabled) {
-                startStopButton!!.text = getString(R.string.stop)
+                start_stop_button.text = getString(R.string.stop)
                 editor.putLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, System.currentTimeMillis())
             } else
-                startStopButton!!.text = getString(R.string.start)
+                start_stop_button.text = getString(R.string.start)
 
             editor.apply()
         }
 
-        val activity = this
-
-        val items = Parser.parseTSVFromFile(activity, FILE) ?: ArrayList()
-        adapter = StringFilterableAdapter(activity, R.layout.spinner_item, { item ->
+        val items = Parser.parseTSVFromFile(this, FILE) ?: ArrayList()
+        adapter = StringFilterableAdapter(this, R.layout.spinner_item, { item ->
             item.joinToString(delim)
         })
-
-        adapter!!.addAll(items)
+        adapter.addAll(items)
 
         findViewById<View>(R.id.dev_activity_recognition_filter).setOnClickListener { f ->
             if (usingFilter) {
-                adapter!!.filter(null)
+                adapter.filter(null)
                 (f as Button).setText(R.string.dev_activity_recognition_hide)
             } else {
                 (f as Button).setText(R.string.dev_activity_recognition_show)
-                adapter!!.filter(".*$delim.*$delim.*")
+                adapter.filter(".*$delim.*$delim.*")
             }
 
             usingFilter = !usingFilter
         }
 
         findViewById<View>(R.id.dev_activity_recognition_clear).setOnClickListener { _ ->
-            adapter!!.clear()
+            adapter.clear()
             DataStore.delete(this, FILE)
         }
+
+        listView.adapter = adapter
+
+        instance = WeakReference(this)
     }
 
     companion object {
@@ -103,8 +100,9 @@ class ActivityRecognitionActivity : DetailActivity() {
                     preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply()
                     if (instance?.get() != null) {
                         launch(UI) {
-                            val inst = instance!!.get()!!
-                            inst.startStopButton!!.text = inst.getString(R.string.start)
+                            val inst = instance?.get()
+                            if (inst != null)
+                                inst.start_stop_button.text = inst.getString(R.string.start)
                         }
                     }
                 }

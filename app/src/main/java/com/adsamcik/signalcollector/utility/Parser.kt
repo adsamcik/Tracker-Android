@@ -39,8 +39,8 @@ object Parser {
                 context.openFileInput(fileName).use { fis ->
                     val isr = InputStreamReader(fis)
 
-                    isr.buffered().useLines { line ->
-                        val parsedLine = parseLine(line.toString())
+                    isr.forEachLine {
+                        val parsedLine = parseLine(it)
                         if (parsedLine != null)
                             items.add(parsedLine)
                     }
