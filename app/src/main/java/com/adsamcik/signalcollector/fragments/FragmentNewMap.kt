@@ -227,6 +227,9 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     }
 
     private fun initializeUserElements() {
+        if (view == null)
+            return
+
         initializeKeyboardDetection()
         edittext_map_search.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)
