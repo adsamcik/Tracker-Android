@@ -30,16 +30,21 @@ import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.data.MapLayer
+import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
+import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
-import com.adsamcik.signalcollector.utility.MapFilterRule
-import com.adsamcik.signalcollector.utility.SnackMaker
-import com.adsamcik.signalcollector.utility.transactionStateLoss
+import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
+import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.runBlocking
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -67,6 +72,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var keyboardInitialized = AtomicBoolean(false)
 
     private var colorManager: ColorManager? = null
+
+    private var mapLayers: ArrayList<MapLayer>? = null
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -125,6 +132,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         super.onStart()
         initializeLocationListener(context!!)
         initializeUserElements()
+        loadMapLayers()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -250,32 +258,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             true
         }
 
-        map_menu_parent.post {
-            val activity = activity!!
-            val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_parent)
-            payload.initialTranslation = Point(0, map_menu_parent.height)
-            payload.anchor = DragTargetAnchor.LeftTop
-            payload.width = map_menu_parent.width
-            payload.height = map_menu_parent.height
-            payload.onInitialized = {
-                colorManager!!.watchRecycler(ColorView(it.view!!, 2))
-            }
-            payload.onBeforeDestroyed = {
-                colorManager?.stopWatchingRecycler(R.id.list)
-            }
-
-            map_menu_button.onEnterStateListener = { _, state, _ ->
-                if (state == DraggableImageButton.State.TARGET)
-                    animateMenuDrawable(R.drawable.up_to_down)
-                else if (state == DraggableImageButton.State.INITIAL)
-                    animateMenuDrawable(R.drawable.down_to_up)
-            }
-            //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
-            //payload.setOffsetsDp(Offset(0, 24))
-            map_menu_button.addPayload(payload)
-        }
-
-        map_menu_button.extendTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
+        map_menu_button.visibility = View.GONE
 
         locationListener!!.setButton(button_map_my_location, context!!)
 
@@ -297,31 +280,34 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         this.map = map
         userRadius = null
         userCenter = null
-        val c = context ?: return
-        map.setMapStyle(MapStyleOptions.loadRawResourceStyle(c, R.raw.map_style))
+        val context = context ?: return
+        map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style))
 
         //does not work well with bearing. Known bug in Google maps api since 2014.
         //val padding = navbarHeight(c)
         //map.setPadding(0, 0, 0, padding)
-        tileProvider = SignalsTileProvider(c, MAX_ZOOM)
+        tileProvider = SignalsTileProvider(context, MAX_ZOOM)
 
-        initializeLocationListener(c)
+        initializeLocationListener(context)
 
         map.setOnCameraIdleListener(this)
 
         map.setMaxZoomPreference(MAX_ZOOM.toFloat())
-        if (checkLocationPermission(c, false)) {
+        if (checkLocationPermission(context, false)) {
             locationListener!!.followMyPosition = true
-            if (locationManager == null)
-                locationManager = context!!.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            assert(locationManager != null)
-            val l = locationManager!!.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+
+            val locationManager = locationManager
+                    ?: context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+            val l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
             if (l != null) {
                 val cp = CameraPosition.builder().target(LatLng(l.latitude, l.longitude)).zoom(16f).build()
                 map.moveCamera(CameraUpdateFactory.newCameraPosition(cp))
                 locationListener!!.setUserPosition(cp.target)
                 drawUserPosition(cp.target, l.accuracy)
             }
+
+            this.locationManager = locationManager
         }
 
         if (type != null)
@@ -336,10 +322,84 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         locationListener!!.registerMap(map)
 
         if (locationManager == null)
-            locationManager = c.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
 
         initializeKeyboardDetection()
+    }
+
+    private fun loadMapLayers() {
+        val activity = activity!!
+        launch {
+            val user = Signin.getUserAsync(activity)
+            user?.addServerDataCallback {
+                val networkInfo = it.networkInfo!!
+                if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
+                    val list = ArrayList<MapLayer>()
+                    if (networkInfo.hasPersonalMapAccess())
+                        list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
+
+                    if (networkInfo.hasMapAccess()) {
+                        runBlocking {
+                            val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
+                            if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {
+                                val layerArray = if (useMock) MapLayer.mockArray() else mapListRequest.second!!
+                                var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                if (!MapLayer.contains(layerArray, savedOverlay)) {
+                                    savedOverlay = layerArray[0].name
+                                    Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
+                                }
+
+                                val defaultOverlay = savedOverlay
+
+                                if (list.isEmpty())
+                                    changeMapOverlay(defaultOverlay)
+                                list.addAll(layerArray)
+                            }
+                        }
+                    }
+
+                    mapLayers = list
+                    initializeMenuButton()
+                }
+
+            }
+        }
+    }
+
+    private fun initializeMenuButton() {
+        map_menu_parent.post {
+            val activity = activity!!
+            val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_parent)
+            payload.initialTranslation = Point(0, map_menu_parent.height)
+            payload.anchor = DragTargetAnchor.LeftTop
+            payload.width = map_menu_parent.width
+            payload.height = map_menu_parent.height
+            payload.onInitialized = {
+                colorManager!!.watchRecycler(ColorView(it.view!!, 2))
+                val layers = mapLayers
+                if (layers != null && layers.isNotEmpty()) {
+                    val adapter = it.adapter
+                    adapter.clear()
+                    adapter.addAll(layers)
+                }
+            }
+            payload.onBeforeDestroyed = {
+                colorManager?.stopWatchingRecycler(R.id.list)
+            }
+
+            map_menu_button.onEnterStateListener = { _, state, _ ->
+                if (state == DraggableImageButton.State.TARGET)
+                    animateMenuDrawable(R.drawable.up_to_down)
+                else if (state == DraggableImageButton.State.INITIAL)
+                    animateMenuDrawable(R.drawable.down_to_up)
+            }
+            //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
+            //payload.setOffsetsDp(Offset(0, 24))
+            map_menu_button.addPayload(payload)
+        }
+
+        map_menu_button.extendTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
     }
 
     /**

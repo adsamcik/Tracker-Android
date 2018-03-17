@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.utility.MapFilterRule
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
 class FragmentMapMenu : Fragment(), IOnDemandView {
+    val adapter get() = list.adapter as MapFilterableAdapter
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.fragment_map_menu, container, false)
