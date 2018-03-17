@@ -66,9 +66,9 @@ class NewUIActivityTest {
         }
         sleep(5000)
 
-        val statsButton = onView(withId(R.id.statsButton)).check(matches(isDisplayed()))
-        val mapDraggable = onView(withId(R.id.mapDraggable)).check(matches(isDisplayed()))
-        val activityButton = onView(withId(R.id.activityButton)).check(matches(isDisplayed()))
+        val statsButton = onView(withId(R.id.button_stats)).check(matches(isDisplayed()))
+        val mapDraggable = onView(withId(R.id.button_map)).check(matches(isDisplayed()))
+        val activityButton = onView(withId(R.id.button_activity)).check(matches(isDisplayed()))
         val topPanel = onView(withId(R.id.top_panel)).check(matches(isDisplayed()))
 
         mapDraggable.perform(click())

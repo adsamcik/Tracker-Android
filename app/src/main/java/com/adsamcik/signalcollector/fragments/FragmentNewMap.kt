@@ -31,6 +31,7 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
+import com.adsamcik.signalcollector.extensions.transactionStateLoss
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
@@ -235,9 +236,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     }
 
     private fun initializeUserElements() {
-        if (view == null)
-            return
-
         initializeKeyboardDetection()
         edittext_map_search.setOnEditorActionListener { v, _, _ ->
             val geocoder = Geocoder(context)

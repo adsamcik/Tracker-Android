@@ -23,6 +23,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.WifiData
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.enums.ResolvedActivity
+import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network

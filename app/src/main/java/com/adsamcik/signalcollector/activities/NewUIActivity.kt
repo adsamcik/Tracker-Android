@@ -16,6 +16,7 @@ import androidx.content.edit
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentNewActivities
 import com.adsamcik.signalcollector.fragments.FragmentNewMap
@@ -26,7 +27,10 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.NotificationChannels
+import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.location.LocationServices
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
@@ -102,11 +106,11 @@ class NewUIActivity : FragmentActivity() {
 
         val dp = Assist.dpToPx(this, 1)
 
-        statsButton.dragAxis = DragAxis.X
-        statsButton.setTarget(root, DragTargetAnchor.RightTop)
-        statsButton.setTargetOffsetDp(Offset(56))
-        statsButton.targetTranslationZ = 8.dpAsPx.toFloat()
-        statsButton.extendTouchAreaBy(dp * 56, 0, 0, 0)
+        button_stats.dragAxis = DragAxis.X
+        button_stats.setTarget(root, DragTargetAnchor.RightTop)
+        button_stats.setTargetOffsetDp(Offset(56))
+        button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
+        button_stats.extendTouchAreaBy(dp * 56, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
         statsPayload.initialTranslation = Point(-size.x, 0)
@@ -121,13 +125,13 @@ class NewUIActivity : FragmentActivity() {
             val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
             colorManager.stopWatchingRecycler(recycler)
         }
-        statsButton.addPayload(statsPayload)
+        button_stats.addPayload(statsPayload)
 
-        activityButton.dragAxis = DragAxis.X
-        activityButton.setTarget(root, DragTargetAnchor.LeftTop)
-        activityButton.setTargetOffsetDp(Offset(-56))
-        activityButton.targetTranslationZ = 8.dpAsPx.toFloat()
-        activityButton.extendTouchAreaBy(0, 0, dp * 56, 0)
+        button_activity.dragAxis = DragAxis.X
+        button_activity.setTarget(root, DragTargetAnchor.LeftTop)
+        button_activity.setTargetOffsetDp(Offset(-56))
+        button_activity.targetTranslationZ = 8.dpAsPx.toFloat()
+        button_activity.extendTouchAreaBy(0, 0, dp * 56, 0)
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
         activityPayload.initialTranslation = Point(size.x, 0)
@@ -136,25 +140,25 @@ class NewUIActivity : FragmentActivity() {
         activityPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
         activityPayload.onInitialized = { colorManager.watchElement(ColorView(it.view!!, 1, true, true)) }
 
-        activityButton.addPayload(activityPayload)
+        button_activity.addPayload(activityPayload)
 
-        mapDraggable.dragAxis = DragAxis.Y
-        mapDraggable.setTarget(root, DragTargetAnchor.MiddleTop)
-        mapDraggable.setTargetOffsetDp(Offset(56))
-        mapDraggable.extendTouchAreaBy(32.dpAsPx)
-        mapDraggable.targetTranslationZ = 18.dpAsPx.toFloat()
+        button_map.dragAxis = DragAxis.Y
+        button_map.setTarget(root, DragTargetAnchor.MiddleTop)
+        button_map.setTargetOffsetDp(Offset(56))
+        button_map.extendTouchAreaBy(32.dpAsPx)
+        button_map.targetTranslationZ = 18.dpAsPx.toFloat()
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
         mapPayload.initialTranslation = Point(0, realSize.y)
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(16.dpAsPx.toFloat())
         mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
-        mapDraggable.addPayload(mapPayload)
+        button_map.addPayload(mapPayload)
     }
 
     private fun initializeButtonsPosition() {
         if (draggableOriginalMargin == Int.MIN_VALUE)
-            draggableOriginalMargin = mapDraggable.marginBottom
+            draggableOriginalMargin = button_map.marginBottom
 
         val (position, navDim) = Assist.navbarSize(this)
         if (navDim.x > navDim.y)
@@ -162,7 +166,7 @@ class NewUIActivity : FragmentActivity() {
         else
             navDim.y = 0
 
-        mapDraggable.setMargin(0, 0, 0, draggableOriginalMargin + navDim.y)
+        button_map.setMargin(0, 0, 0, draggableOriginalMargin + navDim.y)
 
         when (position) {
             Assist.NavBarPosition.RIGHT -> {
@@ -180,9 +184,9 @@ class NewUIActivity : FragmentActivity() {
 
         colorManager.watchElement(ColorView(root, 0, false, true, false))
 
-        colorManager.watchElement(ColorView(statsButton, 1, false, false, false, true))
-        colorManager.watchElement(ColorView(mapDraggable, 1, false, false, false, true))
-        colorManager.watchElement(ColorView(activityButton, 1, false, false, false, true))
+        colorManager.watchElement(ColorView(button_stats, 1, false, false, false, true))
+        colorManager.watchElement(ColorView(button_map, 1, false, false, false, true))
+        colorManager.watchElement(ColorView(button_activity, 1, false, false, false, true))
 
         ColorSupervisor.ensureUpdate()
     }
@@ -203,22 +207,22 @@ class NewUIActivity : FragmentActivity() {
                 .setRadius(radius.toFloat())
                 .setDescription(getString(R.string.tutorial_settings_description)).build()
 
-        radius = Math.sqrt(Math.pow(statsButton.height.toDouble(), 2.0) + Math.pow(statsButton.width.toDouble(), 2.0)) / 2
+        radius = Math.sqrt(Math.pow(button_stats.height.toDouble(), 2.0) + Math.pow(button_stats.width.toDouble(), 2.0)) / 2
         val statsButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(statsButton.x + statsButton.pivotX, statsButton.y + statsButton.pivotY)
+                .setPoint(button_stats.x + button_stats.pivotX, button_stats.y + button_stats.pivotY)
                 .setTitle(getString(R.string.tutorial_stats_title))
                 .setRadius(radius.toFloat())
                 .setDescription(getString(R.string.tutorial_stats_description)).build()
 
-        radius = Math.sqrt(Math.pow(activityButton.height.toDouble(), 2.0) + Math.pow(activityButton.width.toDouble(), 2.0)) / 2
+        radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
         val activitiesButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(activityButton.x + activityButton.pivotX, activityButton.y + activityButton.pivotY)
+                .setPoint(button_activity.x + button_activity.pivotX, button_activity.y + button_activity.pivotY)
                 .setTitle(getString(R.string.tutorial_activity_title))
                 .setRadius(radius.toFloat())
                 .setDescription(getString(R.string.tutorial_activity_description)).build()
 
         val mapButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(mapDraggable.x + mapDraggable.pivotX, mapDraggable.y + mapDraggable.pivotY)
+                .setPoint(button_map.x + button_map.pivotX, button_map.y + button_map.pivotY)
                 .setTitle(getString(R.string.tutorial_map_title))
                 .setRadius(Assist.dpToPx(this, 48).toFloat())
                 .setDescription(getString(R.string.tutorial_map_description)).build()
@@ -234,6 +238,19 @@ class NewUIActivity : FragmentActivity() {
                     }
                 }
                 .start()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (button_map.state == DraggableImageButton.State.TARGET)
+            outState.putBoolean(MAP_OPENED, true)
+
+        if (button_stats.state == DraggableImageButton.State.TARGET)
+            outState.putBoolean(STATS_OPENED, true)
+
+        if (button_activity.state == DraggableImageButton.State.TARGET)
+            outState.putBoolean(ACTIVITIES_OPENED, true)
+
+        super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
@@ -287,10 +304,16 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onBackPressed() {
         when {
-            mapDraggable.state == DraggableImageButton.State.TARGET -> mapDraggable.moveToState(DraggableImageButton.State.INITIAL, true, true)
-            statsButton.state == DraggableImageButton.State.TARGET -> statsButton.moveToState(DraggableImageButton.State.INITIAL, true, true)
-            activityButton.state == DraggableImageButton.State.TARGET -> activityButton.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            button_activity.state == DraggableImageButton.State.TARGET -> button_activity.moveToState(DraggableImageButton.State.INITIAL, true, true)
             else -> super.onBackPressed()
         }
+    }
+
+    companion object {
+        const val MAP_OPENED = "mapopened"
+        const val STATS_OPENED = "statsopened"
+        const val ACTIVITIES_OPENED = "activitiesopened"
     }
 }

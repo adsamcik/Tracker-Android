@@ -11,7 +11,7 @@
     tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
 
     <com.adsamcik.draggable.DraggableImageButton
-        android:id="@+id/statsButton"
+        android:id="@+id/button_stats"
         android:layout_width="72dp"
         android:layout_height="80dp"
         android:layout_gravity="start"
@@ -21,11 +21,11 @@
         android:src="@drawable/ic_pie_chart_black_24dp"
         android:translationX="-10dp"
         app:interpolator="Decelerate"
-        app:layout_constraintBottom_toTopOf="@id/mapDraggable"
+        app:layout_constraintBottom_toTopOf="@id/button_map"
         app:layout_constraintLeft_toLeftOf="parent"/>
 
     <com.adsamcik.draggable.DraggableImageButton
-        android:id="@+id/activityButton"
+        android:id="@+id/button_activity"
         android:layout_width="72dp"
         android:layout_height="80dp"
         android:layout_gravity="end"
@@ -35,11 +35,11 @@
         android:src="@drawable/ic_directions_walk_black_24dp"
         android:translationX="10dp"
         app:interpolator="Decelerate"
-        app:layout_constraintBottom_toTopOf="@id/mapDraggable"
+        app:layout_constraintBottom_toTopOf="@id/button_map"
         app:layout_constraintRight_toRightOf="parent"/>
 
     <com.adsamcik.draggable.DraggableImageButton
-        android:id="@+id/mapDraggable"
+        android:id="@+id/button_map"
         android:layout_width="220dp"
         android:layout_height="8dp"
         android:layout_marginBottom="20dp"

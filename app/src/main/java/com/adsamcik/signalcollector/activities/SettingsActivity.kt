@@ -24,8 +24,8 @@ import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.startActivity
-import com.adsamcik.signalcollector.utility.transaction
+import com.adsamcik.signalcollector.extensions.startActivity
+import com.adsamcik.signalcollector.extensions.transaction
 import java.io.File
 import java.util.*
 
