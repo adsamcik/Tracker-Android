@@ -77,9 +77,9 @@ class FeedbackUploadJob : JobService() {
             return result.isSuccessful
         }
 
-        override fun onCancelled(result: Boolean) {
+        override fun onCancelled(result: Boolean?) {
             super.onCancelled(result)
-            onFinished.invoke(result)
+            onFinished.invoke(result ?: false)
         }
 
         override fun onPostExecute(result: Boolean) {
