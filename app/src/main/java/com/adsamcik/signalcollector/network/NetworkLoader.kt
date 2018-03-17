@@ -69,7 +69,7 @@ object NetworkLoader {
     suspend fun <T> requestSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
         if (userToken != null) {
             if (useMock)
-                cont.resume(Pair(if (System.currentTimeMillis() % 2 == 0L) Source.NETWORK else Source.NO_DATA, null))
+                cont.resume(Pair(Source.NO_DATA, null))
             else
                 requestString(Network.client(context, userToken),
                         Request.Builder().url(url).build(),
