@@ -82,6 +82,8 @@ class FragmentNewTracker : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        initializeColorElements()
+        
         val orientation = Assist.orientation(context!!)
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
@@ -102,7 +104,6 @@ class FragmentNewTracker : Fragment() {
         DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
         DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
 
-        initializeColorElements()
         if (useMock)
             mock()
     }
