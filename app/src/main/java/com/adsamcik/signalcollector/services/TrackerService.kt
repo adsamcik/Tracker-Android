@@ -242,8 +242,6 @@ class TrackerService : Service() {
         Assist.initialize(this)
         val sp = Preferences.getPref(this)
 
-        ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
-
         //Get managers
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -307,8 +305,6 @@ class TrackerService : Service() {
         }
 
         UploadJobService.cancelUploadSchedule(this)
-
-        ActivityWakerService.poke(this, false)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -316,17 +312,23 @@ class TrackerService : Service() {
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
         onServiceStateChange?.invoke()
+
+        if (isBackgroundActivated)
+            ActivityService.requestAutoTracking(this, javaClass)
+        else
+            ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
+
+        ActivityWakerService.poke(this, false)
         return super.onStartCommand(intent, flags, startId)
     }
 
 
     override fun onDestroy() {
         ActivityWakerService.poke(this)
+        ActivityService.removeActivityRequest(this, javaClass)
 
         stopForeground(true)
         service = null
-
-        ActivityService.removeActivityRequest(this, javaClass)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             locationManager!!.removeUpdates(locationListener)
