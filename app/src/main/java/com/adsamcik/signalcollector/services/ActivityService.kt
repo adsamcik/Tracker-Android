@@ -88,6 +88,7 @@ class ActivityService : IntentService("ActivityService") {
 
         /**
          * Request auto tracking updates
+         * Checks if autotracking is allowed
          *
          * @param context context
          * @param tClass  class that requests update
@@ -122,13 +123,17 @@ class ActivityService : IntentService("ActivityService") {
             return true
         }
 
+        /**
+         * Removes previous activity request
+         */
         fun removeActivityRequest(context: Context, tClass: Class<*>) {
             val index = mActiveRequests.indexOfKey(tClass.hashCode())
             if (index >= 0) {
-                val updateRate = mActiveRequests.valueAt(index).updateDelay
+                val request = mActiveRequests.valueAt(index)
 
                 mActiveRequests.removeAt(index)
-                if (mMinUpdateRate == updateRate && mActiveRequests.size() > 0) {
+                if (request.isBackgroundTracking ||
+                        (mMinUpdateRate == request.updateDelay && mActiveRequests.size() > 0)) {
                     val ari = generateExtremeRequest()
                     mBackgroundTracking = ari.isBackgroundTracking
                     setMinUpdateRate(context, ari.updateDelay)
@@ -141,16 +146,6 @@ class ActivityService : IntentService("ActivityService") {
                 ActivityRecognition.getClient(context).removeActivityUpdates(getActivityDetectionPendingIntent(context))
                 mActiveRequests = SparseArray()
             }
-        }
-
-        fun removeAutoTracking(context: Context, tClass: Class<*>) {
-            if (!mBackgroundTracking) {
-                Crashlytics.logException(Throwable("Trying to remove auto tracking request that never existed"))
-                return
-            }
-
-            removeActivityRequest(context, tClass)
-            mBackgroundTracking = false
         }
 
         private fun setMinUpdateRate(context: Context, minUpdateRate: Int) {

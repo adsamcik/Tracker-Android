@@ -60,7 +60,7 @@ class ActivityWakerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        ActivityService.removeAutoTracking(this, javaClass)
+        ActivityService.removeActivityRequest(this, javaClass)
         instance = null
         thread!!.interrupt()
     }
