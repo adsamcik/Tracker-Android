@@ -5,6 +5,7 @@ import android.app.job.JobParameters
 import android.app.job.JobService
 import android.content.Context
 import android.os.AsyncTask
+import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.R.string.*
@@ -29,13 +30,16 @@ class FeedbackUploadJob : JobService() {
         launch {
             val user = Signin.getUserAsync(this@FeedbackUploadJob)
             if (user?.token == null || user.token.isBlank())
-                throw RuntimeException("User token is null")
+                notify(R.string.notification_feedback_user_not_signed)
             else {
                 val summary = params.extras[SUMMARY] as String
                 val type = params.extras[TYPE] as Int
                 val description = params.extras[DESCRIPTION] as String
                 worker = UploadTask(this@FeedbackUploadJob, user.token) {
-                    notify(it)
+                    if (it)
+                        notify(notification_feedback_success)
+                    else
+                        notify(notification_feedback_failed)
                     jobFinished(params, !it)
                 }
                 worker!!.execute(summary, type.toString(), description)
@@ -44,12 +48,9 @@ class FeedbackUploadJob : JobService() {
         return true
     }
 
-    private fun notify(status: Boolean) {
+    private fun notify(@StringRes stringRes: Int) {
         val nBuilder = NotificationCompat.Builder(this@FeedbackUploadJob, getString(channel_other_id))
-        if (status)
-            nBuilder.setContentTitle(getString(notification_feedback_success))
-        else
-            nBuilder.setContentTitle(getString(notification_feedback_failed))
+        nBuilder.setContentTitle(getString(stringRes))
         nBuilder.setSmallIcon(R.drawable.ic_signals)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

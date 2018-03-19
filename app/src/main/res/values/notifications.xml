@@ -19,4 +19,5 @@
 
     <string name="notification_feedback_success">Feedback sent successfully</string>
     <string name="notification_feedback_failed">Failed to send feedback. Retrying.</string>
+    <string name="notification_feedback_user_not_signed">User is not signed in. Aborting feedback sending. Sorry.</string>
 </resources>

@@ -66,7 +66,7 @@ class FragmentNewTracker : Fragment() {
             val activity = activity!!
             if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = TrackerService.setAutoLock()
-                SnackMaker(activity.findViewById(R.id.root) as View).showSnackbar(activity!!.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+                SnackMaker(activity.findViewById(R.id.root) as View).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
             } else
                 toggleCollecting(activity, !TrackerService.isRunning)
         }

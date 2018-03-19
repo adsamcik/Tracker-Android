@@ -157,15 +157,17 @@ class FragmentSettings : Fragment(), ITabFragment {
             else -> return
         }
 
-        FirebaseAssist.updateValue(context!!, FirebaseAssist.autoUploadString, trackingString!![select])
+        val context = context!!
+
+        FirebaseAssist.updateValue(context, FirebaseAssist.autoUploadString, trackingString!![select])
         trackDesc!!.text = trackingString!![select]
         updateState(mTrackingSelected, selected!!, Preferences.PREF_AUTO_TRACKING, select)
 
         if (mTrackingSelected != null)
             if (select == 0)
-                ActivityService.removeAutoTracking(context!!, StandardUIActivity::class.java)
+                ActivityService.removeActivityRequest(context, StandardUIActivity::class.java)
             else
-                ActivityService.requestAutoTracking(context!!, StandardUIActivity::class.java)
+                ActivityService.requestAutoTracking(context, StandardUIActivity::class.java)
 
         mTrackingSelected = selected
     }
