@@ -277,7 +277,8 @@ internal object ColorSupervisor {
         val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
         val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
         val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
-        return rDiff + gDiff + bDiff
+        val totalDiff =  rDiff + gDiff + bDiff
+        return if(totalDiff == 0) 1 else totalDiff
     }
 
     private fun stopUpdate() {
