@@ -122,8 +122,7 @@ class NewUIActivity : FragmentActivity() {
             colorManager.watchRecycler(ColorView(recycler, 1, true, true))
         }
         statsPayload.onBeforeDestroyed = {
-            val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
-            colorManager.stopWatchingRecycler(recycler)
+            colorManager.stopWatchingRecycler(R.id.stats_list_view)
         }
         button_stats.addPayload(statsPayload)
 
