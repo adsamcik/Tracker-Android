@@ -144,8 +144,7 @@ internal object ColorSupervisor {
         if (colorList.size >= 2) {
             timerActive = true
             timer = Timer("ColorUpdate", true)
-            val (changeLength, progress) = calculateTimeOfDay()
-            val period = calculateUpdatePeriod(changeLength).toLong()
+            val (changeLength, progress, period) = calculateTimeOfDay()
 
             if (BuildConfig.DEBUG) {
                 val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
@@ -157,7 +156,7 @@ internal object ColorSupervisor {
                 Log.d("ColorSupervisor", "Update rate is $period")
             }
 
-            timerTask = ColorUpdateTask(period, changeLength.toLong(), progress.toLong())
+            timerTask = ColorUpdateTask(changeLength, progress, period)
             timer!!.scheduleAtFixedRate(timerTask, 0L, period)
         }
     }
@@ -170,14 +169,17 @@ internal object ColorSupervisor {
         else -> "Bug"
     }
 
-    private fun calculateTimeOfDay(): Pair<Int, Int> =
+    /**
+     * Generate Triple of change length, progress, period in this order
+     */
+    private fun calculateTimeOfDay(): Triple<Long, Long, Long> =
             when {
                 colorList.size == 4 -> calculateTimeOfDay4()
                 colorList.size == 2 -> calculateTimeOfDay2()
                 else -> throw RuntimeException("Invalid size of color list (${colorList.size}) for time of day ")
             }
 
-    private fun calculateTimeOfDay2(): Pair<Int, Int> {
+    private fun calculateTimeOfDay2(): Triple<Long, Long, Long> {
         val time = Assist.time
         val changeLength: Long
         val progress: Long
@@ -203,10 +205,11 @@ internal object ColorSupervisor {
             }
         }
 
-        return Pair(changeLength.toInt(), progress.toInt())
+        //Add +1 to make it more bug proof, it shouldn't really matter because +1 is just a millisecond
+        return Triple(changeLength, 0, changeLength - progress + 1)
     }
 
-    private fun calculateTimeOfDay4(): Pair<Int, Int> {
+    private fun calculateTimeOfDay4(): Triple<Long, Long, Long> {
         val time = Assist.time
         val changeLength: Long
         val progress: Long
@@ -263,10 +266,10 @@ internal object ColorSupervisor {
             }
         }
 
-        return Pair(changeLength.toInt(), progress.toInt())
+        return Triple(changeLength, progress, calculateUpdatePeriod(changeLength))
     }
 
-    private fun calculateUpdatePeriod(changeLength: Int) = changeLength / calculateUpdateCount()
+    private fun calculateUpdatePeriod(changeLength: Long) = changeLength / calculateUpdateCount()
 
     private fun calculateUpdateCount(): Int {
         if (colorList.size < 2)
@@ -277,8 +280,8 @@ internal object ColorSupervisor {
         val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
         val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
         val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
-        val totalDiff =  rDiff + gDiff + bDiff
-        return if(totalDiff == 0) 1 else totalDiff
+        val totalDiff = rDiff + gDiff + bDiff
+        return if (totalDiff == 0) 1 else totalDiff
     }
 
     private fun stopUpdate() {
@@ -324,7 +327,7 @@ internal object ColorSupervisor {
 
 }
 
-internal class ColorUpdateTask(private val deltaTime: Long, private val periodLength: Long, private var currentTime: Long = 0) : TimerTask() {
+internal class ColorUpdateTask(private val periodLength: Long, private var currentTime: Long = 0, private val deltaTime: Long) : TimerTask() {
     override fun run() {
         val newTime = currentTime + deltaTime
         currentTime = newTime.rem(periodLength)
