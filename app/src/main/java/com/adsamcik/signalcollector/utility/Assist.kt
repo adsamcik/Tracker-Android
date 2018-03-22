@@ -264,12 +264,12 @@ object Assist {
      * @return stringified coordinate
      */
     fun coordsToString(coordinate: Double): String {
-        var coordinate = coordinate
-        val degree = coordinate.toInt()
-        coordinate = (coordinate - degree) * 60
-        val minute = coordinate.toInt()
-        coordinate = (coordinate - minute) * 60
-        val second = coordinate.toInt()
+        var coord = coordinate
+        val degree = coord.toInt()
+        coord = (coord - degree) * 60
+        val minute = coord.toInt()
+        coord = (coord - minute) * 60
+        val second = coord.toInt()
         return String.format(Locale.ENGLISH, "%02d", degree) + "\u00B0 " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\""
     }
 

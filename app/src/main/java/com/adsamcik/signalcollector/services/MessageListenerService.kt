@@ -85,11 +85,11 @@ class MessageListenerService : FirebaseMessagingService() {
      * @param pendingIntent intent if special action is wanted
      */
     private fun sendNotification(messageType: MessageType, title: String, message: String, pendingIntent: PendingIntent?, time: Long) {
-        var pendingIntent = pendingIntent
+        var pIntent = pendingIntent
         val intent = Intent(this, LaunchActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        if (pendingIntent == null)
-            pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT)
+        if (pIntent == null)
+            pIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT)
 
         @StringRes val channelId: Int = when (messageType) {
             MessageListenerService.MessageType.UploadReport -> R.string.channel_upload_id
@@ -107,7 +107,7 @@ class MessageListenerService : FirebaseMessagingService() {
                 .setContentTitle(title)
                 .setContentText(message)
                 .setAutoCancel(true)
-                .setContentIntent(pendingIntent)
+                .setContentIntent(pIntent)
                 .setWhen(time)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(message))
 

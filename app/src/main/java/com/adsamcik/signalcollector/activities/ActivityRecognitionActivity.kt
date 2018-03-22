@@ -122,10 +122,10 @@ class ActivityRecognitionActivity : DetailActivity() {
             DataStore.saveString(context, FILE, line, true)
             val inst = instance?.get()
             inst?.runOnUiThread {
-                val adapter = inst.adapter!!
+                val adapter = inst.adapter
                 adapter.add(if (action == null) arrayOf(time, activity) else arrayOf(time, activity, action))
-                if (inst.listView!!.lastVisiblePosition == adapter.count - 2)
-                    inst.listView!!.smoothScrollToPosition(adapter.count - 1)
+                if (inst.listView.lastVisiblePosition == adapter.count - 2)
+                    inst.listView.smoothScrollToPosition(adapter.count - 1)
             }
         }
     }

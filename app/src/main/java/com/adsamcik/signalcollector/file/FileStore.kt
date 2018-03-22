@@ -69,8 +69,8 @@ object FileStore {
      */
     @Throws(MalformedJsonException::class)
     fun saveAppendableJsonArray(file: File, data: String, append: Boolean, firstArrayItem: Boolean = false): Boolean {
-        var data = data
-        val sb = StringBuilder(data)
+        var d = data
+        val sb = StringBuilder(d)
         if (sb[0] == ',')
             throw MalformedJsonException("Json starts with ','. That is not right.")
         val firstChar = if (!append || firstArrayItem || !file.exists() || file.length() == 0L) '[' else ','
@@ -86,8 +86,8 @@ object FileStore {
         if (sb[sb.length - 1] == ']')
             sb.deleteCharAt(sb.length - 1)
 
-        data = sb.toString()
-        return saveString(file, data, append)
+        d = sb.toString()
+        return saveString(file, d, append)
     }
 
     /**
