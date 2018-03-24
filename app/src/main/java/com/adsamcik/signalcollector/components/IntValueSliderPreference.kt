@@ -9,6 +9,7 @@ import android.util.AttributeSet
 import android.widget.TextView
 import androidx.view.setPadding
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.slider.implementations.IntValueSlider
 
@@ -63,7 +64,7 @@ class IntValueSliderPreference : Preference {
         val textView = holder.findViewById(R.id.slider_value) as TextView
 
         slider.setItems(context.resources.getIntArray(mValuesResource!!).toTypedArray())
-        slider.setPadding(Assist.dpToPx(context, 8))
+        slider.setPadding(8.dpAsPx)
         slider.setTextView(textView) { String.format(mTextViewString, it) }
 
         slider.setPreferences(sharedPreferences, key, mInitialValue)

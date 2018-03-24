@@ -104,13 +104,11 @@ class NewUIActivity : FragmentActivity() {
         display.getRealSize(realSize)
         display.getSize(size)
 
-        val dp = Assist.dpToPx(this, 1)
-
         button_stats.dragAxis = DragAxis.X
         button_stats.setTarget(root, DragTargetAnchor.RightTop)
         button_stats.setTargetOffsetDp(Offset(56))
         button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
-        button_stats.extendTouchAreaBy(dp * 56, 0, 0, 0)
+        button_stats.extendTouchAreaBy(56.dpAsPx, 0, 0, 0)
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
         statsPayload.initialTranslation = Point(-size.x, 0)
@@ -130,7 +128,7 @@ class NewUIActivity : FragmentActivity() {
         button_activity.setTarget(root, DragTargetAnchor.LeftTop)
         button_activity.setTargetOffsetDp(Offset(-56))
         button_activity.targetTranslationZ = 8.dpAsPx.toFloat()
-        button_activity.extendTouchAreaBy(0, 0, dp * 56, 0)
+        button_activity.extendTouchAreaBy(0, 0, 56.dpAsPx, 0)
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
         activityPayload.initialTranslation = Point(size.x, 0)
@@ -223,7 +221,7 @@ class NewUIActivity : FragmentActivity() {
         val mapButtonTarget = SimpleTarget.Builder(this)
                 .setPoint(button_map.x + button_map.pivotX, button_map.y + button_map.pivotY)
                 .setTitle(getString(R.string.tutorial_map_title))
-                .setRadius(Assist.dpToPx(this, 48).toFloat())
+                .setRadius(48.dpAsPx.toFloat())
                 .setDescription(getString(R.string.tutorial_map_description)).build()
 
         Spotlight.with(this)
@@ -269,22 +267,12 @@ class NewUIActivity : FragmentActivity() {
             fusedLocationClient.lastLocation.addOnCompleteListener {
                 if (it.isSuccessful) {
                     val loc = it.result
-                    if (loc != null) {
-                        val (sunrise, sunset) = calculateSunsetSunrise(loc)
-                        ColorSupervisor.setSunsetSunrise(sunrise, sunset)
-                    }
+                    if (loc != null)
+                        ColorSupervisor.setLocation(it.result)
                 }
             }
         } else if (Build.VERSION.SDK_INT >= 23)
             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), themeLocationRequestCode)
-    }
-
-    private fun calculateSunsetSunrise(loc: android.location.Location): Pair<Calendar, Calendar> {
-        val calendar = Calendar.getInstance()
-        val calculator = SunriseSunsetCalculator(Location(loc.latitude, loc.longitude), calendar.timeZone)
-        val sunrise = calculator.getOfficialSunriseCalendarForDate(calendar)
-        val sunset = calculator.getOfficialSunsetCalendarForDate(calendar)
-        return Pair(sunrise, sunset)
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {

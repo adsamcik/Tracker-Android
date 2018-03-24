@@ -12,6 +12,7 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 
 
@@ -72,7 +73,7 @@ class InfoComponent : FrameLayout {
     private fun createTextView(text: String): TextView {
         val textView = TextView(context)
         val lp = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-        lp.setMargins(0, 0, 0, Assist.dpToPx(context, 8))
+        lp.setMargins(0, 0, 0, 8.dpAsPx)
         textView.layoutParams = lp
         textView.text = text
 

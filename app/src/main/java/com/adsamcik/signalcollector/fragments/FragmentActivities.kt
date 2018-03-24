@@ -18,6 +18,7 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.interfaces.ITabFragment
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
@@ -36,7 +37,7 @@ class FragmentActivities : Fragment(), ITabFragment, IOnDemandView {
 
         refreshLayout = rootView as SwipeRefreshLayout
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
-        refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity!!, 40))
+        refreshLayout!!.setProgressViewOffset(true, 0, 40.dpAsPx)
         refreshLayout!!.setOnRefreshListener({ this.updateData() })
 
         updateData()

@@ -36,39 +36,7 @@ object Assist {
     private var connectivityManager: ConnectivityManager? = null
 
     val isInitialized: Boolean
-        get() = telephonyManager != null
-
-    /**
-     * @return Today as a day in unix time
-     */
-    val dayInUTC: Long
-        get() {
-            val c = Calendar.getInstance()
-            c.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            return dayFromCalendar(c).timeInMillis
-        }
-
-    val day: Long
-        get() = dayFromCalendar(Calendar.getInstance()).timeInMillis
-
-    val time: Long
-        get() {
-            val calendar = Calendar.getInstance()
-            return calendar.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +
-                    calendar.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS +
-                    calendar.get(Calendar.SECOND) * Constants.SECOND_IN_MILLISECONDS
-        }
-
-    fun dayFromCalendar(calendar: Calendar): Calendar {
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        return calendar
-    }
-
-    val deviceID: String
-        get() = Build.MANUFACTURER + Build.DEVICE
+        get() = telephonyManager != null && connectivityManager != null
 
     /**
      * Initializes TelephonyManager and ConnectivityManager in Assist class
@@ -145,66 +113,6 @@ object Assist {
             Pair(NavBarPosition.BOTTOM, Point(appUsableSize.x, realScreenSize.y - appUsableSize.y))
         } else Pair(NavBarPosition.UNKNOWN, Point())
     }
-
-    /**
-     * Checks if device has SW or HW navbar
-     *
-     * @param windowManager Window Manager
-     * @return true if SW navbar is present
-     */
-    fun hasNavBar(windowManager: WindowManager): Boolean {
-        val d = windowManager.defaultDisplay
-
-        val realDisplayMetrics = DisplayMetrics()
-        d.getRealMetrics(realDisplayMetrics)
-
-        val realHeight = realDisplayMetrics.heightPixels
-        val realWidth = realDisplayMetrics.widthPixels
-
-        val displayMetrics = DisplayMetrics()
-        d.getMetrics(displayMetrics)
-
-        val displayHeight = displayMetrics.heightPixels
-        val displayWidth = displayMetrics.widthPixels
-
-        return realWidth - displayWidth > 0 || realHeight - displayHeight > 0
-    }
-
-    /**
-     * Slightly more optimized function for conversion from density-independent pixels to pixels
-     *
-     * @param dm display metrics
-     * @param dp Density-independent Pixels
-     * @return pixels
-     */
-    fun dpToPx(dm: DisplayMetrics, dp: Int): Int = Math.round(dp * dm.density)
-
-    /**
-     * Function for conversion from dp to px
-     *
-     * @param c  context
-     * @param dp Density-independent Pixels
-     * @return pixels
-     */
-    fun dpToPx(c: Context, dp: Int): Int = Math.round(dp * c.resources.displayMetrics.density)
-
-    /**
-     * Function for conversion of pixels to density-independent pixels
-     *
-     * @param c  context
-     * @param px pixels
-     * @return Density-independent pixels
-     */
-    fun pxToDp(c: Context, px: Int): Int = Math.round(px / c.resources.displayMetrics.density)
-
-    /**
-     * Function for conversion of point to pixels
-     *
-     * @param c  context
-     * @param pt point
-     * @return pixels
-     */
-    fun ptToPx(c: Context, pt: Int): Int = (pt * c.resources.displayMetrics.density + 0.5f).toInt()
 
     /**
      * Generates position between two passed positions based on time

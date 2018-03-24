@@ -20,7 +20,7 @@ class KeyboardManager(private val rootView: View) {
     private var keyboardHeight = 0
     private var defaultDiff = 0
 
-    private val threshold = Assist.dpToPx(rootView.context, KEYBOARD_VISIBLE_THRESHOLD_DP)
+    private val threshold = KEYBOARD_VISIBLE_THRESHOLD_DP.dpAsPx
 
     private val r = Rect()
 

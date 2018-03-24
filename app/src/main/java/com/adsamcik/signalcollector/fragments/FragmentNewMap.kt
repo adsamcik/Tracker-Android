@@ -218,7 +218,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                         map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
                     }
                     false -> {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + Assist.dpToPx(context!!, 32))
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
                         map?.setPadding(0, 0, 0, navbarHeight.y)
                     }
                 }
@@ -397,7 +397,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             map_menu_button.addPayload(payload)
         }
 
-        map_menu_button.extendTouchAreaBy(0, Assist.dpToPx(context!!, 12), 0, 0)
+        map_menu_button.extendTouchAreaBy(0, 12.dpAsPx, 0, 0)
     }
 
     /**

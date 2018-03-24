@@ -10,6 +10,7 @@ import android.widget.FrameLayout
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
@@ -74,7 +75,7 @@ class FabMenu<T, F>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         if (boundsCalculated)
             return
 
-        val dp16px = Assist.dpToPx(context, 16)
+        val dp16px = 16.dpAsPx
 
         val maxHeight = wrapper.height / 2
         var height: Int
@@ -109,7 +110,7 @@ class FabMenu<T, F>(parent: ViewGroup, private val fab: FloatingActionButton?, a
         fabPos[1] += fab.height
         var offset = height
         val botY = fabPos[1]
-        val maxY = wrapperPos[1] + wrapper.height - Assist.dpToPx(context, 56)
+        val maxY = wrapperPos[1] + wrapper.height - 56.dpAsPx
         if (botY > maxY)
             offset += botY - maxY
 

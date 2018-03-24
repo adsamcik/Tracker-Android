@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.preference.PreferenceManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.StatDay
+import com.adsamcik.signalcollector.extensions.dateUTC
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.gson.Gson
 import java.util.*
@@ -124,7 +125,7 @@ object Preferences {
     fun checkStatsDay(context: Context) {
         val preferences = getPref(context)
 
-        val todayUTC = Assist.dayInUTC
+        val todayUTC = Calendar.getInstance().dateUTC().timeInMillis
         val dayDiff = (todayUTC - preferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
         if (dayDiff > 0) {
             var stringStats: MutableSet<String>? = preferences.getStringSet(PREF_STATS_LAST_7_DAYS, null)

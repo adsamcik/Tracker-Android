@@ -15,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.view.setMargins
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 
 
@@ -27,8 +28,8 @@ class ImageSwitchPreference : Preference {
 
     private var mInitialized = false
     private var mInitialValue: Int = -1
-    private val mImageSizePx = Assist.dpToPx(context, 50)
-    private val mMarginPx = Assist.dpToPx(context, 10)
+    private val mImageSizePx = 50.dpAsPx
+    private val mMarginPx = 10.dpAsPx
 
     private var mSelected: Int = -1
 

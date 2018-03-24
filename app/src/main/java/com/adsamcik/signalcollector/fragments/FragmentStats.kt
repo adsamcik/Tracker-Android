@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.signalcollector.utility.Preferences
@@ -60,7 +61,7 @@ class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
         refreshLayout = fragmentView!!.findViewById(R.id.statsSwipeRefresh)
         refreshLayout!!.setOnRefreshListener({ this.updateStats() })
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
-        refreshLayout!!.setProgressViewOffset(true, 0, Assist.dpToPx(activity, 40))
+        refreshLayout!!.setProgressViewOffset(true, 0, 40.dpAsPx)
 
         val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
         listView.setRecyclerListener { }
