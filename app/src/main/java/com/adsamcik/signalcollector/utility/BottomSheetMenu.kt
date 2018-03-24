@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.uitools.dpAsPx
 import java.util.*
 
 class BottomSheetMenu(root: CoordinatorLayout) {
@@ -38,7 +39,7 @@ class BottomSheetMenu(root: CoordinatorLayout) {
         LayoutInflater.from(context).inflate(R.layout.bottom_sheet_menu, root)
         menuRoot = root.getChildAt(root.childCount - 1) as LinearLayout
         bottomSheetBehavior = BottomSheetBehavior.from(menuRoot)
-        bottomSheetBehavior.peekHeight = Assist.dpToPx(context, 54)
+        bottomSheetBehavior.peekHeight = 54.dpAsPx
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 
         menuItems = ArrayList()
