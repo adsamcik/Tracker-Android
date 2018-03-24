@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.uitools
 
 import android.content.Context
 import android.graphics.Color
+import android.location.Location
 import android.support.annotation.ColorInt
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
@@ -10,9 +11,10 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.getColor
 import com.adsamcik.signalcollector.extensions.getString
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.extensions.timeInMillis
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.SunSetRise
 import java.util.*
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
@@ -22,21 +24,17 @@ import kotlin.collections.ArrayList
 internal object ColorSupervisor {
     private val colorList = ArrayList<@ColorInt Int>()
     private var timer: Timer? = null
-    private var timerTask: ColorUpdateTask? = null
     private var timerActive = false
 
     private val colorManagers = ArrayList<ColorManager>()
+
+    private val sunsetRise = SunSetRise()
 
     private var currentIndex = 0
 
     private val nextIndex get () = (currentIndex + 1).rem(colorList.size)
 
     private var updateLock: Lock = ReentrantLock()
-
-    private var sunriseTime = 7 * Constants.HOUR_IN_MILLISECONDS
-    private var nightTime = 1 * Constants.HOUR_IN_MILLISECONDS
-    private var sunsetTime = 21 * Constants.HOUR_IN_MILLISECONDS
-    private var dayTime = 13 * Constants.HOUR_IN_MILLISECONDS
 
     private var darkTextColor: Int = 0
     private var lightTextColor: Int = 0
@@ -143,21 +141,40 @@ internal object ColorSupervisor {
     private fun startUpdate() {
         if (colorList.size >= 2) {
             timerActive = true
-            timer = Timer("ColorUpdate", true)
-            val (changeLength, progress, period) = calculateTimeOfDay()
-
-            if (BuildConfig.DEBUG) {
-                val sunriseHour = sunriseTime / Constants.HOUR_IN_MILLISECONDS
-                val sunsetHour = sunsetTime / Constants.HOUR_IN_MILLISECONDS
-                Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-                        "Sunrise is at $sunriseHour:${(sunriseTime - sunriseHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS} " +
-                        "and sun sets at $sunsetHour:${(sunsetTime - sunsetHour * Constants.HOUR_IN_MILLISECONDS) / Constants.MINUTE_IN_MILLISECONDS}")
-
-                Log.d("ColorSupervisor", "Update rate is $period")
+            val timer = Timer("ColorUpdate", true)
+            when (colorList.size) {
+                2 -> startUpdate2(timer)
+                4 -> startUpdate4(timer)
+                else -> throw IllegalStateException()
             }
 
-            timerTask = ColorUpdateTask(changeLength, progress, period)
-            timer!!.scheduleAtFixedRate(timerTask, 0L, period)
+
+            this.timer = timer
+        }
+    }
+
+    private fun startUpdate2(timer: Timer) {
+        timer.schedule(object : TimerTask() {
+            override fun run() {
+                deltaUpdate(0f, true)
+            }
+        }, calculateTimeOfDay2().time)
+    }
+
+    private fun startUpdate4(timer: Timer) {
+        val (changeLength, progress, period) = calculateTimeOfDay4()
+        timer.scheduleAtFixedRate(ColorUpdateTask(changeLength, progress, period), 0L, period)
+
+        deltaUpdate(changeLength.toFloat() / progress, false)
+
+        if (BuildConfig.DEBUG) {
+            val sunset = sunsetRise.nextSunset()
+            val sunrise = sunsetRise.nextSunrise()
+            Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+                    "Sunrise is at $sunset " +
+                    "and sun sets at $sunrise")
+
+            Log.d("ColorSupervisor", "Update rate is $period")
         }
     }
 
@@ -169,50 +186,35 @@ internal object ColorSupervisor {
         else -> "Bug"
     }
 
-    /**
-     * Generate Triple of change length, progress, period in this order
-     */
-    private fun calculateTimeOfDay(): Triple<Long, Long, Long> =
-            when {
-                colorList.size == 4 -> calculateTimeOfDay4()
-                colorList.size == 2 -> calculateTimeOfDay2()
-                else -> throw RuntimeException("Invalid size of color list (${colorList.size}) for time of day ")
-            }
+    private fun calculateTimeOfDay2(): Calendar {
+        val time = Calendar.getInstance().timeInMillis()
+        val sunset = sunsetRise.nextSunset()
+        val sunrise = sunsetRise.nextSunrise()
 
-    private fun calculateTimeOfDay2(): Triple<Long, Long, Long> {
-        val time = Assist.time
-        val changeLength: Long
-        val progress: Long
-
-        when {
-            time > sunsetTime -> {
-                //Between sunset and the end of the day
-                changeLength = Constants.DAY_IN_MILLISECONDS - (sunsetTime - sunriseTime)
-                progress = time - sunsetTime
+        return when {
+            (time > sunset.timeInMillis()) or (time < sunrise.timeInMillis()) -> {
                 currentIndex = 1
-            }
-            time > sunriseTime -> {
-                //Between sunrise and sunset
-                changeLength = sunsetTime - sunriseTime
-                progress = time - sunriseTime
-                currentIndex = 0
+                sunrise
+
             }
             else -> {
-                //Between start of the day and sunrise
-                changeLength = Constants.DAY_IN_MILLISECONDS - (sunsetTime - sunriseTime)
-                progress = time + Constants.DAY_IN_MILLISECONDS - sunsetTime
-                currentIndex = 1
+                currentIndex = 0
+                sunset
+
             }
         }
-
-        //Add +1 to make it more bug proof, it shouldn't really matter because +1 is just a millisecond
-        return Triple(changeLength, 0, changeLength - progress + 1)
     }
 
     private fun calculateTimeOfDay4(): Triple<Long, Long, Long> {
-        val time = Assist.time
+        val time = Calendar.getInstance().timeInMillis()
         val changeLength: Long
         val progress: Long
+
+        val sunsetTime = sunsetRise.nextSunset().timeInMillis()
+        val sunriseTime = sunsetRise.nextSunrise().timeInMillis()
+
+        val dayTime = (sunriseTime - sunsetTime) / 2 + sunriseTime
+        val nightTime = ((Constants.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Constants.DAY_IN_MILLISECONDS)
 
         if (time > sunsetTime) {
             if (nightTime > sunsetTime) {
@@ -316,9 +318,8 @@ internal object ColorSupervisor {
         }
     }
 
-    fun setSunsetSunrise(sunrise: Calendar, sunset: Calendar) {
-        sunriseTime = sunrise.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS + sunrise.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS
-        sunsetTime = sunset.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS + sunset.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS
+    fun setLocation(location: Location) {
+        sunsetRise.updateLocation(location)
         synchronized(updateLock) {
             stopUpdate()
             startUpdate()

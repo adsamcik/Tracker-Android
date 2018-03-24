@@ -36,7 +36,6 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
-import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
@@ -70,6 +69,8 @@ class FragmentNewTracker : Fragment() {
             } else
                 toggleCollecting(activity, !TrackerService.isRunning)
         }
+
+        initializeColorElements()
     }
 
 
@@ -84,7 +85,6 @@ class FragmentNewTracker : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        initializeColorElements()
 
         val orientation = Assist.orientation(context!!)
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
@@ -166,6 +166,9 @@ class FragmentNewTracker : Fragment() {
         colorManager = ColorSupervisor.createColorManager(context!!)
         colorManager.watchElement(ColorView(top_panel, 1, true, false))
         colorManager.watchElement(ColorView(bar_info_top, 1, true, false))
+
+        cellInfo?.setColorManager(colorManager)
+        wifiInfo?.setColorManager(colorManager)
     }
 
     private fun setUploadButtonClickable() {
