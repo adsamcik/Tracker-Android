@@ -71,7 +71,9 @@ internal object ColorSupervisor {
             colorManagers.remove(colorManager)
             if (colorManagers.isEmpty()) {
                 colorManagers.trimToSize()
-                stopUpdate()
+                synchronized(updateLock) {
+                    stopUpdate()
+                }
             }
         }
     }
@@ -290,11 +292,9 @@ internal object ColorSupervisor {
     }
 
     private fun stopUpdate() {
-        synchronized(updateLock) {
-            if (timerActive) {
-                timerActive = false
-                timer!!.cancel()
-            }
+        if (timerActive) {
+            timerActive = false
+            timer!!.cancel()
         }
     }
 
@@ -302,7 +302,10 @@ internal object ColorSupervisor {
         val preferences = Preferences.getPref(context)
         val mode = preferences.getString(context, R.string.settings_style_mode_key, R.string.settings_style_mode_default).toInt()
 
-        stopUpdate()
+        synchronized(updateLock) {
+            stopUpdate()
+        }
+
         colorList.clear()
 
         val day = preferences.getColor(context, R.string.settings_color_day_key, R.color.settings_color_day_default)
