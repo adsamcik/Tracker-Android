@@ -32,16 +32,14 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.NotificationChannels
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.location.LocationServices
-import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
-import com.luckycatlabs.sunrisesunset.dto.Location
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
 import kotlinx.android.synthetic.main.activity_new_ui.*
+import kotlinx.android.synthetic.main.fragment_new_map.*
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
-import java.util.*
 
 
 class NewUIActivity : FragmentActivity() {
@@ -238,16 +236,19 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        if (button_map.state == DraggableImageButton.State.TARGET)
-            outState.putBoolean(MAP_OPENED, true)
-
-        if (button_stats.state == DraggableImageButton.State.TARGET)
-            outState.putBoolean(STATS_OPENED, true)
-
-        if (button_activity.state == DraggableImageButton.State.TARGET)
-            outState.putBoolean(ACTIVITIES_OPENED, true)
+        button_map.saveFragments(outState)
+        button_stats.saveFragments(outState)
+        button_activity.saveFragments(outState)
 
         super.onSaveInstanceState(outState)
+    }
+
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+
+        button_map.restoreFragments(savedInstanceState)
+        button_stats.restoreFragments(savedInstanceState)
+        button_activity.restoreFragments(savedInstanceState)
     }
 
     override fun onDestroy() {
@@ -276,7 +277,7 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        return if (!tutorialActive && root.touchDelegate.onTouchEvent(event))
+        return if (map_menu_button?.state == DraggableImageButton.State.INITIAL && !tutorialActive && root.touchDelegate.onTouchEvent(event))
             true
         else
             super.dispatchTouchEvent(event)
