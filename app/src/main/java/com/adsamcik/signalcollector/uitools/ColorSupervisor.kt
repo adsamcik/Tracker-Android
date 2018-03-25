@@ -51,6 +51,8 @@ internal object ColorSupervisor {
     var currentBaseColor = 0
         private set
 
+    private val colorManagerLock = ReentrantLock()
+
     fun createColorManager(context: Context): ColorManager {
         if (darkTextColor == 0) {
             darkTextColor = ContextCompat.getColor(context, android.R.color.primary_text_light)
@@ -58,24 +60,26 @@ internal object ColorSupervisor {
         }
 
         val colorManager = ColorManager()
-        synchronized(colorManagers) {
-            colorManagers.add(colorManager)
-            ensureUpdate()
-        }
+
+        colorManagerLock.lock()
+        colorManagers.add(colorManager)
+        colorManagerLock.unlock()
+
+        ensureUpdate()
 
         return colorManager
     }
 
     fun recycleColorManager(colorManager: ColorManager) {
-        synchronized(colorManagers) {
-            colorManagers.remove(colorManager)
-            if (colorManagers.isEmpty()) {
-                colorManagers.trimToSize()
-                synchronized(updateLock) {
-                    stopUpdate()
-                }
-            }
-        }
+        colorManagerLock.lock()
+        colorManagers.remove(colorManager)
+        if (colorManagers.isEmpty()) {
+            colorManagers.trimToSize()
+            colorManagerLock.unlock()
+            stopUpdate()
+        } else
+            colorManagerLock.unlock()
+
     }
 
     fun ensureUpdate() {
@@ -125,11 +129,11 @@ internal object ColorSupervisor {
         currentForegroundColor = fgColor
         currentBaseColor = color
 
-        synchronized(colorManagers) {
-            colorManagers.forEach {
-                it.update(color, fgColor)
-            }
+        colorManagerLock.lock()
+        colorManagers.forEach {
+            it.update(color, fgColor)
         }
+        colorManagerLock.unlock()
     }
 
     private fun updateUpdate() {
@@ -143,16 +147,17 @@ internal object ColorSupervisor {
 
     private fun startUpdate() {
         if (colorList.size >= 2) {
-            timerActive = true
-            val timer = Timer("ColorUpdate", true)
-            when (colorList.size) {
-                2 -> startUpdate2(timer)
-                4 -> startUpdate4(timer)
-                else -> throw IllegalStateException()
+            synchronized(updateLock) {
+                timerActive = true
+                val timer = Timer("ColorUpdate", true)
+                when (colorList.size) {
+                    2 -> startUpdate2(timer)
+                    4 -> startUpdate4(timer)
+                    else -> throw IllegalStateException()
+                }
+
+                this.timer = timer
             }
-
-
-            this.timer = timer
         }
     }
 
@@ -292,9 +297,11 @@ internal object ColorSupervisor {
     }
 
     private fun stopUpdate() {
-        if (timerActive) {
-            timerActive = false
-            timer!!.cancel()
+        synchronized(updateLock) {
+            if (timerActive) {
+                timerActive = false
+                timer!!.cancel()
+            }
         }
     }
 
@@ -302,9 +309,7 @@ internal object ColorSupervisor {
         val preferences = Preferences.getPref(context)
         val mode = preferences.getString(context, R.string.settings_style_mode_key, R.string.settings_style_mode_default).toInt()
 
-        synchronized(updateLock) {
-            stopUpdate()
-        }
+        stopUpdate()
 
         colorList.clear()
 
