@@ -382,6 +382,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                     val adapter = it.adapter
                     adapter.clear()
                     adapter.addAll(layers)
+                    it.onClickListener = { mapLayer -> changeMapOverlay(mapLayer.name) }
                 }
             }
             payload.onBeforeDestroyed = {
@@ -397,7 +398,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
             //payload.setOffsetsDp(Offset(0, 24))
             map_menu_button.addPayload(payload)
-            if(mapLayers?.isNotEmpty() == true)
+            if (mapLayers?.isNotEmpty() == true)
                 map_menu_button.visibility = View.VISIBLE
         }
 
