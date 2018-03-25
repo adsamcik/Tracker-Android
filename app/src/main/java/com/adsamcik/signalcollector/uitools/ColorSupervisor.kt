@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.extensions.timeInMillis
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SunSetRise
+import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
@@ -170,9 +171,10 @@ internal object ColorSupervisor {
         if (BuildConfig.DEBUG) {
             val sunset = sunsetRise.nextSunset()
             val sunrise = sunsetRise.nextSunrise()
+            val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
             Log.d("ColorSupervisor", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-                    "Sunrise is at $sunset " +
-                    "and sun sets at $sunrise")
+                    "Sunrise is at ${format.format(sunrise.time)} " +
+                    "and sun sets at ${format.format(sunset.time)}")
 
             Log.d("ColorSupervisor", "Update rate is $period")
         }
@@ -213,7 +215,7 @@ internal object ColorSupervisor {
         val sunsetTime = sunsetRise.nextSunset().timeInMillis()
         val sunriseTime = sunsetRise.nextSunrise().timeInMillis()
 
-        val dayTime = (sunriseTime - sunsetTime) / 2 + sunriseTime
+        val dayTime = (sunsetTime - sunriseTime) / 2 + sunriseTime
         val nightTime = ((Constants.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Constants.DAY_IN_MILLISECONDS)
 
         if (time > sunsetTime) {
