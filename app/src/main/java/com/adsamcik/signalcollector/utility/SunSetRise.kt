@@ -13,7 +13,13 @@ class SunSetRise {
     fun nextSunset(): Calendar {
         val calendar = Calendar.getInstance()
         return if(location != null) {
-            getSunset(location!!, calendar)
+            val calculator = getCalculator(location!!, calendar)
+            val sunset = getSunset(calculator, calendar)
+            if(sunset < calendar) {
+                calendar.add(Calendar.DAY_OF_WEEK, 1)
+                getSunset(location!!, calendar)
+            } else
+                sunset
         } else {
             calendar.roundToDate()
             calendar.set(Calendar.HOUR_OF_DAY, 21)
@@ -24,7 +30,13 @@ class SunSetRise {
     fun nextSunrise(): Calendar {
         val calendar = Calendar.getInstance()
         return if(location != null) {
-            getSunrise(location!!, calendar)
+            val calculator = getCalculator(location!!, calendar)
+            val sunrise = getSunrise(calculator, calendar)
+            if(sunrise < calendar) {
+                calendar.add(Calendar.DAY_OF_WEEK, 1)
+                getSunrise(location!!, calendar)
+            } else
+                sunrise
         } else {
             calendar.roundToDate()
             calendar.set(Calendar.HOUR_OF_DAY, 7)
