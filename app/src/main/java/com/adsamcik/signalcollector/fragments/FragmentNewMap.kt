@@ -38,9 +38,12 @@ import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.adsamcik.signalcollector.utility.MapFilterRule
+import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
@@ -350,8 +353,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
                                 val defaultOverlay = savedOverlay
 
-                                if (list.isEmpty())
-                                    changeMapOverlay(defaultOverlay)
+                                changeMapOverlay(defaultOverlay)
                                 list.addAll(layerArray)
                             }
                         }
@@ -395,6 +397,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
             //payload.setOffsetsDp(Offset(0, 24))
             map_menu_button.addPayload(payload)
+            if(mapLayers?.isNotEmpty() == true)
+                map_menu_button.visibility = View.VISIBLE
         }
 
         map_menu_button.extendTouchAreaBy(0, 12.dpAsPx, 0, 0)
