@@ -160,6 +160,7 @@ internal object ColorSupervisor {
                 deltaUpdate(0f, true)
             }
         }, calculateTimeOfDay2().time)
+        deltaUpdate(0f, false)
     }
 
     private fun startUpdate4(timer: Timer) {
