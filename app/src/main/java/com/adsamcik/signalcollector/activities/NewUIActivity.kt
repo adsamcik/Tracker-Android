@@ -236,11 +236,11 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
         button_map.saveFragments(outState)
         button_stats.saveFragments(outState)
         button_activity.saveFragments(outState)
-
-        super.onSaveInstanceState(outState)
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -277,7 +277,7 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        return if (map_menu_button?.state == DraggableImageButton.State.INITIAL && !tutorialActive && root.touchDelegate.onTouchEvent(event))
+        return if (button_map.state == DraggableImageButton.State.INITIAL && !tutorialActive && root.touchDelegate.onTouchEvent(event))
             true
         else
             super.dispatchTouchEvent(event)
