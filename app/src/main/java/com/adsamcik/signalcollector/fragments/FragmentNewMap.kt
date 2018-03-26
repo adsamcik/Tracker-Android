@@ -513,8 +513,9 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         }
 
         override fun onLocationChanged(location: Location) {
-            drawUserPosition(lastUserPos!!, location.accuracy)
-            setUserPosition(LatLng(location.latitude, location.longitude))
+            val latlng = LatLng(location.latitude, location.longitude)
+            drawUserPosition(latlng, location.accuracy)
+            setUserPosition(latlng)
         }
 
         fun animateToPositionZoom(position: LatLng, zoom: Float) {
