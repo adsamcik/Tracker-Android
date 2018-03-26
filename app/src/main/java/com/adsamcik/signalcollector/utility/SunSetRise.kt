@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.utility
 
-import com.adsamcik.signalcollector.extensions.date
 import com.adsamcik.signalcollector.extensions.roundToDate
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
@@ -12,10 +11,10 @@ class SunSetRise {
 
     fun nextSunset(): Calendar {
         val calendar = Calendar.getInstance()
-        return if(location != null) {
+        return if (location != null) {
             val calculator = getCalculator(location!!, calendar)
             val sunset = getSunset(calculator, calendar)
-            if(sunset < calendar) {
+            if (sunset < calendar) {
                 calendar.add(Calendar.DAY_OF_WEEK, 1)
                 getSunset(location!!, calendar)
             } else
@@ -29,10 +28,10 @@ class SunSetRise {
 
     fun nextSunrise(): Calendar {
         val calendar = Calendar.getInstance()
-        return if(location != null) {
+        return if (location != null) {
             val calculator = getCalculator(location!!, calendar)
             val sunrise = getSunrise(calculator, calendar)
-            if(sunrise < calendar) {
+            if (sunrise < calendar) {
                 calendar.add(Calendar.DAY_OF_WEEK, 1)
                 getSunrise(location!!, calendar)
             } else
@@ -45,32 +44,33 @@ class SunSetRise {
     }
 
 
-    @Synchronized fun updateLocation(loc: android.location.Location) {
+    @Synchronized
+    fun updateLocation(loc: android.location.Location) {
         this.location = Location(loc.latitude, loc.longitude)
         lastUpdate = Calendar.getInstance()
     }
 
-    private fun getCalculator(location: Location, calendar: Calendar) : SunriseSunsetCalculator {
+    private fun getCalculator(location: Location, calendar: Calendar): SunriseSunsetCalculator {
         return SunriseSunsetCalculator(location, calendar.timeZone)
     }
 
-    private fun getSunset(calculator: SunriseSunsetCalculator, calendar: Calendar) : Calendar {
+    private fun getSunset(calculator: SunriseSunsetCalculator, calendar: Calendar): Calendar {
         return calculator.getOfficialSunsetCalendarForDate(calendar)
     }
 
-    private fun getSunset(location: Location, calendar: Calendar) : Calendar {
+    private fun getSunset(location: Location, calendar: Calendar): Calendar {
         return getSunset(getCalculator(location, calendar), calendar)
     }
 
-    private fun getSunrise(calculator: SunriseSunsetCalculator, calendar: Calendar) : Calendar {
+    private fun getSunrise(calculator: SunriseSunsetCalculator, calendar: Calendar): Calendar {
         return calculator.getOfficialSunriseCalendarForDate(calendar)
     }
 
-    private fun getSunrise(location: Location, calendar: Calendar) : Calendar {
+    private fun getSunrise(location: Location, calendar: Calendar): Calendar {
         return getSunrise(getCalculator(location, calendar), calendar)
     }
 
-    private fun getSunriseSunset(location: Location, calendar: Calendar) : Pair<Calendar, Calendar> {
+    private fun getSunriseSunset(location: Location, calendar: Calendar): Pair<Calendar, Calendar> {
         val calculator = getCalculator(location, calendar)
         val sunrise = getSunrise(calculator, calendar)
         val sunset = getSunset(calculator, calendar)
