@@ -20,6 +20,7 @@ import android.support.constraint.ConstraintLayout
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -31,6 +32,7 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
+import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.extensions.transactionStateLoss
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
@@ -56,6 +58,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var locationListener: UpdateLocationListener? = null
     private var type: String? = null
     private var map: GoogleMap? = null
+    private var mapFragment: SupportMapFragment? = null
+
     private var tileProvider: SignalsTileProvider? = null
     private var locationManager: LocationManager? = null
     private var activeOverlay: TileOverlay? = null
@@ -123,13 +127,15 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onEnter(activity: Activity) {
         this.fActivity = activity as FragmentActivity
 
-        mapLayerFilterRule = MapFilterRule()
-        val mapFragment = SupportMapFragment.newInstance()
-        val fragmentTransaction = fragmentManager!!.beginTransaction()
-        fragmentTransaction.add(R.id.container_map, mapFragment)
-        fragmentTransaction.commit()
-        val callback = this
-        mapFragment.getMapAsync(callback)
+        if (mapFragment == null) {
+            mapLayerFilterRule = MapFilterRule()
+            val mapFragment = SupportMapFragment.newInstance()
+            mapFragment.getMapAsync(this)
+            fragmentManager!!.transaction {
+                replace(R.id.container_map, mapFragment)
+            }
+            this.mapFragment = mapFragment
+        }
     }
 
     override fun onStart() {
@@ -169,6 +175,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onDestroyView() {
         super.onDestroyView()
         fragmentView = null
+        mapFragment = null
         colorManager?.stopWatchingAll()
     }
 

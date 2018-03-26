@@ -35,12 +35,10 @@ import com.google.android.gms.location.LocationServices
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
 import kotlinx.android.synthetic.main.activity_new_ui.*
-import kotlinx.android.synthetic.main.fragment_new_map.*
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
-
 
 class NewUIActivity : FragmentActivity() {
     private lateinit var colorManager: ColorManager
@@ -49,6 +47,8 @@ class NewUIActivity : FragmentActivity() {
     private var tutorialActive = false
 
     private var draggableOriginalMargin = Int.MIN_VALUE
+
+    private var mapFragment: FragmentNewMap? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -148,6 +148,10 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(16.dpAsPx.toFloat())
         mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
+
+        mapPayload.onInitialized = { mapFragment = it }
+        mapPayload.onBeforeDestroyed = { mapFragment = null }
+
         button_map.addPayload(mapPayload)
     }
 
@@ -236,6 +240,18 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+
+        //map fragment is for some reason recreated twice and once it is recreated without view, which happened even with retain false
+        //this at least reduces the invalid fragment to call only onCreate method which shouldn't create much of an issue
+        //The invalid instance is destroyed with the next rotation
+        val fragmentManager = supportFragmentManager!!
+        if (mapFragment != null) {
+            fragmentManager.transaction {
+                detach(mapFragment)
+            }
+            fragmentManager.executePendingTransactions()
+        }
+
         super.onSaveInstanceState(outState)
 
         button_map.saveFragments(outState)
