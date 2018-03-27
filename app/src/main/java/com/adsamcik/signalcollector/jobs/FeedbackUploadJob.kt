@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.R.string.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import kotlinx.coroutines.experimental.launch
+import okhttp3.internal.http2.StreamResetException
 
 class FeedbackUploadJob : JobService() {
     private var worker: UploadTask? = null
@@ -74,8 +75,12 @@ class FeedbackUploadJob : JobService() {
             val builder = Network.generateAuthBody(token).addFormDataPart("summary", params[0]).addFormDataPart("type", params[1])
             builder.addFormDataPart("description", if (params[2].isNotEmpty()) params[2] else "")
 
-            val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
-            return result.isSuccessful
+            return try {
+                val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
+                result.isSuccessful
+            } catch (e: StreamResetException) {
+                false
+            }
         }
 
         override fun onCancelled(result: Boolean?) {
