@@ -6,10 +6,12 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
+import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.view.MotionEvent
+import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ListView
 import androidx.content.edit
@@ -50,6 +52,8 @@ class NewUIActivity : FragmentActivity() {
 
     private var mapFragment: FragmentNewMap? = null
 
+    private lateinit var trackerFragment: Fragment
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,8 +88,9 @@ class NewUIActivity : FragmentActivity() {
                 }
             }
 
+        trackerFragment = FragmentNewTracker()
         supportFragmentManager.transaction {
-            replace(R.id.root, FragmentNewTracker())
+            replace(R.id.root, trackerFragment)
         }
     }
 
@@ -107,6 +112,14 @@ class NewUIActivity : FragmentActivity() {
         button_stats.setTargetOffsetDp(Offset(56))
         button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
         button_stats.extendTouchAreaBy(56.dpAsPx, 0, 0, 0)
+        button_stats.onEnterStateListener = { _, state, _ ->
+            if (state == DraggableImageButton.State.TARGET)
+                hideBottomLayer()
+        }
+        button_stats.onLeaveStateListener = { _, state ->
+            if (state == DraggableImageButton.State.TARGET)
+                showBottomLayer()
+        }
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
         statsPayload.initialTranslation = Point(-size.x, 0)
@@ -127,6 +140,14 @@ class NewUIActivity : FragmentActivity() {
         button_activity.setTargetOffsetDp(Offset(-56))
         button_activity.targetTranslationZ = 8.dpAsPx.toFloat()
         button_activity.extendTouchAreaBy(0, 0, 56.dpAsPx, 0)
+        button_activity.onEnterStateListener = { _, state, _ ->
+            if (state == DraggableImageButton.State.TARGET)
+                hideBottomLayer()
+        }
+        button_activity.onLeaveStateListener = { _, state ->
+            if (state == DraggableImageButton.State.TARGET)
+                showBottomLayer()
+        }
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
         activityPayload.initialTranslation = Point(size.x, 0)
@@ -142,6 +163,20 @@ class NewUIActivity : FragmentActivity() {
         button_map.setTargetOffsetDp(Offset(56))
         button_map.extendTouchAreaBy(32.dpAsPx)
         button_map.targetTranslationZ = 18.dpAsPx.toFloat()
+        button_map.onEnterStateListener = { _, state, _ ->
+            if (state == DraggableImageButton.State.TARGET) {
+                hideBottomLayer()
+                hideMiddleLayer()
+            }
+        }
+        button_map.onLeaveStateListener = { _, state ->
+            if (state == DraggableImageButton.State.TARGET) {
+                if (button_activity.state != DraggableImageButton.State.TARGET && button_stats.state != DraggableImageButton.State.TARGET)
+                    showBottomLayer()
+
+                showMiddleLayer()
+            }
+        }
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
         mapPayload.initialTranslation = Point(0, realSize.y)
@@ -153,6 +188,36 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.onBeforeDestroyed = { mapFragment = null }
 
         button_map.addPayload(mapPayload)
+    }
+
+    private fun hideBottomLayer() {
+        trackerFragment.view?.visibility = View.GONE
+    }
+
+    private fun showBottomLayer() {
+        trackerFragment.view?.visibility = View.VISIBLE
+    }
+
+    private fun hideMiddleLayer() {
+        button_activity.visibility = View.GONE
+        button_stats.visibility = View.GONE
+
+        if (button_stats.state == DraggableImageButton.State.TARGET)
+            button_stats.payloads.forEach { it.wrapper?.visibility = View.GONE }
+
+        if (button_activity.state == DraggableImageButton.State.TARGET)
+            button_activity.payloads.forEach { it.wrapper?.visibility = View.GONE }
+    }
+
+    private fun showMiddleLayer() {
+        button_activity.visibility = View.VISIBLE
+        button_stats.visibility = View.VISIBLE
+
+        if (button_stats.state == DraggableImageButton.State.TARGET)
+            button_stats.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
+
+        if (button_activity.state == DraggableImageButton.State.TARGET)
+            button_activity.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
     }
 
     private fun initializeButtonsPosition() {
@@ -293,7 +358,7 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        return if (button_map.state == DraggableImageButton.State.INITIAL && !tutorialActive && root.touchDelegate.onTouchEvent(event))
+        return if (!tutorialActive && root.touchDelegate.onTouchEvent(event))
             true
         else
             super.dispatchTouchEvent(event)
