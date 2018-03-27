@@ -31,6 +31,7 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
+import kotlinx.android.synthetic.main.fragment_new_stats.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
@@ -38,8 +39,6 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     private var fragmentView: View? = null
 
     private var adapter: TableAdapter? = null
-
-    private var refreshLayout: SwipeRefreshLayout? = null
 
     private val CARD_LIST_MARGIN = 16
 
@@ -59,10 +58,9 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
 
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
-        refreshLayout = fragmentView!!.findViewById(R.id.statsSwipeRefresh)
-        refreshLayout!!.setOnRefreshListener({ this.updateStats() })
-        refreshLayout!!.setColorSchemeResources(R.color.color_primary)
-        refreshLayout!!.setProgressViewOffset(true, 0, 40.dpAsPx)
+        statsSwipeRefresh.setOnRefreshListener({ this.updateStats() })
+        statsSwipeRefresh.setColorSchemeResources(R.color.color_primary)
+        statsSwipeRefresh.setProgressViewOffset(true, 0, 40.dpAsPx)
 
         val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
         listView.setRecyclerListener { }
@@ -74,7 +72,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     private fun updateStats() {
         val activity = activity
         val appContext = activity!!.applicationContext
-        val isRefresh = refreshLayout!!.isRefreshing
+        val isRefresh = statsSwipeRefresh.isRefreshing
 
         adapter!!.clear()
 
@@ -124,7 +122,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
 
         if (refreshingCount > 0) {
             launch(UI) {
-                refreshLayout?.isRefreshing = true
+                statsSwipeRefresh?.isRefreshing = true
             }
         }
     }
@@ -138,7 +136,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
                 addStatsTable(value!!, appendBehavior)
                 adapter!!.sort()
                 if (refreshingCount == 0)
-                    refreshLayout?.isRefreshing = false
+                    statsSwipeRefresh?.isRefreshing = false
             }
     }
 
@@ -194,8 +192,8 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     }
 
     override fun onLeave(activity: Activity) {
-        if (refreshLayout != null && refreshLayout!!.isRefreshing)
-            refreshLayout!!.isRefreshing = false
+        if (statsSwipeRefresh != null)
+            statsSwipeRefresh.isRefreshing = false
     }
 
 
@@ -204,10 +202,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     }
 
     override fun onHomeAction() {
-        if (fragmentView != null) {
-            (fragmentView!!.findViewById<View>(R.id.stats_list_view) as ListView).smoothScrollToPosition(0)
-        }
+        stats_list_view.smoothScrollToPosition(0)
     }
-
 }
 
