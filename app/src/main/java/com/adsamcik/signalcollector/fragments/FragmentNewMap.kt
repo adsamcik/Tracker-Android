@@ -25,10 +25,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
-import com.adsamcik.draggable.DragTargetAnchor
-import com.adsamcik.draggable.DraggableImageButton
-import com.adsamcik.draggable.DraggablePayload
-import com.adsamcik.draggable.IOnDemandView
+import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.extensions.transaction
@@ -224,12 +221,16 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                         map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
                         val top = searchOriginalMargin + keyboardHeight + map_menu_button.height + edittext_map_search.paddingBottom + edittext_map_search.paddingTop + edittext_map_search.height
                         map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
-                        map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
                     }
                     false -> {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
                         map?.setPadding(0, 0, 0, navbarHeight.y)
                     }
+                }
+
+                //Update map_menu_button position after UI has been redrawn
+                map_menu_button.post {
+                    map_menu_button.moveToState(map_menu_button.state, false, true)
                 }
             }
 
@@ -385,9 +386,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private fun initializeMenuButton() {
         map_menu_parent.post {
             val activity = activity!!
-            val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_parent)
+            val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_button)
             payload.initialTranslation = Point(0, map_menu_parent.height)
+            payload.stickToTarget = true
             payload.anchor = DragTargetAnchor.LeftTop
+            payload.offsets = Offset(0, map_menu_button.height)
             payload.width = map_menu_parent.width
             payload.height = map_menu_parent.height
             payload.onInitialized = {
