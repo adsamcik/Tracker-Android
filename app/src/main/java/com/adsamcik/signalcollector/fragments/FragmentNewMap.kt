@@ -20,7 +20,6 @@ import android.support.constraint.ConstraintLayout
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -266,7 +265,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             true
         }
 
-        map_menu_button.visibility = View.GONE
+        if (!useMock)
+            map_menu_button.visibility = View.GONE
 
         locationListener!!.setButton(button_map_my_location, context!!)
 
@@ -338,38 +338,46 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     private fun loadMapLayers() {
         val activity = activity!!
-        launch {
-            val user = Signin.getUserAsync(activity)
-            user?.addServerDataCallback {
-                val networkInfo = it.networkInfo!!
-                if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
-                    val list = ArrayList<MapLayer>()
-                    if (networkInfo.hasPersonalMapAccess())
-                        list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
+        if (useMock) {
+            val mockArray = MapLayer.mockArray()
+            val mockArrayList = ArrayList<MapLayer>(mockArray.size)
+            mockArrayList.addAll(mockArray)
+            mapLayers = mockArrayList
+            initializeMenuButton()
+        } else {
+            launch {
+                val user = Signin.getUserAsync(activity)
+                user?.addServerDataCallback {
+                    val networkInfo = it.networkInfo!!
+                    if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
+                        val list = ArrayList<MapLayer>()
+                        if (networkInfo.hasPersonalMapAccess())
+                            list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
-                    if (networkInfo.hasMapAccess()) {
-                        runBlocking {
-                            val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
-                            if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {
-                                val layerArray = if (useMock) MapLayer.mockArray() else mapListRequest.second!!
-                                var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
-                                if (!MapLayer.contains(layerArray, savedOverlay)) {
-                                    savedOverlay = layerArray[0].name
-                                    Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
+                        if (networkInfo.hasMapAccess()) {
+                            runBlocking {
+                                val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
+                                if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {
+                                    val layerArray = mapListRequest.second!!
+                                    var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                    if (!MapLayer.contains(layerArray, savedOverlay)) {
+                                        savedOverlay = layerArray[0].name
+                                        Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
+                                    }
+
+                                    val defaultOverlay = savedOverlay
+
+                                    changeMapOverlay(defaultOverlay)
+                                    list.addAll(layerArray)
                                 }
-
-                                val defaultOverlay = savedOverlay
-
-                                changeMapOverlay(defaultOverlay)
-                                list.addAll(layerArray)
                             }
                         }
+
+                        mapLayers = list
+                        initializeMenuButton()
                     }
 
-                    mapLayers = list
-                    initializeMenuButton()
                 }
-
             }
         }
     }
