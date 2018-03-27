@@ -36,16 +36,16 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
 class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
-    private var fragmentView: View? = null
+    private lateinit var fragmentView: View
 
     private var adapter: TableAdapter? = null
 
-    private val CARD_LIST_MARGIN = 16
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
     private var refreshingCount = 0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        fragmentView = inflater.inflate(R.layout.fragment_new_stats, container, false)
+        val fragmentView = inflater.inflate(R.layout.fragment_new_stats, container, false)
 
         val activity = activity!!
 
@@ -58,21 +58,25 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
 
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
-        statsSwipeRefresh.setOnRefreshListener({ this.updateStats() })
-        statsSwipeRefresh.setColorSchemeResources(R.color.color_primary)
-        statsSwipeRefresh.setProgressViewOffset(true, 0, 40.dpAsPx)
+        swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
+        swipeRefreshLayout.setOnRefreshListener({ this.updateStats() })
+        swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
+        swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 
-        val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
+        val listView = fragmentView!!.findViewById<ListView>(R.id.listview_stats)
         listView.setRecyclerListener { }
         listView.adapter = adapter
         updateStats()
+
+        this.fragmentView = fragmentView
+
         return fragmentView
     }
 
     private fun updateStats() {
         val activity = activity
         val appContext = activity!!.applicationContext
-        val isRefresh = statsSwipeRefresh.isRefreshing
+        val isRefresh = swipeRefreshLayout.isRefreshing
 
         adapter!!.clear()
 
@@ -122,7 +126,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
 
         if (refreshingCount > 0) {
             launch(UI) {
-                statsSwipeRefresh?.isRefreshing = true
+                swipeRefreshLayout.isRefreshing = true
             }
         }
     }
@@ -136,7 +140,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
                 addStatsTable(value!!, appendBehavior)
                 adapter!!.sort()
                 if (refreshingCount == 0)
-                    statsSwipeRefresh?.isRefreshing = false
+                    swipeRefreshLayout.isRefreshing = false
             }
     }
 
@@ -192,8 +196,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     }
 
     override fun onLeave(activity: Activity) {
-        if (statsSwipeRefresh != null)
-            statsSwipeRefresh.isRefreshing = false
+        swipeRefreshLayout.isRefreshing = false
     }
 
 
@@ -202,7 +205,11 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     }
 
     override fun onHomeAction() {
-        stats_list_view.smoothScrollToPosition(0)
+        listview_stats.smoothScrollToPosition(0)
+    }
+
+    companion object {
+        private const val CARD_LIST_MARGIN = 16
     }
 }
 

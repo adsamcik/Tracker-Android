@@ -58,12 +58,12 @@ class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
 
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
-        refreshLayout = fragmentView!!.findViewById(R.id.statsSwipeRefresh)
+        refreshLayout = fragmentView!!.findViewById(R.id.swiperefresh_stats)
         refreshLayout!!.setOnRefreshListener({ this.updateStats() })
         refreshLayout!!.setColorSchemeResources(R.color.color_primary)
         refreshLayout!!.setProgressViewOffset(true, 0, 40.dpAsPx)
 
-        val listView = fragmentView!!.findViewById<ListView>(R.id.stats_list_view)
+        val listView = fragmentView!!.findViewById<ListView>(R.id.listview_stats)
         listView.setRecyclerListener { }
         listView.adapter = adapter
         updateStats()
@@ -180,7 +180,7 @@ class FragmentStats : Fragment(), ITabFragment, IOnDemandView {
 
     override fun onHomeAction() {
         if (fragmentView != null) {
-            (fragmentView!!.findViewById<View>(R.id.stats_list_view) as ListView).smoothScrollToPosition(0)
+            (fragmentView!!.findViewById<View>(R.id.listview_stats) as ListView).smoothScrollToPosition(0)
         }
     }
 

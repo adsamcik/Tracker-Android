@@ -114,11 +114,11 @@ class NewUIActivity : FragmentActivity() {
         statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
         statsPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
         statsPayload.onInitialized = {
-            val recycler = it.view!!.findViewById<ListView>(R.id.stats_list_view)
+            val recycler = it.view!!.findViewById<ListView>(R.id.listview_stats)
             colorManager.watchRecycler(ColorView(recycler, 1, true, true))
         }
         statsPayload.onBeforeDestroyed = {
-            colorManager.stopWatchingRecycler(R.id.stats_list_view)
+            colorManager.stopWatchingRecycler(R.id.listview_stats)
         }
         button_stats.addPayload(statsPayload)
 
