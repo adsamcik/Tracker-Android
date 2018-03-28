@@ -213,7 +213,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 when (opened) {
                     true -> {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                        val top = searchOriginalMargin + keyboardHeight + map_menu_button.height + edittext_map_search.paddingBottom + edittext_map_search.paddingTop + edittext_map_search.height
+                        val top = searchOriginalMargin +
+                                keyboardHeight +
+                                map_menu_button.height +
+                                edittext_map_search.paddingBottom +
+                                edittext_map_search.paddingTop + edittext_map_search.height
                         map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
                     }
                     false -> {
