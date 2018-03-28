@@ -11,35 +11,35 @@
     <LinearLayout
         android:id="@+id/feedback_type_layout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingBottom="@dimen/edge_margin"
-        android:paddingEnd="@dimen/edge_margin"
-        android:paddingStart="@dimen/edge_margin">
+        android:layout_height="wrap_content">
 
-        <TextView
+        <Button
+            style="@style/Widget.AppCompat.Button.Borderless"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="start"
             android:layout_weight="1"
-            android:gravity="start"
+            android:padding="@dimen/edge_margin"
             android:text="@string/feedback_bug"
             android:textSize="@dimen/primary_text_size"/>
 
-        <TextView
+        <Button
+            style="@style/Widget.AppCompat.Button.Borderless"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_weight="1"
-            android:gravity="center"
+            android:padding="@dimen/edge_margin"
             android:text="@string/feedback_feature"
             android:textSize="@dimen/primary_text_size"/>
 
-        <TextView
+        <Button
+            style="@style/Widget.AppCompat.Button.Borderless"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
             android:layout_weight="1"
-            android:gravity="end"
+            android:padding="@dimen/edge_margin"
             android:text="@string/other"
             android:textSize="@dimen/primary_text_size"/>
     </LinearLayout>
@@ -68,7 +68,11 @@
         android:id="@+id/feedback_description_wrap"
         style="@style/InputLayoutMaterial"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        app:counterEnabled="true"
+        app:counterMaxLength="1400"
+        app:counterOverflowTextAppearance="@style/ErrorTextAppearance"
+        app:hintAnimationEnabled="true">
 
         <EditText
             style="@style/InputLayoutEditText"

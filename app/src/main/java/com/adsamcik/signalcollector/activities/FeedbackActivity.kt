@@ -12,6 +12,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
@@ -30,6 +31,30 @@ class FeedbackActivity : DetailActivity() {
 
     private var mSelectedState: ColorStateList? = null
     private var mDefaultState: ColorStateList? = null
+
+    internal class FeedbackTextWatcher private constructor(private val textLayout: TextInputLayout, private val minLength: Int = 0) : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
+
+        }
+
+        override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
+
+        }
+
+        override fun afterTextChanged(s: Editable) {
+            if (s.length in minLength..textLayout.counterMaxLength) {
+                textLayout.error = null
+                textLayout.editText!!.removeTextChangedListener(this)
+            }
+        }
+
+        companion object {
+            fun setError(textLayout: TextInputLayout, errorText: String, minLength: Int = 0) {
+                textLayout.error = errorText
+                textLayout.editText!!.addTextChangedListener(FeedbackTextWatcher(textLayout, minLength))
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,43 +85,32 @@ class FeedbackActivity : DetailActivity() {
                         }
 
                         val summaryTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_summary_wrap)
+                        val descriptionTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_description_wrap)
+
                         val summaryText = summaryTextLayout.editText!!
 
                         val sumText = summaryText.text
                         val textLength = sumText.length
                         summaryTextLayout.counterMaxLength = MAX_TEXT_LENGTH
 
-                        val textWatcher = object : TextWatcher {
-                            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
-
-                            }
-
-                            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
-
-                            }
-
-                            override fun afterTextChanged(s: Editable) {
-                                if (s.length in MIN_TEXT_LENGTH..MAX_TEXT_LENGTH) {
-                                    summaryTextLayout.error = null
-                                    summaryText.removeTextChangedListener(this)
-                                }
-                            }
-                        }
-
                         if (textLength < MIN_TEXT_LENGTH) {
-                            summaryTextLayout.error = getString(R.string.feedback_error_short_summary)
-                            summaryText.addTextChangedListener(textWatcher)
+                            FeedbackTextWatcher.setError(summaryTextLayout, getString(R.string.feedback_error_short_summary), MIN_TEXT_LENGTH)
                         } else if (MAX_TEXT_LENGTH < textLength) {
-                            summaryTextLayout.error = getString(R.string.feedback_error_long_summary)
-                            summaryText.addTextChangedListener(textWatcher)
+                            FeedbackTextWatcher.setError(summaryTextLayout,  getString(R.string.feedback_error_long_summary))
                         } else {
                             val summary = summaryText.text.toString().trim { it <= ' ' }.replace("\\s+".toRegex(), " ")
                             if (summary.length <= MIN_TEXT_LENGTH)
                                 summaryTextLayout.error = getString(R.string.feedback_error_spaces_summary)
                             else {
-                                val descriptionTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_description_wrap)
                                 val descriptionText = descriptionTextLayout.editText!!
-                                val description = descriptionText.text.toString().trim { it <= ' ' }
+
+                                if(descriptionText.text.length > descriptionTextLayout.counterMaxLength) {
+                                    FeedbackTextWatcher.setError(descriptionTextLayout, getString(R.string.feedback_error_long_description))
+                                    return@setOnClickListener
+                                }
+
+                                val description = descriptionText.text.toString().trim { it <= ' ' }.replace("\\s+".toRegex(), " ")
+
 
                                 val pb = PersistableBundle(3)
                                 pb.putString(FeedbackUploadJob.SUMMARY, summary)

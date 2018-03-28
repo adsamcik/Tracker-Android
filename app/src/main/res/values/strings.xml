@@ -102,6 +102,7 @@
     <string name="feedback_error_short_summary">Summary is too brief</string>
     <string name="feedback_error_long_summary">Summary is too long</string>
     <string name="feedback_error_spaces_summary">Too much spacing</string>
+    <string name="feedback_error_long_description">Description is too long</string>
     <string name="feedback_error_not_signed_in">You must be signed in</string>
 
     <!-- Open source licenses -->
