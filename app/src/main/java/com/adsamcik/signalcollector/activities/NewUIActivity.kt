@@ -151,11 +151,7 @@ class NewUIActivity : FragmentActivity() {
 
         button_activity.addPayload(activityPayload)
 
-        button_map.dragAxis = DragAxis.Y
-        button_map.setTarget(root, DragTargetAnchor.MiddleTop)
-        button_map.setTargetOffsetDp(Offset(56))
         button_map.extendTouchAreaBy(32.dpAsPx)
-        button_map.targetTranslationZ = 18.dpAsPx.toFloat()
         button_map.onEnterStateListener = { _, state, _ ->
             if (state == DraggableImageButton.State.TARGET) {
                 hideBottomLayer()
