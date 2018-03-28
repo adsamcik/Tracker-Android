@@ -9,53 +9,57 @@ import com.adsamcik.signalcollector.uitools.dpAsPx
 class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
     private val dp16 = 16.dpAsPx
 
-    private var initial: Float? = null
-    private var last: Float = 0f
+    /**
+     * Used to determine whether the target view moved
+     */
+    private var last: Float = Float.MIN_VALUE
 
-    private var change = 0f
+    private var layoutChange = 0f
+    private var ignore = false
 
     override fun layoutDependsOn(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?): Boolean =
             dependency is Snackbar.SnackbarLayout
 
     override fun onDependentViewChanged(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?): Boolean {
+        var changed = false
         if (dependency is Snackbar.SnackbarLayout) {
-            if (initial == null) {
-                initial = targetView.translationY
+            if (last == Float.MIN_VALUE) {
+                ignore = false
                 last = targetView.translationY
+            }
+
+            if (last != targetView.translationY) {
+                ignore = false
+                layoutChange = 0.0f
+                return false
             }
 
             val diff = dependency.y - (targetView.y + targetView.height + dp16)
 
-            if (last > targetView.translationY) {
-                if (diff > change)
-                    change = 0f
-                else
-                    change -= diff
-                return false
-            }
-
             if (diff < 0) {
-                change += diff
+                layoutChange += diff
                 targetView.translationY += diff
-            } else if (change < 0) {
-                if (diff > change) {
-                    targetView.translationY -= change
-                    change = 0f
+                changed = true
+            } else if (layoutChange < 0) {
+                if (diff > layoutChange) {
+                    targetView.translationY -= layoutChange
+                    layoutChange = 0f
                 } else {
-                    change += diff
+                    layoutChange += diff
                     targetView.translationY += diff
                 }
+                changed = true
             }
 
             last = targetView.translationY
-
         }
-        return true
+        return changed
     }
 
     override fun onDependentViewRemoved(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?) {
-        targetView.translationY += change
-        initial = null
+        //Ensures that the view does not get stuck in out of the way position
+        targetView.translationY += layoutChange
+        last = Float.MIN_VALUE
         super.onDependentViewRemoved(parent, child, dependency)
     }
 }
