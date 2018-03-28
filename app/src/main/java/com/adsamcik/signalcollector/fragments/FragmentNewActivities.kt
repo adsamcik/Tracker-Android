@@ -7,6 +7,7 @@ import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.support.v4.graphics.ColorUtils
 import android.support.v4.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
@@ -29,6 +30,7 @@ import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
+import kotlin.math.roundToInt
 
 class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
     private lateinit var listViewChallenges: ListView
@@ -133,8 +135,7 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
                 textViewDifficulty.text = challenge.difficultyString
 
             (fragmentView.findViewById<View>(R.id.challenge_progress) as TextView).text = getString(R.string.challenge_progress, (challenge.progress * 100).toInt())
-
-            val color = ContextCompat.getColor(context!!, R.color.background_success) and (Integer.MAX_VALUE shr 8) or ((challenge.progress * 255).toInt() shl 24)
+            val color = ColorUtils.setAlphaComponent(ContextCompat.getColor(context!!, R.color.background_success), (challenge.progress * 254).roundToInt())
             fragmentView.setBackgroundColor(color)
 
             onViewChangedListener?.invoke(fragmentView)
