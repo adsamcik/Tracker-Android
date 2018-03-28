@@ -123,7 +123,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onEnter(activity: Activity) {
         this.fActivity = activity as FragmentActivity
 
-        if (mapFragment == null) {
+        if (mapFragment == null && view != null) {
             mapLayerFilterRule = MapFilterRule()
             val mapFragment = SupportMapFragment.newInstance()
             mapFragment.getMapAsync(this)
