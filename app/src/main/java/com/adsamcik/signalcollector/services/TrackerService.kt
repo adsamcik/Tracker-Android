@@ -324,11 +324,11 @@ class TrackerService : Service() {
 
 
     override fun onDestroy() {
-        ActivityWakerService.poke(this)
-        ActivityService.removeActivityRequest(this, javaClass)
-
         stopForeground(true)
         service = null
+
+        ActivityWakerService.poke(this)
+        ActivityService.removeActivityRequest(this, javaClass)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             locationManager!!.removeUpdates(locationListener)
@@ -418,7 +418,7 @@ class TrackerService : Service() {
          * @return true if service is running
          */
         val isRunning: Boolean
-            get() = service != null && service!!.get() != null
+            get() = service?.get() != null
 
         /**
          * Checks if Tracker is auto locked
