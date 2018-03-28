@@ -17,8 +17,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 27
-        versionCode 241
-        versionName "6.0.α11 Naaru the colorful"
+        versionCode 242
+        versionName "6.0.α12 Naaru the colorful"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
@@ -55,7 +55,7 @@ dependencies {
     //1st party dependencies
     implementation 'com.adsamcik.android-components:slider:0.6.1'
     implementation 'com.adsamcik.android-components:table:0.1.2'
-    implementation 'com.adsamcik.android-components:draggable:0.10.1'
+    implementation 'com.adsamcik.android-components:draggable:0.10.2'
 
     //3rd party dependencies
     implementation 'com.squareup.okhttp3:okhttp:3.10.0'
