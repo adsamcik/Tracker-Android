@@ -95,7 +95,12 @@ class FragmentNewTracker : Fragment() {
 
         val context = context!!
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
+
         updateUploadButton()
+        Signin.signIn(context) {
+            if (it != null)
+                updateUploadButton()
+        }
 
         val data = TrackerService.rawDataEcho
         if (data.time > 0)
