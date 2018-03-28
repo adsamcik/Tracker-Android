@@ -39,8 +39,6 @@ class FeedbackUploadJob : JobService() {
                 worker = UploadTask(this@FeedbackUploadJob, user.token) {
                     if (it)
                         notify(notification_feedback_success)
-                    else
-                        notify(notification_feedback_failed)
                     jobFinished(params, !it)
                 }
                 worker!!.execute(summary, type.toString(), description)
