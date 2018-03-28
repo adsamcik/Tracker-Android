@@ -10,8 +10,9 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.TextView
-import com.adsamcik.signalcollector.uitools.ColorSupervisor.currentBaseColor
-import com.adsamcik.signalcollector.uitools.ColorSupervisor.currentForegroundColor
+import com.adsamcik.signalcollector.interfaces.IViewChange
+import com.adsamcik.signalcollector.uitools.ColorSupervisor.backgroundColorFor
+import com.adsamcik.signalcollector.uitools.ColorSupervisor.foregroundColorFor
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
@@ -24,7 +25,7 @@ internal class ColorManager {
         synchronized(watchedElements) {
             watchedElements.add(view)
         }
-        updateInternal(view, currentBaseColor, currentForegroundColor)
+        updateInternal(view)
     }
 
     fun watchElement(view: View) = watchElement(ColorView(view, 0))
@@ -36,24 +37,31 @@ internal class ColorManager {
         }
 
         if (find != null)
-            update(find!!, currentBaseColor, currentForegroundColor)
+            updateInternal(find!!)
     }
 
     fun watchRecycler(view: ColorView) {
         if (!view.recursive)
             throw RuntimeException("Recycler view cannot be non recursive")
 
+        view.view as AdapterView<*>
+        val adapter = view.view.adapter
+        if (adapter is IViewChange) {
+            adapter.onViewChangedListener = {
+                updateStyleRecursive(it, backgroundColorFor(view), foregroundColorFor(view), view.layer + 1)
+            }
+        } else {
+            view.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+                override fun onChildViewRemoved(parent: View, child: View) {
+                }
+
+                override fun onChildViewAdded(parent: View, child: View) {
+                    updateStyleRecursive(child, backgroundColorFor(view), foregroundColorFor(view), view.layer + 1)
+                }
+
+            })
+        }
         watchElement(view)
-        (view.view as AdapterView<*>).setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
-            override fun onChildViewRemoved(parent: View, child: View) {
-            }
-
-            override fun onChildViewAdded(parent: View, child: View) {
-                update(view, currentBaseColor, currentForegroundColor)
-            }
-
-        })
-
     }
 
     fun stopWatchingElement(predicate: (ColorView) -> Boolean) {
@@ -73,7 +81,11 @@ internal class ColorManager {
     }
 
     fun stopWatchingRecycler(view: AdapterView<*>) {
-        view.setOnHierarchyChangeListener(null)
+        val adapter = view.adapter
+        if (adapter is IViewChange)
+            adapter.onViewChangedListener = null
+        else
+            view.setOnHierarchyChangeListener(null)
         stopWatchingElement(view)
     }
 
@@ -93,48 +105,44 @@ internal class ColorManager {
         }
     }
 
-    internal fun update(@ColorInt baseColor: Int, @ColorInt fgColor: Int) {
+    internal fun update() {
         launch(UI) {
             synchronized(watchedElements) {
                 watchedElements.forEach {
-                    updateInternal(it, baseColor, fgColor)
+                    updateInternal(it)
                 }
             }
         }
     }
 
-    private fun updateInternal(view: ColorView, @ColorInt baseColor: Int, @ColorInt fgColor: Int) {
-        if (view.backgroundIsForeground)
-            update(view, fgColor, baseColor)
-        else
-            update(view, baseColor, fgColor)
-    }
+    private fun updateInternal(colorView: ColorView) {
+        val backgroundColor = backgroundColorFor(colorView)
+        val foregroundColor = foregroundColorFor(colorView)
 
-    private fun update(view: ColorView, @ColorInt color: Int, @ColorInt fgColor: Int) {
-        if (!view.ignoreRoot) {
-            val layerColor = layerColor(color, view.layer)
-            if (view.rootIsBackground)
-                view.view.setBackgroundColor(layerColor)
+        if (!colorView.ignoreRoot) {
+            val layerColor = layerColor(backgroundColor, colorView.layer)
+            if (colorView.rootIsBackground)
+                colorView.view.setBackgroundColor(layerColor)
             else
-                updateBackgroundDrawable(view.view, layerColor)
+                updateBackgroundDrawable(colorView.view, layerColor)
 
-            updateStyleForeground(view.view, fgColor)
+            updateStyleForeground(colorView.view, foregroundColor)
         }
 
-        if (view.recursive && view.view is ViewGroup) {
-            val layer = if (!view.ignoreRoot) view.layer + 1 else view.layer
-            for (i in 0 until view.view.childCount)
-                updateStyleRecursive(view.view.getChildAt(i), fgColor, color, layer)
+        if (colorView.recursive && colorView.view is ViewGroup) {
+            val layer = if (!colorView.ignoreRoot) colorView.layer + 1 else colorView.layer
+            for (i in 0 until colorView.view.childCount)
+                updateStyleRecursive(colorView.view.getChildAt(i), backgroundColor, foregroundColor, layer)
         }
     }
 
-    private fun updateStyleRecursive(view: View, @ColorInt fgColor: Int, @ColorInt color: Int, layer: Int) {
+    private fun updateStyleRecursive(view: View, @ColorInt color: Int, @ColorInt fgColor: Int, layer: Int) {
         var newLayer = layer
         if (updateBackgroundDrawable(view, layerColor(color, layer)))
             newLayer++
         if (view is ViewGroup) {
             for (i in 0 until view.childCount)
-                updateStyleRecursive(view.getChildAt(i), fgColor, color, newLayer)
+                updateStyleRecursive(view.getChildAt(i), color, fgColor, newLayer)
         } else {
             updateStyleForeground(view, fgColor)
         }

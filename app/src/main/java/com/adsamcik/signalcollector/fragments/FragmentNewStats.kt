@@ -14,6 +14,7 @@ import android.widget.ListView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
+import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
 import com.adsamcik.signalcollector.data.UploadStats
@@ -23,6 +24,9 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorSupervisor
+import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
@@ -44,13 +48,18 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
 
     private var refreshingCount = 0
 
+    private lateinit var colorManager: ColorManager
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val activity = activity!!
+        colorManager = ColorSupervisor.createColorManager(activity)
+
         val fragmentView = inflater.inflate(R.layout.fragment_new_stats, container, false)
 
-        val activity = activity!!
 
-        if (adapter == null)
-            adapter = TableAdapter(activity, CARD_LIST_MARGIN, Preferences.getTheme(activity))
+        if (adapter == null) {
+            adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, Preferences.getTheme(activity))
+        }
 
         Thread { DataStore.removeOldRecentUploads(activity) }.start()
 
@@ -70,7 +79,14 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
 
         this.fragmentView = fragmentView
 
+        colorManager.watchRecycler(ColorView(listView, 1, true, true))
+
         return fragmentView
+    }
+
+    override fun onDestroyView() {
+        ColorSupervisor.recycleColorManager(colorManager)
+        super.onDestroyView()
     }
 
     private fun updateStats() {

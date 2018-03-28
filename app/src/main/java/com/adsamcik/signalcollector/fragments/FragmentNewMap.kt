@@ -75,7 +75,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var searchOriginalMargin = 0
     private var keyboardInitialized = AtomicBoolean(false)
 
-    private var colorManager: ColorManager? = null
+    private lateinit var colorManager: ColorManager
 
     private var mapLayers: ArrayList<MapLayer>? = null
 
@@ -172,13 +172,12 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         super.onDestroyView()
         fragmentView = null
         mapFragment = null
-        colorManager?.stopWatchingAll()
+        colorManager.stopWatchingAll()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (colorManager != null)
-            ColorSupervisor.recycleColorManager(colorManager!!)
+        ColorSupervisor.recycleColorManager(colorManager)
     }
 
     /**
@@ -271,7 +270,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         locationListener!!.setButton(button_map_my_location, context!!)
 
-        val colorManager = colorManager!!
         colorManager.watchElement(ColorView(map_menu_button, 2, false, false))
         colorManager.watchElement(ColorView(layout_map_controls, 3, true, false))
     }
@@ -394,7 +392,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             payload.width = map_menu_parent.width
             payload.height = map_menu_parent.height
             payload.onInitialized = {
-                colorManager!!.watchRecycler(ColorView(it.view!!, 2))
+                colorManager.watchRecycler(ColorView(it.view!!, 2))
                 val layers = mapLayers
                 if (layers != null && layers.isNotEmpty()) {
                     val adapter = it.adapter
@@ -404,7 +402,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 }
             }
             payload.onBeforeDestroyed = {
-                colorManager?.stopWatchingRecycler(R.id.list)
+                colorManager.stopWatchingRecycler(R.id.list)
             }
 
             map_menu_button.onEnterStateListener = { _, state, _ ->

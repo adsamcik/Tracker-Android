@@ -44,14 +44,28 @@ internal object ColorSupervisor {
         private set
 
     @ColorInt
-    var currentForegroundColor = 0
-        private set
+    private var currentForegroundColor = 0
 
     @ColorInt
-    var currentBaseColor = 0
-        private set
+    private var currentBaseColor = 0
 
     private val colorManagerLock = ReentrantLock()
+
+    @ColorInt
+    fun foregroundColorFor(colorView: ColorView): Int {
+        return if (colorView.backgroundIsForeground)
+            currentBaseColor
+        else
+            currentForegroundColor
+    }
+
+    @ColorInt
+    fun backgroundColorFor(colorView: ColorView): Int {
+        return if (colorView.backgroundIsForeground)
+            currentForegroundColor
+        else
+            currentBaseColor
+    }
 
     fun createColorManager(context: Context): ColorManager {
         if (darkTextColor == 0) {
@@ -73,6 +87,7 @@ internal object ColorSupervisor {
     fun recycleColorManager(colorManager: ColorManager) {
         colorManagerLock.lock()
         colorManagers.remove(colorManager)
+        colorManager.stopWatchingAll()
         if (colorManagers.isEmpty()) {
             colorManagers.trimToSize()
             colorManagerLock.unlock()
@@ -131,7 +146,7 @@ internal object ColorSupervisor {
 
         colorManagerLock.lock()
         colorManagers.forEach {
-            it.update(color, fgColor)
+            it.update()
         }
         colorManagerLock.unlock()
     }
