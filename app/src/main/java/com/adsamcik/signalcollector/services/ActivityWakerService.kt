@@ -18,7 +18,7 @@ import com.adsamcik.signalcollector.utility.Preferences
 
 class ActivityWakerService : Service() {
     private var notificationManager: NotificationManager? = null
-    private val NOTIFICATION_ID = 568465
+    private val NOTIFICATION_ID = -568465
     private var thread: Thread? = null
 
     private var activityInfo = ActivityService.lastActivity

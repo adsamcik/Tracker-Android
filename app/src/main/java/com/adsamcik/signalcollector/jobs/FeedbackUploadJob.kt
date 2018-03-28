@@ -10,6 +10,7 @@ import android.support.v4.app.NotificationCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.R.string.*
 import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.signin.Signin
 import kotlinx.coroutines.experimental.launch
 import okhttp3.internal.http2.StreamResetException
@@ -53,7 +54,7 @@ class FeedbackUploadJob : JobService() {
         nBuilder.setSmallIcon(R.drawable.ic_signals)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(33332225, nBuilder.build())
+        notificationManager.notify(Notifications.uniqueNotificationId(), nBuilder.build())
     }
 
     private class UploadTask(context: Context,

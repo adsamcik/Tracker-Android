@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.extensions.transaction
+import com.adsamcik.signalcollector.notifications.Notifications
 import java.io.File
 import java.util.*
 
@@ -34,8 +35,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     lateinit var fragment: FragmentNewSettings
 
     private val backstack = ArrayList<PreferenceScreen>()
-
-    private var dummyIndex = 0
 
     private var clickCount = 0
 
@@ -247,7 +246,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     .setContentText(facts[rng.nextInt(facts.size)])
                     .setWhen(System.currentTimeMillis())
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(dummyIndex++, notiBuilder.build())
+            notificationManager.notify(Notifications.uniqueNotificationId(), notiBuilder.build())
             false
         }
 

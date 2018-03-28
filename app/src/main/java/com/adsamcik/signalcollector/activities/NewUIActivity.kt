@@ -13,7 +13,6 @@ import android.support.v4.graphics.ColorUtils
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.ListView
 import androidx.content.edit
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
@@ -31,7 +30,7 @@ import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.NotificationChannels
+import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.location.LocationServices
 import com.takusemba.spotlight.SimpleTarget

@@ -32,6 +32,7 @@ import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
+import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
@@ -90,8 +91,6 @@ class FragmentSettings : Fragment(), ITabFragment {
     private var mDefaultState: ColorStateList? = null
 
     private var rootView: View? = null
-
-    private var dummyNotificationIndex = 1972
 
     private val userSignedCallback: (User?) -> Unit = { u ->
         val activity = activity
@@ -474,7 +473,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                     .setContentText(facts[rng.nextInt(facts.size)])
                     .setWhen(System.currentTimeMillis())
             val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(dummyNotificationIndex++, notiBuilder.build())
+            notificationManager.notify(Notifications.uniqueNotificationId(), notiBuilder.build())
         }
 
         rootView.findViewById<View>(R.id.dev_button_activity_recognition).setOnClickListener { _ -> startActivity(Intent(getActivity(), ActivityRecognitionActivity::class.java)) }

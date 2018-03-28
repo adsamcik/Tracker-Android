@@ -375,7 +375,7 @@ class TrackerService : Service() {
         private const val TAG = "SignalsTracker"
         private const val LOCK_TIME_IN_MINUTES = 30
         private const val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
-        private const val NOTIFICATION_ID_SERVICE = 7643
+        private const val NOTIFICATION_ID_SERVICE = -7643
 
         private const val MIN_DISTANCE_M = 5f
         private const val MAX_NOISE_TRACKING_SPEED_KM = 18f

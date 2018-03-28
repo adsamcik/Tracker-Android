@@ -13,6 +13,7 @@ import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -113,7 +114,7 @@ class MessageListenerService : FirebaseMessagingService() {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        notificationManager.notify(notificationIndex++, notiBuilder.build())
+        notificationManager.notify(Notifications.uniqueNotificationId(), notiBuilder.build())
     }
 
     enum class MessageType {
@@ -128,7 +129,6 @@ class MessageListenerService : FirebaseMessagingService() {
         private const val TYPE = "type"
 
         private const val TAG = "SignalsMessageService"
-        internal var notificationIndex = 1
 
         const val WIFI = "wifi"
         const val NEW_WIFI = "newWifi"
