@@ -19,36 +19,45 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.enums.ChallengeDifficulty
 import com.adsamcik.signalcollector.interfaces.ITabFragment
+import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorSupervisor
+import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
-import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
 class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
-    private var listViewChallenges: ListView? = null
-    private var refreshLayout: SwipeRefreshLayout? = null
+    private lateinit var listViewChallenges: ListView
+    private lateinit var refreshLayout: SwipeRefreshLayout
+
+    private lateinit var colorManager: ColorManager
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val rootView = inflater.inflate(R.layout.fragment_activities, container, false)
-        val activity = activity
 
         listViewChallenges = rootView.findViewById(R.id.listview_challenges)
 
-        refreshLayout = rootView as SwipeRefreshLayout
-        refreshLayout!!.setColorSchemeResources(R.color.color_primary)
-        refreshLayout!!.setProgressViewOffset(true, 0, 40.dpAsPx)
-        refreshLayout!!.setOnRefreshListener({ this.updateData() })
+        refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
+        refreshLayout.setColorSchemeResources(R.color.color_primary)
+        refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
+        refreshLayout.setOnRefreshListener({ this.updateData() })
 
         updateData()
+
+        val context = context!!
+        listViewChallenges.adapter = ChallengesAdapter(context, arrayOf())
+        colorManager = ColorSupervisor.createColorManager(context)
+        colorManager.watchRecycler(ColorView(listViewChallenges, 1, true, false))
 
         return rootView
     }
 
     private fun updateData() {
-        val isRefresh = refreshLayout != null && refreshLayout!!.isRefreshing
+        val isRefresh = refreshLayout.isRefreshing
         val activity = activity!!
         val context = activity.applicationContext
         if (useMock) {
@@ -58,8 +67,8 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
 
             challenges.forEach { it.generateTexts(context) }
             launch(UI) {
-                listViewChallenges!!.adapter = ChallengesAdapter(context, challenges)
-                refreshLayout!!.isRefreshing = false
+                (listViewChallenges.adapter as ChallengesAdapter).updateData(challenges)
+                refreshLayout.isRefreshing = false
             }
         } else {
             launch {
@@ -67,9 +76,11 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
                 if (!source.success)
                     SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
                 else {
-                    launch(UI) { listViewChallenges!!.adapter = ChallengesAdapter(context, challenges!!) }
+                    launch(UI) {
+                        (listViewChallenges.adapter as ChallengesAdapter).updateData(challenges!!)
+                    }
                 }
-                launch(UI) { refreshLayout!!.isRefreshing = false }
+                launch(UI) { refreshLayout.isRefreshing = false }
             }
         }
     }
@@ -90,8 +101,15 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
 
     }
 
-    private inner class ChallengesAdapter(mContext: Context, private val mDataSource: Array<Challenge>) : BaseAdapter() {
+    private inner class ChallengesAdapter(mContext: Context, private var mDataSource: Array<Challenge>) : BaseAdapter(), IViewChange {
         private val mInflater: LayoutInflater = mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+
+        fun updateData(challenges: Array<Challenge>) {
+            this.mDataSource = challenges
+            notifyDataSetInvalidated()
+        }
+
+        override var onViewChangedListener: ((View) -> Unit)? = null
 
         override fun getCount(): Int = mDataSource.size
 
@@ -118,6 +136,8 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
 
             val color = ContextCompat.getColor(context!!, R.color.background_success) and (Integer.MAX_VALUE shr 8) or ((challenge.progress * 255).toInt() shl 24)
             fragmentView.setBackgroundColor(color)
+
+            onViewChangedListener?.invoke(fragmentView)
             return fragmentView
         }
     }

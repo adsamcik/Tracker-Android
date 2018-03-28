@@ -19,6 +19,7 @@ import kotlinx.coroutines.experimental.launch
 
 
 internal class ColorManager {
+
     private val watchedElements = ArrayList<ColorView>()
 
     fun watchElement(view: ColorView) {
