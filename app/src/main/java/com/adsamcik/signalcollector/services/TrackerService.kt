@@ -72,6 +72,9 @@ class TrackerService : Service() {
      */
     private var prevLocation: Location? = null
 
+    /**
+     * Collects data from necessary places and sensors and creates new RawData instance
+     */
     private fun updateData(location: Location) {
         if (location.isFromMockProvider) {
             prevMocked = true
@@ -149,6 +152,9 @@ class TrackerService : Service() {
     }
 
 
+    /**
+     * Saves data to permanent storage and updates all necessary statistics
+     */
     private fun saveData() {
         if (data.size == 0) return
 
@@ -191,7 +197,10 @@ class TrackerService : Service() {
         }
     }
 
-    private fun generateNotification(gpsAvailable: Boolean, d: RawData): Notification {
+    /**
+     * Generates tracking notification
+     */
+    private fun generateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
         val intent = Intent(this, LaunchActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -213,12 +222,15 @@ class TrackerService : Service() {
             builder.setContentTitle(getString(R.string.notification_looking_for_gps))
         else {
             builder.setContentTitle(getString(R.string.notification_tracking_active))
-            builder.setContentText(buildNotificationText(d))
+            builder.setContentText(buildNotificationText(d!!))
         }
 
         return builder.build()
     }
 
+    /**
+     * Builds text for tracking notification
+     */
     private fun buildNotificationText(d: RawData): String {
         val resources = resources
         val sb = StringBuilder()
