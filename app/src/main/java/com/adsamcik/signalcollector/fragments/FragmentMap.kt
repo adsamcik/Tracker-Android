@@ -312,7 +312,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             locationListener!!.setFollowMyPosition(true, c)
             if (locationManager == null)
                 locationManager = context!!.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            assert(locationManager != null)
+            
             val l = locationManager!!.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
             if (l != null) {
                 val cp = CameraPosition.builder().target(LatLng(l.latitude, l.longitude)).zoom(16f).build()
