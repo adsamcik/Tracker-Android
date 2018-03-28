@@ -12,9 +12,6 @@ class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavi
     private var initial: Float? = null
     private var last: Float = 0f
 
-    private var ignore = false
-    private var navbarHeight = 0
-
     private var change = 0f
 
     override fun layoutDependsOn(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?): Boolean =
@@ -25,18 +22,18 @@ class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavi
             if (initial == null) {
                 initial = targetView.translationY
                 last = targetView.translationY
-                ignore = false
-            }
-
-            if (ignore)
-                return false
-
-            if (last != targetView.translationY) {
-                ignore = true
-                return false
             }
 
             val diff = dependency.y - (targetView.y + targetView.height + dp16)
+
+            if (last > targetView.translationY) {
+                if (diff > change)
+                    change = 0f
+                else
+                    change -= diff
+                return false
+            }
+
             if (diff < 0) {
                 change += diff
                 targetView.translationY += diff
@@ -57,8 +54,7 @@ class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavi
     }
 
     override fun onDependentViewRemoved(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?) {
-        if (!ignore)
-            targetView.translationY = initial!!
+        targetView.translationY += change
         initial = null
         super.onDependentViewRemoved(parent, child, dependency)
     }
