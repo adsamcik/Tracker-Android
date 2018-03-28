@@ -51,7 +51,7 @@ class FeedbackUploadJob : JobService() {
     private fun notify(@StringRes stringRes: Int) {
         val nBuilder = NotificationCompat.Builder(this@FeedbackUploadJob, getString(channel_other_id))
         nBuilder.setContentTitle(getString(stringRes))
-        nBuilder.setSmallIcon(R.drawable.ic_signals)
+        nBuilder.setSmallIcon(R.drawable.ic_feedback_black_24dp)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(Notifications.uniqueNotificationId(), nBuilder.build())
