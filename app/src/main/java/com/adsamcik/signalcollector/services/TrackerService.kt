@@ -28,7 +28,6 @@ import androidx.content.edit
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
@@ -86,7 +85,7 @@ class TrackerService : Service() {
         }
 
         if (location.altitude > 5600) {
-            setAutoLock()
+            setTrackingLock(Constants.MINUTE_IN_MILLISECONDS * 45)
             //todo add notification
             if (!isBackgroundActivated)
                 stopSelf()
@@ -213,9 +212,16 @@ class TrackerService : Service() {
         val stopIntent = Intent(this, NotificationReceiver::class.java)
         stopIntent.putExtra(NotificationReceiver.ACTION_STRING, if (isBackgroundActivated) 0 else 1)
         val stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
-        if (isBackgroundActivated)
+        if (isBackgroundActivated) {
             builder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop)
-        else
+
+            val stopForMinutes = 60
+            val stopForMinutesIntent = Intent(this, NotificationReceiver::class.java)
+            stopForMinutesIntent.putExtra(NotificationReceiver.ACTION_STRING, 0)
+            stopForMinutesIntent.putExtra(NotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
+            val stopForMinutesAction = PendingIntent.getBroadcast(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+            builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)
+        } else
             builder.addAction(R.drawable.ic_pause, getString(R.string.notification_stop), stop)
 
         if (!gpsAvailable)
@@ -389,8 +395,6 @@ class TrackerService : Service() {
     companion object {
         //Constants
         private const val TAG = "SignalsTracker"
-        private const val LOCK_TIME_IN_MINUTES = 30
-        private const val LOCK_TIME_IN_MILLISECONDS = LOCK_TIME_IN_MINUTES * MINUTE_IN_MILLISECONDS
         private const val NOTIFICATION_ID_SERVICE = -7643
 
         private const val MIN_DISTANCE_M = 5f
@@ -445,14 +449,13 @@ class TrackerService : Service() {
             get() = System.currentTimeMillis() < lockedUntil
 
         /**
-         * Sets auto lock with predefined time [TrackerService.LOCK_TIME_IN_MINUTES]
+         * Sets auto lock with time passed in variable.
          */
-        fun setAutoLock(): Int {
-            lockedUntil = System.currentTimeMillis() + LOCK_TIME_IN_MILLISECONDS
+        fun setTrackingLock(lockTimeInMillis: Long) {
+            lockedUntil = System.currentTimeMillis() + lockTimeInMillis
 
             if (isRunning && isBackgroundActivated)
                 service!!.get()!!.stopSelf()
-            return LOCK_TIME_IN_MINUTES
         }
     }
 }

@@ -183,11 +183,6 @@ class NewUIActivity : FragmentActivity() {
         val params = root.layoutParams as CoordinatorLayout.LayoutParams
         params.behavior = BottomBarBehavior(button_map)
         root.requestLayout()
-
-        launch {
-            delay(500, TimeUnit.MILLISECONDS)
-            SnackMaker(coordinator).showSnackbar("SNACK TIME")
-        }
     }
 
     private fun hideBottomLayer() {

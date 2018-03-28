@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.services.TrackerService
+import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.google.firebase.analytics.FirebaseAnalytics
 
@@ -27,11 +28,17 @@ class NotificationReceiver : BroadcastReceiver() {
                 FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_EVENT, params)
                 context.stopService(Intent(context, TrackerService::class.java))
             }
+            2 -> {
+                val minutes = intent.getIntExtra(STOP_MINUTES_EXTRA, -1)
+                if(minutes > 0)
+                    TrackerService.setTrackingLock(Constants.MINUTE_IN_MILLISECONDS * minutes)
+            }
             else -> Log.w(TAG, "Unknown value $value")
         }
     }
 
     companion object {
         const val ACTION_STRING = "action"
+        const val STOP_MINUTES_EXTRA = "stopForMinutes"
     }
 }

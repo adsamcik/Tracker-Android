@@ -3,6 +3,7 @@
     <string name="notification_looking_for_gps">Looking for GPS</string>
     <string name="notification_tracking_active">Tracking</string>
     <string name="notification_stop_til_recharge">Stop till recharge</string>
+    <string name="notification_stop_for_minutes">Stop for %d minutes</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
     <string name="notification_wifi">%d Wi-Fi</string>
