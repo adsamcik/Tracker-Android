@@ -17,8 +17,6 @@ class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavi
 
     private var change = 0f
 
-    private lateinit var navBarPosition: Assist.NavBarPosition
-
     override fun layoutDependsOn(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?): Boolean =
             dependency is Snackbar.SnackbarLayout
 
@@ -26,9 +24,6 @@ class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavi
         if (dependency is Snackbar.SnackbarLayout) {
             if (initial == null) {
                 initial = targetView.translationY
-                val (position, navbarSize) = Assist.navbarSize(targetView.context)
-                navbarHeight = if (position == Assist.NavBarPosition.BOTTOM) navbarSize.y else navbarSize.x
-                navBarPosition = position
                 last = targetView.translationY
                 ignore = false
             }
@@ -40,7 +35,7 @@ class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavi
                 ignore = true
                 return false
             }
-            
+
             val diff = dependency.y - (targetView.y + targetView.height + dp16)
             if (diff < 0) {
                 change += diff
