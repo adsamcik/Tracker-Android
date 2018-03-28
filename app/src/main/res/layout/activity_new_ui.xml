@@ -1,58 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.constraint.ConstraintLayout
+<android.support.design.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#166f72"
-    android:clipChildren="false"
-    tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
+    android:id="@+id/coordinator"
+    android:layout_height="match_parent">
 
-    <com.adsamcik.draggable.DraggableImageButton
-        android:id="@+id/button_stats"
-        android:layout_width="72dp"
-        android:layout_height="80dp"
-        android:layout_gravity="start"
-        android:layout_marginBottom="30dp"
-        android:background="@drawable/side_button"
-        android:elevation="6dp"
-        android:src="@drawable/ic_pie_chart_black_24dp"
-        android:translationX="-10dp"
-        app:interpolator="Decelerate"
-        app:layout_constraintBottom_toTopOf="@id/button_map"
-        app:layout_constraintLeft_toLeftOf="parent"/>
+    <android.support.constraint.ConstraintLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/root"
+        android:background="#166f72"
+        android:clipChildren="false"
+        tools:context="com.adsamcik.signalcollector.activities.NewUIActivity">
 
-    <com.adsamcik.draggable.DraggableImageButton
-        android:id="@+id/button_activity"
-        android:layout_width="72dp"
-        android:layout_height="80dp"
-        android:layout_gravity="end"
-        android:layout_marginBottom="30dp"
-        android:background="@drawable/side_button"
-        android:elevation="6dp"
-        android:src="@drawable/ic_directions_walk_black_24dp"
-        android:translationX="10dp"
-        app:interpolator="Decelerate"
-        app:layout_constraintBottom_toTopOf="@id/button_map"
-        app:layout_constraintRight_toRightOf="parent"/>
+        <com.adsamcik.draggable.DraggableImageButton
+            android:id="@+id/button_stats"
+            android:layout_width="72dp"
+            android:layout_height="80dp"
+            android:layout_gravity="start"
+            android:layout_marginBottom="30dp"
+            android:background="@drawable/side_button"
+            android:elevation="6dp"
+            android:src="@drawable/ic_pie_chart_black_24dp"
+            android:translationX="-10dp"
+            app:interpolator="Decelerate"
+            app:layout_constraintBottom_toTopOf="@id/button_map"
+            app:layout_constraintLeft_toLeftOf="parent"/>
 
-    <com.adsamcik.draggable.DraggableImageButton
-        android:id="@+id/button_map"
-        android:layout_width="220dp"
-        android:layout_height="8dp"
-        android:layout_marginBottom="20dp"
-        android:background="@drawable/map_draggable"
-        android:translationZ="12dp"
-        app:axis="Y"
-        app:interpolator="Decelerate"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:targetAnchor="top"
-        app:targetOffsetVertical="56dp"
-        app:targetTranslationZ="24dp"
-        app:targetView="@id/root"
-        />
-</android.support.constraint.ConstraintLayout>
+        <com.adsamcik.draggable.DraggableImageButton
+            android:id="@+id/button_activity"
+            android:layout_width="72dp"
+            android:layout_height="80dp"
+            android:layout_gravity="end"
+            android:layout_marginBottom="30dp"
+            android:background="@drawable/side_button"
+            android:elevation="6dp"
+            android:src="@drawable/ic_directions_walk_black_24dp"
+            android:translationX="10dp"
+            app:interpolator="Decelerate"
+            app:layout_constraintBottom_toTopOf="@id/button_map"
+            app:layout_constraintRight_toRightOf="parent"/>
+
+        <com.adsamcik.draggable.DraggableImageButton
+            android:id="@+id/button_map"
+            android:layout_width="220dp"
+            android:layout_height="8dp"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/map_draggable"
+            android:translationZ="12dp"
+            app:axis="Y"
+            app:interpolator="Decelerate"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:targetAnchor="top"
+            app:targetOffsetVertical="56dp"
+            app:targetTranslationZ="24dp"
+            app:targetView="@id/root"
+            />
+    </android.support.constraint.ConstraintLayout>
+</android.support.design.widget.CoordinatorLayout>

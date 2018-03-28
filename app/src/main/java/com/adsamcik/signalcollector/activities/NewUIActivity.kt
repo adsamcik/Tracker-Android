@@ -28,10 +28,7 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.notifications.NotificationChannels
-import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.location.LocationServices
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
@@ -40,6 +37,12 @@ import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
+import android.support.design.widget.AppBarLayout
+import android.support.design.widget.CoordinatorLayout
+import com.adsamcik.signalcollector.utility.*
+import kotlinx.android.synthetic.main.fragment_new_map.*
+import java.util.concurrent.TimeUnit
+
 
 class NewUIActivity : FragmentActivity() {
     private lateinit var colorManager: ColorManager
@@ -176,6 +179,15 @@ class NewUIActivity : FragmentActivity() {
         mapPayload.onBeforeDestroyed = { mapFragment = null }
 
         button_map.addPayload(mapPayload)
+
+        val params = root.layoutParams as CoordinatorLayout.LayoutParams
+        params.behavior = BottomBarBehavior(button_map)
+        root.requestLayout()
+
+        launch {
+            delay(500, TimeUnit.MILLISECONDS)
+            SnackMaker(coordinator).showSnackbar("SNACK TIME")
+        }
     }
 
     private fun hideBottomLayer() {

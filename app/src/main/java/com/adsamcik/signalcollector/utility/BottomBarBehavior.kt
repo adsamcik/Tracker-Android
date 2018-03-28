@@ -1,29 +1,70 @@
 package com.adsamcik.signalcollector.utility
 
-import android.content.Context
+import android.support.constraint.ConstraintLayout
 import android.support.design.widget.CoordinatorLayout
 import android.support.design.widget.Snackbar
-import android.support.v4.widget.DrawerLayout
-import android.util.AttributeSet
 import android.view.View
-import android.widget.LinearLayout
+import com.adsamcik.signalcollector.uitools.dpAsPx
 
-class BottomBarBehavior(context: Context, attrs: AttributeSet) : CoordinatorLayout.Behavior<LinearLayout>() {
+class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
+    private val dp16 = 16.dpAsPx
 
-    override fun layoutDependsOn(parent: CoordinatorLayout?, child: LinearLayout?, dependency: View?): Boolean =
-            dependency is Snackbar.SnackbarLayout || dependency is DrawerLayout
+    private var initial: Float? = null
+    private var last: Float = 0f
 
-    override fun onDependentViewChanged(parent: CoordinatorLayout?, child: LinearLayout?, dependency: View?): Boolean {
+    private var ignore = false
+    private var navbarHeight = 0
+
+    private var change = 0f
+
+    private lateinit var navBarPosition: Assist.NavBarPosition
+
+    override fun layoutDependsOn(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?): Boolean =
+            dependency is Snackbar.SnackbarLayout
+
+    override fun onDependentViewChanged(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?): Boolean {
         if (dependency is Snackbar.SnackbarLayout) {
-            val translationY = dependency.translationY - dependency.height
-            if (translationY <= 0)
-                child!!.translationY = translationY
+            if (initial == null) {
+                initial = targetView.translationY
+                val (position, navbarSize) = Assist.navbarSize(targetView.context)
+                navbarHeight = if (position == Assist.NavBarPosition.BOTTOM) navbarSize.y else navbarSize.x
+                navBarPosition = position
+                last = targetView.translationY
+                ignore = false
+            }
+
+            if (ignore)
+                return false
+
+            if (last != targetView.translationY) {
+                ignore = true
+                return false
+            }
+            
+            val diff = dependency.y - (targetView.y + targetView.height + dp16)
+            if (diff < 0) {
+                change += diff
+                targetView.translationY += diff
+            } else if (change < 0) {
+                if (diff > change) {
+                    targetView.translationY -= change
+                    change = 0f
+                } else {
+                    change += diff
+                    targetView.translationY += diff
+                }
+            }
+
+            last = targetView.translationY
+
         }
         return true
     }
 
-    override fun onDependentViewRemoved(parent: CoordinatorLayout?, child: LinearLayout?, dependency: View?) {
-        onDependentViewChanged(parent, child, dependency)
+    override fun onDependentViewRemoved(parent: CoordinatorLayout?, child: ConstraintLayout?, dependency: View?) {
+        if (!ignore)
+            targetView.translationY = initial!!
+        initial = null
         super.onDependentViewRemoved(parent, child, dependency)
     }
 }
