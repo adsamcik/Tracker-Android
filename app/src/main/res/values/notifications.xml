@@ -5,6 +5,8 @@
     <string name="notification_stop_til_recharge">Stop till recharge</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
+    <string name="notification_wifi">%d Wi-Fi</string>
+    <string name="notification_cell">%d Mobile</string>
     <string name="notification_nothing_found">Nothing found</string>
 
     <plurals name="notification_auto_tracking_lock">

@@ -28,15 +28,13 @@ import androidx.content.edit
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
+import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
-import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.Shortcuts
 import com.crashlytics.android.Crashlytics
 import com.google.gson.Gson
 import java.lang.ref.WeakReference
@@ -193,7 +191,7 @@ class TrackerService : Service() {
         }
     }
 
-    private fun generateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
+    private fun generateNotification(gpsAvailable: Boolean, d: RawData): Notification {
         val intent = Intent(this, LaunchActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -221,18 +219,24 @@ class TrackerService : Service() {
         return builder.build()
     }
 
-    private fun buildNotificationText(d: RawData?): String {
+    private fun buildNotificationText(d: RawData): String {
+        val resources = resources
         val sb = StringBuilder()
         val df = DecimalFormat("#.#")
         df.roundingMode = RoundingMode.HALF_UP
-        if (d!!.wifi != null)
-            sb.append(d.wifi!!.size).append(" wifi ")
+
+        if(d.activity != null)
+            sb.append(ActivityInfo.getResolvedActivityName(this, d.activity!!)).append(' ')
+        if (d.wifi != null)
+            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(' ')
         if (d.cellCount != null)
-            sb.append(d.cellCount!!).append(" cell ")
+            sb.append(resources.getString(R.string.notification_cell, d.cellCount)).append(' ')
+
         if (sb.isNotEmpty())
             sb.setLength(sb.length - 1)
         else
-            sb.append("Nothing found")
+            sb.append(resources.getString(R.string.notification_nothing_found))
+
         return sb.toString()
     }
 
