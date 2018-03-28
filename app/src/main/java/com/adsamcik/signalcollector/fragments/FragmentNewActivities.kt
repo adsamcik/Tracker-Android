@@ -41,7 +41,7 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val rootView = inflater.inflate(R.layout.fragment_activities, container, false)
 
-        listViewChallenges = rootView.findViewById(R.id.listview_challenges)
+        listViewChallenges = rootView.findViewById<ListView>(R.id.listview_challenges)
 
         refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
         refreshLayout.setColorSchemeResources(R.color.color_primary)

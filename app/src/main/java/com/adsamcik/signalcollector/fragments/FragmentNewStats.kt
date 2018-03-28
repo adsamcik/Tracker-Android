@@ -212,7 +212,7 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
     }
 
     override fun onLeave(activity: Activity) {
-        swipeRefreshLayout.isRefreshing = false
+
     }
 
 

@@ -172,11 +172,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         super.onDestroyView()
         fragmentView = null
         mapFragment = null
-        colorManager.stopWatchingAll()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
         ColorSupervisor.recycleColorManager(colorManager)
     }
 
