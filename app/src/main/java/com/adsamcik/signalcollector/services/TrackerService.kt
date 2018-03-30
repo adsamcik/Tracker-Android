@@ -244,14 +244,15 @@ class TrackerService : Service() {
         df.roundingMode = RoundingMode.HALF_UP
 
         if(d.activity != null)
-            sb.append(ActivityInfo.getResolvedActivityName(this, d.activity!!)).append(' ')
+            sb.append(resources.getString(R.string.notification_activity,
+                    ActivityInfo.getResolvedActivityName(this, d.activity!!))).append(", ")
         if (d.wifi != null)
-            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(' ')
+            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(", ")
         if (d.cellCount != null)
-            sb.append(resources.getString(R.string.notification_cell, d.cellCount)).append(' ')
+            sb.append(resources.getString(R.string.notification_cell, d.cellCount)).append(", ")
 
         if (sb.isNotEmpty())
-            sb.setLength(sb.length - 1)
+            sb.setLength(sb.length - 2)
         else
             sb.append(resources.getString(R.string.notification_nothing_found))
 
