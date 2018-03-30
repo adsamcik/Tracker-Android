@@ -73,7 +73,9 @@ class LaunchActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
 
-        ActivityWakerService.poke(this)
+        ActivityWakerService.pokeWithCheck(this)
+
+        TrackingLocker.initializeFromPersistence(this)
 
         overridePendingTransition(0, 0)
         finish()

@@ -32,7 +32,7 @@ class ActivityService : IntentService("ActivityService") {
                 } else {
                     ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
                 }
-            } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackerService.isAutoLocked && !mPowerManager!!.isPowerSaveMode && Assist.canTrack(this)) {
+            } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackingLocker.isLocked.value && !mPowerManager!!.isPowerSaveMode && Assist.canTrack(this)) {
                 val trackerService = Intent(this, TrackerService::class.java)
                 trackerService.putExtra("backTrack", true)
                 startService(trackerService)
@@ -202,7 +202,7 @@ class ActivityService : IntentService("ActivityService") {
          * @return true if background tracking can be activated
          */
         private fun canBackgroundTrack(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
-            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false))
+            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false))
                 return false
             val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
             return `val` != 0 && (`val` == evalActivity || `val` > evalActivity)

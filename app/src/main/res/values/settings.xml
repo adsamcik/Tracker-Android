@@ -85,9 +85,9 @@
     <string name="settings_other_title">Other</string>
 
     <!--- TRACKING -->
-    <string name="settings_disabled_recharge_title">Disabled till recharge</string>
-    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until phone is connected to charger</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedTillRecharge</string>
+    <string name="settings_disabled_recharge_title">Disabled until recharge</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to charger</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
 
     <string name="settings_activity_watcher_title">Activity watcher</string>

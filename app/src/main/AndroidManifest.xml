@@ -124,6 +124,8 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".receivers.TrackingUnlockReceiver"/>
+
         <service
             android:name=".services.TrackerService"
             android:exported="false"/>
@@ -152,7 +154,7 @@
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWakerService"/>
         <service
-            android:name=".jobs.DisableTillRechargeJobService"
+            android:name=".utility.TrackingLocker$DisableTillRechargeJobService"
             android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 

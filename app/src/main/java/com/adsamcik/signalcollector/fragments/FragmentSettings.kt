@@ -28,7 +28,6 @@ import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
-import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
@@ -38,11 +37,8 @@ import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
-import com.adsamcik.signalcollector.utility.FirebaseAssist
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.slider.Stringify
 import com.adsamcik.slider.implementations.IntSlider
 import com.adsamcik.slider.implementations.IntValueSlider
@@ -306,7 +302,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                 Preferences.PREF_ACTIVITY_WATCHER_ENABLED,
                 rootView.findViewById(R.id.switch_activity_watcher),
                 Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED,
-                { _ -> ActivityWakerService.poke(activity) })
+                { _ -> ActivityWakerService.pokeWithCheck(activity) })
 
         val activityFrequencySlider = rootView.findViewById<IntValueSlider>(R.id.settings_seekbar_watcher_frequency)
         //todo update to not set useless values because of setItems below
@@ -326,18 +322,18 @@ class FragmentSettings : Fragment(), ITabFragment {
         activityFrequencySlider.setOnValueChangeListener { value, fromUser ->
             if (fromUser) {
                 ActivityService.requestActivity(activity, StandardUIActivity::class.java, value)
-                ActivityWakerService.poke(activity)
+                ActivityWakerService.pokeWithCheck(activity)
             }
         }
 
         val disableTrackingSwitch = rootView.findViewById<Switch>(R.id.switchDisableTrackingTillRecharge)
-        disableTrackingSwitch.isChecked = Preferences.getPref(activity).getBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false)
+        disableTrackingSwitch.isChecked = Preferences.getPref(activity).getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false)
         disableTrackingSwitch.setOnCheckedChangeListener { button, b ->
             if (b) {
-                if (!DisableTillRechargeJobService.stopTillRecharge(activity))
+                if (!TrackingLocker.lockUntilRecharge(activity))
                     button.isChecked = false
             } else
-                DisableTillRechargeJobService.enableTracking(activity)
+                TrackingLocker.unlockRechargeLock(activity)
         }
 
     }

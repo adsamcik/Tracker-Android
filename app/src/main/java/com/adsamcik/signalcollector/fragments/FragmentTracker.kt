@@ -25,6 +25,7 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.jobs.UploadJobService
@@ -152,13 +153,13 @@ class FragmentTracker : Fragment(), ITabFragment {
                 } else if (!Assist.canTrack(activity)) {
                     SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
                 } else {
-                    Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_TILL_RECHARGE, false).apply()
+                    Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false).apply()
                     val trackerService = Intent(activity, TrackerService::class.java)
                     trackerService.putExtra("backTrack", false)
                     activity.startService(trackerService)
                 }
             } else {
-                activity.stopService(Intent(activity, TrackerService::class.java))
+                activity.stopService<TrackerService>()
             }
 
         } else if (Build.VERSION.SDK_INT >= 23) {
@@ -321,7 +322,7 @@ class FragmentTracker : Fragment(), ITabFragment {
         fabTrack!!.setOnClickListener { _ ->
             if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = 30
-                TrackerService.setTrackingLock(Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
+                TrackingLocker.lock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
                 SnackMaker(activity).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
             } else
                 toggleCollecting(activity, !TrackerService.isRunning)

@@ -15,18 +15,18 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
 import com.adsamcik.signalcollector.extensions.findDirectPreferenceByTitle
+import com.adsamcik.signalcollector.extensions.startActivity
+import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentNewSettings
-import com.adsamcik.signalcollector.jobs.DisableTillRechargeJobService
+import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.extensions.startActivity
-import com.adsamcik.signalcollector.extensions.transaction
-import com.adsamcik.signalcollector.notifications.Notifications
+import com.adsamcik.signalcollector.utility.TrackingLocker
 import java.io.File
 import java.util.*
 
@@ -59,21 +59,21 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             } else
                 ActivityService.removeActivityRequest(this, LaunchActivity::class.java)
 
-            ActivityWakerService.poke(this@SettingsActivity, newValue)
+            ActivityWakerService.pokeWithCheck(this@SettingsActivity, newValue)
             return@OnPreferenceChangeListener true
         }
 
         caller.findPreference(getString(R.string.settings_activity_freq_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             ActivityService.requestActivity(this, LaunchActivity::class.java, newValue as Int)
-            ActivityWakerService.poke(this)
+            ActivityWakerService.pokeWithCheck(this)
             return@OnPreferenceChangeListener true
         }
 
         caller.findPreference(getString(R.string.settings_disabled_recharge_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
-                return@OnPreferenceChangeListener DisableTillRechargeJobService.stopTillRecharge(this)
+                return@OnPreferenceChangeListener TrackingLocker.lockUntilRecharge(this)
             } else
-                DisableTillRechargeJobService.enableTracking(this)
+                TrackingLocker.unlockRechargeLock(this)
 
             return@OnPreferenceChangeListener true
         }
@@ -271,7 +271,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         val day = caller.findPreference(dayKey) as ColorSupportPreference
 
         val onPreferenceChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
-             val newValueInt = (newValue as String).toInt()
+            val newValueInt = (newValue as String).toInt()
             night.isVisible = newValueInt >= 1
 
             evening.isVisible = newValueInt >= 2

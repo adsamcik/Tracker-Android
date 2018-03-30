@@ -11,10 +11,15 @@ inline fun <reified T : Any> Activity.startActivity(
         requestCode: Int = -1,
         options: Bundle? = null,
         noinline init: Intent.() -> Unit = {}) {
-
     val intent = newIntent<T>(this)
     intent.init()
     startActivityForResult(intent, requestCode, options)
+}
+
+inline fun <reified T : Any> Fragment.startActivity(
+        options: Bundle? = null,
+        noinline init: Intent.() -> Unit = {}) {
+    context!!.startActivity<T>(options, init)
 }
 
 inline fun <reified T : Any> Context.startActivity(
@@ -26,14 +31,12 @@ inline fun <reified T : Any> Context.startActivity(
     startActivity(intent, options)
 }
 
-inline fun <reified T : Any> Fragment.startActivity(
-        options: Bundle? = null,
-        noinline init: Intent.() -> Unit = {}) {
-
-    val intent = newIntent<T>(context!!)
-    intent.init()
-    startActivity(intent, options)
+inline fun <reified T : Any> Context.stopService() {
+    val intent = newIntent<T>(this)
+    stopService(intent)
 }
+
+inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String): T = getSystemService(serviceName) as T
 
 inline fun <reified T : Any> newIntent(context: Context): Intent =
         Intent(context, T::class.java)

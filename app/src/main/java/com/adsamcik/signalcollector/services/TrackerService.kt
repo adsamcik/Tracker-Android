@@ -4,7 +4,7 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
+import android.arch.lifecycle.LifecycleService
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -18,7 +18,6 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.os.PowerManager
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
@@ -42,7 +41,7 @@ import java.nio.charset.Charset
 import java.text.DecimalFormat
 import java.util.*
 
-class TrackerService : Service() {
+class TrackerService : LifecycleService() {
     private val data = ArrayList<RawData>()
 
     private var wifiScanTime: Long = 0
@@ -60,6 +59,7 @@ class TrackerService : Service() {
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
     private val gson = Gson()
+
 
     /**
      * True if previous collection was mocked
@@ -85,7 +85,7 @@ class TrackerService : Service() {
         }
 
         if (location.altitude > 5600) {
-            setTrackingLock(Constants.MINUTE_IN_MILLISECONDS * 45)
+            TrackingLocker.lock(this, Constants.MINUTE_IN_MILLISECONDS * 45)
             //todo add notification
             if (!isBackgroundActivated)
                 stopSelf()
@@ -243,7 +243,7 @@ class TrackerService : Service() {
         val df = DecimalFormat("#.#")
         df.roundingMode = RoundingMode.HALF_UP
 
-        if(d.activity != null)
+        if (d.activity != null)
             sb.append(resources.getString(R.string.notification_activity,
                     ActivityInfo.getResolvedActivityName(this, d.activity!!))).append(", ")
         if (d.wifi != null)
@@ -261,6 +261,8 @@ class TrackerService : Service() {
 
 
     override fun onCreate() {
+        super.onCreate()
+
         service = WeakReference(this)
         Assist.initialize(this)
         val sp = Preferences.getPref(this)
@@ -292,7 +294,7 @@ class TrackerService : Service() {
         }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLISEC, MIN_DISTANCE_M, locationListener)
+            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLIS, MIN_DISTANCE_M, locationListener)
         else {
             Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
             stopSelf()
@@ -328,10 +330,14 @@ class TrackerService : Service() {
         }
 
         UploadJobService.cancelUploadSchedule(this)
+
+        TrackingLocker.isLocked.observe(this) {
+            if (it)
+                stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        lockedUntil = 0
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
         onServiceStateChange?.invoke()
@@ -347,10 +353,12 @@ class TrackerService : Service() {
 
 
     override fun onDestroy() {
+        super.onDestroy()
+
         stopForeground(true)
         service = null
 
-        ActivityWakerService.poke(this)
+        ActivityWakerService.pokeWithCheck(this)
         ActivityService.removeActivityRequest(this, javaClass)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
@@ -382,9 +390,6 @@ class TrackerService : Service() {
             UploadJobService.requestUploadSchedule(this)
     }
 
-    override fun onBind(intent: Intent): IBinder? = null
-
-
     private inner class WifiReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             wifiScanTime = System.currentTimeMillis()
@@ -399,10 +404,9 @@ class TrackerService : Service() {
         private const val NOTIFICATION_ID_SERVICE = -7643
 
         private const val MIN_DISTANCE_M = 5f
-        private const val MAX_NOISE_TRACKING_SPEED_KM = 18f
 
         const val UPDATE_TIME_SEC = 2
-        private const val UPDATE_TIME_MILLISEC = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
+        private const val UPDATE_TIME_MILLIS = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
 
         private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
 
@@ -424,7 +428,7 @@ class TrackerService : Service() {
          * Weak reference to service for AutoLock and check if service is running
          */
         private var service: WeakReference<TrackerService>? = null
-        private var lockedUntil: Long = 0
+
         /**
          * Checks if tracker was activated in background
          *
@@ -440,23 +444,5 @@ class TrackerService : Service() {
          */
         val isRunning: Boolean
             get() = service?.get() != null
-
-        /**
-         * Checks if Tracker is auto locked
-         *
-         * @return true if locked
-         */
-        val isAutoLocked: Boolean
-            get() = System.currentTimeMillis() < lockedUntil
-
-        /**
-         * Sets auto lock with time passed in variable.
-         */
-        fun setTrackingLock(lockTimeInMillis: Long) {
-            lockedUntil = System.currentTimeMillis() + lockTimeInMillis
-
-            if (isRunning && isBackgroundActivated)
-                service!!.get()!!.stopSelf()
-        }
     }
 }

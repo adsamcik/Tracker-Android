@@ -4,8 +4,11 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.arch.lifecycle.LifecycleService
+import android.arch.lifecycle.Observer
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
@@ -15,15 +18,14 @@ import com.adsamcik.signalcollector.enums.ResolvedActivity
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.TrackingLocker
 
-class ActivityWakerService : Service() {
+class ActivityWakerService : LifecycleService() {
     private var notificationManager: NotificationManager? = null
     private val NOTIFICATION_ID = -568465
     private var thread: Thread? = null
 
     private var activityInfo = ActivityService.lastActivity
-
-    override fun onBind(intent: Intent): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -38,7 +40,6 @@ class ActivityWakerService : Service() {
 
         thread = Thread {
             //Is not supposed to quit while, until service is stopped
-
             while (!Thread.currentThread().isInterrupted) {
                 try {
                     Thread.sleep((500 + Preferences.getPref(this).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE * Constants.SECOND_IN_MILLISECONDS.toInt())).toLong())
@@ -54,7 +55,6 @@ class ActivityWakerService : Service() {
             }
 
         }
-
         thread!!.start()
     }
 
@@ -90,14 +90,31 @@ class ActivityWakerService : Service() {
         private var instance: ActivityWakerService? = null
 
         /**
+         * Returns preference whether this service should run
+         */
+        fun getServicePreference(context: Context) =
+                Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)
+        /**
          * Pokes Activity Waker Service which checks if it should run
          *
          * @param context context
          */
         @Synchronized
-        fun poke(context: Context) {
-            val preference = Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)
-            poke(context, preference)
+        fun pokeWithCheck(context: Context) {
+            val preference = getServicePreference(context)
+            pokeWithCheck(context, preference)
+        }
+
+        /**
+         * Pokes Activity Waker Service which checks if it should run
+         * Ignores preference
+         * Uses desired state instead of preference
+         *
+         * @param context context
+         * @param desiredState desired service state
+         */
+        fun pokeWithCheck(context: Context, desiredState: Boolean) {
+            poke(context, desiredState && !TrackerService.isRunning && !TrackingLocker.isLocked.value)
         }
 
         /**
@@ -106,8 +123,8 @@ class ActivityWakerService : Service() {
          * @param context context
          */
         @Synchronized
-        fun poke(context: Context, state: Boolean) {
-            if (state && !TrackerService.isRunning) {
+        fun poke(context: Context, desiredState: Boolean) {
+            if (desiredState) {
                 if (instance == null)
                     Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
             } else if (instance != null) {

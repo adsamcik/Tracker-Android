@@ -29,7 +29,8 @@ object Preferences {
     const val DEFAULT_AUTO_UPLOAD = 1
 
     const val PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched"
-    const val PREF_STOP_TILL_RECHARGE = "stoppedTillRecharge"
+    const val PREF_STOP_UNTIL_RECHARGE = "stoppedUntilRecharge"
+    const val PREF_STOP_UNTIL_TIME = "stoppedUntilTime"
 
     const val PREF_USER_ID = "userID"
 
