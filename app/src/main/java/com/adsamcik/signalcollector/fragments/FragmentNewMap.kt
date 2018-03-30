@@ -45,9 +45,11 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
+import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
@@ -264,8 +266,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             true
         }
 
-        if (!useMock)
-            map_menu_button.visibility = View.GONE
+        map_menu_button.visibility = View.INVISIBLE
 
         locationListener!!.setButton(button_map_my_location, context!!)
 
@@ -337,11 +338,14 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private fun loadMapLayers() {
         val activity = activity!!
         if (useMock) {
-            val mockArray = MapLayer.mockArray()
-            val mockArrayList = ArrayList<MapLayer>(mockArray.size)
-            mockArrayList.addAll(mockArray)
-            mapLayers = mockArrayList
-            initializeMenuButton()
+            launch {
+                delay(5, TimeUnit.SECONDS)
+                val mockArray = MapLayer.mockArray()
+                val mockArrayList = ArrayList<MapLayer>(mockArray.size)
+                mockArrayList.addAll(mockArray)
+                mapLayers = mockArrayList
+                initializeMenuButton()
+            }
         } else {
             launch {
                 val user = Signin.getUserAsync(activity)
@@ -413,8 +417,10 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
             //payload.setOffsetsDp(Offset(0, 24))
             map_menu_button.addPayload(payload)
-            if (mapLayers?.isNotEmpty() == true)
+            if (mapLayers?.isNotEmpty() == true) {
                 map_menu_button.visibility = View.VISIBLE
+                colorManager.notififyChangeOn(map_menu_button)
+            }
         }
 
         map_menu_button.extendTouchAreaBy(0, 12.dpAsPx, 0, 0)
