@@ -54,7 +54,7 @@
             android:layout_marginStart="11dp"
             android:clipChildren="false"
             android:orientation="vertical"
-            app:layout_behavior="com.adsamcik.signalcollector.utility.BottomBarBehavior">
+            app:layout_behavior="com.adsamcik.signalcollector.utility.BottomBarBehaviorStandard">
 
             <android.support.design.widget.CoordinatorLayout
                 android:layout_width="match_parent"
