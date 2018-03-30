@@ -368,9 +368,9 @@ class NewUIActivity : FragmentActivity() {
 
     override fun onBackPressed() {
         when {
-            button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(DraggableImageButton.State.INITIAL, true, true)
-            button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(DraggableImageButton.State.INITIAL, true, true)
-            button_activity.state == DraggableImageButton.State.TARGET -> button_activity.moveToState(DraggableImageButton.State.INITIAL, true, true)
+            button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(DraggableImageButton.State.INITIAL, true)
+            button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(DraggableImageButton.State.INITIAL, true)
+            button_activity.state == DraggableImageButton.State.TARGET -> button_activity.moveToState(DraggableImageButton.State.INITIAL, true)
             else -> super.onBackPressed()
         }
     }

@@ -230,7 +230,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
                 //Update map_menu_button position after UI has been redrawn
                 map_menu_button.post {
-                    map_menu_button.moveToState(map_menu_button.state, false, true)
+                    map_menu_button.moveToState(map_menu_button.state, false)
                 }
             }
 
@@ -403,7 +403,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                     adapter.addAll(layers)
                     it.onClickListener = {
                         mapLayer -> changeMapOverlay(mapLayer.name)
-                        map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
+                        map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
                     }
                 }
             }
