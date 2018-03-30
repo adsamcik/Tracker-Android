@@ -30,16 +30,17 @@ class FeedbackUploadJob : JobService() {
 
     override fun onStartJob(params: JobParameters): Boolean {
         launch {
+            val summary = params.extras[SUMMARY] as String
+
             val user = Signin.getUserAsync(this@FeedbackUploadJob)
             if (user?.token == null || user.token.isBlank())
-                notify(R.string.notification_feedback_user_not_signed)
+                notify(R.string.notification_feedback_user_not_signed, summary)
             else {
-                val summary = params.extras[SUMMARY] as String
                 val type = params.extras[TYPE] as Int
                 val description = params.extras[DESCRIPTION] as String
                 worker = UploadTask(this@FeedbackUploadJob, user.token) {
                     if (it)
-                        notify(notification_feedback_success)
+                        notify(notification_feedback_success, summary)
                     jobFinished(params, !it)
                 }
                 worker!!.execute(summary, type.toString(), description)
@@ -48,10 +49,11 @@ class FeedbackUploadJob : JobService() {
         return true
     }
 
-    private fun notify(@StringRes stringRes: Int) {
+    private fun notify(@StringRes stringRes: Int, summary: String) {
         val nBuilder = NotificationCompat.Builder(this@FeedbackUploadJob, getString(channel_other_id))
         nBuilder.setContentTitle(getString(stringRes))
         nBuilder.setSmallIcon(R.drawable.ic_feedback_black_24dp)
+        nBuilder.setContentText(summary)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(Notifications.uniqueNotificationId(), nBuilder.build())
