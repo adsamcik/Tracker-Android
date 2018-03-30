@@ -401,7 +401,10 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                     val adapter = it.adapter
                     adapter.clear()
                     adapter.addAll(layers)
-                    it.onClickListener = { mapLayer -> changeMapOverlay(mapLayer.name) }
+                    it.onClickListener = {
+                        mapLayer -> changeMapOverlay(mapLayer.name)
+                        map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true, true)
+                    }
                 }
             }
             payload.onBeforeDestroyed = {
