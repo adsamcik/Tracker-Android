@@ -7,11 +7,12 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <RelativeLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="80dp"
         android:background="?colorPrimary"
         android:elevation="4dp"
+        android:orientation="horizontal"
         android:paddingTop="@dimen/status_bar_height"
         tools:ignore="UselessParent">
 
@@ -29,16 +30,15 @@
             android:id="@+id/content_detail_title"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginStart="56dp"
             android:ellipsize="end"
             android:gravity="center_vertical|start"
             android:maxLines="1"
-            android:text="Lorem ipsum"
+            android:textAlignment="viewStart"
             android:textColor="?titleColor"
             android:textSize="@dimen/primary_text_size"
             android:textStyle="bold"
-            tools:ignore="HardcodedText"/>
+            tools:text="Lorem ipsum"/>
 
-    </RelativeLayout>
+    </LinearLayout>
 
 </LinearLayout>
