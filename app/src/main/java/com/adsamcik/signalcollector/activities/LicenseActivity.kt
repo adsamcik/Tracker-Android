@@ -107,10 +107,45 @@ class LicenseActivity : DetailActivity() {
 
     private fun resolveNotice(license: LicenseObject): Notice {
         val lowerName = license.name.toLowerCase()
-        return when {
-            lowerName.startsWith("stag") -> Notice(license.name, "https://github.com/vimeo/stag-java", "Copyright (c) 2016 Vimeo", MITLicense())
-            lowerName == "appintro" -> Notice("AppIntro", "https://github.com/apl-devs/AppIntro", "Copyright 2015 Paolo Rotolo\n" + "Copyright 2016 Maximilian Narr", ApacheSoftwareLicense20())
-            lowerName == "persistentcookiejar" -> Notice("PersistentCookieJar", "https://github.com/franmontiel/PersistentCookieJar", "Copyright 2016 Francisco José Montiel Navarro", ApacheSoftwareLicense20())
+        if (lowerName.startsWith("stag"))
+            return Notice(license.name,
+                    "https://github.com/vimeo/stag-java",
+                    "Copyright (c) 2016 Vimeo",
+                    resolveLicense(readLicense(license)))
+
+        return when (lowerName) {
+            "appintro" -> Notice("AppIntro",
+                    "https://github.com/apl-devs/AppIntro",
+                    "Copyright 2015 Paolo Rotolo\nCopyright 2016 Maximilian Narr",
+                    resolveLicense(readLicense(license)))
+            "persistentcookiejar" -> Notice("PersistentCookieJar",
+                    "https://github.com/franmontiel/PersistentCookieJar",
+                    "Copyright 2016 Francisco José Montiel Navarro",
+                    resolveLicense(readLicense(license)))
+            "slider" -> Notice("Slider",
+                    "https://github.com/adsamcik/Slider",
+                    "Copyright 2018 Adsamcik",
+                    resolveLicense(readLicense(license)))
+            "draggable" -> Notice("Draggable",
+                    "https://github.com/adsamcik/Draggable",
+                    "Copyright 2018 Adsamcik",
+                    resolveLicense(readLicense(license)))
+            "table" -> Notice("Table",
+                    "https://github.com/adsamcik/Table",
+                    "Copyright 2017 Adsamcik",
+                    resolveLicense(readLicense(license)))
+            "touchdelegate" -> Notice("Touch delegate",
+                    "https://github.com/adsamcik/TouchDelegate",
+                    "Copyright 2017 Adsamcik",
+                    resolveLicense(readLicense(license)))
+            "spotlight" -> Notice("Spotlight",
+                    "https://github.com/TakuSemba/Spotlight",
+                    "Copyright 2017 Taku Semba",
+                    resolveLicense(readLicense(license)))
+            "colorpicker" -> Notice("ColorPicker\n",
+                    "https://github.com/jaredrummler/ColorPicker",
+                    null,
+                    resolveLicense(readLicense(license)))
             else -> {
                 val readLicense = readLicense(license)
                 val resolvedLicense = resolveLicense(readLicense)
@@ -121,6 +156,7 @@ class LicenseActivity : DetailActivity() {
             }
         }
     }
+
 
     private fun resolveLicense(license: String): License? {
         return if (license.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || license.startsWith("https://api.github.com/licenses/apache-2.0"))
