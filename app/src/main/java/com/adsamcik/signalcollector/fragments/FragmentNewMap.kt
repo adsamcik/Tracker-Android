@@ -51,6 +51,7 @@ import kotlinx.coroutines.experimental.runBlocking
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
     private var locationListener: UpdateLocationListener? = null
@@ -69,7 +70,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     private var fActivity: FragmentActivity? = null
 
-    private var mapLayerFilterRule: MapFilterRule? = null
+    private var mapLayerFilterRule = MapFilterRule()
 
     private var hasPermissions = false
 
@@ -80,6 +81,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private lateinit var colorManager: ColorManager
 
     private var mapLayers: ArrayList<MapLayer>? = null
+
+    private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -126,7 +129,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         this.fActivity = activity as FragmentActivity
 
         if (mapFragment == null && view != null) {
-            mapLayerFilterRule = MapFilterRule()
             val mapFragment = SupportMapFragment.newInstance()
             mapFragment.getMapAsync(this)
             fragmentManager!!.transaction {
@@ -395,19 +397,22 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             payload.width = map_menu_parent.width
             payload.height = map_menu_parent.height
             payload.onInitialized = {
+                fragmentMapMenu.set(it)
                 colorManager.watchRecycler(ColorView(it.view!!, 2))
                 val layers = mapLayers
                 if (layers != null && layers.isNotEmpty()) {
                     val adapter = it.adapter
                     adapter.clear()
                     adapter.addAll(layers)
-                    it.onClickListener = {
-                        mapLayer -> changeMapOverlay(mapLayer.name)
+                    it.onClickListener = { mapLayer ->
+                        changeMapOverlay(mapLayer.name)
                         map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
                     }
+                    it.filter(mapLayerFilterRule)
                 }
             }
             payload.onBeforeDestroyed = {
+                fragmentMapMenu.set(null)
                 colorManager.stopWatchingRecycler(R.id.list)
             }
 
@@ -464,7 +469,9 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onCameraIdle() {
         if (map != null) {
             val bounds = map!!.projection.visibleRegion.latLngBounds
-            mapLayerFilterRule!!.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
+            mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
+            fragmentMapMenu.get()?.filter(mapLayerFilterRule)
+
         }
     }
 
