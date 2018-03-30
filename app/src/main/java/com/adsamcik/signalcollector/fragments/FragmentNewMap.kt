@@ -339,7 +339,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         val activity = activity!!
         if (useMock) {
             launch {
-                delay(5, TimeUnit.SECONDS)
+                delay(1, TimeUnit.SECONDS)
                 val mockArray = MapLayer.mockArray()
                 val mockArrayList = ArrayList<MapLayer>(mockArray.size)
                 mockArrayList.addAll(mockArray)
