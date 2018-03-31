@@ -39,6 +39,8 @@ import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import android.support.design.widget.AppBarLayout
 import android.support.design.widget.CoordinatorLayout
+import android.view.ViewGroup
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.adsamcik.signalcollector.utility.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
 import java.util.concurrent.TimeUnit
@@ -124,6 +126,8 @@ class NewUIActivity : FragmentActivity() {
         }
 
         val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
+        statsPayload.width = MATCH_PARENT
+        statsPayload.height = MATCH_PARENT
         statsPayload.initialTranslation = Point(-size.x, 0)
         statsPayload.backgroundColor = Color.WHITE
         statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
@@ -145,6 +149,8 @@ class NewUIActivity : FragmentActivity() {
         }
 
         val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
+        activityPayload.width = MATCH_PARENT
+        activityPayload.height = MATCH_PARENT
         activityPayload.initialTranslation = Point(size.x, 0)
         activityPayload.backgroundColor = Color.WHITE
         activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
@@ -170,6 +176,8 @@ class NewUIActivity : FragmentActivity() {
         }
 
         val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
+        mapPayload.width = MATCH_PARENT
+        mapPayload.height = MATCH_PARENT
         mapPayload.initialTranslation = Point(0, realSize.y)
         mapPayload.backgroundColor = Color.WHITE
         mapPayload.setTranslationZ(16.dpAsPx.toFloat())
@@ -300,18 +308,6 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-
-        //map fragment is for some reason recreated twice and once it is recreated without view, which happened even with retain false
-        //this at least reduces the invalid fragment to call only onCreate method which shouldn't create much of an issue
-        //The invalid instance is destroyed with the next rotation
-        val fragmentManager = supportFragmentManager!!
-        if (mapFragment != null) {
-            fragmentManager.transaction {
-                detach(mapFragment)
-            }
-            fragmentManager.executePendingTransactions()
-        }
-
         super.onSaveInstanceState(outState)
 
         button_map.saveFragments(outState)

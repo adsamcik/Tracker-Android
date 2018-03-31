@@ -7,6 +7,7 @@ import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.widget.SwipeRefreshLayout
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -39,7 +40,7 @@ import kotlinx.android.synthetic.main.fragment_new_stats.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
+class FragmentNewStats : Fragment(), IOnDemandView {
     private lateinit var fragmentView: View
 
     private var adapter: TableAdapter? = null
@@ -199,29 +200,17 @@ class FragmentNewStats : Fragment(), ITabFragment, IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {
-        onEnter(activity)
-    }
-
-    override fun onLeave(activity: FragmentActivity) {
-        onLeave(activity as Activity)
-    }
 
     override fun onEnter(activity: Activity) {
         adapter = TableAdapter(activity, 16, Preferences.getTheme(activity))
     }
 
     override fun onLeave(activity: Activity) {
-
     }
 
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 
-    }
-
-    override fun onHomeAction() {
-        listview_stats.smoothScrollToPosition(0)
     }
 
     companion object {

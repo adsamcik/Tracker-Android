@@ -20,6 +20,7 @@ import android.support.constraint.ConstraintLayout
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -78,7 +79,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private var searchOriginalMargin = 0
     private var keyboardInitialized = AtomicBoolean(false)
 
-    private lateinit var colorManager: ColorManager
+    private var colorManager: ColorManager? = null
 
     private var mapLayers: ArrayList<MapLayer>? = null
 
@@ -140,6 +141,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     override fun onStart() {
         super.onStart()
+        if (map_ui_parent == null)
+            return
         initializeLocationListener(context!!)
         initializeUserElements()
         loadMapLayers()
@@ -148,13 +151,11 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MapsInitializer.initialize(context)
+        retainInstance = false
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        if (fActivity == null)
-            fActivity = activity
-
-        val activity = fActivity!!
+        val activity = activity!!
         hasPermissions = checkLocationPermission(activity, true)
         if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
             fragmentView = if (view != null)
@@ -176,7 +177,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         super.onDestroyView()
         fragmentView = null
         mapFragment = null
-        ColorSupervisor.recycleColorManager(colorManager)
+        if (colorManager != null)
+            ColorSupervisor.recycleColorManager(colorManager!!)
     }
 
     /**
@@ -272,8 +274,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         locationListener!!.setButton(button_map_my_location, context!!)
 
-        colorManager.watchElement(ColorView(map_menu_button, 2, false, false))
-        colorManager.watchElement(ColorView(layout_map_controls, 3, true, false))
+        colorManager!!.watchElement(ColorView(map_menu_button, 2, false, false))
+        colorManager!!.watchElement(ColorView(layout_map_controls, 3, true, false))
     }
 
     private fun animateMenuDrawable(@DrawableRes drawableRes: Int) {
@@ -398,7 +400,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             payload.height = map_menu_parent.height
             payload.onInitialized = {
                 fragmentMapMenu.set(it)
-                colorManager.watchRecycler(ColorView(it.view!!, 2))
+                colorManager!!.watchRecycler(ColorView(it.view!!, 2))
                 val layers = mapLayers
                 if (layers != null && layers.isNotEmpty()) {
                     val adapter = it.adapter
@@ -413,7 +415,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             }
             payload.onBeforeDestroyed = {
                 fragmentMapMenu.set(null)
-                colorManager.stopWatchingRecycler(R.id.list)
+                colorManager!!.stopWatchingRecycler(R.id.list)
             }
 
             map_menu_button.onEnterStateListener = { _, state, _ ->
@@ -427,7 +429,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             map_menu_button.addPayload(payload)
             if (mapLayers?.isNotEmpty() == true) {
                 map_menu_button.visibility = View.VISIBLE
-                colorManager.notififyChangeOn(map_menu_button)
+                colorManager!!.notififyChangeOn(map_menu_button)
             }
         }
 
