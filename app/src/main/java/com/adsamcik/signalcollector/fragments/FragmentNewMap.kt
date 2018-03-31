@@ -20,7 +20,6 @@ import android.support.constraint.ConstraintLayout
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -218,17 +217,25 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 //Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) searchOriginalMargin else (searchOriginalMargin + navbarHeight)))
                 when (opened) {
                     true -> {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                        val top = searchOriginalMargin +
-                                keyboardHeight +
-                                map_menu_button.height +
-                                edittext_map_search.paddingBottom +
-                                edittext_map_search.paddingTop + edittext_map_search.height
-                        map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
+                        if (position == Assist.NavBarPosition.BOTTOM) {
+                            val top = searchOriginalMargin +
+                                    keyboardHeight +
+                                    map_menu_button.height +
+                                    edittext_map_search.paddingBottom +
+                                    edittext_map_search.paddingTop + edittext_map_search.height
+
+                            map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                            map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
+                        }
                     }
                     false -> {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
-                        map?.setPadding(0, 0, 0, navbarHeight.y)
+                        if (position == Assist.NavBarPosition.BOTTOM) {
+                            map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
+                            map?.setPadding(0, 0, 0, navbarHeight.y)
+                        } else {
+                            map_ui_parent.setBottomMargin(searchOriginalMargin + 32.dpAsPx)
+                            map?.setPadding(0, 0, 0, 0)
+                        }
                     }
                 }
 
