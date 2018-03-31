@@ -171,6 +171,10 @@
         android:title="@string/settings_other_title">
 
         <Preference
+            android:key="@string/settings_standard_design_key"
+            android:title="@string/settings_standard_design_title"/>
+
+        <Preference
             android:key="@string/settings_feedback_key"
             android:summary="@string/settings_feedback_summary"
             android:title="@string/settings_feedback_title"/>

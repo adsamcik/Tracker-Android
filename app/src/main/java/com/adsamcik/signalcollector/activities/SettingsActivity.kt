@@ -100,6 +100,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<LicenseActivity> { }
         }
 
+        setOnClickListener(R.string.settings_standard_design_key) {
+            startActivity<StandardUIActivity> { }
+        }
+
         val devKey = getString(R.string.settings_debug_key)
         val debugTitle = getString(R.string.settings_debug_title)
 
