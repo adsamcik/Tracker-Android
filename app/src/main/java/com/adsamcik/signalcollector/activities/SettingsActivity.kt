@@ -48,7 +48,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             runOnCommit { initializeRoot(fragment) }
         }
 
-        title = "Settings"
+        title = getString(R.string.settings_title)
     }
 
     private fun initializeTracking(caller: PreferenceFragmentCompat) {

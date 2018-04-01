@@ -20,8 +20,8 @@
 
     <string name="main_last_update">%1$s</string>
     <string name="main_position">N %1$s\nW %2$s\nAltitude %3$d m</string>
-    <string name="main_wifi_title">Wifi</string>
-    <string name="main_wifi_updated">found %1$dm before collection</string>
+    <string name="main_wifi_title">Wi-Fi</string>
+    <string name="main_wifi_updated">found %1$d m before collection</string>
     <string name="main_wifi_not_updated">not updated this collection</string>
     <string name="main_wifi_count">%1$d in range</string>
     <string name="main_cell_title">Cell</string>
@@ -38,16 +38,16 @@
     <string name="map_personal">Personal</string>
 
     <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_weekly_collected_wifi">Wifi data collected</string>
+    <string name="stats_weekly_collected_wifi">Wi-Fi data collected</string>
     <string name="stats_weekly_collected_cell">Cell data collected</string>
     <string name="stats_weekly_collected_location">Collections performed</string>
     <string name="stats_weekly_minutes">Minutes spent tracking</string>
     <string name="stats_weekly_uploaded">Uploaded data</string>
 
-    <string name="map_no_play_services">Map requires up-to-date Play services</string>
+    <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
-    <string name="recent_upload_wifi">Wifi</string>
-    <string name="recent_upload_wifi_new">New wifi</string>
+    <string name="recent_upload_wifi">Wi-Fi</string>
+    <string name="recent_upload_wifi_new">New Wi-Fi</string>
     <string name="recent_upload_cell">Cell</string>
     <string name="recent_upload_cell_new">New cell</string>
     <string name="recent_upload_collections">Collections</string>
@@ -88,7 +88,7 @@
         <item quantity="one">1 new location</item>
         <item quantity="other">%d new locations</item>
     </plurals>
-    <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new wifi</string>
+    <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new Wi-Fi</string>
     <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
 
     <!-- Feedback strings -->

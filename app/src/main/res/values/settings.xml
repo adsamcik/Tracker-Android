@@ -9,10 +9,6 @@
     <string name="autotracking_disabled_description">Automatic tracking disabled</string>
     <string name="autotracking_onfoot_description">Automatic tracking enabled on foot</string>
     <string name="autotracking_onfootvehicle_description">Automatic tracking enabled in car and on foot</string>
-    <string name="settings_battery_optimalizations_enabled">Battery optimalizations are enabled.</string>
-    <string name="settings_battery_optimalizations_enabled_tracking">Battery optimalizations are enabled! Automatic tracking may be unreliable. Tap to disable.</string>
-    <string name="settings_battery_optimalizations_disabled">Battery optimalizations are disabled.</string>
-    <string name="settings_battery_optimalizations_unknown">Battery optimalizations status is unknown.</string>
 
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
@@ -77,7 +73,7 @@
     <!--- TITLES -->
     <string name="settings_title">Settings</string>
     <string name="settings_account_title">Account</string>
-    <string name="settings_account_key">account_key</string>
+    <string name="settings_account_key" translatable="false">account_key</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>
@@ -99,8 +95,8 @@
     <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_freq_default" translatable="false">30</string>
 
-    <string name="settings_tracking_activity_key">backgroundTracking</string>
-    <string name="settings_tracking_activity_default">1</string>
+    <string name="settings_tracking_activity_key" translatable="false">backgroundTracking</string>
+    <string name="settings_tracking_activity_default" translatable="false">1</string>
 
     <string name="settings_auto_tracking_category">Automatic tracking</string>
     <string name="settings_tracking_enable_category">Tracking options</string>
@@ -206,7 +202,7 @@
     <string name="settings_debug_available_in">%d more taps to enable debug</string>
     <string name="settings_debug_available">You now have access to debug section</string>
     <string name="settings_debug_enabled">Debug enabled</string>
-    <string name="settings_debug_key">showDevSettings</string>
+    <string name="settings_debug_key" translatable="false">showDevSettings</string>
 
     <string name="settings_browse_files_title">Browse files</string>
     <string name="settings_browse_files_key" translatable="false">browseFiles</string>

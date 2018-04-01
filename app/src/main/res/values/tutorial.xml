@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tutorial_seen_title">Tutorial seen</string>
-    <string name="tutorial_seen_key">tutSeen</string>
+    <string name="tutorial_seen_key" translatable="false">tutSeen</string>
 
     <string name="tutorial_welcome_title">Welcome to Signals</string>
     <string name="tutorial_welcome_description">Home of unskippable tutorials</string>
