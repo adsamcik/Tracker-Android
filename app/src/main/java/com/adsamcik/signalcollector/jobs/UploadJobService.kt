@@ -228,10 +228,8 @@ class UploadJobService : JobService() {
             else if (isUploading)
                 return Failure(context.getString(R.string.error_upload_in_progress))
 
-            val sp = Preferences.getPref(context)
             if (hasEnoughData(context, source)) {
-                val autoUpload = sp.getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD)
-                if (autoUpload != 0 || source == UploadScheduleSource.USER) {
+                if (canUpload(context, source)) {
                     val jb = prepareBuilder(UPLOAD_JOB_ID, context, source)
                     addNetworkTypeRequest(context, source, jb)
 
@@ -256,7 +254,9 @@ class UploadJobService : JobService() {
          * @param context context
          */
         fun requestUploadSchedule(context: Context) {
-            if (hasEnoughData(context, UploadScheduleSource.BACKGROUND) && Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
+            if (canUpload(context, UploadScheduleSource.BACKGROUND) &&
+                    hasEnoughData(context, UploadScheduleSource.BACKGROUND) &&
+                    Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
                 val scheduler = scheduler(context)
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND)
@@ -277,6 +277,11 @@ class UploadJobService : JobService() {
             }
         }
 
+        private fun canUpload(context: Context, source: UploadScheduleSource): Boolean {
+            val autoUpload = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD)
+            return autoUpload > 0 || source == UploadScheduleSource.USER
+        }
+
         private fun prepareBuilder(id: Int, context: Context, source: UploadScheduleSource): JobInfo.Builder {
             val jobBuilder = JobInfo.Builder(id, ComponentName(context, UploadJobService::class.java))
             jobBuilder.setPersisted(true)
@@ -291,7 +296,6 @@ class UploadJobService : JobService() {
                 jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
             } else {
                 if (Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD) == 2) {
-                    //todo improve roaming handling
                     if (Build.VERSION.SDK_INT >= 24)
                         jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING)
                     else
