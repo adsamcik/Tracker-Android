@@ -40,6 +40,11 @@ class UserActivity : DetailActivity() {
         launch {
             val user = Signin.signIn(this@UserActivity, true)
             onUserStateChange(Signin.status, user)
+            if (user?.isServerDataAvailable == false) {
+                user.addServerDataCallback {
+                    onUserStateChange(Signin.status, it)
+                }
+            }
         }
     }
 
