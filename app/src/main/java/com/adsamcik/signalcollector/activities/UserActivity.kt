@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.Prices
@@ -52,20 +52,20 @@ class UserActivity : DetailActivity() {
         launch(UI) {
             when (status) {
                 Signin.SigninStatus.SIGNED -> {
-                    signed_in_menu.visibility = View.VISIBLE
-                    signed_in_menu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(this@UserActivity) }
-                    sign_in_button.visibility = View.GONE
+                    layout_signed_in.visibility = View.VISIBLE
+                    layout_signed_in.findViewById<Button>(R.id.button_sign_out).setOnClickListener { _ -> Signin.signOut(this@UserActivity) }
+                    button_sign_in.visibility = View.GONE
                     resolveUserMenuOnLogin(user!!)
                 }
                 Signin.SigninStatus.SIGNED_NO_DATA -> {
-                    signed_in_menu.visibility = View.VISIBLE
-                    signed_in_menu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(this@UserActivity) }
-                    sign_in_button.visibility = View.GONE
+                    layout_signed_in.visibility = View.VISIBLE
+                    layout_signed_in.findViewById<Button>(R.id.button_sign_out).setOnClickListener { _ -> Signin.signOut(this@UserActivity) }
+                    button_sign_in.visibility = View.GONE
                 }
                 Signin.SigninStatus.SIGNIN_FAILED, Signin.SigninStatus.SILENT_SIGNIN_FAILED, Signin.SigninStatus.NOT_SIGNED -> {
-                    sign_in_button.visibility = View.VISIBLE
-                    signed_in_menu.visibility = View.GONE
-                    sign_in_button.setOnClickListener { _ ->
+                    button_sign_in.visibility = View.VISIBLE
+                    layout_signed_in.visibility = View.GONE
+                    button_sign_in.setOnClickListener { _ ->
                         async {
                             val usr = Signin.signIn(this@UserActivity, false)
                             if (usr != null) {
@@ -79,11 +79,11 @@ class UserActivity : DetailActivity() {
                                 SnackMaker(root).showSnackbar(R.string.error_failed_signin)
                         }
                     }
-                    signed_in_menu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
+                    layout_signed_in.findViewById<View>(R.id.layout_server_settings).visibility = View.GONE
                 }
                 Signin.SigninStatus.SIGNIN_IN_PROGRESS -> {
-                    sign_in_button.visibility = View.GONE
-                    signed_in_menu.visibility = View.GONE
+                    button_sign_in.visibility = View.GONE
+                    layout_signed_in.visibility = View.GONE
                 }
             }
         }
@@ -102,20 +102,13 @@ class UserActivity : DetailActivity() {
                 if (priceRequestState.first.success) {
                     val prices = if (useMock) Prices.mock() else priceRequestState.second!!
                     launch(UI) {
+                        layout_server_settings.visibility = View.VISIBLE
 
-                        val userInfoLayout = signed_in_menu.getChildAt(0) as LinearLayout
-                        userInfoLayout.visibility = View.VISIBLE
+                        textview_wireless_points.text = String.format(getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints))
 
-                        val wPointsTextView = userInfoLayout.getChildAt(0) as TextView
-                        wPointsTextView.text = String.format(getString(R.string.user_have_wireless_points), Assist.formatNumber(u.wirelessPoints))
-
-                        val mapAccessLayout = userInfoLayout.getChildAt(1) as LinearLayout
-                        val mapAccessSwitch = mapAccessLayout.getChildAt(0) as Switch
-                        val mapAccessTimeTextView = mapAccessLayout.getChildAt(1) as TextView
-
-                        mapAccessSwitch.text = getString(R.string.user_renew_map)
-                        mapAccessSwitch.isChecked = u.networkPreferences!!.renewMap
-                        mapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+                        switch_renew_map.text = getString(R.string.user_renew_map)
+                        switch_renew_map.isChecked = u.networkPreferences!!.renewMap
+                        switch_renew_map.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
                             compoundButton.isEnabled = false
                             val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
                             Network.client(this@UserActivity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
@@ -124,18 +117,14 @@ class UserActivity : DetailActivity() {
                         }
 
                         if (u.networkInfo!!.mapAccessUntil > System.currentTimeMillis())
-                            mapAccessTimeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(u.networkInfo!!.mapAccessUntil)))
+                            textview_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(u.networkInfo!!.mapAccessUntil)))
                         else
-                            mapAccessTimeTextView.visibility = View.GONE
-                        (mapAccessLayout.getChildAt(2) as TextView).text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
+                            textview_map_access_time.visibility = View.GONE
+                        textview_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
 
-                        val userMapAccessLayout = userInfoLayout.getChildAt(2) as LinearLayout
-                        val userMapAccessSwitch = userMapAccessLayout.getChildAt(0) as Switch
-                        val personalMapAccessTimeTextView = userMapAccessLayout.getChildAt(1) as TextView
-
-                        userMapAccessSwitch.text = getString(R.string.user_renew_personal_map)
-                        userMapAccessSwitch.isChecked = u.networkPreferences!!.renewPersonalMap
-                        userMapAccessSwitch.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
+                        switch_renew_personal_map.text = getString(R.string.user_renew_personal_map)
+                        switch_renew_personal_map.isChecked = u.networkPreferences!!.renewPersonalMap
+                        switch_renew_personal_map.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
                             compoundButton.isEnabled = false
                             val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
                             Network.client(this@UserActivity, u.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
@@ -144,12 +133,12 @@ class UserActivity : DetailActivity() {
                         }
 
                         if (u.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
-                            personalMapAccessTimeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date()))
+                            textview_personal_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date()))
                         else
-                            personalMapAccessTimeTextView.visibility = View.GONE
-                        (userMapAccessLayout.getChildAt(2) as TextView).text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
+                            textview_personal_map_access_time.visibility = View.GONE
+                        textview_personal_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
 
-                        signed_in_menu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
+                        layout_signed_in.findViewById<View>(R.id.layout_server_settings).visibility = View.VISIBLE
                     }
                 }
             }
@@ -180,7 +169,7 @@ class UserActivity : DetailActivity() {
                             if (temp != networkInfo.mapAccessUntil) {
                                 user.addWirelessPoints(-price)
                                 launch(UI) {
-                                    wireless_points.text = getString(R.string.user_have_wireless_points, Assist.formatNumber(user.wirelessPoints))
+                                    textview_wireless_points.text = getString(R.string.user_have_wireless_points, Assist.formatNumber(user.wirelessPoints))
                                     timeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.mapAccessUntil)))
                                     timeTextView.visibility = View.VISIBLE
                                 }
@@ -189,7 +178,7 @@ class UserActivity : DetailActivity() {
                         } else
                             Crashlytics.logException(Throwable("Body is null"))
                     }
-                    DataStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, Gson().toJson(user), false)
+                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, Gson().toJson(user), false)
                 } else {
                     launch(UI) { compoundButton.isChecked = !desiredState }
                     SnackMaker(this@UserActivity).showSnackbar(R.string.user_not_enough_wp)

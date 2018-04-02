@@ -135,7 +135,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 replace(R.id.container_map, mapFragment)
             }
             this.mapFragment = mapFragment
-        }
+        } else
+            loadMapLayers()
     }
 
     override fun onStart() {
@@ -144,7 +145,6 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             return
         initializeLocationListener(context!!)
         initializeUserElements()
-        loadMapLayers()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -344,6 +344,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
 
         initializeKeyboardDetection()
+
+        loadMapLayers()
     }
 
     private fun loadMapLayers() {

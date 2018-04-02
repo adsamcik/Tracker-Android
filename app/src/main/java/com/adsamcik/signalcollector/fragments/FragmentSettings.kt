@@ -106,13 +106,13 @@ class FragmentSettings : Fragment(), ITabFragment {
                 when (status) {
                     Signin.SigninStatus.SIGNED -> {
                         signedInMenu.visibility = View.VISIBLE
-                        signedInMenu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
+                        signedInMenu.findViewById<Button>(R.id.button_sign_out).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
                         signInButton.visibility = View.GONE
                         resolveUserMenuOnLogin(user!!)
                     }
                     Signin.SigninStatus.SIGNED_NO_DATA -> {
                         signedInMenu.visibility = View.VISIBLE
-                        signedInMenu.findViewById<Button>(R.id.sign_out_button).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
+                        signedInMenu.findViewById<Button>(R.id.button_sign_out).setOnClickListener { _ -> Signin.signOut(getContext()!!) }
                         signInButton.visibility = View.GONE
                     }
                     Signin.SigninStatus.SIGNIN_FAILED, Signin.SigninStatus.SILENT_SIGNIN_FAILED, Signin.SigninStatus.NOT_SIGNED -> {
@@ -132,7 +132,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                                     SnackMaker(activity!!).showSnackbar(R.string.error_failed_signin)
                             }
                         }
-                        signedInMenu.findViewById<View>(R.id.signed_in_server_menu).visibility = View.GONE
+                        signedInMenu.findViewById<View>(R.id.layout_server_settings).visibility = View.GONE
                     }
                     Signin.SigninStatus.SIGNIN_IN_PROGRESS -> {
                         signInButton.visibility = View.GONE
@@ -274,9 +274,9 @@ class FragmentSettings : Fragment(), ITabFragment {
 
         devView = rootView.findViewById(R.id.dev_corner_layout)
 
-        signInButton = rootView.findViewById(R.id.sign_in_button)
-        signedInMenu = rootView.findViewById(R.id.signed_in_menu)
-        signInNoConnection = rootView.findViewById(R.id.sign_in_message)
+        signInButton = rootView.findViewById(R.id.button_sign_in)
+        signedInMenu = rootView.findViewById(R.id.layout_signed_in)
+        signInNoConnection = rootView.findViewById(R.id.textview_sign_error)
     }
 
     private fun initializeClassVariables(activity: Activity) {
@@ -675,7 +675,7 @@ class FragmentSettings : Fragment(), ITabFragment {
                             personalMapAccessTimeTextView.visibility = View.GONE
                         (userMapAccessLayout.getChildAt(2) as TextView).text = String.format(activity.getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
 
-                        signedInMenu!!.findViewById<View>(R.id.signed_in_server_menu).visibility = View.VISIBLE
+                        signedInMenu!!.findViewById<View>(R.id.layout_server_settings).visibility = View.VISIBLE
                     }
                 }
 
