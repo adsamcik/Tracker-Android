@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signalcollector.components
 
 import android.app.Activity
 import android.content.Context
@@ -11,6 +11,7 @@ import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.FilterableAdapter
 import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.utility.Animate
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 

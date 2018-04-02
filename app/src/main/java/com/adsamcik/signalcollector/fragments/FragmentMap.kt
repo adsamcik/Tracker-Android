@@ -24,6 +24,7 @@ import android.widget.EditText
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
+import com.adsamcik.signalcollector.components.FabMenu
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network

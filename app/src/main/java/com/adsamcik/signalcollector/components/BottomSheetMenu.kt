@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signalcollector.components
 
 import android.os.Handler
 import android.os.Looper
