@@ -65,6 +65,11 @@ class ActivityWakerService : LifecycleService() {
         thread!!.interrupt()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        return START_REDELIVER_INTENT
+    }
+
     private fun updateNotification(): Notification {
         val intent = Intent(this, LaunchActivity::class.java)
         val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))

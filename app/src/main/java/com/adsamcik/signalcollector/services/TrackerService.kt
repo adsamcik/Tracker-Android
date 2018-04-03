@@ -348,7 +348,7 @@ class TrackerService : LifecycleService() {
             ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
 
         ActivityWakerService.poke(this, false)
-        return super.onStartCommand(intent, flags, startId)
+        return START_REDELIVER_INTENT
     }
 
 
