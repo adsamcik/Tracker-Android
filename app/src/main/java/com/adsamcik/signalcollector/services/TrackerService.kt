@@ -243,15 +243,23 @@ class TrackerService : LifecycleService() {
         val df = DecimalFormat("#.#")
         df.roundingMode = RoundingMode.HALF_UP
 
+        var isEmpty = true
+
         if (d.activity != null)
             sb.append(resources.getString(R.string.notification_activity,
                     ActivityInfo.getResolvedActivityName(this, d.activity!!))).append(", ")
-        if (d.wifi != null)
-            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(", ")
-        if (d.cellCount != null)
-            sb.append(resources.getString(R.string.notification_cell, d.cellCount)).append(", ")
 
-        if (sb.isNotEmpty())
+        if (d.wifi != null) {
+            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(", ")
+            isEmpty = false
+        }
+
+        if (d.cellCount != null) {
+            sb.append(resources.getString(R.string.notification_cell, d.cellCount)).append(", ")
+            isEmpty = false
+        }
+
+        if (!isEmpty)
             sb.setLength(sb.length - 2)
         else
             sb.append(resources.getString(R.string.notification_nothing_found))
