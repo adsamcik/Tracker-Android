@@ -174,7 +174,7 @@
     <string-array name="settings_style_mode_names">
         <item>static color</item>
         <item>day/night</item>
-        <item>cycle</item>
+        <item>morning/day/evening/night</item>
     </string-array>
 
 

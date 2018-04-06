@@ -187,6 +187,6 @@
     <string-array name="settings_style_mode_names">
         <item>neměnná barva</item>
         <item>den/noc</item>
-        <item>cyklus</item>
+        <item>ráno/den/večer/noc</item>
     </string-array>
 </resources>
