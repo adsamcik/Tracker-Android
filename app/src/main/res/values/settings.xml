@@ -172,9 +172,9 @@
     </string-array>
 
     <string-array name="settings_style_mode_names">
-        <item>Single color</item>
-        <item>Day/Night</item>
-        <item>Cycle</item>
+        <item>static color</item>
+        <item>day/night</item>
+        <item>cycle</item>
     </string-array>
 
 

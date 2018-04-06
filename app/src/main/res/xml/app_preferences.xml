@@ -96,6 +96,7 @@
             android:defaultValue="@string/settings_style_mode_default"
             android:entries="@array/settings_style_mode_names"
             android:entryValues="@array/settings_style_mode_values"
+            android:summary="%s"
             android:key="@string/settings_style_mode_key"
             android:title="@string/settings_style_mode_title"/>
 
