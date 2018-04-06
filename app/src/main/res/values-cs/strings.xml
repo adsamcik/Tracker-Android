@@ -180,7 +180,7 @@
     <string name="recent_upload_size">Velikost</string>
     <plurals name="main_collections">
         <item quantity="one">1 záznam</item>
-        <item quantity="few">1 záznamy</item>
+        <item quantity="few">%d záznamy</item>
         <item quantity="other">%d záznamů</item>
     </plurals>
 
