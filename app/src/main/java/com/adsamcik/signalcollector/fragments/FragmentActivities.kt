@@ -31,7 +31,6 @@ class FragmentActivities : Fragment(), ITabFragment, IOnDemandView {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val rootView = inflater.inflate(R.layout.fragment_activities, container, false)
-        val activity = activity
 
         listViewChallenges = rootView.findViewById(R.id.listview_challenges)
 
