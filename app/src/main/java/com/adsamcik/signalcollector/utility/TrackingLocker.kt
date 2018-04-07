@@ -9,7 +9,7 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import androidx.content.edit
+import androidx.core.content.edit
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.jobs.scheduler

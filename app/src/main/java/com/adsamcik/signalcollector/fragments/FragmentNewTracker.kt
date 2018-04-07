@@ -15,7 +15,7 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
-import androidx.view.children
+import androidx.core.view.children
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.SettingsActivity
 import com.adsamcik.signalcollector.activities.UserActivity

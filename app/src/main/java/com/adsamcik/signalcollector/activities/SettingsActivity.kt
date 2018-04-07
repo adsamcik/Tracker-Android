@@ -10,7 +10,7 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.support.v7.preference.*
 import android.widget.Toast
-import androidx.content.edit
+import androidx.core.content.edit
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference

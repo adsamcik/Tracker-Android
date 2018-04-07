@@ -431,11 +431,13 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
                 colorManager!!.stopWatchingRecycler(R.id.list)
             }
 
-            map_menu_button.onEnterStateListener = { _, state, _ ->
-                if (state == DraggableImageButton.State.TARGET)
-                    animateMenuDrawable(R.drawable.up_to_down)
-                else if (state == DraggableImageButton.State.INITIAL)
-                    animateMenuDrawable(R.drawable.down_to_up)
+            map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
+                if (hasStateChanged) {
+                    if (state == DraggableImageButton.State.TARGET)
+                        animateMenuDrawable(R.drawable.up_to_down)
+                    else if (state == DraggableImageButton.State.INITIAL)
+                        animateMenuDrawable(R.drawable.down_to_up)
+                }
             }
             //payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
             //payload.setOffsetsDp(Offset(0, 24))

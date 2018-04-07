@@ -13,10 +13,9 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.view.setMargins
+import androidx.core.view.setMargins
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.dpAsPx
-import com.adsamcik.signalcollector.utility.Assist
 
 
 class ImageSwitchPreference : Preference {

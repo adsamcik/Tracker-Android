@@ -23,7 +23,7 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import androidx.content.edit
+import androidx.core.content.edit
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
@@ -346,6 +346,8 @@ class TrackerService : LifecycleService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
         onServiceStateChange?.invoke()

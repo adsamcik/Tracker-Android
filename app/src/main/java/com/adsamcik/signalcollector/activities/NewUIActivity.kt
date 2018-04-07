@@ -6,14 +6,16 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
+import android.support.design.widget.CoordinatorLayout
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.animation.AccelerateDecelerateInterpolator
-import androidx.content.edit
+import androidx.core.content.edit
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
@@ -25,10 +27,14 @@ import com.adsamcik.signalcollector.fragments.FragmentNewStats
 import com.adsamcik.signalcollector.fragments.FragmentNewTracker
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.notifications.NotificationChannels
+import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.BottomBarBehavior
+import com.adsamcik.signalcollector.utility.Constants
+import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.location.LocationServices
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
@@ -37,13 +43,6 @@ import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
-import android.support.design.widget.AppBarLayout
-import android.support.design.widget.CoordinatorLayout
-import android.view.ViewGroup
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import com.adsamcik.signalcollector.utility.*
-import kotlinx.android.synthetic.main.fragment_new_map.*
-import java.util.concurrent.TimeUnit
 
 
 class NewUIActivity : FragmentActivity() {
@@ -116,7 +115,7 @@ class NewUIActivity : FragmentActivity() {
         button_stats.setTargetOffsetDp(Offset(56))
         button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
         button_stats.extendTouchAreaBy(56.dpAsPx, 0, 0, 0)
-        button_stats.onEnterStateListener = { _, state, _ ->
+        button_stats.onEnterStateListener = { _, state, _, _ ->
             if (state == DraggableImageButton.State.TARGET)
                 hideBottomLayer()
         }
@@ -139,7 +138,7 @@ class NewUIActivity : FragmentActivity() {
         button_activity.setTargetOffsetDp(Offset(-56))
         button_activity.targetTranslationZ = 8.dpAsPx.toFloat()
         button_activity.extendTouchAreaBy(0, 0, 56.dpAsPx, 0)
-        button_activity.onEnterStateListener = { _, state, _ ->
+        button_activity.onEnterStateListener = { _, state, _, _ ->
             if (state == DraggableImageButton.State.TARGET)
                 hideBottomLayer()
         }
@@ -160,7 +159,7 @@ class NewUIActivity : FragmentActivity() {
         button_activity.addPayload(activityPayload)
 
         button_map.extendTouchAreaBy(32.dpAsPx)
-        button_map.onEnterStateListener = { _, state, _ ->
+        button_map.onEnterStateListener = { _, state, _, _ ->
             if (state == DraggableImageButton.State.TARGET) {
                 hideBottomLayer()
                 hideMiddleLayer()

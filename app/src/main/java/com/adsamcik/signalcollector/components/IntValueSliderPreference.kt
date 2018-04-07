@@ -7,10 +7,9 @@ import android.support.v7.preference.Preference
 import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
 import android.widget.TextView
-import androidx.view.setPadding
+import androidx.core.view.setPadding
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.dpAsPx
-import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.slider.implementations.IntValueSlider
 
 
