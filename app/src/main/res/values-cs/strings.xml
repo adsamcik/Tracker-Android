@@ -189,4 +189,10 @@
         <item>den/noc</item>
         <item>ráno/den/večer/noc</item>
     </string-array>
+
+    <string-array name="auto_upload_options_titles">
+        <item>Vypnuto</item>
+        <item>Pouze na Wi-Fi</item>
+        <item>Vždy</item>
+    </string-array>
 </resources>

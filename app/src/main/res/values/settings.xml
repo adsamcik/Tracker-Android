@@ -13,7 +13,7 @@
     <string name="settings_automaticUpload">Automatic upload</string>
     <string-array name="automatic_upload_options">
         <item>Disabled</item>
-        <item>Wifi only</item>
+        <item>Wi-Fi only</item>
         <item>Always</item>
     </string-array>
     <string name="autoupload_disabled_description">Automatic upload disabled</string>
@@ -145,7 +145,7 @@
 
     <string-array name="auto_upload_options_titles">
         <item>Disabled</item>
-        <item>On WiFi</item>
+        <item>Wi-Fi only</item>
         <item>Always</item>
     </string-array>
 
