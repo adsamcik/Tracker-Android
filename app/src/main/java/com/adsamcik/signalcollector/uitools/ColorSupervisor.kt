@@ -17,12 +17,13 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SunSetRise
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
 
 
 internal object ColorSupervisor {
+    //Lock order colorList, colorManagerLock, timer
+
     private val colorList = ArrayList<@ColorInt Int>()
     private var timer: Timer? = null
     private var timerActive = false
@@ -34,8 +35,6 @@ internal object ColorSupervisor {
     private var currentIndex = 0
 
     private val nextIndex get () = (currentIndex + 1).rem(colorList.size)
-
-    private var updateLock: Lock = ReentrantLock()
 
     private var darkTextColor: Int = 0
     private var lightTextColor: Int = 0
@@ -98,13 +97,15 @@ internal object ColorSupervisor {
     }
 
     fun ensureUpdate() {
-        if (colorList.size > 1) {
-            synchronized(updateLock) {
-                if (!timerActive)
-                    startUpdate()
-            }
-        } else if (colorList.size == 1)
-            update(colorList[0])
+        synchronized(colorList) {
+            if (colorList.size > 1) {
+                synchronized(timerActive) {
+                    if (!timerActive)
+                        startUpdate()
+                }
+            } else if (colorList.size == 1)
+                update(colorList[0])
+        }
     }
 
     fun layerColor(@ColorInt color: Int, layer: Int): Int {
@@ -115,13 +116,15 @@ internal object ColorSupervisor {
     }
 
     fun addColors(@ColorInt vararg varargs: Int) {
-        if (varargs.isEmpty())
-            throw RuntimeException("You can't just add no colors.")
+        synchronized(colorList) {
+            if (varargs.isEmpty())
+                throw RuntimeException("You can't just add no colors.")
 
-        colorList.ensureCapacity(colorList.size + varargs.size)
-        varargs.forEach { colorList.add(it) }
+            colorList.ensureCapacity(colorList.size + varargs.size)
+            varargs.forEach { colorList.add(it) }
 
-        ensureUpdate()
+            ensureUpdate()
+        }
     }
 
     fun deltaUpdate(delta: Float, newPeriod: Boolean) {
@@ -130,7 +133,14 @@ internal object ColorSupervisor {
             updateUpdate()
         }
 
-        update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
+        synchronized(colorList) {
+            if (colorList.size < 2) {
+                stopUpdate()
+                return
+            }
+
+            update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
+        }
     }
 
     fun update(@ColorInt color: Int) {
@@ -152,26 +162,30 @@ internal object ColorSupervisor {
     }
 
     private fun updateUpdate() {
-        if (colorList.size > 1) {
-            synchronized(updateLock) {
-                stopUpdate()
-                startUpdate()
+        synchronized(colorList) {
+            if (colorList.size > 1) {
+                synchronized(timerActive) {
+                    stopUpdate()
+                    startUpdate()
+                }
             }
         }
     }
 
     private fun startUpdate() {
-        if (colorList.size >= 2) {
-            synchronized(updateLock) {
-                timerActive = true
-                val timer = Timer("ColorUpdate", true)
-                when (colorList.size) {
-                    2 -> startUpdate2(timer)
-                    4 -> startUpdate4(timer)
-                    else -> throw IllegalStateException()
-                }
+        synchronized(colorList) {
+            if (colorList.size >= 2) {
+                synchronized(timerActive) {
+                    timerActive = true
+                    val timer = Timer("ColorUpdate", true)
+                    when (colorList.size) {
+                        2 -> startUpdate2(timer)
+                        4 -> startUpdate4(timer)
+                        else -> throw IllegalStateException()
+                    }
 
-                this.timer = timer
+                    this.timer = timer
+                }
             }
         }
     }
@@ -299,20 +313,22 @@ internal object ColorSupervisor {
     private fun calculateUpdatePeriod(changeLength: Long) = changeLength / calculateUpdateCount()
 
     private fun calculateUpdateCount(): Int {
-        if (colorList.size < 2)
-            throw RuntimeException("Update rate cannot be calculated for less than 2 colors")
+        synchronized(colorList) {
+            if (colorList.size < 2)
+                throw RuntimeException("Update rate cannot be calculated for less than 2 colors")
 
-        val currentColor = colorList[currentIndex]
-        val targetColor = colorList[nextIndex]
-        val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
-        val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
-        val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
-        val totalDiff = rDiff + gDiff + bDiff
-        return if (totalDiff == 0) 1 else totalDiff
+            val currentColor = colorList[currentIndex]
+            val targetColor = colorList[nextIndex]
+            val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
+            val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
+            val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
+            val totalDiff = rDiff + gDiff + bDiff
+            return if (totalDiff == 0) 1 else totalDiff
+        }
     }
 
     private fun stopUpdate() {
-        synchronized(updateLock) {
+        synchronized(timerActive) {
             if (timerActive) {
                 timerActive = false
                 timer!!.cancel()
@@ -326,27 +342,29 @@ internal object ColorSupervisor {
 
         stopUpdate()
 
-        colorList.clear()
+        synchronized(colorList) {
+            colorList.clear()
 
-        val day = preferences.getColor(context, R.string.settings_color_day_key, R.color.settings_color_day_default)
+            val day = preferences.getColor(context, R.string.settings_color_day_key, R.color.settings_color_day_default)
 
-        if (mode == 0) {
-            addColors(day)
-        } else {
-            val night = preferences.getColor(context, R.string.settings_color_night_key, R.color.settings_color_night_default)
-            if (mode == 1)
-                addColors(day, night)
-            else {
-                val morning = preferences.getColor(context, R.string.settings_color_morning_key, R.color.settings_color_morning_default)
-                val evening = preferences.getColor(context, R.string.settings_color_evening_key, R.color.settings_color_evening_default)
-                addColors(morning, day, evening, night)
+            if (mode == 0) {
+                addColors(day)
+            } else {
+                val night = preferences.getColor(context, R.string.settings_color_night_key, R.color.settings_color_night_default)
+                if (mode == 1)
+                    addColors(day, night)
+                else {
+                    val morning = preferences.getColor(context, R.string.settings_color_morning_key, R.color.settings_color_morning_default)
+                    val evening = preferences.getColor(context, R.string.settings_color_evening_key, R.color.settings_color_evening_default)
+                    addColors(morning, day, evening, night)
+                }
             }
         }
     }
 
     fun setLocation(location: Location) {
         sunsetRise.updateLocation(location)
-        synchronized(updateLock) {
+        synchronized(timerActive) {
             stopUpdate()
             startUpdate()
         }
