@@ -45,6 +45,7 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
+import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
@@ -188,16 +189,19 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private fun changeMapOverlay(type: String) {
         if (map != null) {
             if (type != this.type || activeOverlay == null) {
-                if (activeOverlay != null)
-                    activeOverlay!!.remove()
-
                 if (type == getString(R.string.map_personal))
                     tileProvider!!.setTypePersonal()
                 else
                     tileProvider!!.setType(type)
 
                 this.type = type
-                fActivity!!.runOnUiThread { activeOverlay = map!!.addTileOverlay(TileOverlayOptions().tileProvider(tileProvider)) }
+
+                val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
+
+                launch(UI) {
+                    activeOverlay?.remove()
+                    activeOverlay = map!!.addTileOverlay(tileOverlayOptions)
+                }
             }
         } else
             this.type = type
