@@ -12,8 +12,11 @@ import com.adsamcik.signalcollector.R.string.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.signin.Signin
+import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.launch
 import okhttp3.internal.http2.StreamResetException
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 class FeedbackUploadJob : JobService() {
     private var worker: UploadTask? = null
@@ -80,6 +83,11 @@ class FeedbackUploadJob : JobService() {
                 val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
                 result.isSuccessful
             } catch (e: StreamResetException) {
+                false
+            } catch (e: SocketTimeoutException) {
+                false
+            } catch (e: IOException) {
+                Crashlytics.logException(e)
                 false
             }
         }
