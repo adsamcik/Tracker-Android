@@ -39,9 +39,9 @@ import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
+import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
-import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
@@ -293,6 +293,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             }
 
         } catch (e: IOException) {
+            Crashlytics.logException(e)
             SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
         }
     }
