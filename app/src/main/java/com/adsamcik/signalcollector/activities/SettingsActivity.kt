@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.Tips
 import com.adsamcik.signalcollector.utility.TrackingLocker
 import java.io.File
 import java.util.*
@@ -91,7 +92,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<UserActivity> { }
         }
 
-
         setOnClickListener(R.string.settings_export_key) {
             startActivity<FileSharingActivity> {}
         }
@@ -108,6 +108,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         val debugTitle = getString(R.string.settings_debug_title)
 
         caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = Preferences.getPref(this).getBoolean(devKey, false)
+
+        caller.findPreference(getString(R.string.show_tips_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            if (newValue as Boolean) {
+                Preferences.getPref(this).edit {
+                    remove(Tips.HOME_TIPS)
+                    remove(Tips.MAP_TIPS)
+                }
+            }
+            true
+        }
 
         val version = caller.findPreference(getString(R.string.settings_app_version_key))
         version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
