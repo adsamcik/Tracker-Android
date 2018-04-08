@@ -152,7 +152,7 @@
     <string name="tutorial_stats_title">Statistiky</string>
     <string name="tutorial_settings_title">Nastavení</string>
     <string name="tutorial_welcome_title">Vítejte v Signals</string>
-    <string name="tutorial_welcome_description">Domově nepřeskočitelných úvodů</string>
+    <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
     <string name="user_not_enough_wp">Nemáte dostatek bezdrátových bodů</string>
     <string name="user_renew_personal_map">Obnovat přístup k osobní mapě</string>
     <string name="settings_disable_tracking_till_recharge">Vypnuto do nabití</string>
@@ -197,4 +197,34 @@
     </string-array>
     <string name="next_part">pokračovat</string>
     <string name="show_tips_title">Zobrazovat tipy</string>
+    <string name="feedback_error_short_summary">Souhrn je příliš stručný</string>
+    <string name="feedback_summary">Souhrn</string>
+    <string name="feedback_description">Popis (dobrovolný)</string>
+    <string name="feedback_feature">Vylepšení</string>
+    <string name="feedback_bug">Chyba</string>
+    <string name="feedback_title">Zpětná vazba</string>
+    <string name="feedback_error_type">Musíte vybrat typ zpětné vazby</string>
+    <string name="feedback_error_long_summary">Souhrn je příliš dlouhý</string>
+    <string name="feedback_error_spaces_summary">Příliš mnoho mezer</string>
+    <string name="feedback_error_long_description">Popis je příliš dlouhý</string>
+    <string name="feedback_error_not_signed_in">Musíte být přihlášen</string>
+    <string name="open_source_licenses">Licence otevřeného softwaru</string>
+    <string name="signin_connecting">Probíhá přihlašování, vyčkejte prosím</string>
+    <string name="other">Ostatní</string>
+    <string name="yes">Ano</string>
+    <string name="no">Ne</string>
+    <string name="send">Odeslat</string>
+    <string name="enable">Povolit</string>
+    <string name="your_stats">Vaše statistiky</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="select_all">Vybrat vše</string>
+    <string name="share_nothing_to_share">Není co sdílet</string>
+    <string name="skip_tips">přeskočit</string>
+    <string name="tips_map_search_title">Vyhledávání</string>
+    <string name="tips_map_search_description">Toto pole slouží pro vyhledávání. Při kliknutí na lupu v pravé části spustíte vyhledávání, alternativně můžete využít vyhledávací tlačítko na vaší klávesnici pokud nějaké má.</string>
+    <string name="tips_map_my_location_title">Moje poloha</string>
+    <string name="tips_map_my_location_description">Kliknutím na toto tlačítko se přesunute na svou aktuální polohu. Mapa bude následovat vaši polohu dokud s ní manuálně nepohnete. Kliknutím na toto tlačítko při sledování polohy spustíte směrový režim.</string>
+    <string name="tips_map_overlay_title">Mapové podklady</string>
+    <string name="tips_map_overlay_description">Pokud jste přihlášeni a máte přístup k mapovým podkladům, můžete vytáhnutím této lišty vzhůru zobrazit výběr dostupných mapových podkladů.</string>
 </resources>
