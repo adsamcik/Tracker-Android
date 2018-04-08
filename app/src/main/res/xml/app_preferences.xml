@@ -186,9 +186,9 @@
             android:title="@string/settings_export_title"/>
 
         <android.support.v7.preference.CheckBoxPreference
-            android:defaultValue="false"
-            android:key="@string/tutorial_seen_key"
-            android:title="@string/tutorial_seen_title"/>
+            android:defaultValue="true"
+            android:key="@string/show_tips_key"
+            android:title="@string/show_tips_title"/>
 
         <Preference
             android:key="@string/settings_licenses_key"

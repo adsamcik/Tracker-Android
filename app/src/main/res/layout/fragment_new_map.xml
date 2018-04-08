@@ -46,7 +46,6 @@
             android:id="@+id/map_menu_button"
             android:layout_width="match_parent"
             android:layout_height="24dp"
-            android:layout_weight="0"
             android:background="@drawable/background_map_menu"
             android:elevation="4dp"
             android:src="@drawable/ic_arrow_upward_black_24dp"
@@ -56,18 +55,19 @@
             app:targetTranslationZ="4dp"
             app:targetView="@id/map_ui_parent"/>
 
-        <android.support.constraint.ConstraintLayout
+        <LinearLayout
             android:id="@+id/layout_map_controls"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:layout_weight="0"
             android:background="@color/cardview_light_background"
-            android:elevation="8dp">
+            android:elevation="8dp"
+            android:orientation="horizontal">
 
             <EditText
                 android:id="@+id/edittext_map_search"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_weight="1"
                 android:background="@android:color/transparent"
                 android:hint="@string/map_search"
                 android:imeOptions="actionSearch"
@@ -88,7 +88,16 @@
                 android:src="@drawable/ic_gps_fixed_black_24dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
-        </android.support.constraint.ConstraintLayout>
+
+            <ImageButton
+                android:id="@+id/button_map_search"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_search_black_24dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+        </LinearLayout>
     </LinearLayout>
 
 </android.support.constraint.ConstraintLayout>

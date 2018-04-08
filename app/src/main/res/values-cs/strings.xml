@@ -195,4 +195,6 @@
         <item>Pouze na Wi-Fi</item>
         <item>Vždy</item>
     </string-array>
+    <string name="next_part">pokračovat</string>
+    <string name="show_tips_title">Zobrazovat tipy</string>
 </resources>

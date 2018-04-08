@@ -10,12 +10,9 @@ import android.support.design.widget.CoordinatorLayout
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
-import android.support.v4.graphics.ColorUtils
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.animation.AccelerateDecelerateInterpolator
-import androidx.core.content.edit
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
@@ -34,15 +31,9 @@ import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.BottomBarBehavior
 import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.Tips
 import com.google.android.gms.location.LocationServices
-import com.takusemba.spotlight.SimpleTarget
-import com.takusemba.spotlight.Spotlight
 import kotlinx.android.synthetic.main.activity_new_ui.*
-import kotlinx.android.synthetic.main.fragment_new_tracker.*
-import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
 
 
 class NewUIActivity : FragmentActivity() {
@@ -83,17 +74,16 @@ class NewUIActivity : FragmentActivity() {
             }
         }
 
-        if (!Preferences.getPref(this).getBoolean(getString(R.string.tutorial_seen_key), false))
-            launch {
-                delay(1000)
-                launch(UI) {
-                    startTutorial()
-                }
-            }
-
         trackerFragment = FragmentNewTracker()
         supportFragmentManager.transaction {
             replace(R.id.root, trackerFragment)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        root.post {
+            Tips.showTips(this, Tips.HOME_TIPS)
         }
     }
 
@@ -255,55 +245,6 @@ class NewUIActivity : FragmentActivity() {
         colorManager.watchElement(ColorView(button_activity, 1, false, false, false, true))
 
         ColorSupervisor.ensureUpdate()
-    }
-
-    private fun startTutorial() {
-        tutorialActive = true
-
-        //val mapDraggableTarget = SimpleTarget.Builder(activity).setPoint(mapDraggable.x, mapDraggable.y).setTitle("Map holder").setDescription("Drag this up to pull up the map").build()
-        val welcome = SimpleTarget.Builder(this)
-                .setTitle(getString(R.string.tutorial_welcome_title))
-                .setRadius(0.00001f)
-                .setDescription(getString(R.string.tutorial_welcome_description)).build()
-
-        var radius = Math.sqrt(Math.pow(button_settings.height.toDouble(), 2.0) + Math.pow(button_settings.width.toDouble(), 2.0)) / 2
-        val settingsButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(button_settings.x + button_settings.pivotX, button_settings.y + button_settings.pivotY)
-                .setTitle(getString(R.string.tutorial_settings_title))
-                .setRadius(radius.toFloat())
-                .setDescription(getString(R.string.tutorial_settings_description)).build()
-
-        radius = Math.sqrt(Math.pow(button_stats.height.toDouble(), 2.0) + Math.pow(button_stats.width.toDouble(), 2.0)) / 2
-        val statsButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(button_stats.x + button_stats.pivotX, button_stats.y + button_stats.pivotY)
-                .setTitle(getString(R.string.tutorial_stats_title))
-                .setRadius(radius.toFloat())
-                .setDescription(getString(R.string.tutorial_stats_description)).build()
-
-        radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
-        val activitiesButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(button_activity.x + button_activity.pivotX, button_activity.y + button_activity.pivotY)
-                .setTitle(getString(R.string.tutorial_activity_title))
-                .setRadius(radius.toFloat())
-                .setDescription(getString(R.string.tutorial_activity_description)).build()
-
-        val mapButtonTarget = SimpleTarget.Builder(this)
-                .setPoint(button_map.x + button_map.pivotX, button_map.y + button_map.pivotY)
-                .setTitle(getString(R.string.tutorial_map_title))
-                .setRadius(48.dpAsPx.toFloat())
-                .setDescription(getString(R.string.tutorial_map_description)).build()
-
-        Spotlight.with(this)
-                .setTargets(welcome, settingsButtonTarget, mapButtonTarget, statsButtonTarget, activitiesButtonTarget)
-                .setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 204))
-                .setAnimation(AccelerateDecelerateInterpolator())
-                .setOnSpotlightEndedListener {
-                    tutorialActive = false
-                    Preferences.getPref(this).edit {
-                        putBoolean(getString(R.string.tutorial_seen_key), true)
-                    }
-                }
-                .start()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

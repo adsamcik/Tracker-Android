@@ -36,14 +36,12 @@ import com.adsamcik.signalcollector.network.SignalsTileProvider
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
-import com.adsamcik.signalcollector.utility.MapFilterRule
-import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
+import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.android.synthetic.main.fragment_new_map.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
@@ -99,7 +97,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
      * Check if permission to access fine location is granted
      * If not and is android 6 or newer, than it prompts you to enable it
      *
-     * @return is permission available atm
+     * @return i
+     * s permission available atm
      */
     private fun checkLocationPermission(context: Context?, request: Boolean): Boolean {
         if (context == null)
@@ -138,6 +137,8 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             this.mapFragment = mapFragment
         } else
             loadMapLayers()
+
+        Tips.showTips(activity, Tips.MAP_TIPS)
     }
 
     override fun onStart() {
@@ -263,22 +264,12 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
     private fun initializeUserElements() {
         initializeKeyboardDetection()
         edittext_map_search.setOnEditorActionListener { v, _, _ ->
-            val geocoder = Geocoder(context)
-            try {
-                val addresses = geocoder.getFromLocationName(v.text.toString(), 1)
-                if (addresses != null && addresses.size > 0) {
-                    if (map != null && locationListener != null) {
-                        val address = addresses[0]
-                        locationListener!!.stopUsingUserPosition(true)
-                        locationListener!!.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
-                    }
-                }
-
-            } catch (e: IOException) {
-                SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
-            }
-
+            search(v.text.toString())
             true
+        }
+
+        button_map_search.setOnClickListener {
+            search(edittext_map_search.text.toString())
         }
 
         map_menu_button.visibility = View.INVISIBLE
@@ -287,6 +278,23 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
         colorManager!!.watchElement(ColorView(map_menu_button, 2, false, false))
         colorManager!!.watchElement(ColorView(layout_map_controls, 3, true, false))
+    }
+
+    private fun search(searchText: String) {
+        val geocoder = Geocoder(context)
+        try {
+            val addresses = geocoder.getFromLocationName(searchText, 1)
+            if (addresses?.isNotEmpty() == true) {
+                if (map != null && locationListener != null) {
+                    val address = addresses[0]
+                    locationListener!!.stopUsingUserPosition(true)
+                    locationListener!!.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
+                }
+            }
+
+        } catch (e: IOException) {
+            SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
+        }
     }
 
     private fun animateMenuDrawable(@DrawableRes drawableRes: Int) {
