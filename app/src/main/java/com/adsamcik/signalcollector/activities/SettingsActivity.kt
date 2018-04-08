@@ -112,8 +112,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         caller.findPreference(getString(R.string.show_tips_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
                 Preferences.getPref(this).edit {
-                    remove(Tips.HOME_TIPS)
-                    remove(Tips.MAP_TIPS)
+                    remove(Tips.getTipsPreferenceKey(Tips.HOME_TIPS))
+                    remove(Tips.getTipsPreferenceKey(Tips.MAP_TIPS))
                 }
             }
             true
