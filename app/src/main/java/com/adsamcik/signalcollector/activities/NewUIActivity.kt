@@ -40,8 +40,6 @@ class NewUIActivity : FragmentActivity() {
     private lateinit var colorManager: ColorManager
     private var themeLocationRequestCode = 4513
 
-    private var tutorialActive = false
-
     private var draggableOriginalMargin = Int.MIN_VALUE
 
     private var mapFragment: FragmentNewMap? = null
@@ -289,7 +287,7 @@ class NewUIActivity : FragmentActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        return if (!tutorialActive && root.touchDelegate.onTouchEvent(event))
+        return if (!Tips.active && root.touchDelegate.onTouchEvent(event))
             true
         else
             super.dispatchTouchEvent(event)

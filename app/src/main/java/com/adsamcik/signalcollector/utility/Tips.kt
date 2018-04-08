@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.utility
 
 import android.app.Activity
-import android.content.Context
 import android.graphics.Color
 import android.graphics.PointF
 import android.support.v4.graphics.ColorUtils
@@ -21,6 +20,8 @@ import com.takusemba.spotlight.shapes.RoundedRectangle
 object Tips {
     const val HOME_TIPS = "home_tips"
     const val MAP_TIPS = "map_tips"
+
+    var active = false
 
     fun getTipsPreferenceKey(key: String) = "tip:$key"
 
@@ -100,8 +101,11 @@ object Tips {
                         Preferences.getPref(this).edit {
                             putBoolean(getTipsPreferenceKey(HOME_TIPS), true)
                         }
+                        active = false
                     }
                     .start()
+
+            active = true
         }
     }
 
@@ -164,8 +168,11 @@ object Tips {
                         Preferences.getPref(this).edit {
                             putBoolean(getTipsPreferenceKey(MAP_TIPS), true)
                         }
+                        active = false
                     }
                     .start()
+
+            active = true
         }
     }
 }
