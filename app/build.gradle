@@ -18,7 +18,7 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 27
-        versionCode 249
+        versionCode 250
         versionName "6.0.β4 Naaru the colorful"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
@@ -64,7 +64,7 @@ dependencies {
     //3rd party dependencies
     implementation 'com.squareup.okhttp3:okhttp:3.10.0'
     implementation 'com.github.apl-devs:appintro:v4.2.3'
-    implementation 'com.adsamcik:spotlight:2.0.3'
+    implementation 'com.adsamcik:spotlight:2.0.4'
     implementation 'com.jaredrummler:colorpicker:1.0.2'
     implementation "com.vimeo.stag:stag-library:$stag_version", {
         exclude group: 'com.intellij', module: 'annotations'
