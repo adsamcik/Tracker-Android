@@ -27,7 +27,7 @@ object Tips {
     fun showTips(activity: Activity, key: String) {
         val preferences = Preferences.getPref(activity)
         val tipsPreferenceKey = activity.getString(R.string.show_tips_key)
-        if (preferences.getBoolean(tipsPreferenceKey, true) && !preferences.getBoolean(getTipsPreferenceKey(key), false) || true) {
+        if (preferences.getBoolean(tipsPreferenceKey, true) && !preferences.getBoolean(getTipsPreferenceKey(key), false)) {
             when (key) {
                 HOME_TIPS -> showHomeTips(activity)
                 MAP_TIPS -> showMapTips(activity)
