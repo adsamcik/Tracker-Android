@@ -11,12 +11,33 @@ import android.support.v7.preference.PreferenceFragmentCompat
 import android.support.v7.preference.PreferenceGroup
 
 /**
- * Searches for preference using title
+ * Finds a {@link Preference} based on its title.
+ *
+ * @param title Title used for the search
+ */
+fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(title: CharSequence): Preference? {
+    return findDirectPreferenceByTitle(title) as T
+}
+
+/**
+ * Finds a {@link Preference} based on its title.
  *
  * @param title Title used for the search
  */
 fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): Preference? {
     return preferenceScreen?.findDirectPreferenceByTitle(title)
+}
+
+
+/**
+ * Finds a {@link Preference} based on its key.
+ *
+ * @param key The key of the preference to retrieve.
+ * @return The {@link Preference} with the key, or null.
+ * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ */
+fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
+    return findPreference(title) as T
 }
 
 /**
