@@ -102,8 +102,7 @@ class TrackerService : LifecycleService() {
                     if (timeDiff >= 0) {
                         val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation!!, location, timeDiff))
                         distanceToWifi = distTo.toInt()
-                        //Log.d(TAG, "dist to wifi " + distTo);
-                        val UPDATE_MAX_DISTANCE_TO_WIFI = 40
+
                         if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
                             d.setWifi(wifiScanData, wifiScanTime)
                     }
@@ -414,6 +413,7 @@ class TrackerService : LifecycleService() {
         private const val NOTIFICATION_ID_SERVICE = -7643
 
         private const val MIN_DISTANCE_M = 5f
+        private const val UPDATE_MAX_DISTANCE_TO_WIFI = 40
 
         const val UPDATE_TIME_SEC = 2
         private const val UPDATE_TIME_MILLIS = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
