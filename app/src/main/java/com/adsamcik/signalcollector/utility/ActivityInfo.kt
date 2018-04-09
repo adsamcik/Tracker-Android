@@ -51,7 +51,7 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
                 }
 
         fun getResolvedActivityName(context: Context, @ResolvedActivity resolvedActivity: Int): String =
-                when (resolveActivity(resolvedActivity)) {
+                when (resolvedActivity) {
                     ResolvedActivity.STILL -> context.getString(R.string.activity_idle)
                     ResolvedActivity.ON_FOOT -> context.getString(R.string.activity_on_foot)
                     ResolvedActivity.IN_VEHICLE -> context.getString(R.string.activity_in_vehicle)
