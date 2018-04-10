@@ -4,15 +4,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.services.ActivityService
+import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.TrackingLocker
 import com.crashlytics.android.Crashlytics
 
 class OnAppUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         if (action != null && action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+
             val sp = Preferences.getPref(context)
             val editor = sp.edit()
             Assist.initialize(context)
@@ -34,6 +39,10 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             }
 
             editor.apply()
+
+            TrackingLocker.initializeFromPersistence(context)
+            ActivityWakerService.pokeWithCheck(context)
+            ActivityService.requestAutoTracking(context, LaunchActivity::class.java)
         }
     }
 }
