@@ -8,7 +8,7 @@ if (file('key.gradle').exists())
     apply from: 'key.gradle'
 
 ext.play_services_version = '12.0.1'
-ext.support_version = '27.1.0'
+ext.support_version = '27.1.1'
 ext.stag_version = '2.5.1'
 
 android {
@@ -96,11 +96,11 @@ dependencies {
     }
 
     implementation "android.arch.lifecycle:extensions:1.1.1"
-    kapt "android.arch.lifecycle:compiler:1.1.1"
 
 
     //Annotation processors
     annotationProcessor "com.vimeo.stag:stag-library-compiler:$stag_version"
+    kapt "android.arch.lifecycle:compiler:1.1.1"
 
     //Test implementations
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
