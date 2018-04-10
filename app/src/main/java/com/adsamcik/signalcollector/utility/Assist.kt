@@ -18,7 +18,6 @@ import android.support.annotation.ColorInt
 import android.support.v4.content.ContextCompat
 import android.support.v4.content.res.ResourcesCompat
 import android.telephony.TelephonyManager
-import android.util.DisplayMetrics
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
@@ -105,7 +104,10 @@ object Assist {
         // navigation bar on the right
         if (appUsableSize.x < realScreenSize.x) {
             //App supports only phones so there should be no scenario where orientation is 0 or 180
-            return Pair(if (rotation == Surface.ROTATION_90) NavBarPosition.RIGHT else NavBarPosition.LEFT, Point(realScreenSize.x - appUsableSize.x, appUsableSize.y))
+            return Pair(
+                    if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < 26) NavBarPosition.RIGHT
+                    else NavBarPosition.LEFT,
+                    Point(realScreenSize.x - appUsableSize.x, appUsableSize.y))
         }
 
         // navigation bar at the bottom
