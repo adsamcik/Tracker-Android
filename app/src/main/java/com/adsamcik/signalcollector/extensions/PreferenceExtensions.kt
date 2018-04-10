@@ -15,7 +15,8 @@ import android.support.v7.preference.PreferenceGroup
  *
  * @param title Title used for the search
  */
-fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(title: CharSequence): Preference? {
+fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(title: CharSequence): T {
+    @Suppress("UNCHECKED_CAST")
     return findDirectPreferenceByTitle(title) as T
 }
 
@@ -37,6 +38,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
+    @Suppress("UNCHECKED_CAST")
     return findPreference(title) as T
 }
 
