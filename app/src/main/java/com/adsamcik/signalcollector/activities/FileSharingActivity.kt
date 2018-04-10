@@ -83,7 +83,7 @@ class FileSharingActivity : DetailActivity() {
                         if (c.renameTo(target)) {
                             val fileUri = FileProvider.getUriForFile(
                                     this@FileSharingActivity,
-                                    "com.asdamcik.signalcollector.fileprovider",
+                                    "com.adsamcik.signalcollector.fileprovider",
                                     target)
                             val shareIntent = Intent()
                             shareIntent.action = Intent.ACTION_SEND
