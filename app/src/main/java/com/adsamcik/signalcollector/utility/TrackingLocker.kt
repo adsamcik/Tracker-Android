@@ -103,7 +103,7 @@ object TrackingLocker {
         synchronized(lockedUntilRecharge) {
             val scheduler = scheduler(context)
             val jobBuilder = JobInfo.Builder(JOB_DISABLE_TILL_RECHARGE_ID, ComponentName(context, DisableTillRechargeJobService::class.java))
-            jobBuilder.setPersisted(true).setRequiresCharging(true).setRequiresDeviceIdle(false)
+            jobBuilder.setPersisted(true).setRequiresCharging(true)
             if (scheduler.schedule(jobBuilder.build()) == JobScheduler.RESULT_SUCCESS) {
                 setRechargeLock(context, true)
                 return true
