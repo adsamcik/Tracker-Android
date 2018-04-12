@@ -49,8 +49,8 @@
             android:id="@+id/layout_server_settings"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/edge_margin"
             android:orientation="vertical"
-            android:paddingTop="@dimen/edge_margin"
             android:visibility="gone">
 
             <TextView
@@ -88,8 +88,8 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingTop="@dimen/edge_margin">
+                android:layout_marginTop="@dimen/edge_margin"
+                android:orientation="vertical">
 
                 <Switch
                     android:id="@+id/switch_renew_personal_map"
