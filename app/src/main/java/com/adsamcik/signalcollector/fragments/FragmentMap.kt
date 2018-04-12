@@ -52,7 +52,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
+class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
     private var locationListener: UpdateLocationListener? = null
     private var type: String? = null
     private var map: GoogleMap? = null
@@ -85,7 +85,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
-            val newFrag = FragmentNewMap()
+            val newFrag = FragmentMap()
             fActivity!!.supportFragmentManager.transactionStateLoss {
                 replace(R.id.container, newFrag, getString(R.string.menu_map))
             }

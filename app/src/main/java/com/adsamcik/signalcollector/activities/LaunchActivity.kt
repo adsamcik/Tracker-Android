@@ -65,7 +65,7 @@ class LaunchActivity : Activity() {
             }
         }
 
-        startActivity<NewUIActivity> { }
+        startActivity<MainActivity> { }
 
         if (Build.VERSION.SDK_INT >= 25)
             Shortcuts.initializeShortcuts(this)

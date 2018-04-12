@@ -20,7 +20,7 @@ import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.fragments.FragmentNewSettings
+import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
@@ -35,7 +35,7 @@ import java.util.*
 
 
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
-    lateinit var fragment: FragmentNewSettings
+    lateinit var fragment: FragmentSettings
 
     private val backstack = ArrayList<PreferenceScreen>()
 
@@ -45,9 +45,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         super.onCreate(savedInstanceState)
 
         createContentParent(false)
-        fragment = FragmentNewSettings()
+        fragment = FragmentSettings()
         supportFragmentManager.transaction {
-            replace(CONTENT_ID, fragment, FragmentNewSettings.TAG)
+            replace(CONTENT_ID, fragment, FragmentSettings.TAG)
             runOnCommit { initializeRoot(fragment) }
         }
 

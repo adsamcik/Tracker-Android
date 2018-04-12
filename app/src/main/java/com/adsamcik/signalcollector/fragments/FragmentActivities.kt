@@ -30,7 +30,7 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import kotlin.math.roundToInt
 
-class FragmentNewActivities : Fragment(), IOnDemandView {
+class FragmentActivities : Fragment(), IOnDemandView {
     private lateinit var listViewChallenges: ListView
     private lateinit var refreshLayout: SwipeRefreshLayout
 

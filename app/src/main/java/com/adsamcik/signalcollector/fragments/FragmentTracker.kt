@@ -44,7 +44,7 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.*
 
-class FragmentNewTracker : Fragment() {
+class FragmentTracker : Fragment() {
     private lateinit var colorManager: ColorManager
 
     private var wifiInfo: InfoComponent? = null

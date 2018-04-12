@@ -18,10 +18,10 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.fragments.FragmentNewActivities
-import com.adsamcik.signalcollector.fragments.FragmentNewMap
-import com.adsamcik.signalcollector.fragments.FragmentNewStats
-import com.adsamcik.signalcollector.fragments.FragmentNewTracker
+import com.adsamcik.signalcollector.fragments.FragmentActivities
+import com.adsamcik.signalcollector.fragments.FragmentMap
+import com.adsamcik.signalcollector.fragments.FragmentStats
+import com.adsamcik.signalcollector.fragments.FragmentTracker
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.NotificationChannels
@@ -36,13 +36,13 @@ import com.google.android.gms.location.LocationServices
 import kotlinx.android.synthetic.main.activity_new_ui.*
 
 
-class NewUIActivity : FragmentActivity() {
+class MainActivity : FragmentActivity() {
     private lateinit var colorManager: ColorManager
     private var themeLocationRequestCode = 4513
 
     private var draggableOriginalMargin = Int.MIN_VALUE
 
-    private var mapFragment: FragmentNewMap? = null
+    private var mapFragment: FragmentMap? = null
 
     private lateinit var trackerFragment: Fragment
 
@@ -72,7 +72,7 @@ class NewUIActivity : FragmentActivity() {
             }
         }
 
-        trackerFragment = FragmentNewTracker()
+        trackerFragment = FragmentTracker()
         supportFragmentManager.transaction {
             replace(R.id.root, trackerFragment)
         }
@@ -112,7 +112,7 @@ class NewUIActivity : FragmentActivity() {
                 showBottomLayer()
         }
 
-        val statsPayload = DraggablePayload(this, FragmentNewStats::class.java, root, root)
+        val statsPayload = DraggablePayload(this, FragmentStats::class.java, root, root)
         statsPayload.width = MATCH_PARENT
         statsPayload.height = MATCH_PARENT
         statsPayload.initialTranslation = Point(-size.x, 0)
@@ -135,7 +135,7 @@ class NewUIActivity : FragmentActivity() {
                 showBottomLayer()
         }
 
-        val activityPayload = DraggablePayload(this, FragmentNewActivities::class.java, root, root)
+        val activityPayload = DraggablePayload(this, FragmentActivities::class.java, root, root)
         activityPayload.width = MATCH_PARENT
         activityPayload.height = MATCH_PARENT
         activityPayload.initialTranslation = Point(size.x, 0)
@@ -162,7 +162,7 @@ class NewUIActivity : FragmentActivity() {
             }
         }
 
-        val mapPayload = DraggablePayload(this, FragmentNewMap::class.java, root, root)
+        val mapPayload = DraggablePayload(this, FragmentMap::class.java, root, root)
         mapPayload.width = MATCH_PARENT
         mapPayload.height = MATCH_PARENT
         mapPayload.initialTranslation = Point(0, realSize.y)

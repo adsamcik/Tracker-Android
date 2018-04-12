@@ -36,7 +36,7 @@ import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentNewStats : Fragment(), IOnDemandView {
+class FragmentStats : Fragment(), IOnDemandView {
     private lateinit var fragmentView: View
 
     private var adapter: TableAdapter? = null
