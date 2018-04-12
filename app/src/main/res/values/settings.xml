@@ -52,7 +52,7 @@
     <string name="settings_location_enabled_key" translatable="false">trackingLocationEnabled</string>
     <string name="settings_location_enabled_default" translatable="false">true</string>
 
-    <string name="settings_wifi_enabled_title">Wifi tracking</string>
+    <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
     <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
     <string name="settings_wifi_enabled_default" translatable="false">true</string>
 

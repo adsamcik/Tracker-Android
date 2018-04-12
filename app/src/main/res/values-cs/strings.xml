@@ -236,4 +236,26 @@
     <string name="more_uploads">Více nahrání</string>
     <string name="notification_found">Nalezeno</string>
     <string name="new_cell">%1$d nových mobilních vysílačů</string>
+    <string name="main_cell_current">%1$s %2$d dbm, %3$d asu</string>
+    <string name="main_last_update">%1$s</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="settings_wifi_enabled_title">Sběr Wi-Fi</string>
+    <string name="challenge_progress">%1$d%%</string>
+    <string-array name="lorem_ipsum_facts">
+        <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
+        <item>Lorem ipsum se používá již od roku 16. století</item>
+        <item>Lorem ipsum není latina, ale hatmatilka</item>
+        <item>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</item>
+        <item>One morning, when Gregor Samsa woke from troubled dreams…</item>
+        <item>Far far away, behind the word mountains…</item>
+        <item>But I must explain to you how all this mistaken idea…</item>
+        <item>Sed ut perspiciatis unde omnis iste natus error…</item>
+        <item>Bacon ipsum dolor amet swine filet mignon boudin turducken.</item>
+        <item>Dodělat více textu, kterej nikdo neuvidí.</item>
+    </string-array>
+    <string-array name="tracking_options_titles">
+        <item>Vypnuto</item>
+        <item>Pěšky</item>
+        <item>V pohybu</item>
+    </string-array>
 </resources>

@@ -14,7 +14,7 @@
     <string name="challenge_hard">Hard</string>
     <string name="challenge_very_hard">Very hard</string>
 
-    <string name="challenge_progress" translatable="false">%1$d%%</string>
+    <string name="challenge_progress">%1$d%%</string>
 
     <string name="challenge_lawful_explorer_title">Lawful explorer</string>
     <string name="challenge_lawful_explorer_description">Collect %1$s new locations without breaking the speed limit of %2$s km/h</string>
