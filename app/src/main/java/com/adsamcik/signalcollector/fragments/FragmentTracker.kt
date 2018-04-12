@@ -217,8 +217,11 @@ class FragmentTracker : Fragment() {
     private fun updateTrackerButton(state: Boolean) {
         if (state) {
             button_tracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
-        } else
+            button_tracking.contentDescription = getString(R.string.description_tracking_stop)
+        } else {
             button_tracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
+            button_tracking.contentDescription = getString(R.string.description_tracking_start)
+        }
     }
 
     private fun updateUploadButton() {
@@ -339,10 +342,22 @@ class FragmentTracker : Fragment() {
         }
 
         when (d.activity) {
-            ResolvedActivity.STILL -> icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
-            ResolvedActivity.ON_FOOT -> icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
-            ResolvedActivity.IN_VEHICLE -> icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
-            else -> icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
+            ResolvedActivity.STILL -> {
+                icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
+                icon_activity.contentDescription = getString(R.string.activity_idle)
+            }
+            ResolvedActivity.ON_FOOT -> {
+                icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
+                icon_activity.contentDescription = getString(R.string.activity_on_foot)
+            }
+            ResolvedActivity.IN_VEHICLE -> {
+                icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
+                icon_activity.contentDescription = getString(R.string.activity_in_vehicle)
+            }
+            else -> {
+                icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
+                icon_activity.contentDescription = getString(R.string.activity_unknown)
+            }
         }
     }
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Descriptions of images -->
+    <string name="description_my_location">Current location button</string>
+    <string name="description_map_search">Search button</string>
+    <string name="description_upload">Upload button</string>
+    <string name="description_tracking_lock">Lock disabling button</string>
+    <string name="description_tracking_start">Start tracking button</string>
+    <string name="description_tracking_stop">Stop tracking button</string>
+    <string name="description_settings">Settings button</string>
+    <string name="description_storage">Storage icon</string>
+</resources>
