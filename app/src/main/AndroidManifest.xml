@@ -55,11 +55,6 @@
             android:theme="@style/SplashTheme">
         </activity>
         <activity
-            android:name=".activities.StandardUIActivity"
-            android:alwaysRetainTaskState="true"
-            android:launchMode="singleTop"
-            android:screenOrientation="portrait"/>
-        <activity
             android:name=".activities.NewUIActivity"
             android:exported="true"
             android:label="@string/title_activity_new_ui"
@@ -67,10 +62,6 @@
             android:theme="@style/AppThemeTransluscent"
             android:windowSoftInputMode="adjustResize"
             tools:targetApi="n"/>
-        <activity
-            android:name=".activities.IntroActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.NoActionBar"/>
         <activity
             android:name=".activities.UploadReportsActivity"
             android:screenOrientation="portrait"/>

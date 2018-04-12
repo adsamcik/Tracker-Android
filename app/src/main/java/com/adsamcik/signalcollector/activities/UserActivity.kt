@@ -3,7 +3,9 @@ package com.adsamcik.signalcollector.activities
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.*
+import android.widget.Button
+import android.widget.CompoundButton
+import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.network.Network
@@ -181,7 +183,7 @@ class UserActivity : DetailActivity() {
                     CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, Gson().toJson(user), false)
                 } else {
                     launch(UI) { compoundButton.isChecked = !desiredState }
-                    SnackMaker(this@UserActivity).showSnackbar(R.string.user_not_enough_wp)
+                    SnackMaker(root).showSnackbar(R.string.user_not_enough_wp)
                 }
                 launch(UI) { compoundButton.isEnabled = true }
                 response.close()

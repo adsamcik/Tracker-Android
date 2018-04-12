@@ -3,13 +3,9 @@ package com.adsamcik.signalcollector.services
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.arch.lifecycle.LifecycleService
-import android.arch.lifecycle.Observer
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
-import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
@@ -22,7 +18,6 @@ import com.adsamcik.signalcollector.utility.TrackingLocker
 
 class ActivityWakerService : LifecycleService() {
     private var notificationManager: NotificationManager? = null
-    private val NOTIFICATION_ID = -568465
     private var thread: Thread? = null
 
     private var activityInfo = ActivityService.lastActivity
@@ -92,6 +87,8 @@ class ActivityWakerService : LifecycleService() {
     }
 
     companion object {
+        private const val NOTIFICATION_ID = -568465
+
         private var instance: ActivityWakerService? = null
 
         /**

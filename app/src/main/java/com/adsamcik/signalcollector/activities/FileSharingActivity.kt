@@ -9,13 +9,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.components.BottomSheetMenu
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataFile
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.components.BottomSheetMenu
-import com.adsamcik.signalcollector.uitools.ColorManager
-import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
 import java.io.File

@@ -1,11 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
 
-    <string name="menu_tracker">tracker</string>
     <string name="menu_map">map</string>
-    <string name="menu_stats">stats</string>
-    <string name="menu_activities">activities</string>
-    <string name="menu_settings">settings</string>
 
     <string name="button_back">back</string>
 
@@ -15,24 +11,11 @@
         <item quantity="other">%d collections</item>
     </plurals>
 
-    <string name="upload_data">Upload data</string>
-    <string name="start_tracking">Start tracking</string>
-
     <string name="main_last_update">%1$s</string>
-    <string name="main_position">N %1$s\nW %2$s\nAltitude %3$d m</string>
-    <string name="main_wifi_title">Wi-Fi</string>
     <string name="main_wifi_updated">found %1$d m before collection</string>
-    <string name="main_wifi_not_updated">not updated this collection</string>
     <string name="main_wifi_count">%1$d in range</string>
-    <string name="main_cell_title">Cell</string>
     <string name="main_cell_count">Cell in range %1$d</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
-    <string name="main_accuracy">Accuracy %1$d m</string>
-    <string name="main_other">Other</string>
-    <string name="main_noise">Noise %1$d (%2$d dB)</string>
-    <string name="main_noise_not_collected">Noise only active on foot</string>
-    <string name="main_noise_disabled">Noise disabled</string>
-    <string name="main_activity">Activity %1$s</string>
 
     <string name="map_search">Search</string>
     <string name="map_personal">Personal</string>
@@ -52,28 +35,14 @@
     <string name="recent_upload_cell_new">New cell</string>
     <string name="recent_upload_collections">Collections</string>
     <string name="recent_upload_locations_new">New locations</string>
-    <string name="recent_upload_noise">Noise collections</string>
-    <string name="recent_upload_noise_new">New noise locations</string>
     <string name="recent_upload_size">Size</string>
 
-    <string name="export_title">Data export</string>
     <string name="export_share_button">Share (Export)</string>
 
     <string name="challenge_list_title">Challenges</string>
 
-    <string name="dev_title">Debug corner</string>
-    <string name="dev_clear_temp_files">Clear temp files</string>
-    <string name="dev_clear_cache">Clear cache</string>
-    <string name="dev_clear_upload_reports">Clear upload reports</string>
-    <string name="dev_clear_data">Clear data</string>
     <string name="dev_browse_files">Browse files</string>
-    <string name="dev_browse_cache_files">Browse cache files</string>
-    <string name="dev_noise_average">Average noise</string>
-    <string name="dev_noise_pocket">Pocket noise</string>
-    <string name="dev_noise_tracking_test">Noise tester</string>
     <string name="dev_notification_dummy">Hello World!</string>
-    <string name="dev_join">59 6f 75 are now developer!</string>
-    <string name="dev_leave">You human! Sit, lie-down, roll around!</string>
     <string name="dev_activity_recognition_title">Activity recognition debug</string>
     <string name="dev_activity_recognition_hide">Filter</string>
     <string name="dev_activity_recognition_show">Show all</string>
@@ -103,13 +72,11 @@
     <string name="feedback_error_long_summary">Summary is too long</string>
     <string name="feedback_error_spaces_summary">Too much spacing</string>
     <string name="feedback_error_long_description">Description is too long</string>
-    <string name="feedback_error_not_signed_in">You must be signed in</string>
 
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
 
     <!-- Signin strings -->
-    <string name="signin_connecting">Signin in, please wait</string>
 
     <!-- Activity strings -->
     <string name="activity_idle">Idle</string>
@@ -128,7 +95,6 @@
     <string name="start">Start</string>
     <string name="stop">Stop</string>
     <string name="clear">Clear</string>
-    <string name="x_second_short">%d s</string>
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
     <string name="share_nothing_to_share">Nothing to share</string>
@@ -137,6 +103,4 @@
     <!-- NEW UI -->
     <string name="info_altitude">%d m altitude</string>
     <string name="info_accuracy">%d m accuracy</string>
-    <string name="info_collected">%s collected</string>
-    <string name="info_collections">%d collections</string>
 </resources>

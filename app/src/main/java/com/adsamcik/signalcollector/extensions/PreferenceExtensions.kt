@@ -33,7 +33,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
 /**
  * Finds a {@link Preference} based on its key.
  *
- * @param key The key of the preference to retrieve.
+ * @param title The title of the preference to retrieve.
  * @return The {@link Preference} with the key, or null.
  * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
  */

@@ -7,14 +7,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
-import android.graphics.Color
 import android.graphics.Point
 import android.location.Location
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.os.Build
 import android.provider.Settings
-import android.support.annotation.ColorInt
 import android.support.v4.content.ContextCompat
 import android.support.v4.content.res.ResourcesCompat
 import android.telephony.TelephonyManager
@@ -60,22 +58,6 @@ object Assist {
         val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
         val pre = (if (si) "kMGTPE" else "KMGTPE")[exp - 1] + if (si) "" else "i"
         return String.format(Locale.getDefault(), "%.1f %sB", bytes / Math.pow(unit.toDouble(), exp.toDouble()), pre)
-    }
-
-    fun getAppUsableScreenSize(context: Context): Point {
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val display = windowManager.defaultDisplay
-        val size = Point()
-        display.getSize(size)
-        return size
-    }
-
-    fun getRealScreenSize(context: Context): Point {
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val display = windowManager.defaultDisplay
-        val size = Point()
-        display.getRealSize(size)
-        return size
     }
 
     enum class NavBarPosition {
@@ -157,15 +139,6 @@ object Assist {
         }
         return null
     }
-
-    /**
-     * Converts amplitude to dbm
-     *
-     * @param amplitude amplitude
-     * @return dbm
-     */
-    fun amplitudeToDbm(amplitude: Short): Double =
-            20 * Math.log10(Math.abs(amplitude.toInt()).toDouble())
 
     /**
      * Converts coordinate to string
@@ -264,10 +237,6 @@ object Assist {
         }
         return true
     }
-
-
-    fun invertColor(@ColorInt color: Int): Int =
-            Color.argb(Color.alpha(color), 255 - Color.red(color), 255 - Color.green(color), 255 - Color.blue(color))
 
     /**
      * Animate smooth scroll to y coordinate

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <integer name="morph_duration">450</integer>
     <integer name="viewport_width">48</integer>
     <integer name="viewport_height">48</integer>
     <integer name="viewport_center_x">24</integer>

@@ -13,7 +13,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
-import com.adsamcik.signalcollector.utility.Assist
 
 
 class InfoComponent : FrameLayout {

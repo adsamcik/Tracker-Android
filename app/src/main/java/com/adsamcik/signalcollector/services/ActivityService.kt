@@ -113,7 +113,7 @@ class ActivityService : IntentService("ActivityService") {
             val hash = tClass.hashCode()
             val index = mActiveRequests.indexOfKey(hash)
             if (index < 0) {
-                mActiveRequests.append(hash, ActivityRequestInfo(hash, updateRate, backgroundTracking))
+                mActiveRequests.append(hash, ActivityRequestInfo(updateRate, backgroundTracking))
             } else {
                 val ari = mActiveRequests.valueAt(index)
                 ari.isBackgroundTracking = backgroundTracking
@@ -161,7 +161,7 @@ class ActivityService : IntentService("ActivityService") {
          */
         private fun generateExtremeRequest(): ActivityRequestInfo {
             if (mActiveRequests.size() == 0)
-                return ActivityRequestInfo(0, Integer.MIN_VALUE, false)
+                return ActivityRequestInfo(Integer.MIN_VALUE, false)
 
             var backgroundTracking = false
             var min = Integer.MAX_VALUE
@@ -171,7 +171,7 @@ class ActivityService : IntentService("ActivityService") {
                     min = ari.updateDelay
                 backgroundTracking = backgroundTracking or ari.isBackgroundTracking
             }
-            return ActivityRequestInfo(0, min, backgroundTracking)
+            return ActivityRequestInfo(min, backgroundTracking)
         }
 
         private fun initializeActivityClient(context: Context, delayInS: Int): Boolean {

@@ -32,6 +32,7 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
+import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
@@ -150,7 +151,7 @@ class FragmentNewStats : Fragment(), IOnDemandView {
 
     private fun handleResponse(activity: Activity, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehavior appendBehavior: Int) {
         if (!state.success)
-            SnackMaker(activity).showSnackbar(state.toString(activity))
+            SnackMaker(root).showSnackbar(state.toString(activity))
         refreshingCount--
         if (state.dataAvailable)
             launch(UI) {

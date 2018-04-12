@@ -38,6 +38,7 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
+import kotlinx.android.synthetic.main.activity_new_ui.*
 import kotlinx.android.synthetic.main.fragment_new_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
@@ -142,12 +143,12 @@ class FragmentNewTracker : Fragment() {
         if (requiredPermissions == null) {
             if (!TrackerService.isRunning) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
+                    SnackMaker(root).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
                         val gpsOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(gpsOptionsIntent)
                     })
                 } else if (!Assist.canTrack(activity)) {
-                    SnackMaker(activity).showSnackbar(R.string.error_nothing_to_track)
+                    SnackMaker(root).showSnackbar(R.string.error_nothing_to_track)
                 } else {
                     Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false).apply()
                     val trackerService = Intent(activity, TrackerService::class.java)
@@ -195,7 +196,7 @@ class FragmentNewTracker : Fragment() {
             val failure = UploadJobService.requestUpload(context, UploadJobService.UploadScheduleSource.USER)
             FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
             if (failure.hasFailed())
-                SnackMaker(activity!!).showSnackbar(failure.value!!)
+                SnackMaker(root).showSnackbar(failure.value!!)
             else {
                 updateUploadButton()
             }

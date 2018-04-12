@@ -5,7 +5,6 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
-import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
 
 

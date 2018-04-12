@@ -3,9 +3,7 @@ package com.adsamcik.signalcollector.fragments
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
-import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.graphics.ColorUtils
 import android.support.v4.widget.SwipeRefreshLayout
@@ -19,7 +17,6 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
 import com.adsamcik.signalcollector.enums.ChallengeDifficulty
-import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
@@ -28,11 +25,12 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
+import kotlinx.android.synthetic.main.fragment_activities.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import kotlin.math.roundToInt
 
-class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
+class FragmentNewActivities : Fragment(), IOnDemandView {
     private lateinit var listViewChallenges: ListView
     private lateinit var refreshLayout: SwipeRefreshLayout
 
@@ -41,7 +39,7 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val rootView = inflater.inflate(R.layout.fragment_activities, container, false)
 
-        listViewChallenges = rootView.findViewById<ListView>(R.id.listview_challenges)
+        listViewChallenges = rootView.findViewById(R.id.listview_challenges)
 
         refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
         refreshLayout.setColorSchemeResources(R.color.color_primary)
@@ -76,7 +74,7 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
             launch {
                 val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
                 if (!source.success)
-                    SnackMaker(activity).showSnackbar(R.string.error_connection_failed)
+                    SnackMaker(activities_root).showSnackbar(R.string.error_connection_failed)
                 else {
                     launch(UI) {
                         (listViewChallenges.adapter as ChallengesAdapter).updateData(challenges!!)
@@ -87,19 +85,11 @@ class FragmentNewActivities : Fragment(), ITabFragment, IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: FragmentActivity, fabOne: FloatingActionButton, fabTwo: FloatingActionButton) {}
-
-    override fun onLeave(activity: FragmentActivity) {}
-
     override fun onEnter(activity: Activity) {}
 
     override fun onLeave(activity: Activity) {}
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
-
-    }
-
-    override fun onHomeAction() {
 
     }
 

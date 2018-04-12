@@ -10,15 +10,6 @@
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
     </style>
 
-    <style name="AppThemeDark" parent="Theme.AppCompat.NoActionBar">
-        <item name="colorPrimary">@color/color_primary</item>
-        <item name="colorPrimaryDark">@color/color_primary_dark</item>
-        <item name="colorAccent">@color/color_accent</item>
-        <item name="android:windowTranslucentNavigation">false</item>
-        <item name="android:windowTranslucentStatus">true</item>
-        <item name="titleColor">@color/text_primary</item>
-    </style>
-
     <style name="AppThemeTransluscent" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowTranslucentNavigation">true</item>
         <item name="android:windowTranslucentStatus">true</item>
@@ -44,29 +35,6 @@
         <item name="android:windowBackground">@drawable/background_splash</item>
         <item name="android:windowTranslucentNavigation">true</item>
         <item name="android:windowTranslucentStatus">true</item>
-    </style>
-
-    <style name="AlertDialog" parent="android:Theme.Material.Dialog.Alert">
-        <item name="android:colorPrimary">@color/color_primary</item>
-        <item name="android:colorAccent">@color/text_accent</item>
-    </style>
-
-    <style name="SecondaryText">
-        <item name="android:textColor">?android:textColorSecondary</item>
-        <item name="android:textSize">@dimen/secondary_text_size</item>
-    </style>
-
-    <style name="PrimaryText">
-        <item name="android:textColor">?android:textColorPrimary</item>
-        <item name="android:textSize">@dimen/primary_text_size</item>
-    </style>
-
-    <style name="SettingsTitle" parent="SettingsItem">
-        <item name="android:textColor">?android:textColorSecondary</item>
-        <item name="android:textSize">@dimen/secondary_text_size</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
     </style>
 
     <style name="SettingsText" parent="SettingsItem">
@@ -127,7 +95,4 @@
         <item name="android:inputType">textMultiLine</item>
     </style>
 
-    <style name="AppThemeLight.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
-
-    <style name="AppThemeLight.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"/>
 </resources>

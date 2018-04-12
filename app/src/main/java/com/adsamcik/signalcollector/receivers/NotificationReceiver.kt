@@ -13,8 +13,6 @@ import com.adsamcik.signalcollector.utility.TrackingLocker
 import com.google.firebase.analytics.FirebaseAnalytics
 
 class NotificationReceiver : BroadcastReceiver() {
-    private val TAG = "SignalsNotifiReceiver"
-
     override fun onReceive(context: Context, intent: Intent) {
         val value = intent.getIntExtra(ACTION_STRING, -1)
         val params = Bundle()
@@ -38,6 +36,7 @@ class NotificationReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        private const val TAG = "SignalsReceiver"
         const val ACTION_STRING = "action"
         const val STOP_MINUTES_EXTRA = "stopForMinutes"
     }

@@ -102,10 +102,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<LicenseActivity> { }
         }
 
-        setOnClickListener(R.string.settings_standard_design_key) {
-            startActivity<StandardUIActivity> { }
-        }
-
         val devKey = getString(R.string.settings_debug_key)
         val debugTitle = getString(R.string.settings_debug_title)
 
@@ -141,7 +137,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = true
                 (caller.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
             } else if (clickCount >= 4) {
-                showToast(getString(R.string.settings_debug_available_in, 7 - clickCount))
+                showToast(resources.getQuantityString(R.plurals.settings_debug_available_in, 7 - clickCount))
             }
             true
         }
