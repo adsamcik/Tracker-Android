@@ -17,10 +17,17 @@ import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
+//Cannot be annotated with ColorInt yet
+typealias ColorListener = (luminance: Byte, backgroundColor: Int) -> Unit
 
 class ColorManager {
+    private val watchedElements = ArrayList<ColorView>(5)
 
-    private val watchedElements = ArrayList<ColorView>()
+    /**
+     * Colors listener array. Holds all listeners.
+     *
+     */
+    private val colorChangeListeners = ArrayList<ColorListener>(0)
 
     fun watchElement(view: ColorView) {
         synchronized(watchedElements) {
@@ -100,9 +107,34 @@ class ColorManager {
         }
     }
 
-    fun stopWatchingAll() {
+    fun cleanup() {
         synchronized(watchedElements) {
             watchedElements.clear()
+        }
+
+        synchronized(colorChangeListeners) {
+            colorChangeListeners.clear()
+        }
+    }
+
+    /**
+     * Adds color listener which is called on change. It is not guaranteed to be called on UI thread.
+     * For views [watchElement] should be used.
+     * Listener returns only luminance and background color
+     */
+    fun addListener(colorListener: ColorListener) {
+        synchronized(colorChangeListeners) {
+            colorChangeListeners.add(colorListener)
+            colorListener.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(false))
+        }
+    }
+
+    /**
+     * Removes listener
+     */
+    fun removeListener(colorListener: ColorListener) {
+        synchronized(colorChangeListeners) {
+            colorChangeListeners.remove(colorListener)
         }
     }
 
@@ -113,6 +145,10 @@ class ColorManager {
                     updateInternal(it)
                 }
             }
+        }
+
+        synchronized(colorChangeListeners) {
+            colorChangeListeners.forEach { it.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(false)) }
         }
     }
 

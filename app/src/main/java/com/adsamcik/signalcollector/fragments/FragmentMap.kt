@@ -342,7 +342,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         userRadius = null
         userCenter = null
         val context = context ?: return
-        map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style))
+
+        colorManager!!.addListener { luminance, _ ->
+            if(luminance >= 0)
+                map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style))
+            else
+                map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark))
+        }
 
         //does not work well with bearing. Known bug in Google maps api since 2014.
         //Unfortunately had to be implemented anyway under new UI because Google requires Google logo to be visible at all times.

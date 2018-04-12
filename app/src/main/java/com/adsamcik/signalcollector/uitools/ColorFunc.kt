@@ -19,5 +19,5 @@ fun relBlue(@ColorInt color: Int) = Color.blue(color) / 255.0
 
 fun perceivedLuminance(@ColorInt color: Int) = 0.299 * relRed(color) + 0.587 * relGreen(color) + 0.114 * relBlue(color)
 
-fun perceivedRelLuminance(@ColorInt color: Int) = Math.signum(perceivedLuminance(color) - 0.5).toInt()
-fun relLuminance(@ColorInt color: Int) = Math.signum(ColorUtils.calculateLuminance(color) - 0.5).toInt()
+fun perceivedRelLuminance(@ColorInt color: Int) = Math.signum(perceivedLuminance(color) - 0.5).toByte()
+fun relLuminance(@ColorInt color: Int) = Math.signum(ColorUtils.calculateLuminance(color) - 0.5).toByte()

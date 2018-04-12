@@ -20,7 +20,6 @@ import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
 
-
 internal object ColorSupervisor {
     //Lock order colorList, colorManagerLock, timer
 
@@ -39,7 +38,7 @@ internal object ColorSupervisor {
     private var darkTextColor: Int = 0
     private var lightTextColor: Int = 0
 
-    var currentLuminance = 0
+    var currentLuminance: Byte = 0
         private set
 
     @ColorInt
@@ -52,7 +51,12 @@ internal object ColorSupervisor {
 
     @ColorInt
     fun foregroundColorFor(colorView: ColorView): Int {
-        return if (colorView.backgroundIsForeground)
+        return foregroundColorFor(colorView.backgroundIsForeground)
+    }
+
+    @ColorInt
+    fun foregroundColorFor(backgroundIsForeground: Boolean): Int {
+        return if (backgroundIsForeground)
             currentBaseColor
         else
             currentForegroundColor
@@ -60,7 +64,12 @@ internal object ColorSupervisor {
 
     @ColorInt
     fun backgroundColorFor(colorView: ColorView): Int {
-        return if (colorView.backgroundIsForeground)
+        return backgroundColorFor(colorView.backgroundIsForeground)
+    }
+
+    @ColorInt
+    fun backgroundColorFor(backgroundIsForeground: Boolean): Int {
+        return if (backgroundIsForeground)
             currentForegroundColor
         else
             currentBaseColor
@@ -86,7 +95,7 @@ internal object ColorSupervisor {
     fun recycleColorManager(colorManager: ColorManager) {
         colorManagerLock.lock()
         colorManagers.remove(colorManager)
-        colorManager.stopWatchingAll()
+        colorManager.cleanup()
         if (colorManagers.isEmpty()) {
             colorManagers.trimToSize()
             colorManagerLock.unlock()
