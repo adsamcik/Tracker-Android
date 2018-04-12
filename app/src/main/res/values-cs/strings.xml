@@ -50,7 +50,6 @@
     <string name="settings_notifications_title">Notifikace</string>
     <string name="settings_smart_upload_title">Používat chytré nahrávání</string>
     <string name="settings_smart_upload_summary">Chytré nahrávání za vás rozhoduje kdy data nahrávat na základě několika faktorů</string>
-    <string name="settings_standard_design_title">Standardní uživatelské rozhraní</string>
     <string name="settings_style_mode_title">Režim barev</string>
     <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
     <string name="new_upload_summary">Nový souhrn nahraných dat</string>
