@@ -323,13 +323,40 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 styleKey, defaultColorKey -> ColorSupervisor.initializeFromPreferences(this)
                 morningKey, dayKey, eveningKey, nightKey -> {
                     if (preferences.contains(key)) {
+                        val stylePrefVal = stylePreference.value.toInt()
+
+                        //-1 indexes are meant to crash the application so an issue is found. They should never happen.
+
                         val index = when (key) {
-                            morningKey -> 0
-                            dayKey -> if (stylePreference.value.toInt() <= 1) 0 else 1
-                            eveningKey -> 2
-                            nightKey -> if (stylePreference.value.toInt() == 1) 1 else 3
+                            morningKey -> {
+                                if (stylePrefVal < 2)
+                                    return@OnSharedPreferenceChangeListener
+                                else
+                                    2
+                            }
+                            dayKey -> {
+                                if (stylePrefVal < 2)
+                                    0
+                                else
+                                    1
+                            }
+                            eveningKey -> {
+                                if (stylePrefVal < 2)
+                                    return@OnSharedPreferenceChangeListener
+                                else
+                                    2
+                            }
+                            nightKey -> {
+                                when (stylePrefVal) {
+                                    0 -> return@OnSharedPreferenceChangeListener
+                                    1 -> 1
+                                    2 -> 3
+                                    else -> -1
+                                }
+                            }
                             else -> -1
                         }
+
                         ColorSupervisor.updateColorAt(index, preferences.getInt(key, 0))
                     }
                 }
