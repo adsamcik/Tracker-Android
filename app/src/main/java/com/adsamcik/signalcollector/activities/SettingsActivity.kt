@@ -137,7 +137,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = true
                 (caller.findPreference(devKey) as SwitchPreferenceCompat).isChecked = true
             } else if (clickCount >= 4) {
-                showToast(resources.getQuantityString(R.plurals.settings_debug_available_in, 7 - clickCount))
+                val remainingClickCount = 7 - clickCount
+                showToast(resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount, remainingClickCount))
             }
             true
         }
