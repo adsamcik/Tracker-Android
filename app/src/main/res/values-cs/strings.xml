@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
     <string name="did_you_know">Věděli jste, že</string>
     <string name="menu_map">mapa</string>
@@ -27,7 +27,7 @@
     <string name="settings_color_night_title">Barva v noci</string>
     <string name="settings_debug_already_available">Již máte přístup k debugu</string>
     <string name="settings_debug_available">Nyní máte přístup k debug sekci</string>
-    <plurals name="settings_debug_available_in">
+    <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
         <item quantity="other">Zbývá %d stisknutí pro přístup k vývojářským nástrojům</item>
     </plurals>
     <string name="settings_debug_enabled">Debug povolen</string>
@@ -82,7 +82,6 @@
     <string name="challenge_cell_range_description">Nasbírejte %1$s bez ztráty mobilního signálu</string>
     <string name="challenge_awful_explorer_description">Nenajděte ani jedno nové místo v %1$s po sobě jdoucích záznamech</string>
     <string name="challenge_alphabet_description">Najděte %1$s Wi-Fi sítí obsahujících v názvu symbol %2$s</string>
-    <string name="cell">Mobilní</string>
     <string name="cancel">Zrušit</string>
     <string name="alert_confirm_generic">Jste si jistí?</string>
     <string name="activity_idle">V klidu</string>
@@ -136,12 +135,12 @@
     <string name="stats_weekly_collected_location">Záznamů</string>
     <string name="stats_weekly_minutes">Minut stráveno sběrem</string>
     <string name="stats_weekly_uploaded">Nahráno dat</string>
-    <string name="recent_upload_wifi_new">Nové Wi-Fi</string>
-    <string name="recent_upload_cell">Mobilní vysílače</string>
-    <string name="recent_upload_cell_new">Nové mobilní vysílače</string>
-    <string name="recent_upload_collections">Záznamů</string>
-    <string name="recent_upload_locations_new">Nových míst</string>
-    <string name="recent_upload_size">Velikost</string>
+    <string name="wifi_new_title">Nové Wi-Fi</string>
+    <string name="cell_title">Mobilní vysílače</string>
+    <string name="cell_new">Nové mobilní vysílače</string>
+    <string name="collections_title">Záznamů</string>
+    <string name="locations_new_title">Nových míst</string>
+    <string name="size_title">Velikost</string>
     <plurals name="main_collections">
         <item quantity="one">1 záznam</item>
         <item quantity="few">%d záznamy</item>

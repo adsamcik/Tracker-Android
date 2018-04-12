@@ -37,7 +37,7 @@ class UserActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         val parent = createContentParent(true)
         layoutInflater.inflate(R.layout.activity_user, parent)
-        setTitle(R.string.settings_account)
+        setTitle(R.string.settings_account_title)
         Signin.onStateChangeCallback = { status, user -> onUserStateChange(status, user) }
         launch {
             val user = Signin.signIn(this@UserActivity, true)

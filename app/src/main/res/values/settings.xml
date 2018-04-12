@@ -1,39 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string-array name="background_tracking_options">
-        <item>Disabled</item>
-        <item>On foot</item>
-        <item>On foot or in vehicle</item>
-    </string-array>
-
-    <string-array name="automatic_upload_options">
-        <item>Disabled</item>
-        <item>Wi-Fi only</item>
-        <item>Always</item>
-    </string-array>
-
-    <string name="settings_account">Account</string>
     <string name="settings_cleared_all_cache_files">Removed all cache files</string>
     <string name="settings_cleared_all_data_files">Removed all data files</string>
     <string name="settings_cleared_all_upload_reports">Removed all upload reports</string>
 
     <string name="alert_confirm_generic">Are you sure?</string>
-    <string name="wifi">Wifi</string>
-    <string name="cell">Cell</string>
 
     <string name="internet_connection_required">Internet connection required</string>
 
-    <string name="signout">Sign out</string>
-
+    <!-- SIGN-IN -->
     <string name="user_have_wireless_points">You have %1$s wireless points</string>
     <string name="user_renew_map">Renew map access</string>
     <string name="user_access_date">You have access until %1$s</string>
     <string name="user_cost_per_month">%1$s wireless points per month</string>
     <string name="user_renew_personal_map">Renew personal map</string>
     <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
+    <string name="signout">Sign out</string>
 
-
-    <!--- NEW SETTINGS -->
     <!--- TITLES -->
     <string name="settings_title">Settings</string>
     <string name="settings_account_title">Account</string>

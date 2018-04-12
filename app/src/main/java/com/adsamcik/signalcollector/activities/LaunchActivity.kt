@@ -8,12 +8,14 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.utility.FirebaseAssist
+import com.adsamcik.signalcollector.utility.Preferences
+import com.adsamcik.signalcollector.utility.Shortcuts
+import com.adsamcik.signalcollector.utility.TrackingLocker
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
@@ -35,8 +37,6 @@ class LaunchActivity : Activity() {
         val sp = Preferences.getPref(this)
         if (sp.getInt(Preferences.LAST_VERSION, 0) <= 138) {
             val editor = sp.edit()
-            FirebaseAssist.updateValue(this, FirebaseAssist.autoTrackingString, resources.getStringArray(R.array.background_tracking_options)[Preferences.getPref(this).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)])
-            FirebaseAssist.updateValue(this, FirebaseAssist.autoUploadString, resources.getStringArray(R.array.automatic_upload_options)[Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD)])
             FirebaseAssist.updateValue(this, FirebaseAssist.uploadNotificationString, java.lang.Boolean.toString(Preferences.getPref(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)))
 
             editor.remove(Preferences.PREF_SCHEDULED_UPLOAD)

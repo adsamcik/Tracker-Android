@@ -67,13 +67,13 @@ class UploadReportsActivity : DetailActivity() {
             } else
                 t.title = title
 
-            t.addData(resources.getString(R.string.recent_upload_size), Assist.humanReadableByteCount(uploadStat.uploadSize, true))
-            t.addData(resources.getString(R.string.recent_upload_collections), uploadStat.collections.toString())
-            t.addData(resources.getString(R.string.recent_upload_locations_new), uploadStat.newLocations.toString())
-            t.addData(resources.getString(R.string.recent_upload_wifi), uploadStat.wifi.toString())
-            t.addData(resources.getString(R.string.recent_upload_wifi_new), uploadStat.newWifi.toString())
-            t.addData(resources.getString(R.string.recent_upload_cell), uploadStat.cell.toString())
-            t.addData(resources.getString(R.string.recent_upload_cell_new), uploadStat.newCell.toString())
+            t.addData(resources.getString(R.string.size_title), Assist.humanReadableByteCount(uploadStat.uploadSize, true))
+            t.addData(resources.getString(R.string.collections_title), uploadStat.collections.toString())
+            t.addData(resources.getString(R.string.locations_new_title), uploadStat.newLocations.toString())
+            t.addData(resources.getString(R.string.wifi), uploadStat.wifi.toString())
+            t.addData(resources.getString(R.string.wifi_new_title), uploadStat.newWifi.toString())
+            t.addData(resources.getString(R.string.cell_title), uploadStat.cell.toString())
+            t.addData(resources.getString(R.string.cell_new), uploadStat.newCell.toString())
             return t
         }
     }

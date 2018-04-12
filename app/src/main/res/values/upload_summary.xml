@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="recent_uploads">Recent uploads</string>
+    <string name="most_recent_upload">Most recent upload</string>
+    <string name="more_uploads">More uploads</string>
+    <string name="new_upload_summary">New upload summary</string>
+    <string name="notification_found">Found</string>
+    <plurals name="new_locations">
+        <item quantity="zero">No new locations</item>
+        <item quantity="one">1 new location</item>
+        <item quantity="other">%d new locations</item>
+    </plurals>
+    <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new Wi-Fi</string>
+    <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
+</resources>

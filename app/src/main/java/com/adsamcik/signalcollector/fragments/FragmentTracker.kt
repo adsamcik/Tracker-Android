@@ -282,7 +282,7 @@ class FragmentTracker : Fragment() {
         drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
 
         val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
-        component.setTitle(drawable, getString(R.string.cell))
+        component.setTitle(drawable, getString(R.string.cell_title))
         component.addPrimaryText(CELL_COMPONENT_CURRENT, "")
         component.addSecondaryText(CELL_COMPONENT_COUNT, "")
         component.setColorManager(colorManager)

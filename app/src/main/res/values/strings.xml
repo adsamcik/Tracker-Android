@@ -1,8 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
 
-    <string name="menu_map">map</string>
-
     <string name="button_back">back</string>
 
     <string name="main_collected">%1$s collected</string>
@@ -29,13 +27,14 @@
 
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
-    <string name="recent_upload_wifi">Wi-Fi</string>
-    <string name="recent_upload_wifi_new">New Wi-Fi</string>
-    <string name="recent_upload_cell">Cell</string>
-    <string name="recent_upload_cell_new">New cell</string>
-    <string name="recent_upload_collections">Collections</string>
-    <string name="recent_upload_locations_new">New locations</string>
-    <string name="recent_upload_size">Size</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="cell_title">Cell</string>
+
+    <string name="wifi_new_title">New Wi-Fi</string>
+    <string name="cell_new">New cell</string>
+    <string name="collections_title">Collections</string>
+    <string name="locations_new_title">New locations</string>
+    <string name="size_title">Size</string>
 
     <string name="export_share_button">Share (Export)</string>
 
@@ -46,19 +45,6 @@
     <string name="dev_activity_recognition_title">Activity recognition debug</string>
     <string name="dev_activity_recognition_hide">Filter</string>
     <string name="dev_activity_recognition_show">Show all</string>
-
-    <string name="recent_uploads">Recent uploads</string>
-    <string name="most_recent_upload">Most recent upload</string>
-    <string name="more_uploads">More uploads</string>
-    <string name="new_upload_summary">New upload summary</string>
-    <string name="notification_found">Found</string>
-    <plurals name="new_locations">
-        <item quantity="zero">No new locations</item>
-        <item quantity="one">1 new location</item>
-        <item quantity="other">%d new locations</item>
-    </plurals>
-    <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new Wi-Fi</string>
-    <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
 
     <!-- Feedback strings -->
     <string name="feedback_title">Feedback</string>
