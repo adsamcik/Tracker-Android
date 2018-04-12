@@ -26,7 +26,12 @@ allprojects {
     repositories {
         jcenter()
         google()
-        maven { url "https://jitpack.io" }
+        maven {
+            url "https://jitpack.io"
+        }
+        maven {
+            url "https://dl.bintray.com/adsamcik/android-forks"
+        }
     }
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {

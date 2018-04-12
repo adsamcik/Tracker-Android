@@ -14,6 +14,8 @@ import com.adsamcik.signalcollector.file.DataFile
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.components.BottomSheetMenu
+import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
 import java.io.File
@@ -23,6 +25,7 @@ import java.util.*
 
 class FileSharingActivity : DetailActivity() {
     private var shareableDir: File? = null
+    private lateinit var root: ViewGroup
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,12 +34,13 @@ class FileSharingActivity : DetailActivity() {
             val tv = TextView(this)
             tv.setText(R.string.share_nothing_to_share)
             tv.gravity = Gravity.CENTER_HORIZONTAL
-            createContentParent(true).addView(tv)
+            root = createContentParent(true)
+            root.addView(tv)
         } else {
             val fileNames = files.map { file -> file.name }
 
-            val parent = createContentParent(false)
-            val layout = (layoutInflater.inflate(R.layout.layout_file_share, parent) as ViewGroup).getChildAt(parent.childCount - 1) as CoordinatorLayout
+            root = createContentParent(false)
+            val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as CoordinatorLayout
             val listView = layout.findViewById<ListView>(R.id.share_list_view)
             val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, fileNames)
             listView.adapter = adapter

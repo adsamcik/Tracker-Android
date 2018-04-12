@@ -6,6 +6,7 @@ import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Preferences
@@ -39,6 +40,7 @@ class UploadReportsActivity : DetailActivity() {
                 adapter.add(generateTableForUploadStat(stats, this, null, AppendBehavior.Any))
             }
 
+            colorManager!!.watchElement(ColorView(parent, 0, true, true))
         }
     }
 
