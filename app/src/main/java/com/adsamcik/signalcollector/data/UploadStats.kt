@@ -6,11 +6,10 @@ import com.adsamcik.signalcollector.R
 import com.vimeo.stag.UseStag
 
 @UseStag
-class UploadStats(var time: Long, var wifi: Int, var newWifi: Int, var cell: Int, var newCell: Int, var collections: Int, var newLocations: Int, var noiseCollections: Int, var uploadSize: Long, var newNoiseLocations: Int) {
+class UploadStats(var time: Long, var wifi: Int, var newWifi: Int, var cell: Int, var newCell: Int, var collections: Int, var newLocations: Int, var uploadSize: Long) {
 
     fun generateNotificationText(resources: Resources): String {
         val stringBuilder = StringBuilder()
-        val newLocations = this.newLocations + this.newNoiseLocations
         stringBuilder.append(resources.getString(R.string.notification_found)).append(' ')
         stringBuilder.append(resources.getQuantityString(R.plurals.new_locations, newLocations, newLocations)).append(", ")
 

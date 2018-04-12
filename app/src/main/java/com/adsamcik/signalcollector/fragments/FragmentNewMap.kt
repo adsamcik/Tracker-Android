@@ -120,7 +120,7 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
         if (keyboardManager != null) {
             val keyboardManager = keyboardManager!!
             keyboardManager.closeKeyboard()
-            keyboardManager.removeAllListeners()
+            keyboardManager.removeKeyboardListener(keyboardListener)
             keyboardInitialized.set(false)
         }
     }
@@ -208,48 +208,50 @@ class FragmentNewMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCal
             this.type = type
     }
 
+    private val keyboardListener: KeyboardListener = { opened, keyboardHeight ->
+        val (position, navbarHeight) = navbarSize(activity!!)
+        //check payloads
+        when (opened) {
+            true -> {
+                if (position == Assist.NavBarPosition.BOTTOM) {
+                    val top = searchOriginalMargin +
+                            keyboardHeight +
+                            map_menu_button.height +
+                            edittext_map_search.paddingBottom +
+                            edittext_map_search.paddingTop + edittext_map_search.height
+
+                    map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                    map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
+                }
+            }
+            false -> {
+                if (position == Assist.NavBarPosition.BOTTOM) {
+                    map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
+                    map?.setPadding(0, 0, 0, navbarHeight.y)
+                } else {
+                    map_ui_parent.setBottomMargin(searchOriginalMargin + 32.dpAsPx)
+                    map?.setPadding(0, 0, 0, 0)
+                }
+            }
+        }
+
+        //Update map_menu_button position after UI has been redrawn
+        map_menu_button.post {
+            map_menu_button.moveToState(map_menu_button.state, false)
+        }
+    }
+
+
     private fun initializeKeyboardDetection() {
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
         else {
-            val (position, navbarHeight) = navbarSize(activity!!)
             if (keyboardManager == null) {
                 searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
                 keyboardManager = KeyboardManager(fragmentView!!.rootView)
             }
 
-            keyboardManager!!.addKeyboardListener { opened, keyboardHeight ->
-                //Log.d("TAG", "State is " + (if (opened) "OPEN" else "CLOSED") + " with margin " + (if (opened) searchOriginalMargin else (searchOriginalMargin + navbarHeight)))
-                when (opened) {
-                    true -> {
-                        if (position == Assist.NavBarPosition.BOTTOM) {
-                            val top = searchOriginalMargin +
-                                    keyboardHeight +
-                                    map_menu_button.height +
-                                    edittext_map_search.paddingBottom +
-                                    edittext_map_search.paddingTop + edittext_map_search.height
-
-                            map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                            map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
-                        }
-                    }
-                    false -> {
-                        if (position == Assist.NavBarPosition.BOTTOM) {
-                            map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
-                            map?.setPadding(0, 0, 0, navbarHeight.y)
-                        } else {
-                            map_ui_parent.setBottomMargin(searchOriginalMargin + 32.dpAsPx)
-                            map?.setPadding(0, 0, 0, 0)
-                        }
-                    }
-                }
-
-                //Update map_menu_button position after UI has been redrawn
-                map_menu_button.post {
-                    map_menu_button.moveToState(map_menu_button.state, false)
-                }
-            }
-
+            keyboardManager!!.addKeyboardListener(keyboardListener)
             keyboardInitialized.set(true)
         }
     }

@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
@@ -24,6 +25,7 @@ import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Tips
@@ -271,6 +273,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
     }
 
+    private lateinit var styleChangeListener: SharedPreferences.OnSharedPreferenceChangeListener
+
     private fun initializeStyle(caller: PreferenceFragmentCompat) {
         val morningKey = getString(R.string.settings_color_morning_key)
         val morning = caller.findPreference(morningKey) as ColorSupportPreference
@@ -284,7 +288,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         val dayKey = getString(R.string.settings_color_day_key)
         val day = caller.findPreference(dayKey) as ColorSupportPreference
 
-        val onPreferenceChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
+        val onStyleChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
             val newValueInt = (newValue as String).toInt()
             night.isVisible = newValueInt >= 1
 
@@ -294,11 +298,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             true
         }
 
-        val stylePreference = caller.findPreference(getString(R.string.settings_style_mode_key)) as ListPreference
-        stylePreference.onPreferenceChangeListener = onPreferenceChange
-        onPreferenceChange.onPreferenceChange(stylePreference, stylePreference.value)
+        val defaultColorKey = getString(R.string.settings_color_default_key)
+        val styleKey = getString(R.string.settings_style_mode_key)
+        val stylePreference = caller.findPreference(styleKey) as ListPreference
+        stylePreference.onPreferenceChangeListener = onStyleChange
+        onStyleChange.onPreferenceChange(stylePreference, stylePreference.value)
 
-        caller.findPreference(getString(R.string.settings_color_default_key)).setOnPreferenceClickListener {
+        caller.findPreference(defaultColorKey).setOnPreferenceClickListener {
             val sp = it.sharedPreferences
             sp.edit {
                 remove(morningKey)
@@ -314,6 +320,26 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
             true
         }
+
+        styleChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
+            when (key) {
+                styleKey, defaultColorKey -> ColorSupervisor.initializeFromPreferences(this)
+                morningKey, dayKey, eveningKey, nightKey -> {
+                    if (preferences.contains(key)) {
+                        val index = when (key) {
+                            morningKey -> 0
+                            dayKey -> if (stylePreference.value.toInt() <= 1) 0 else 1
+                            eveningKey -> 2
+                            nightKey -> if (stylePreference.value.toInt() == 1) 1 else 3
+                            else -> -1
+                        }
+                        ColorSupervisor.updateColorAt(index, preferences.getInt(key, 0))
+                    }
+                }
+            }
+        }
+
+        stylePreference.sharedPreferences.registerOnSharedPreferenceChangeListener(styleChangeListener)
     }
 
 

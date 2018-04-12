@@ -74,8 +74,6 @@ class UploadReportsActivity : DetailActivity() {
             t.addData(resources.getString(R.string.recent_upload_wifi_new), uploadStat.newWifi.toString())
             t.addData(resources.getString(R.string.recent_upload_cell), uploadStat.cell.toString())
             t.addData(resources.getString(R.string.recent_upload_cell_new), uploadStat.newCell.toString())
-            t.addData(resources.getString(R.string.recent_upload_noise), uploadStat.noiseCollections.toString())
-            t.addData(resources.getString(R.string.recent_upload_noise_new), uploadStat.newNoiseLocations.toString())
             return t
         }
     }

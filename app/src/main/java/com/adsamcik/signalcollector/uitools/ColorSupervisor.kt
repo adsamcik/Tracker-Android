@@ -168,6 +168,8 @@ internal object ColorSupervisor {
                     stopUpdate()
                     startUpdate()
                 }
+            } else {
+                update(colorList[0])
             }
         }
     }
@@ -358,6 +360,17 @@ internal object ColorSupervisor {
                     val evening = preferences.getColor(context, R.string.settings_color_evening_key, R.color.settings_color_evening_default)
                     addColors(morning, day, evening, night)
                 }
+            }
+        }
+    }
+
+    fun updateColorAt(index: Int, @ColorInt color: Int) {
+        synchronized(colorList) {
+            if (index < 0 || index >= colorList.size) {
+                throw IllegalArgumentException("Index $index is out of bounds. Size is ${colorList.size}.")
+            } else {
+                colorList[index] = color
+                updateUpdate()
             }
         }
     }

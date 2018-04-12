@@ -3,11 +3,8 @@ package com.adsamcik.signalcollector.fragments
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.support.design.widget.FloatingActionButton
 import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
 import android.support.v4.widget.SwipeRefreshLayout
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,7 +17,6 @@ import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.interfaces.ITabFragment
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
@@ -36,7 +32,6 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
-import kotlinx.android.synthetic.main.fragment_new_stats.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
@@ -99,7 +94,12 @@ class FragmentNewStats : Fragment(), IOnDemandView {
 
         val r = activity.resources
 
-        val us = DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats::class.java)
+        val us = if (useMock)
+            UploadStats(System.currentTimeMillis(), 45464, 101, 156, 11, 65478, 65546, 5465646541L)
+        else
+            DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats::class.java)
+
+
         if (us != null && Assist.getAgeInDays(us.time) < 30) {
             val lastUpload = UploadReportsActivity.generateTableForUploadStat(us, context!!, resources.getString(R.string.most_recent_upload), AppendBehavior.FirstFirst)
             lastUpload.addButton(getString(R.string.more_uploads)) { _ ->

@@ -141,12 +141,10 @@ class MessageListenerService : FirebaseMessagingService() {
         fun parseAndSaveUploadReport(context: Context, time: Long, data: Map<String, String>): UploadStats {
             var wifi = 0
             var cell = 0
-            val noise = 0
             var collections = 0
             var newLocations = 0
             var newWifi = 0
             var newCell = 0
-            val newNoiseLocations = 0
             var uploadSize: Long = 0
             if (data.containsKey(WIFI))
                 wifi = Integer.parseInt(data[WIFI])
@@ -163,7 +161,7 @@ class MessageListenerService : FirebaseMessagingService() {
             if (data.containsKey(UPLOAD_SIZE))
                 uploadSize = java.lang.Long.parseLong(data[UPLOAD_SIZE])
 
-            val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, noise, uploadSize, newNoiseLocations)
+            val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, uploadSize)
             DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)
 
             Preferences.checkStatsDay(context)
