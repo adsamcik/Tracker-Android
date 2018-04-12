@@ -114,6 +114,8 @@ class FileSharingActivity : DetailActivity() {
             })
 
             bottomSheetMenu.showHide(750)
+
+            colorManager!!.watchElement(layout)
         }
 
         setTitle(R.string.export_share_button)
