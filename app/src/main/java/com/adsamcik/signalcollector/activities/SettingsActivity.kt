@@ -212,6 +212,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
 
+    /***
+     * Initializes settings on preferences on debug screen
+     */
     private fun initializeDebug(caller: PreferenceFragmentCompat) {
         //val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
         //devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE

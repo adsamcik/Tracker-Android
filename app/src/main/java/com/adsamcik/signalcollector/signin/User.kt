@@ -46,7 +46,6 @@ class User(val id: String, val token: String) {
     internal fun mockServerData() {
         if (useMock && !BuildConfig.DEBUG)
             throw RuntimeException("Cannot mock server data on production version")
-        wirelessPoints = Math.abs(System.currentTimeMillis() * System.currentTimeMillis() % 64546)
         val networkPreferences = NetworkPreferences()
         networkPreferences.renewMap = true
         networkPreferences.renewPersonalMap = false
@@ -57,8 +56,7 @@ class User(val id: String, val token: String) {
         networkInfo.mapAccessUntil = System.currentTimeMillis() + DAY_IN_MILLISECONDS
         networkInfo.personalMapAccessUntil = 0
 
-        this.networkInfo = networkInfo
-        this.networkPreferences = networkPreferences
+        setServerData((Math.random() * 64546).toLong(), networkInfo, networkPreferences)
     }
 
     fun addServerDataCallback(callback: (User) -> Unit) {

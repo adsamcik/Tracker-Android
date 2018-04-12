@@ -23,22 +23,34 @@
         android:layout_height="wrap_content"
         android:text="@string/internet_connection_required"
         android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
+
+
+    <ProgressBar
+        android:id="@+id/progressbar_user"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:padding="@dimen/edge_margin"
+        android:visibility="gone"/>
 
     <LinearLayout
         android:id="@+id/layout_signed_in"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:visibility="gone">
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/progressbar_user">
 
         <LinearLayout
             android:id="@+id/layout_server_settings"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
+            android:paddingTop="@dimen/edge_margin"
             android:visibility="gone">
 
             <TextView
@@ -76,7 +88,8 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:paddingTop="@dimen/edge_margin">
 
                 <Switch
                     android:id="@+id/switch_renew_personal_map"
@@ -102,10 +115,11 @@
 
         <Button
             android:id="@+id/button_sign_out"
-            android:backgroundTint="@color/color_accent"
-            android:text="@string/signout"
+            style="@style/Widget.AppCompat.Button.Borderless"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_width="wrap_content"/>
+            android:layout_marginTop="@dimen/edge_margin"
+            android:text="@string/signout"/>
 
     </LinearLayout>
 
