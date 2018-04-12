@@ -57,7 +57,6 @@
         <activity
             android:name=".activities.MainActivity"
             android:exported="true"
-            android:label="@string/title_activity_new_ui"
             android:resizeableActivity="true"
             android:theme="@style/AppThemeTransluscent"
             android:windowSoftInputMode="adjustResize"

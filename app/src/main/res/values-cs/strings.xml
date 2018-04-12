@@ -110,7 +110,6 @@
     <string name="notification_activity">aktivita %s</string>
     <string name="notification_cell">%d mobilních vysílačů</string>
     <string name="notification_nothing_found">Nic nenalezeno</string>
-    <string name="notification_activity_watcher">Sledovač aktivity</string>
     <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
     <string name="notification_feedback_success">Zpětná vazba úspěšně odeslána</string>
     <string name="notification_feedback_user_not_signed">Uživatel není přihlášen. Ruším odeslání zpětná vazby. Omlouvám se.</string>

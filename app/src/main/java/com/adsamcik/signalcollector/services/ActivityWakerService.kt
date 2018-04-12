@@ -74,7 +74,7 @@ class ActivityWakerService : LifecycleService() {
                 .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
                 .setColor(ContextCompat.getColor(this, R.color.color_accent))
 
-        builder.setContentTitle(getString(R.string.notification_activity_watcher))
+        builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
         builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.activityName, activityInfo.confidence))
         when (activityInfo.resolvedActivity) {
             ResolvedActivity.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)

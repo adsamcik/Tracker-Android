@@ -29,7 +29,7 @@ class ActivityRecognitionActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         layoutInflater.inflate(R.layout.layout_activity_recognition, createContentParent(false))
 
-        setTitle(R.string.dev_activity_recognition_title)
+        setTitle(R.string.settings_activity_debug_title)
 
         listView = dev_activity_list_view
 

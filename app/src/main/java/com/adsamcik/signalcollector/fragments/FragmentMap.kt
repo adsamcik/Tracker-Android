@@ -87,7 +87,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
             val newFrag = FragmentMap()
             fActivity!!.supportFragmentManager.transactionStateLoss {
-                replace(R.id.container, newFrag, getString(R.string.menu_map))
+                replace(R.id.container, newFrag)
             }
             newFrag.onEnter(fActivity!!)
         }
