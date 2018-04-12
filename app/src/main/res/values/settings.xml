@@ -190,8 +190,5 @@
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
 
-    <string name="settings_standard_design_title">Standard design</string>
-    <string name="settings_standard_design_key" translatable="false">standardDesign</string>
-
     <string name="settings_app_version_key" translatable="false">appVersion</string>
 </resources>
