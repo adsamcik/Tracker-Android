@@ -221,7 +221,7 @@ class TrackerService : LifecycleService() {
             val stopForMinutesAction = PendingIntent.getBroadcast(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
             builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)
         } else
-            builder.addAction(R.drawable.ic_pause, getString(R.string.notification_stop), stop)
+            builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, getString(R.string.notification_stop), stop)
 
         if (!gpsAvailable)
             builder.setContentTitle(getString(R.string.notification_looking_for_gps))
@@ -333,7 +333,12 @@ class TrackerService : LifecycleService() {
         //Shortcut setup
         if (android.os.Build.VERSION.SDK_INT >= 25) {
             Shortcuts.initializeShortcuts(this)
-            Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_stop_tracking), getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, Shortcuts.ShortcutType.STOP_COLLECTION)
+            Shortcuts.updateShortcut(this,
+                    Shortcuts.TRACKING_ID,
+                    getString(R.string.shortcut_stop_tracking),
+                    getString(R.string.shortcut_stop_tracking_long),
+                    R.drawable.ic_pause_circle_filled_black_24dp,
+                    Shortcuts.ShortcutType.STOP_COLLECTION)
         }
 
         UploadJobService.cancelUploadSchedule(this)
@@ -387,12 +392,13 @@ class TrackerService : LifecycleService() {
 
         val sp = Preferences.getPref(this)
         sp.edit {
-            putInt(Preferences.PREF_STATS_MINUTES, sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt())
+            putInt(Preferences.PREF_STATS_MINUTES,
+                    sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt())
         }
 
         if (android.os.Build.VERSION.SDK_INT >= 25) {
             Shortcuts.initializeShortcuts(this)
-            Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, Shortcuts.ShortcutType.START_COLLECTION)
+            Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play_circle_filled_black_24dp, Shortcuts.ShortcutType.START_COLLECTION)
         }
 
         if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))

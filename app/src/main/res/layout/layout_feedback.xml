@@ -91,7 +91,7 @@
 
         <Button
             android:id="@+id/feedback_send_button"
-            style="@style/SettingsButton"
+            style="@style/Widget.AppCompat.Button.Borderless"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
@@ -101,7 +101,7 @@
 
         <Button
             android:id="@+id/feedback_cancel_button"
-            style="@style/SettingsButton"
+            style="@style/Widget.AppCompat.Button.Borderless"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toStartOf="@id/feedback_send_button"

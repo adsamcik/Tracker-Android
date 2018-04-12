@@ -7,7 +7,7 @@
 
     <Button
         android:id="@+id/start_stop_button"
-        style="@style/SettingsButton"
+        style="@style/Widget.AppCompat.Button.Borderless"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/start"
@@ -18,7 +18,7 @@
 
     <Button
         android:id="@+id/dev_activity_recognition_clear"
-        style="@style/SettingsButton"
+        style="@style/Widget.AppCompat.Button.Borderless"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/clear"
@@ -29,7 +29,7 @@
 
     <Button
         android:id="@+id/dev_activity_recognition_filter"
-        style="@style/SettingsButton"
+        style="@style/Widget.AppCompat.Button.Borderless"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dev_activity_recognition_hide"

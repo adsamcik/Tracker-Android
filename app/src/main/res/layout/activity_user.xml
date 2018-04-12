@@ -8,7 +8,6 @@
 
     <com.google.android.gms.common.SignInButton
         android:id="@+id/button_sign_in"
-        style="@style/SettingsItem"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:paddingTop="@dimen/setting_item_padding"
@@ -20,7 +19,6 @@
 
     <TextView
         android:id="@+id/textview_sign_error"
-        style="@style/SettingsText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/internet_connection_required"
@@ -45,20 +43,17 @@
 
             <TextView
                 android:id="@+id/textview_wireless_points"
-                style="@style/SettingsText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/user_have_wireless_points"/>
 
             <LinearLayout
-                style="@style/SettingsItem"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <Switch
                     android:id="@+id/switch_renew_map"
-                    style="@style/SettingsTextNoParent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingBottom="@dimen/setting_item_padding"
@@ -67,28 +62,24 @@
 
                 <TextView
                     android:id="@+id/textview_map_cost"
-                    style="@style/SettingsTextSmall"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/user_cost_per_month"/>
 
                 <TextView
                     android:id="@+id/textview_map_access_time"
-                    style="@style/SettingsTextSmall"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/user_access_date"/>
             </LinearLayout>
 
             <LinearLayout
-                style="@style/SettingsItem"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <Switch
                     android:id="@+id/switch_renew_personal_map"
-                    style="@style/SettingsTextNoParent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingBottom="@dimen/setting_item_padding"
@@ -97,14 +88,12 @@
 
                 <TextView
                     android:id="@+id/textview_personal_map_cost"
-                    style="@style/SettingsTextSmall"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/user_cost_per_month"/>
 
                 <TextView
                     android:id="@+id/textview_personal_map_access_time"
-                    style="@style/SettingsTextSmall"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/user_access_date"/>
@@ -113,7 +102,6 @@
 
         <Button
             android:id="@+id/button_sign_out"
-            style="@style/SettingsButton"
             android:backgroundTint="@color/color_accent"
             android:text="@string/signout"/>
 

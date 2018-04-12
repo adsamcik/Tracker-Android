@@ -27,9 +27,9 @@ object Shortcuts {
         val shortcutManager = context.getSystemService(ShortcutManager::class.java)
         val shortcuts = ArrayList<ShortcutInfo>(1)
         if (!TrackerService.isRunning)
-            shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_start_tracking), context.getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play, ShortcutType.START_COLLECTION))
+            shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_start_tracking), context.getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play_circle_filled_black_24dp, ShortcutType.START_COLLECTION))
         else
-            shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_stop_tracking), context.getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause, ShortcutType.STOP_COLLECTION))
+            shortcuts.add(createShortcut(context, TRACKING_ID, context.getString(R.string.shortcut_stop_tracking), context.getString(R.string.shortcut_stop_tracking_long), R.drawable.ic_pause_circle_filled_black_24dp, ShortcutType.STOP_COLLECTION))
 
         assert(shortcutManager != null)
         shortcutManager!!.dynamicShortcuts = shortcuts

@@ -208,40 +208,52 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             this.type = type
     }
 
+    /**
+     * Keyboard listener
+     * Is object variable so it can be unsubscribed when map is closed
+     */
     private val keyboardListener: KeyboardListener = { opened, keyboardHeight ->
-        val (position, navbarHeight) = navbarSize(activity!!)
-        //check payloads
-        when (opened) {
-            true -> {
-                if (position == Assist.NavBarPosition.BOTTOM) {
-                    val top = searchOriginalMargin +
-                            keyboardHeight +
-                            map_menu_button.height +
-                            edittext_map_search.paddingBottom +
-                            edittext_map_search.paddingTop + edittext_map_search.height
+        val activity = activity
+        if (activity != null) {
+            val (position, navbarHeight) = navbarSize(activity)
+            //check payloads
+            when (opened) {
+                true -> {
+                    if (position == Assist.NavBarPosition.BOTTOM) {
+                        val top = searchOriginalMargin +
+                                keyboardHeight +
+                                map_menu_button.height +
+                                edittext_map_search.paddingBottom +
+                                edittext_map_search.paddingTop + edittext_map_search.height
 
-                    map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
-                    map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                        map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
+                    }
+                }
+                false -> {
+                    if (position == Assist.NavBarPosition.BOTTOM) {
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
+                        map?.setPadding(0, 0, 0, navbarHeight.y)
+                    } else {
+                        map_ui_parent.setBottomMargin(searchOriginalMargin + 32.dpAsPx)
+                        map?.setPadding(0, 0, 0, 0)
+                    }
                 }
             }
-            false -> {
-                if (position == Assist.NavBarPosition.BOTTOM) {
-                    map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
-                    map?.setPadding(0, 0, 0, navbarHeight.y)
-                } else {
-                    map_ui_parent.setBottomMargin(searchOriginalMargin + 32.dpAsPx)
-                    map?.setPadding(0, 0, 0, 0)
-                }
-            }
-        }
 
-        //Update map_menu_button position after UI has been redrawn
-        map_menu_button.post {
-            map_menu_button.moveToState(map_menu_button.state, false)
+            //Update map_menu_button position after UI has been redrawn
+            map_menu_button.post {
+                map_menu_button.moveToState(map_menu_button.state, false)
+            }
         }
     }
 
 
+    /**
+     * Initializes keyboard detection so margins are properly set when keyboard is open
+     * Cannot be 100% reliable because Android does not provide any keyboard api whatsoever
+     * Relies on detecting bigger layout size changes.
+     */
     private fun initializeKeyboardDetection() {
         if (keyboardInitialized.get())
             keyboardManager!!.onDisplaySizeChanged()
@@ -256,6 +268,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
+    /**
+     * Initializes location listener which takes care of drawing users location, following it and more.
+     */
     private fun initializeLocationListener(context: Context) {
         if (locationListener == null) {
             val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -263,6 +278,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
+    /**
+     * Initializes UI elements and colors
+     */
     private fun initializeUserElements() {
         initializeKeyboardDetection()
         edittext_map_search.setOnEditorActionListener { v, _, _ ->
@@ -282,6 +300,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         colorManager!!.watchElement(ColorView(layout_map_controls, 3, true, false))
     }
 
+    /**
+     * Uses search field and Geocoder to find given location
+     * Does not rely on Google Maps search API because this way it does not have to deal with API call restrictions
+     */
     private fun search(searchText: String) {
         val geocoder = Geocoder(context)
         try {
@@ -300,6 +322,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
+    /**
+     * Sets menu drawable to given drawable and starts its animation
+     */
     private fun animateMenuDrawable(@DrawableRes drawableRes: Int) {
         val context = context
         if (context != null) {
@@ -309,6 +334,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
+    /**
+     * Called when map is ready and initializes everything that needs to be initialized after maps loading
+     */
     override fun onMapReady(map: GoogleMap) {
         this.map = map
         userRadius = null
@@ -317,6 +345,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style))
 
         //does not work well with bearing. Known bug in Google maps api since 2014.
+        //Unfortunately had to be implemented anyway under new UI because Google requires Google logo to be visible at all times.
         //val padding = navbarHeight(c)
         //map.setPadding(0, 0, 0, padding)
         tileProvider = SignalsTileProvider(context, MAX_ZOOM)
@@ -363,6 +392,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         loadMapLayers()
     }
 
+    /**
+     * Function that mocks or actually loads map layers from the server based on [useMock]
+     */
     private fun loadMapLayers() {
         val activity = activity!!
         if (useMock) {
@@ -412,7 +444,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
+    /**
+     * Initialized draggable menu button
+     */
     private fun initializeMenuButton() {
+        //uses post to make sure heights and widths are available
         map_menu_parent.post {
             val activity = activity!!
             val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_button)

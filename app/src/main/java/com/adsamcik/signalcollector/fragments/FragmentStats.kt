@@ -54,9 +54,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         val fragmentView = inflater.inflate(R.layout.fragment_new_stats, container, false)
 
 
-        if (adapter == null) {
-            adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, Preferences.getTheme(activity))
-        }
+        adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, Preferences.getTheme(activity))
 
         Thread { DataStore.removeOldRecentUploads(activity) }.start()
 
@@ -96,7 +94,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         val r = activity.resources
 
         val us = if (useMock)
-            UploadStats(System.currentTimeMillis(), 45464, 101, 156, 11, 65478, 65546, 5465646541L)
+            UploadReportsActivity.mockItem()
         else
             DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats::class.java)
 
@@ -203,7 +201,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 
     override fun onEnter(activity: Activity) {
-        adapter = TableAdapter(activity, 16, Preferences.getTheme(activity))
+
     }
 
     override fun onLeave(activity: Activity) {

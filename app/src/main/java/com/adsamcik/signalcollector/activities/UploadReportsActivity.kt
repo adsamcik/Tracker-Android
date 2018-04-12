@@ -4,15 +4,16 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
-import com.adsamcik.table.TableAdapter
 import com.google.gson.Gson
 import java.util.*
 
@@ -22,7 +23,14 @@ class UploadReportsActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         setTitle(R.string.recent_uploads)
 
-        val recent = Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), Array<UploadStats>::class.java)
+        val recent = if (useMock) {
+            val arr = ArrayList<UploadStats>()
+            for (i in 0 until 10)
+                arr.add(mockItem())
+            arr.toTypedArray()
+        } else
+            Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), Array<UploadStats>::class.java)
+
         Arrays.sort(recent) { uploadStats, t1 -> ((t1.time - uploadStats.time) / MINUTE_IN_MILLISECONDS).toInt() }
         if (recent.isNotEmpty()) {
             val parent = createContentParent(false)
@@ -33,18 +41,20 @@ class UploadReportsActivity : DetailActivity() {
             listView.setSelector(android.R.color.transparent)
             parent.addView(listView)
 
-            val adapter = TableAdapter(this, 16, Preferences.getTheme(this))
+            val adapter = ChangeTableAdapter(this, 16, Preferences.getTheme(this))
             listView.adapter = adapter
 
             recent.forEach { stats ->
                 adapter.add(generateTableForUploadStat(stats, this, null, AppendBehavior.Any))
             }
 
-            colorManager!!.watchElement(ColorView(parent, 0, true, true))
+            colorManager!!.watchRecycler(ColorView(listView, 0, true, true))
         }
     }
 
     companion object {
+
+        fun mockItem() = UploadStats(System.currentTimeMillis(), 45464, 101, 156, 11, 65478, 65546, 5465646541L)
 
         /**
          * Function for generating table for upload stats
