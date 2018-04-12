@@ -10,13 +10,17 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.auth.api.Auth
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.coroutines.experimental.suspendCoroutine
 
-class Signin {
+object Signin {
+    private val statusLock = ReentrantLock()
+
     var user: User? = null
         private set
 
     private val onSignInInternal: (Context, User?) -> Unit = { context, user ->
+        statusLock.lock()
         val status = when {
             this.user != null && user == null -> {
                 Network.clearCookieJar(context)
@@ -33,6 +37,12 @@ class Signin {
         this.user = user
         updateStatus(status)
         callOnSigninCallbacks()
+
+        if (status == SigninStatus.SIGNED_NO_DATA) {
+            listenForServerData(user!!)
+        }
+
+        statusLock.unlock()
     }
 
     private var client: ISignInClient = if (useMock)
@@ -40,11 +50,19 @@ class Signin {
     else
         GoogleSignInSignalsClient()
 
-    init {
-        instance = this
+    private fun listenForServerData(user: User) {
+        user.addServerDataCallback {
+            if (this.user != it)
+                return@addServerDataCallback
+            statusLock.lock()
+            status = SigninStatus.SIGNED
+            updateStatus(status)
+            callOnSigninCallbacks()
+            statusLock.unlock()
+        }
     }
 
-    private constructor(activity: Activity, callback: ((User?) -> Unit)?, silent: Boolean) {
+    fun signin(activity: Activity, callback: ((User?) -> Unit)?, silent: Boolean) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
@@ -54,7 +72,7 @@ class Signin {
             client.signIn(activity, onSignInInternal)
     }
 
-    private constructor(context: Context, callback: ((User?) -> Unit)?) {
+    fun signin(context: Context, callback: ((User?) -> Unit)?) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
@@ -62,18 +80,11 @@ class Signin {
     }
 
     private fun updateStatus(signinStatus: SigninStatus) {
-        when {
-            signinStatus == SigninStatus.NOT_SIGNED -> instance = null
-            signinStatus.failed -> {
-                instance = null
-                silentFailed = true
-            }
-            signinStatus.success -> silentFailed = false
-        }
+        this.status = signinStatus
         onStateChangeCallback?.invoke(signinStatus, user)
     }
 
-    private fun onSignInFailed() {
+    fun onSignInFailed() {
         updateStatus(SigninStatus.SIGNIN_FAILED)
         callOnSigninCallbacks()
     }
@@ -86,8 +97,10 @@ class Signin {
     }
 
     private fun signout(context: Context) {
+        statusLock.lock()
         assert(status.success)
         client.signOut(context)
+        statusLock.unlock()
     }
 
     enum class SigninStatus(val value: Int) {
@@ -106,117 +119,118 @@ class Signin {
             get() = value == SIGNED_NO_DATA.ordinal || value == SIGNED.ordinal
     }
 
-    companion object {
-        const val RC_SIGN_IN = 4654
+    const val RC_SIGN_IN = 4654
 
-        private var silentFailed: Boolean = false
-        private var instance: Signin? = null
+    private val onSignedCallbackList = ArrayList<(User?) -> Unit>(2)
 
-        private val onSignedCallbackList = ArrayList<(User?) -> Unit>(2)
-
-        var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
-            set(value) {
-                value?.invoke(status, instance?.user)
-                field = value
-            }
-
-        val isSignedIn: Boolean
-            get() = instance?.user != null
-
-        val status: SigninStatus
-            get() = when {
-                instance == null && silentFailed -> SigninStatus.SILENT_SIGNIN_FAILED
-                instance == null -> SigninStatus.NOT_SIGNED
-                instance!!.user == null -> SigninStatus.SIGNIN_IN_PROGRESS
-                instance!!.user!!.isServerDataAvailable -> SigninStatus.SIGNED
-                else -> SigninStatus.SIGNED_NO_DATA
-            }
-
-        fun signIn(activity: Activity, callback: ((User?) -> Unit)?, silentOnly: Boolean): Signin {
-            if (instance == null)
-                instance = Signin(activity, callback, silentOnly)
-            else if (status.failed && !silentOnly) {
-                if (callback != null)
-                    onSignedCallbackList.add(callback)
-                instance!!.client.signIn(activity, instance!!.onSignInInternal)
-            } else if (instance!!.user != null)
-                callback?.invoke(instance!!.user)
-
-            return instance!!
+    var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
+        set(value) {
+            value?.invoke(status, user)
+            field = value
         }
 
-        fun signIn(context: Context, callback: ((User?) -> Unit)?): Signin? {
-            if (instance == null && !silentFailed)
-                instance = Signin(context, callback)
-            else if (callback != null) {
-                when {
-                    instance?.user != null -> callback.invoke(instance!!.user)
-                    status.failed -> callback.invoke(null)
-                    else -> onSignedCallbackList.add(callback)
-                }
+    val isSignedIn: Boolean
+        get() = user != null
+
+    var status: SigninStatus = SigninStatus.NOT_SIGNED
+
+    fun signIn(activity: Activity, callback: ((User?) -> Unit)?, silentOnly: Boolean) {
+        statusLock.lock()
+        when (status) {
+            Signin.SigninStatus.NOT_SIGNED -> {
+                addCallback(callback)
+                if (silentOnly)
+                    client.signInSilent(activity, onSignInInternal)
+                else
+                    client.signIn(activity, onSignInInternal)
             }
-
-            return instance
-        }
-
-        suspend fun signIn(activity: Activity, silentOnly: Boolean): User? {
-            return suspendCoroutine { cont ->
-                if (instance == null)
-                    Signin(activity, {
-                        cont.resume(it)
-                    }, silentOnly)
-                else if (status.failed && !silentOnly) {
-                    instance!!.client.signIn(activity, { context, value ->
-                        instance!!.onSignInInternal.invoke(context, value)
-                        cont.resume(value)
-                    })
-                }
+            Signin.SigninStatus.SIGNIN_IN_PROGRESS -> {
+                addCallback(callback)
+            }
+            Signin.SigninStatus.SIGNED_NO_DATA,
+            Signin.SigninStatus.SIGNED -> {
+                callback?.invoke(user)
+            }
+            Signin.SigninStatus.SIGNIN_FAILED,
+            Signin.SigninStatus.SILENT_SIGNIN_FAILED -> {
+                if (!silentOnly)
+                    client.signIn(activity, onSignInInternal)
             }
         }
+        statusLock.unlock()
+    }
 
-        fun signOut(context: Context) {
-            instance?.signout(context)
-        }
-
-        /**
-         * Returns user asynchronously using callback
-         * User can be null if signin fails
-         */
-        fun getUserAsync(context: Context, callback: (User?) -> Unit) {
-            if (instance?.user != null)
-                callback.invoke(instance!!.user)
-            else
-                signIn(context, callback)
-        }
-
-        /**
-         * Returns user asynchronously using Kotlin's coroutines
-         * User can be null if signin fails
-         */
-        suspend fun getUserAsync(context: Context): User? = suspendCoroutine { cont ->
-            getUserAsync(context, { user -> cont.resume(user) })
-        }
-
-        fun getUserID(context: Context): String? =
-                Preferences.getPref(context).getString(Preferences.PREF_USER_ID, null)
-
-        fun removeOnSignedListeners() {
-            onSignedCallbackList.clear()
-        }
-
-        fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
-            val result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent)
-            if (result.isSuccess) {
-                instance!!.client.onSignInResult(activity, resultCode, intent)
-            } else {
-                onSignedInFailed(activity)
+    fun signIn(context: Context, callback: ((User?) -> Unit)?) {
+        statusLock.lock()
+        when (status) {
+            Signin.SigninStatus.NOT_SIGNED -> {
+                addCallback(callback)
+                client.signInSilent(context, onSignInInternal)
             }
-
+            Signin.SigninStatus.SIGNIN_IN_PROGRESS -> {
+                addCallback(callback)
+            }
+            Signin.SigninStatus.SIGNED_NO_DATA,
+            Signin.SigninStatus.SIGNED -> {
+                callback?.invoke(user)
+            }
+            Signin.SigninStatus.SILENT_SIGNIN_FAILED,
+            Signin.SigninStatus.SIGNIN_FAILED -> {
+            }
         }
+        statusLock.unlock()
+    }
 
-        private fun onSignedInFailed(context: Context) {
-            val signin = signIn(context, null)
-            signin!!.onSignInFailed()
+    fun addCallback(callback: ((User?) -> Unit)?) {
+        if (callback != null)
+            onSignedCallbackList.add(callback)
+    }
+
+
+    suspend fun signIn(activity: Activity, silentOnly: Boolean): User? {
+        return suspendCoroutine { cont ->
+            signIn(activity, { cont.resume(it) }, silentOnly)
         }
     }
+
+    fun signOut(context: Context) {
+        signout(context)
+    }
+
+    /**
+     * Returns user asynchronously using callback
+     * User can be null if signin fails
+     */
+    fun getUserAsync(context: Context, callback: (User?) -> Unit) {
+        if (user != null)
+            callback.invoke(user)
+        else
+            signIn(context, callback)
+    }
+
+    /**
+     * Returns user asynchronously using Kotlin's coroutines
+     * User can be null if signin fails
+     */
+    suspend fun getUserAsync(context: Context): User? = suspendCoroutine { cont ->
+        getUserAsync(context, { user -> cont.resume(user) })
+    }
+
+    fun getUserID(context: Context): String? =
+            Preferences.getPref(context).getString(Preferences.PREF_USER_ID, null)
+
+    fun removeOnSignedListeners() {
+        onSignedCallbackList.clear()
+    }
+
+    fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
+        val result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent)
+        if (result.isSuccess) {
+            client.onSignInResult(activity, resultCode, intent)
+        } else {
+            onSignInFailed()
+        }
+
+    }
+
 }

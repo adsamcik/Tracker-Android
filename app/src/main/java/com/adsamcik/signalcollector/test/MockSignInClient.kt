@@ -3,11 +3,12 @@ package com.adsamcik.signalcollector.test
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import com.adsamcik.signalcollector.signin.ISignInClient
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Preferences
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.launch
+import java.util.concurrent.TimeUnit
 
 
 class MockSignInClient : ISignInClient {
@@ -24,7 +25,7 @@ class MockSignInClient : ISignInClient {
             return
         }
 
-        val state = (System.currentTimeMillis() % 4).toInt()
+        val state = (Math.random() * 4).toInt()
         if (state == 2) {
             userValueCallback.invoke(context, null)
             return
@@ -36,9 +37,10 @@ class MockSignInClient : ISignInClient {
             0 -> user.mockServerData()
             1 -> {
                 //server data received later on
-                if (Looper.myLooper() == null)
-                    Looper.prepare()
-                Handler().postDelayed({ user.mockServerData() }, 2000 + System.currentTimeMillis() % 6000)
+                launch {
+                    delay(2, TimeUnit.SECONDS)
+                    user.mockServerData()
+                }
             }
             3 -> {
             }
