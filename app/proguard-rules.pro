@@ -16,9 +16,33 @@
 #   public *;
 #}
 
--dontwarn okhttp3.**
--dontwarn okio.**
+#-dontwarn okhttp3.**
+#-dontwarn okio.**
 
 -keep public class com.adsamcik.signalcollector.data.** {
   public private <fields>;
+}
+
+-keep class kotlin.Metadata { *; }
+
+## BEGIN GSON
+# Gson uses generic type information stored in a class file when working with fields. Proguard
+# removes such information by default, so configure it to keep all of it.
+-keepattributes Signature
+
+# For using GSON @Expose annotation
+-keepattributes *Annotation*
+
+# Gson specific classes
+-keep class sun.misc.Unsafe { *; }
+-keep class com.google.gson.** { *; }
+
+# Application classes that will be serialized/deserialized over Gson
+-keep class com.vimeo.networking.** { *; }
+-keepclassmembers enum * { *; }
+
+## END GSON
+
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
 }
