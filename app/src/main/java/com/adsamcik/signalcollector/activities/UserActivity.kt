@@ -23,6 +23,7 @@ import com.google.gson.Gson
 import kotlinx.android.synthetic.main.activity_user.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async
+import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import okhttp3.Call
 import okhttp3.Callback
@@ -31,6 +32,8 @@ import okhttp3.Response
 import java.io.IOException
 import java.text.DateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
+import kotlin.reflect.KMutableProperty0
 
 class UserActivity : DetailActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +49,7 @@ class UserActivity : DetailActivity() {
      * Called when users state changes
      */
     private fun onUserStateChange(status: Signin.SigninStatus, user: User?) {
-        if(status == Signin.SigninStatus.SIGNED)
+        if (status == Signin.SigninStatus.SIGNED)
             user!!
 
         launch(UI) {
@@ -120,6 +123,9 @@ class UserActivity : DetailActivity() {
         }
     }
 
+    /**
+     * Initializes user menu with all the callbacks it needs
+     */
     private fun initUserMenu(user: User, prices: Prices) {
         layout_server_settings.visibility = View.VISIBLE
 
@@ -127,12 +133,27 @@ class UserActivity : DetailActivity() {
 
         switch_renew_map.text = getString(R.string.user_renew_map)
         switch_renew_map.isChecked = user.networkPreferences!!.renewMap
-        switch_renew_map.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
-            compoundButton.isEnabled = false
-            val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
-            Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
-                    onChangeMapNetworkPreference(compoundButton, b, user, prices.PRICE_30DAY_MAP.toLong(), textview_map_access_time)
-            )
+        switch_renew_map.setOnClickListener {
+            switch_renew_map.isEnabled = false
+            val isChecked = switch_renew_map.isChecked
+
+            if (useMock) {
+                launch {
+                    delay(1, TimeUnit.SECONDS)
+                    launch(UI) { switch_renew_map.isEnabled = true }
+                }
+            } else {
+                val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
+                Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
+                        onChangeMapNetworkPreference(switch_renew_map,
+                                isChecked,
+                                user,
+                                user.networkPreferences!!::renewMap ,
+                                user.networkInfo!!::mapAccessUntil,
+                                prices.PRICE_30DAY_MAP.toLong(),
+                                textview_map_access_time)
+                )
+            }
         }
 
         if (user.networkInfo!!.mapAccessUntil > System.currentTimeMillis())
@@ -143,12 +164,29 @@ class UserActivity : DetailActivity() {
 
         switch_renew_personal_map.text = getString(R.string.user_renew_personal_map)
         switch_renew_personal_map.isChecked = user.networkPreferences!!.renewPersonalMap
-        switch_renew_personal_map.setOnCheckedChangeListener { compoundButton: CompoundButton, b: Boolean ->
-            compoundButton.isEnabled = false
-            val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", java.lang.Boolean.toString(b)).build()
-            Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
-                    onChangeMapNetworkPreference(compoundButton, b, user, prices.PRICE_30DAY_PERSONAL_MAP.toLong(), textview_personal_map_access_time)
-            )
+        switch_renew_personal_map.setOnClickListener {
+            switch_renew_personal_map.isEnabled = false
+
+            val isChecked = switch_renew_personal_map.isChecked
+
+            if (useMock) {
+                launch {
+                    delay(1, TimeUnit.SECONDS)
+                    launch(UI) { switch_renew_personal_map.isEnabled = true }
+                }
+            } else {
+                val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
+                Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
+                        //this could be done better but due to time constraint there is not enough time to properly rewrite it to kotlin
+                        onChangeMapNetworkPreference(switch_renew_personal_map,
+                                isChecked,
+                                user,
+                                user.networkPreferences!!::renewPersonalMap ,
+                                user.networkInfo!!::personalMapAccessUntil,
+                                prices.PRICE_30DAY_PERSONAL_MAP.toLong(),
+                                textview_personal_map_access_time)
+                )
+            }
         }
 
         if (user.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
@@ -162,7 +200,13 @@ class UserActivity : DetailActivity() {
 
     private val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.getDefault())
 
-    private fun onChangeMapNetworkPreference(compoundButton: CompoundButton, desiredState: Boolean, user: User, price: Long, timeTextView: TextView): Callback {
+    private fun onChangeMapNetworkPreference(compoundButton: CompoundButton,
+                                             desiredState: Boolean,
+                                             user: User,
+                                             state: KMutableProperty0<Boolean>,
+                                             accessTime: KMutableProperty0<Long>,
+                                             price: Long,
+                                             timeTextView: TextView): Callback {
         return object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 launch(UI) {
@@ -174,18 +218,17 @@ class UserActivity : DetailActivity() {
             @Throws(IOException::class)
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    val networkInfo = user.networkInfo!!
-                    user.networkPreferences!!.renewMap = desiredState
+                    state.set(desiredState)
                     if (desiredState) {
                         val rBody = response.body()
                         if (rBody != null) {
-                            val temp = networkInfo.mapAccessUntil
-                            networkInfo.mapAccessUntil = java.lang.Long.parseLong(rBody.string())
-                            if (temp != networkInfo.mapAccessUntil) {
+                            val temp = accessTime.get()
+                            accessTime.set(rBody.string().toLong())
+                            if (temp != accessTime.get()) {
                                 user.addWirelessPoints(-price)
                                 launch(UI) {
                                     textview_wireless_points.text = getString(R.string.user_have_wireless_points, Assist.formatNumber(user.wirelessPoints))
-                                    timeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(networkInfo.mapAccessUntil)))
+                                    timeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(accessTime.get())))
                                     timeTextView.visibility = View.VISIBLE
                                 }
                             }
@@ -196,7 +239,8 @@ class UserActivity : DetailActivity() {
                     CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, Gson().toJson(user), false)
                 } else {
                     launch(UI) { compoundButton.isChecked = !desiredState }
-                    SnackMaker(root).showSnackbar(R.string.user_not_enough_wp)
+                    if (response.code() == 403)
+                        SnackMaker(root).showSnackbar(R.string.user_not_enough_wp)
                 }
                 launch(UI) { compoundButton.isEnabled = true }
                 response.close()

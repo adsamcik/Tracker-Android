@@ -16,6 +16,9 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.TrackingLocker
 
+/**
+ * Service used to keep device and ActivityService alive while automatic tracking might launch
+ */
 class ActivityWakerService : LifecycleService() {
     private var notificationManager: NotificationManager? = null
     private var thread: Thread? = null
