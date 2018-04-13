@@ -41,6 +41,7 @@ class UserActivity : DetailActivity() {
         val parent = createContentParent(true)
         layoutInflater.inflate(R.layout.activity_user, parent)
         setTitle(R.string.settings_account_title)
+
         Signin.onStateChangeCallback = { status, user -> onUserStateChange(status, user) }
         Signin.signIn(this@UserActivity, null, true)
     }
@@ -148,7 +149,7 @@ class UserActivity : DetailActivity() {
                         onChangeMapNetworkPreference(switch_renew_map,
                                 isChecked,
                                 user,
-                                user.networkPreferences!!::renewMap ,
+                                user.networkPreferences!!::renewMap,
                                 user.networkInfo!!::mapAccessUntil,
                                 prices.PRICE_30DAY_MAP.toLong(),
                                 textview_map_access_time)
@@ -181,7 +182,7 @@ class UserActivity : DetailActivity() {
                         onChangeMapNetworkPreference(switch_renew_personal_map,
                                 isChecked,
                                 user,
-                                user.networkPreferences!!::renewPersonalMap ,
+                                user.networkPreferences!!::renewPersonalMap,
                                 user.networkInfo!!::personalMapAccessUntil,
                                 prices.PRICE_30DAY_PERSONAL_MAP.toLong(),
                                 textview_personal_map_access_time)

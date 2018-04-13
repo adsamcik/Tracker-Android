@@ -4,7 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:animateLayoutChanges="true">
 
     <com.google.android.gms.common.SignInButton
         android:id="@+id/button_sign_in"
@@ -35,7 +36,9 @@
         android:layout_height="wrap_content"
         android:indeterminate="true"
         android:padding="@dimen/edge_margin"
-        android:visibility="gone"/>
+        android:visibility="visible"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"/>
 
     <LinearLayout
         android:id="@+id/layout_signed_in"
