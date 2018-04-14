@@ -419,11 +419,14 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             if (useMock) {
                 launch {
                     delay(1, TimeUnit.SECONDS)
-                    val mockArray = MapLayer.mockArray()
-                    val mockArrayList = ArrayList<MapLayer>(mockArray.size)
-                    mockArrayList.addAll(mockArray)
-                    mapLayers = mockArrayList
-                    initializeMenuButton()
+                    val user = Signin.getUserAsync(activity)
+                    if(user != null) {
+                        val mockArray = MapLayer.mockArray()
+                        val mockArrayList = ArrayList<MapLayer>(mockArray.size)
+                        mockArrayList.addAll(mockArray)
+                        mapLayers = mockArrayList
+                        initializeMenuButton()
+                    }
                 }
             } else {
                 launch {
