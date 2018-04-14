@@ -42,7 +42,7 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
-import kotlinx.android.synthetic.main.fragment_new_map.*
+import kotlinx.android.synthetic.main.fragment_map.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
@@ -162,7 +162,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             fragmentView = if (view != null)
                 view
             else
-                inflater.inflate(R.layout.fragment_new_map, container, false)
+                inflater.inflate(R.layout.fragment_map, container, false)
         } else {
             fragmentView = inflater.inflate(R.layout.layout_error, container, false)
             (fragmentView!!.findViewById<View>(R.id.activity_error_text) as TextView).setText(if (hasPermissions) R.string.error_play_services_not_available else R.string.error_missing_permission)

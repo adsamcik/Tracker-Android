@@ -33,7 +33,7 @@ import com.adsamcik.signalcollector.utility.BottomBarBehavior
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Tips
 import com.google.android.gms.location.LocationServices
-import kotlinx.android.synthetic.main.activity_new_ui.*
+import kotlinx.android.synthetic.main.activity_ui.*
 
 
 class MainActivity : FragmentActivity() {
@@ -49,7 +49,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_new_ui)
+        setContentView(R.layout.activity_ui)
 
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)

@@ -32,7 +32,7 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
-import kotlinx.android.synthetic.main.activity_new_ui.*
+import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
@@ -51,7 +51,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         val activity = activity!!
         colorManager = ColorSupervisor.createColorManager(activity)
 
-        val fragmentView = inflater.inflate(R.layout.fragment_new_stats, container, false)
+        val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
 
         adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, Preferences.getTheme(activity))

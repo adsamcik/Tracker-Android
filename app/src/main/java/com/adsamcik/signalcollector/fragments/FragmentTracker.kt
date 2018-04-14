@@ -38,8 +38,8 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
-import kotlinx.android.synthetic.main.activity_new_ui.*
-import kotlinx.android.synthetic.main.fragment_new_tracker.*
+import kotlinx.android.synthetic.main.activity_ui.*
+import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.*
@@ -56,7 +56,7 @@ class FragmentTracker : Fragment() {
         return if (view != null)
             view
         else
-            inflater.inflate(R.layout.fragment_new_tracker, container, false)
+            inflater.inflate(R.layout.fragment_tracker, container, false)
     }
 
     override fun onStart() {
