@@ -4,6 +4,10 @@ import android.content.Context
 
 import java.io.File
 
+/**
+ * Utility class for storing cache files
+ * Uses [FileStore] for work with files
+ */
 object CacheStore {
 
     fun file(context: Context, fileName: String): File = FileStore.file(context.cacheDir, fileName)

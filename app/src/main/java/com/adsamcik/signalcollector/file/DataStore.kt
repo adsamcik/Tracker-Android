@@ -19,6 +19,12 @@ import com.google.gson.stream.MalformedJsonException
 import java.io.File
 import java.util.*
 
+/**
+ * Utility class for storing data files
+ * Uses [FileStore] for work with files
+ *
+ * Completely manages DataFiles
+ */
 object DataStore {
     const val TAG = "SignalsDatastore"
 

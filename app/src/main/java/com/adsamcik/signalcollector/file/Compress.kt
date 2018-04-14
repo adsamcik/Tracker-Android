@@ -6,6 +6,9 @@ import java.io.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
+/**
+ * Utility class for easier creation of zip files
+ */
 data class Compress
 /**
  * Constructor for Compression class
@@ -63,10 +66,16 @@ constructor(private val file: File) {
         }
     }
 
+    /**
+     * Adds file to the zip file using +=
+     */
     operator fun plusAssign(file: File) {
         add(file)
     }
 
+    /**
+     * Adds all files from array to the zip file using +=
+     */
     operator fun plusAssign(files: Array<File>) {
         files.forEach { file -> add(file) }
     }

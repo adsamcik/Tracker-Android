@@ -7,6 +7,10 @@ import com.google.gson.JsonSyntaxException
 import java.io.*
 import java.security.InvalidParameterException
 
+/**
+ * Base implementation of file storing singleton
+ * Provides many utility functions for easier manipulation with files
+ */
 object FileStore {
     private const val BUFFER = 1024
 
