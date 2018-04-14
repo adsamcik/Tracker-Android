@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.test.useMock
-import com.adsamcik.signalcollector.utility.MapFilterRule
+import com.adsamcik.signalcollector.utility.CoordinateBounds
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
 class FragmentMapMenu : Fragment(), IOnDemandView {
@@ -48,7 +48,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
         }
     }
 
-    fun filter(filterRule: MapFilterRule) {
+    fun filter(filterRule: CoordinateBounds) {
         (list.adapter as MapFilterableAdapter).filter(filterRule)
     }
 

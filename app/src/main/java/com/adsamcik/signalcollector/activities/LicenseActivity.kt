@@ -21,7 +21,6 @@ import java.nio.charset.StandardCharsets
 class LicenseActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
         val parent = createScrollableContentParent(true)
 

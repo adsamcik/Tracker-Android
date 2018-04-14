@@ -54,7 +54,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
 
-        adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, Preferences.getTheme(activity))
+        adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
 
         Thread { DataStore.removeOldRecentUploads(activity) }.start()
 

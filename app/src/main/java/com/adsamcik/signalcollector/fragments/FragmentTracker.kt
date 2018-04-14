@@ -23,8 +23,7 @@ import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.data.CellData
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.WifiData
-import com.adsamcik.signalcollector.enums.CloudStatus
-import com.adsamcik.signalcollector.enums.ResolvedActivity
+import com.adsamcik.signalcollector.enums.*
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
@@ -173,7 +172,7 @@ class FragmentTracker : Fragment() {
 
     private fun mock() {
         val rawData = RawData(System.currentTimeMillis())
-        rawData.activity = ResolvedActivity.ON_FOOT
+        rawData.activity = ON_FOOT
         rawData.wifi = arrayOf(WifiData(), WifiData(), WifiData())
         rawData.accuracy = 6f
         rawData.cellCount = 8
@@ -199,13 +198,10 @@ class FragmentTracker : Fragment() {
     private fun setUploadButtonClickable() {
         button_upload.setOnClickListener { _ ->
             val context = context!!
-            val failure = UploadJobService.requestUpload(context, UploadJobService.UploadScheduleSource.USER)
+            val success = UploadJobService.requestUpload(context, UploadJobService.UploadScheduleSource.USER)
             FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
-            if (failure.hasFailed())
-                SnackMaker(root).showSnackbar(failure.value!!)
-            else {
+            if (success)
                 updateUploadButton()
-            }
         }
     }
 
@@ -349,22 +345,22 @@ class FragmentTracker : Fragment() {
         }
 
         when (d.activity) {
-            ResolvedActivity.STILL -> {
+            STILL -> {
                 icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_idle)
                 icon_activity.visibility = VISIBLE
             }
-            ResolvedActivity.ON_FOOT -> {
+            ON_FOOT -> {
                 icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_on_foot)
                 icon_activity.visibility = VISIBLE
             }
-            ResolvedActivity.IN_VEHICLE -> {
+            IN_VEHICLE -> {
                 icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_in_vehicle)
                 icon_activity.visibility = VISIBLE
             }
-            ResolvedActivity.UNKNOWN -> {
+            UNKNOWN -> {
                 icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_unknown)
                 icon_activity.visibility = VISIBLE

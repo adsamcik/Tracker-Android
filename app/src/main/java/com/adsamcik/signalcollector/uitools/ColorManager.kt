@@ -20,6 +20,9 @@ import kotlinx.coroutines.experimental.launch
 //Cannot be annotated with ColorInt yet
 typealias ColorListener = (luminance: Byte, backgroundColor: Int) -> Unit
 
+/**
+ * ColorManager class that handles color updates of views in a given Activity or Fragment
+ */
 class ColorManager {
     private val watchedElements = ArrayList<ColorView>(5)
 
@@ -29,11 +32,15 @@ class ColorManager {
      */
     private val colorChangeListeners = ArrayList<ColorListener>(0)
 
-    fun watchElement(view: ColorView) {
+    /**
+     * Add given [colorView] to the list of watched elements
+     *
+     */
+    fun watchElement(colorView: ColorView) {
         synchronized(watchedElements) {
-            watchedElements.add(view)
+            watchedElements.add(colorView)
         }
-        updateInternal(view)
+        updateInternal(colorView)
     }
 
     fun watchElement(view: View) = watchElement(ColorView(view, 0))

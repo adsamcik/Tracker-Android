@@ -69,7 +69,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
     private var fActivity: FragmentActivity? = null
 
-    private var mapLayerFilterRule = MapFilterRule()
+    private var mapLayerFilterRule = CoordinateBounds()
 
     private var hasPermissions = false
 

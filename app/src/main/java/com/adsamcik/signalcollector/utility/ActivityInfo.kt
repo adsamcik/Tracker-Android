@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.enums.ResolvedActivity
+import com.adsamcik.signalcollector.enums.*
 import com.google.android.gms.location.DetectedActivity
 
 class ActivityInfo(val activity: Int, val confidence: Int) {
@@ -27,14 +27,14 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
          */
         @ResolvedActivity
         private fun resolveActivity(activity: Int): Int = when (activity) {
-            DetectedActivity.STILL -> ResolvedActivity.STILL
-            DetectedActivity.RUNNING -> ResolvedActivity.ON_FOOT
-            DetectedActivity.ON_FOOT -> ResolvedActivity.ON_FOOT
-            DetectedActivity.WALKING -> ResolvedActivity.ON_FOOT
-            DetectedActivity.ON_BICYCLE -> ResolvedActivity.IN_VEHICLE
-            DetectedActivity.IN_VEHICLE -> ResolvedActivity.IN_VEHICLE
-            DetectedActivity.TILTING -> ResolvedActivity.UNKNOWN
-            else -> ResolvedActivity.UNKNOWN
+            DetectedActivity.STILL -> STILL
+            DetectedActivity.RUNNING -> ON_FOOT
+            DetectedActivity.ON_FOOT -> ON_FOOT
+            DetectedActivity.WALKING -> ON_FOOT
+            DetectedActivity.ON_BICYCLE -> IN_VEHICLE
+            DetectedActivity.IN_VEHICLE -> IN_VEHICLE
+            DetectedActivity.TILTING -> UNKNOWN
+            else -> UNKNOWN
         }
 
         fun getActivityName(activity: Int): String =
@@ -52,10 +52,10 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
 
         fun getResolvedActivityName(context: Context, @ResolvedActivity resolvedActivity: Int): String =
                 when (resolvedActivity) {
-                    ResolvedActivity.STILL -> context.getString(R.string.activity_idle)
-                    ResolvedActivity.ON_FOOT -> context.getString(R.string.activity_on_foot)
-                    ResolvedActivity.IN_VEHICLE -> context.getString(R.string.activity_in_vehicle)
-                    ResolvedActivity.UNKNOWN -> context.getString(R.string.activity_unknown)
+                    STILL -> context.getString(R.string.activity_idle)
+                    ON_FOOT -> context.getString(R.string.activity_on_foot)
+                    IN_VEHICLE -> context.getString(R.string.activity_in_vehicle)
+                    UNKNOWN -> context.getString(R.string.activity_unknown)
                     else -> context.getString(R.string.activity_unknown)
                 }
     }

@@ -20,7 +20,11 @@ import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
 
-internal object ColorSupervisor {
+/**
+ * Class that handles globally calculation of current color
+ * It needs to be updated with proper location to have accurate color transitions
+ */
+object ColorSupervisor {
     //Lock order colorList, colorManagerLock, timer
 
     private val colorList = ArrayList<@ColorInt Int>()
@@ -38,6 +42,10 @@ internal object ColorSupervisor {
     private var darkTextColor: Int = 0
     private var lightTextColor: Int = 0
 
+    /**
+     * Returns current luminance as byte
+     * Values can be from [Byte.MIN_VALUE] to [Byte.MAX_VALUE]
+     */
     var currentLuminance: Byte = 0
         private set
 
@@ -49,11 +57,19 @@ internal object ColorSupervisor {
 
     private val colorManagerLock = ReentrantLock()
 
+    /**
+     * Returns proper base foreground color for given ColorView
+     */
     @ColorInt
     fun foregroundColorFor(colorView: ColorView): Int {
         return foregroundColorFor(colorView.backgroundIsForeground)
     }
 
+    /**
+     * Returns proper base foreground color based on [backgroundIsForeground]
+     *
+     * @param backgroundIsForeground True if background and foreground should be inverted
+     */
     @ColorInt
     fun foregroundColorFor(backgroundIsForeground: Boolean): Int {
         return if (backgroundIsForeground)
@@ -62,11 +78,19 @@ internal object ColorSupervisor {
             currentForegroundColor
     }
 
+    /**
+     * Returns proper base background color for given ColorView
+     */
     @ColorInt
     fun backgroundColorFor(colorView: ColorView): Int {
         return backgroundColorFor(colorView.backgroundIsForeground)
     }
 
+    /**
+     * Returns proper base background color based on [backgroundIsForeground]
+     *
+     * @param backgroundIsForeground True if background and foreground should be inverted
+     */
     @ColorInt
     fun backgroundColorFor(backgroundIsForeground: Boolean): Int {
         return if (backgroundIsForeground)
@@ -75,6 +99,9 @@ internal object ColorSupervisor {
             currentBaseColor
     }
 
+    /**
+     * Creates color manager instance
+     */
     fun createColorManager(context: Context): ColorManager {
         if (darkTextColor == 0) {
             darkTextColor = ContextCompat.getColor(context, android.R.color.primary_text_light)

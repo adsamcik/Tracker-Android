@@ -11,7 +11,6 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.table.AppendBehavior
 import com.adsamcik.table.Table
 import com.google.gson.Gson
@@ -41,7 +40,7 @@ class UploadReportsActivity : DetailActivity() {
             listView.setSelector(android.R.color.transparent)
             parent.addView(listView)
 
-            val adapter = ChangeTableAdapter(this, 16, Preferences.getTheme(this))
+            val adapter = ChangeTableAdapter(this, 16, packageManager.getActivityInfo(componentName, 0).themeResource)
             listView.adapter = adapter
 
             recent.forEach { stats ->

@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.utility
 
 import android.content.Context
 import com.adsamcik.signalcollector.data.Challenge
-import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
@@ -12,7 +12,19 @@ import com.google.gson.GsonBuilder
 import kotlinx.coroutines.experimental.launch
 import kotlin.coroutines.experimental.suspendCoroutine
 
+/**
+ * Singleton class that manages saving and loading of challenges from cache storage or network
+ */
 object ChallengeManager {
+
+    /**
+     * Loads challenges from cache storage if found and new enough
+     * or from server otherwise. Uses Kotlin Coroutines.
+     *
+     * @param ctx Context
+     * @param force If true, always downloads data from
+     * @return Source of data and List of challenges. List is null if error occurred
+    */
     suspend fun getChallenges(ctx: Context, force: Boolean): Pair<NetworkLoader.Source, Array<Challenge>?> = suspendCoroutine { cont ->
         val context = ctx.applicationContext
         launch {
@@ -34,6 +46,14 @@ object ChallengeManager {
         }
     }
 
+    /**
+     * Loads challenges from cache storage if found and new enough
+     * or from server otherwise. Uses higher order function as callback.
+     *
+     * @param ctx Context
+     * @param force If true, always downloads data from
+     * @return Source of data and List of challenges. List is null if error occurred
+     */
     fun getChallenges(ctx: Context, force: Boolean, callback: (NetworkLoader.Source, Array<Challenge>?) -> Unit) {
         val context = ctx.applicationContext
         launch {
@@ -55,7 +75,11 @@ object ChallengeManager {
         }
     }
 
+    /***
+     * Stores challenges at CacheStore
+     */
+    @Deprecated("Will be removed in future once proper localization on load is added")
     fun saveChallenges(context: Context, challenges: Array<Challenge>) {
-        DataStore.saveString(context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, Gson().toJson(challenges), false)
+        CacheStore.saveString(context, Preferences.PREF_ACTIVE_CHALLENGE_LIST, Gson().toJson(challenges), false)
     }
 }

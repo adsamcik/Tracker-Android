@@ -9,7 +9,6 @@ import android.content.Context
 import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
@@ -20,7 +19,6 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
-import com.adsamcik.signalcollector.utility.Failure
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.runBlocking
@@ -221,12 +219,13 @@ class UploadJobService : JobService() {
          *
          * @param context Non-null context
          * @param source  Source that started the upload
+         * @return Success
          */
-        fun requestUpload(context: Context, source: UploadScheduleSource): Failure<String> {
+        fun requestUpload(context: Context, source: UploadScheduleSource): Boolean {
             if (source == UploadScheduleSource.NONE)
                 throw InvalidParameterException("Upload source can't be NONE.")
             else if (isUploading)
-                return Failure(context.getString(R.string.error_upload_in_progress))
+                return false
 
             if (hasEnoughData(context, source)) {
                 if (canUpload(context, source)) {
@@ -235,17 +234,17 @@ class UploadJobService : JobService() {
 
                     val scheduler = scheduler(context)
                     if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
-                        return Failure(context.getString(R.string.error_during_upload_scheduling))
+                        return false
                     updateUploadScheduleSource(context, source)
                     Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
 
                     scheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
 
-                    return Failure()
+                    return true
                 }
-                return Failure(context.getString(R.string.error_during_upload_scheduling))
+                return false
             }
-            return Failure(context.getString(R.string.error_not_enough_data))
+            return false
         }
 
         /**

@@ -5,10 +5,18 @@ import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
 import java.util.*
 
+/**
+ * Class used for calculation of next sunset and sunrise.
+ */
 class SunSetRise {
     private var location: Location? = null
     private var lastUpdate: Calendar? = null
 
+    /**
+     * Calculates when will next sunset be
+     *
+     * @return Calendar instance containing time and date of the next sunset
+     */
     fun nextSunset(): Calendar {
         val calendar = Calendar.getInstance()
         return if (location != null) {
@@ -26,6 +34,11 @@ class SunSetRise {
         }
     }
 
+    /**
+     * Calculates when will next sunrise be
+     *
+     * @return Calendar instance containing time and date of the next sunrise
+     */
     fun nextSunrise(): Calendar {
         val calendar = Calendar.getInstance()
         return if (location != null) {
@@ -44,6 +57,10 @@ class SunSetRise {
     }
 
 
+    /**
+     * This method should be called to update location used for calculating next sunrise/sunset.
+     * Proper location is required to make the calculations accurate.
+     */
     @Synchronized
     fun updateLocation(loc: android.location.Location) {
         this.location = Location(loc.latitude, loc.longitude)

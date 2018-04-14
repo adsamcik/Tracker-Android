@@ -138,7 +138,7 @@ object Tips {
             }
 
             var target = findViewById<View>(R.id.layout_map_controls)
-            val settingsButtonTarget = SimpleTarget.Builder(this)
+            val searchTarget = SimpleTarget.Builder(this)
                     .setPoint(target.x + target.pivotX, target.y + target.pivotY)
                     .setTitle(getString(R.string.tips_map_search_title))
                     .addButtonData(SimpleTarget.ButtonData(resources.getString(R.string.skip_tips)) { _, spotlight ->
@@ -150,7 +150,7 @@ object Tips {
 
             target = findViewById<View>(R.id.button_map_my_location)
             //radius = Math.sqrt(Math.pow(button_stats.height.toDouble(), 2.0) + Math.pow(button_stats.width.toDouble(), 2.0)) / 2
-            val statsButtonTarget = SimpleTarget.Builder(this)
+            val myLocationButtonTarget = SimpleTarget.Builder(this)
                     .setPoint(target.x + target.pivotX, target.y + target.pivotY)
                     .setTitle(getString(R.string.tips_map_my_location_title))
                     .addButtonData(buttonData)
@@ -159,7 +159,7 @@ object Tips {
 
             target = findViewById<View>(R.id.map_menu_button)
             //radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
-            val activitiesButtonTarget = SimpleTarget.Builder(this)
+            val mapMenuButtonTarget = SimpleTarget.Builder(this)
                     .setPoint(target.x + target.pivotX, target.y + target.pivotY)
                     .setTitle(getString(R.string.tips_map_overlay_title))
                     .addButtonData(buttonData)
@@ -183,7 +183,7 @@ object Tips {
                     .build()
 
             Spotlight.with(this)
-                    .setTargets(settingsButtonTarget, statsButtonTarget, activitiesButtonTarget)
+                    .setTargets(searchTarget, myLocationButtonTarget, mapMenuButtonTarget)
                     .setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 230))
                     .setAnimation(AccelerateDecelerateInterpolator())
                     .setOnSpotlightEndedListener {

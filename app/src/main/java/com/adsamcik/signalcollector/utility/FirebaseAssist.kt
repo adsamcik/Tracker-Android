@@ -5,6 +5,9 @@ import android.content.Context
 
 import com.google.firebase.analytics.FirebaseAnalytics
 
+/**
+ * Singleton class that provides access to assist functions and variables for Firebase
+ */
 object FirebaseAssist {
     const val STOP_TILL_RECHARGE_EVENT = "stop_till_recharge"
     const val STOP_EVENT = "notification_stop"

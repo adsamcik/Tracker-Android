@@ -12,6 +12,9 @@ import com.adsamcik.signalcollector.activities.ShortcutActivity
 import com.adsamcik.signalcollector.services.TrackerService
 import java.util.*
 
+/**
+ * Singleton which handles Shortcut creation on API 25 and newer
+ */
 @RequiresApi(25)
 object Shortcuts {
     const val TRACKING_ID = "Tracking"
@@ -46,6 +49,9 @@ object Shortcuts {
         return shortcutBuilder.build()
     }
 
+    /**
+     * Updates shortcuts value
+     */
     fun updateShortcut(context: Context, id: String, shortLabel: String, longLabel: String?, @DrawableRes iconResource: Int, action: ShortcutType) {
         initializeShortcuts(context)
         val shortcutManager = context.getSystemService(ShortcutManager::class.java)!!

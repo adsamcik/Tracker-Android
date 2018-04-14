@@ -32,6 +32,9 @@ object Assist {
     private var telephonyManager: TelephonyManager? = null
     private var connectivityManager: ConnectivityManager? = null
 
+    /**
+     * Returns true if initialized
+     */
     val isInitialized: Boolean
         get() = telephonyManager != null && connectivityManager != null
 
@@ -127,12 +130,6 @@ object Assist {
             val permissions = ArrayList<String>()
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
                 permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-
-            //if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
-            //permissions.add(android.Manifest.permission.READ_PHONE_STATE);
-
-            if (Preferences.getPref(context).getBoolean(Preferences.PREF_TRACKING_NOISE_ENABLED, false) && ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-                permissions.add(android.Manifest.permission.RECORD_AUDIO)
 
             return if (permissions.size == 0) null else permissions.toTypedArray()
 

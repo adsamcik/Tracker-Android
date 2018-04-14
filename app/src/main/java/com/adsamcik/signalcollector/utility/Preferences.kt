@@ -1,21 +1,20 @@
 package com.adsamcik.signalcollector.utility
 
-import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.StatDay
 import com.adsamcik.signalcollector.extensions.dateUTC
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.gson.Gson
 import java.util.*
 
+/**
+ * Object that simplifies access to some preferences
+ * It contains many preferences as constant values so they don't have to be stored in SharedPreferences which creates unnecessary lookup
+ */
 object Preferences {
     private const val TAG = "SignalsSetting"
-
-    const val PREF_THEME = "theme"
-    const val DEFAULT_THEME = R.style.AppThemeLight
 
     const val LAST_VERSION = "lastVersion"
 
@@ -63,8 +62,6 @@ object Preferences {
     const val DEFAULT_TRACKING_WIFI_ENABLED = true
     const val PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled"
     const val DEFAULT_TRACKING_CELL_ENABLED = true
-    const val PREF_TRACKING_NOISE_ENABLED = "trackingNoiseEnabled"
-    const val DEFAULT_TRACKING_NOISE_ENABLED = false
     const val PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled"
     const val DEFAULT_TRACKING_LOCATION_ENABLED = true
 
@@ -101,22 +98,6 @@ object Preferences {
         if (sharedPreferences == null)
             sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.applicationContext)
         return sharedPreferences!!
-    }
-
-    fun getTheme(context: Context): Int = getPref(context).getInt(PREF_THEME, DEFAULT_THEME)
-
-    fun setTheme(activity: Activity, theme: Int) {
-        getPref(activity).edit().putInt(PREF_THEME, theme).apply()
-        activity.setTheme(theme)
-        //This ensures that all components use the proper theme
-        activity.applicationContext.setTheme(theme)
-    }
-
-    fun setTheme(activity: Activity) {
-        val theme = getTheme(activity)
-        activity.setTheme(theme)
-        //This ensures that all components use the proper theme
-        activity.applicationContext.setTheme(theme)
     }
 
     /**

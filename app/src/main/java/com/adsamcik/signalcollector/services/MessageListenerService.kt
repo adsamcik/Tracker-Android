@@ -69,6 +69,7 @@ class MessageListenerService : FirebaseMessagingService() {
                                         break
                                     }
                                 }
+                                //todo It should generate texts every time when loaded to properly handle localization changes
                                 ChallengeManager.saveChallenges(this, challenges)
                             }
                         })

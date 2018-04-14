@@ -24,7 +24,6 @@ import com.google.firebase.iid.FirebaseInstanceId
 class LaunchActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Preferences.setTheme(this)
         super.onCreate(savedInstanceState)
 
         if (BuildConfig.DEBUG) {
