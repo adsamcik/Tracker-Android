@@ -8,7 +8,8 @@ import android.os.AsyncTask
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.R.string.*
+import com.adsamcik.signalcollector.R.string.channel_other_id
+import com.adsamcik.signalcollector.R.string.notification_feedback_success
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.signin.Signin
@@ -18,6 +19,9 @@ import okhttp3.internal.http2.StreamResetException
 import java.io.IOException
 import java.net.SocketTimeoutException
 
+/**
+ * JobService for JobScheduler which should be triggered when network is available to upload feedback
+ */
 class FeedbackUploadJob : JobService() {
     private var worker: UploadTask? = null
 
@@ -76,6 +80,7 @@ class FeedbackUploadJob : JobService() {
             if (params.size != 3) {
                 return false
             }
+            //todo stop using auth body, it's not needed and is replaced with cookies
             val builder = Network.generateAuthBody(token).addFormDataPart("summary", params[0]).addFormDataPart("type", params[1])
             builder.addFormDataPart("description", if (params[2].isNotEmpty()) params[2] else "")
 

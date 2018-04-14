@@ -28,6 +28,9 @@ import java.io.IOException
 import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
 
+/**
+ * JobService used to handle uploading to server
+ */
 class UploadJobService : JobService() {
     private var worker: JobWorker? = null
 
@@ -71,6 +74,9 @@ class UploadJobService : JobService() {
         return true
     }
 
+    /**
+     * Enum of possible sources that requested upload schedule
+     */
     enum class UploadScheduleSource {
         NONE,
         BACKGROUND,
@@ -207,9 +213,15 @@ class UploadJobService : JobService() {
         private const val SCHEDULE_UPLOAD_JOB_ID = 1921109
         private const val UPLOAD_JOB_ID = 2110
 
+        /**
+         * Returns true if upload is currently in progress
+         */
         var isUploading = false
             private set
 
+        /**
+         * Returns current upload schedule source from persistent storage
+         */
         fun getUploadScheduled(context: Context): UploadScheduleSource =
                 UploadScheduleSource.values()[Preferences.getPref(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)]
 
@@ -248,7 +260,7 @@ class UploadJobService : JobService() {
         }
 
         /**
-         * Requests scheduling of upload
+         * Request upload to be scheduled based on current settings
          *
          * @param context context
          */
@@ -315,8 +327,12 @@ class UploadJobService : JobService() {
             Preferences.getPref(context).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal).apply()
         }
 
+        /**
+         * Cancels any job tak could be scheduled
+         */
         fun cancelUploadSchedule(context: Context) {
             scheduler(context).cancel(SCHEDULE_UPLOAD_JOB_ID)
+            updateUploadScheduleSource(context, UploadScheduleSource.NONE)
         }
     }
 }

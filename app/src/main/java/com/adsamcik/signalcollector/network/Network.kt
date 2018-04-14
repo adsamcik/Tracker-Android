@@ -11,9 +11,11 @@ import com.franmontiel.persistentcookiejar.cache.SetCookieCache
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor
 import okhttp3.*
 import java.io.IOException
-import java.util.*
-import java.util.concurrent.TimeUnit
 
+/**
+ * Network class that bridges custom Server implementation and the rest of the app
+ * It contains some helpful methods that take care of providing authentication information, cookies and proper settings
+ */
 object Network {
     private const val TAG = "SignalsNetwork"
     const val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
@@ -57,11 +59,14 @@ object Network {
         cookieJar!!.clear()
     }
 
+    /**
+     * Class prepares [OkHttpClient]
+     * If userToken is provided class also handles signin cookies and authentication header
+     */
     fun client(context: Context, userToken: String?): OkHttpClient {
-        return if (userToken == null) client(context)
+        return if (userToken == null) client().build()
         else
-            OkHttpClient.Builder()
-                    .connectionSpecs(Collections.singletonList(spec))
+            client()
                     .cookieJar(getCookieJar(context))
                     .authenticator({ _, response ->
                         if (response.request().header("userToken") != null)
@@ -70,24 +75,33 @@ object Network {
                             response.request().newBuilder().header("userToken", userToken).build()
                         }
                     })
-                    .writeTimeout(60, TimeUnit.SECONDS)
-                    .readTimeout(60, TimeUnit.SECONDS)
-                    .connectTimeout(60, TimeUnit.SECONDS)
                     .build()
     }
 
-    private fun client(context: Context): OkHttpClient {
+    private fun client(): OkHttpClient.Builder {
         return OkHttpClient.Builder()
                 .connectionSpecs(listOf(spec))
-                .cookieJar(getCookieJar(context))
-                .build()
     }
 
+    /**
+     * Builds simple GET request to given [url]
+     */
     fun requestGET(url: String): Request = Request.Builder().url(url).build()
 
+    /**
+     * Builds basic POST request to given [url] with given [body]
+     *
+     * @param url URL for which request will be created
+     * @param body Body that will be put into the created request
+     * @return Request
+     */
     fun requestPOST(url: String, body: RequestBody): Request =
             Request.Builder().url(url).post(body).build()
 
+    /**
+     * Generates authentication body
+     * This is mainly used for device registration
+     */
     fun generateAuthBody(userToken: String): MultipartBody.Builder {
         return MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -96,6 +110,10 @@ object Network {
                 .addFormDataPart("model", Build.MODEL)
     }
 
+    /**
+     * Registers device on the server
+     * This provides server with user id and cloud message token
+     */
     fun register(context: Context, userToken: String, token: String) {
         if (!useMock)
             register(context, userToken, "token", token, Preferences.PREF_SENT_TOKEN_TO_SERVER, Server.URL_TOKEN_REGISTRATION)
@@ -120,6 +138,9 @@ object Network {
         })
     }
 
+    /**
+     * Generates verification string using custom hash function
+     */
     fun generateVerificationString(uid: String, length: Long?): String =
             Server.generateVerificationString(uid, length)
 }
