@@ -471,18 +471,20 @@ object DataStore {
             val days = Assist.getAgeInDays(oldestUpload).toLong()
             if (days > 30) {
                 val gson = Gson()
-                val stats = gson.fromJson<ArrayList<UploadStats>>(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE)), object : TypeToken<List<UploadStats>>() {
+                val stats = gson.fromJson<ArrayList<UploadStats?>>(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE)), object : TypeToken<List<UploadStats>>() {
 
                 }.type) ?: return
                 var i = 0
                 while (i < stats.size) {
-                    if (Assist.getAgeInDays(stats[i].time) > 30)
-                        stats.removeAt(i--)
-                    i++
+                    val stat = stats[i]
+                    if (stat == null || Assist.getAgeInDays(stat.time) > 30)
+                        stats.removeAt(i)
+                    else
+                        i++
                 }
 
                 if (stats.size > 0)
-                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0].time).apply()
+                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0]!!.time).apply()
                 else
                     sp.edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
 
