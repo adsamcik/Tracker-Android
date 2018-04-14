@@ -69,7 +69,7 @@ dependencies {
     implementation 'com.adsamcik.android-components:slider:0.6.1'
     implementation 'com.adsamcik.android-components:table:0.1.2'
     implementation 'com.adsamcik.android-components:draggable:0.12.0'
-    implementation 'com.adsamcik.android-forks:spotlight:2.0.6'
+    implementation 'com.adsamcik.android-forks:spotlight:2.0.7'
 
     //3rd party dependencies
     implementation 'com.squareup.okhttp3:okhttp:3.10.0'
