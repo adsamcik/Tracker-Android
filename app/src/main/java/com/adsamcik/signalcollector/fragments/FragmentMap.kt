@@ -214,7 +214,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
      */
     private val keyboardListener: KeyboardListener = { opened, keyboardHeight ->
         val activity = activity
-        if (activity != null) {
+        //map_menu_button is null in some rare cases. I am not entirely sure when it happens, but it seems to be quite rare so checking for null is probably OK atm
+        if (activity != null && map_menu_button != null) {
             val (position, navbarHeight) = navbarSize(activity)
             //check payloads
             when (opened) {
@@ -344,7 +345,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         val context = context ?: return
 
         colorManager!!.addListener { luminance, _ ->
-            if(luminance >= -32)
+            if (luminance >= -32)
                 map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style))
             else
                 map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark))
