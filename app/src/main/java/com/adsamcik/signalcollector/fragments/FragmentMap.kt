@@ -344,7 +344,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         val context = context ?: return
 
         colorManager!!.addListener { luminance, _ ->
-            if(luminance >= 0)
+            if(luminance >= -32)
                 map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style))
             else
                 map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark))
