@@ -2,25 +2,15 @@ package com.adsamcik.signalcollector.activities
 
 import android.content.Context
 import android.support.test.InstrumentationRegistry.getInstrumentation
-import android.support.test.espresso.NoMatchingViewException
-import android.support.test.espresso.ViewAssertion
-import android.support.test.espresso.matcher.ViewMatchers
 import android.support.test.runner.AndroidJUnit4
 import android.support.test.uiautomator.UiDevice
-import android.util.Log
 import android.util.MalformedJsonException
-import android.view.View
-import android.view.ViewGroup
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.MessageListenerService
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.gson.Gson
-import org.hamcrest.Description
-import org.hamcrest.Matcher
-import org.hamcrest.StringDescription
-import org.hamcrest.TypeSafeMatcher
 import org.junit.Assert
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,50 +69,5 @@ class AppTest {
         MessageListenerService.parseAndSaveUploadReport(context, time, d)
         Assert.assertEquals("[$data,$data", DataStore.loadString(context, DataStore.RECENT_UPLOADS_FILE))
         DataStore.delete(context, DataStore.RECENT_UPLOADS_FILE)
-    }
-
-    companion object {
-        private const val TAG = "SignalsSaveLoadTest"
-        private const val PACKAGE = "com.adsamcik.signalcollector"
-        private const val LAUNCH_TIMEOUT = 5000
-
-        private fun childAtPosition(
-                parentMatcher: Matcher<View>, position: Int): Matcher<View> {
-
-            return object : TypeSafeMatcher<View>() {
-                override fun describeTo(description: Description) {
-                    description.appendText("Child at position $position in parent ")
-                    parentMatcher.describeTo(description)
-                }
-
-                public override fun matchesSafely(view: View): Boolean {
-                    val parent = view.parent
-                    return (parent is ViewGroup && parentMatcher.matches(parent)
-                            && view == parent.getChildAt(position))
-                }
-            }
-        }
-
-        /**
-         * Returns a generic [ViewAssertion] that asserts that a view exists in the view hierarchy
-         * and is matched by the given view matcher.
-         */
-        fun matches(viewMatcher: Matcher<View>): ViewAssertion {
-            return ViewAssertion { view: View?, noViewException: NoMatchingViewException? ->
-                val description = StringDescription()
-                description.appendText("'")
-                viewMatcher.describeTo(description)
-                if (noViewException != null) {
-                    description.appendText(String.format(
-                            "' check could not be performed because view '%s' was not found.\n",
-                            noViewException.viewMatcherDescription))
-                    Log.e(TAG, description.toString())
-                    throw noViewException
-                } else {
-                    description.appendText("' doesn't match the selected view.")
-                    ViewMatchers.assertThat<View>(description.toString(), view, viewMatcher)
-                }
-            }
-        }
     }
 }

@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class TranslateableStringTest {
+class TranslatableStringTest {
     private val appContext = InstrumentationRegistry.getTargetContext()!!
     private val gson = Gson()
     private val identifier = "activity_idle"

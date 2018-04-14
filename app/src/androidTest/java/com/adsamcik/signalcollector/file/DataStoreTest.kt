@@ -10,6 +10,7 @@ import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,5 +49,14 @@ class DataStoreTest {
         val loadedData = DataStore.loadAppendableJsonArray(appContext, DataStore.currentDataFile!!.file.name)
         val firstComma = loadedData!!.indexOf(',')
         assertEquals(fileHeader + gson.toJson(rawData), loadedData.substring(firstComma + 1))
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun clearTest() {
+        DataStore.saveData(appContext, arrayOf(RawData(System.currentTimeMillis())))
+        assertNotEquals(DataStore.sizeOfData(appContext), 0)
+        DataStore.clearAll(appContext)
+        assertEquals(DataStore.sizeOfData(appContext), 0)
     }
 }
