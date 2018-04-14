@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.utility
 import android.app.Activity
 import android.graphics.Color
 import android.graphics.PointF
+import android.support.annotation.StringDef
 import android.support.v4.graphics.ColorUtils
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -10,6 +11,7 @@ import androidx.core.content.edit
 import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.utility.Tips.showTips
 import com.takusemba.spotlight.OnTargetStateChangedListener
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
@@ -17,15 +19,35 @@ import com.takusemba.spotlight.Target
 import com.takusemba.spotlight.shapes.Circle
 import com.takusemba.spotlight.shapes.RoundedRectangle
 
+/**
+ * Singleton class handling displaying of Tips based on [showTips] calls
+ */
 object Tips {
     const val HOME_TIPS = "home_tips"
     const val MAP_TIPS = "map_tips"
 
-    var active = false
+    @Retention(AnnotationRetention.SOURCE)
+    @StringDef(HOME_TIPS, MAP_TIPS)
+    annotation class TipKey
+
+    /**
+     * returns true if any tip is currently shown
+     */
+    var isActive = false
+        private set
 
     fun getTipsPreferenceKey(key: String) = "tip:$key"
 
-    fun showTips(activity: Activity, key: String) {
+    /**
+     * Shows tips for a given key
+     * Exception is thrown if key is not valid
+     *
+     * Function also performs check if tips can be shown and whether given tip was already shown
+     *
+     * @param activity Activity used to display tips
+     * @param key Key which selects proper tips
+     */
+    fun showTips(activity: Activity, @TipKey key: String) {
         val preferences = Preferences.getPref(activity)
         val tipsPreferenceKey = activity.getString(R.string.show_tips_key)
         if (preferences.getBoolean(tipsPreferenceKey, true) && !preferences.getBoolean(getTipsPreferenceKey(key), false)) {
@@ -101,11 +123,11 @@ object Tips {
                         Preferences.getPref(this).edit {
                             putBoolean(getTipsPreferenceKey(HOME_TIPS), true)
                         }
-                        active = false
+                        isActive = false
                     }
                     .start()
 
-            active = true
+            isActive = true
         }
     }
 
@@ -168,11 +190,11 @@ object Tips {
                         Preferences.getPref(this).edit {
                             putBoolean(getTipsPreferenceKey(MAP_TIPS), true)
                         }
-                        active = false
+                        isActive = false
                     }
                     .start()
 
-            active = true
+            isActive = true
         }
     }
 }

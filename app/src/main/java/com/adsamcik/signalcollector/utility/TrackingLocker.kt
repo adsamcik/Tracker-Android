@@ -17,8 +17,12 @@ import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.services.TrackerService
 import com.crashlytics.android.Crashlytics
+import javax.annotation.concurrent.ThreadSafe
 
-
+/**
+ * Singleton that takes care of tracking locks.
+ */
+@ThreadSafe
 object TrackingLocker {
     private const val JOB_DISABLE_TILL_RECHARGE_ID = 58946
 
@@ -36,6 +40,10 @@ object TrackingLocker {
             refreshLockState()
         }
 
+    /**
+     * Live object that can be observed
+     * returns true if any lockTimeLock is currently engaged
+     */
     val isLocked: NonNullLiveMutableData<Boolean> by lazy {
         NonNullLiveMutableData(isLockedRightNow())
     }
@@ -50,6 +58,9 @@ object TrackingLocker {
 
     private fun refreshLockState() = isLocked.postValue(isLockedRightNow())
 
+    /**
+     * Initializes locks from SharedPreferences (persistence)
+     */
     fun initializeFromPersistence(context: Context) {
         val preferences = Preferences.getPref(context)
         synchronized(lockedUntil) {
@@ -113,6 +124,9 @@ object TrackingLocker {
         }
     }
 
+    /**
+     * Removed recharge lockTimeLock
+     */
     fun unlockRechargeLock(context: Context) {
         val scheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         scheduler.cancel(JOB_DISABLE_TILL_RECHARGE_ID)
@@ -120,9 +134,9 @@ object TrackingLocker {
     }
 
     /**
-     * Sets auto lock with time passed in variable.
+     * Sets auto lockTimeLock with time passed in variable.
      */
-    fun lock(context: Context, lockTimeInMillis: Long) {
+    fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
         synchronized(lockedUntil) {
             synchronized(lockedUntilRecharge) {
                 lockedUntil = System.currentTimeMillis() + lockTimeInMillis
@@ -139,9 +153,10 @@ object TrackingLocker {
     }
 
     /**
-     * Removes tracking lock
+     * Unlocks active time lock
+     * Thread safe
      */
-    fun unlock(context: Context) {
+    fun unlockTimeLock(context: Context) {
         synchronized(lockedUntil) {
             getAlarmManager(context).cancel(getIntent(context))
             setTimeLock(context, 0)
@@ -169,9 +184,12 @@ object TrackingLocker {
 
     private fun getAlarmManager(context: Context) = context.getSystemServiceTyped<AlarmManager>(Context.ALARM_SERVICE)
 
+    /**
+     * JobService used for job that waits until device is connected to a charger to remove recharge lockTimeLock
+     */
     class DisableTillRechargeJobService : JobService() {
         override fun onStartJob(jobParameters: JobParameters): Boolean {
-            setRechargeLock(this, false)
+            unlockRechargeLock(this)
             return false
         }
 

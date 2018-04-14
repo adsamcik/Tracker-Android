@@ -287,7 +287,7 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        return if (!Tips.active && root.touchDelegate.onTouchEvent(event))
+        return if (!Tips.isActive && root.touchDelegate.onTouchEvent(event))
             true
         else
             super.dispatchTouchEvent(event)

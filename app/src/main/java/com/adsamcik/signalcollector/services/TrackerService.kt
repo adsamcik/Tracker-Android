@@ -85,7 +85,7 @@ class TrackerService : LifecycleService() {
         }
 
         if (location.altitude > 5600) {
-            TrackingLocker.lock(this, Constants.MINUTE_IN_MILLISECONDS * 45)
+            TrackingLocker.lockTimeLock(this, Constants.MINUTE_IN_MILLISECONDS * 45)
             //todo add notification
             if (!isBackgroundActivated)
                 stopSelf()

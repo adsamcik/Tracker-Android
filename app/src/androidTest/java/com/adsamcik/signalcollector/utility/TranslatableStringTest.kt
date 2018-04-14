@@ -20,13 +20,13 @@ class TranslatableStringTest {
     @Test
     fun loadFromJson() {
         val json = "{\"defaultString\":\"$defaultString\",\"identifier\":$identifier}"
-        Assert.assertEquals(appContext.getString(identifierInt), gson.fromJson(json, TranslateableString::class.java).getString(appContext))
+        Assert.assertEquals(appContext.getString(identifierInt), gson.fromJson(json, TranslatableString::class.java).getString(appContext))
     }
 
     @Test
     fun basicValueTest() {
-        val target = TranslateableString(identifier, defaultString,
-                object : TranslateableString.IIdentifierResolver {
+        val target = TranslatableString(identifier, defaultString,
+                object : TranslatableString.IIdentifierResolver {
                     override fun resolve(identifier: String): Int = identifierInt
                 })
 
@@ -37,7 +37,7 @@ class TranslatableStringTest {
 
     @Test
     fun exceptionTest() {
-        val target = TranslateableString()
+        val target = TranslatableString()
 
         try {
             target.getString(appContext)
@@ -59,7 +59,7 @@ class TranslatableStringTest {
 
     @Test
     fun dynamicResourceTest() {
-        val target = TranslateableString()
+        val target = TranslatableString()
         target.identifier = identifier
         Assert.assertEquals(appContext.getString(identifierInt), target.getString(appContext))
     }

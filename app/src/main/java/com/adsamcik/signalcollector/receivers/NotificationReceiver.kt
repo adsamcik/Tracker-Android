@@ -29,7 +29,7 @@ class NotificationReceiver : BroadcastReceiver() {
             2 -> {
                 val minutes = intent.getIntExtra(STOP_MINUTES_EXTRA, -1)
                 if (minutes > 0)
-                    TrackingLocker.lock(context, Constants.MINUTE_IN_MILLISECONDS * minutes)
+                    TrackingLocker.lockTimeLock(context, Constants.MINUTE_IN_MILLISECONDS * minutes)
             }
             else -> Log.w(TAG, "Unknown value $value")
         }
