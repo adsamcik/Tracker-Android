@@ -61,6 +61,12 @@ class FragmentTracker : Fragment() {
 
     override fun onStart() {
         super.onStart()
+
+        icon_activity.visibility = GONE
+        altitude.visibility = GONE
+        accuracy.visibility = GONE
+
+
         button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
         updateUploadButton()
 
@@ -306,12 +312,13 @@ class FragmentTracker : Fragment() {
         textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(d.time)))
 
         if (d.accuracy != null) {
-            accuracy.visibility = View.VISIBLE
+            accuracy.visibility = VISIBLE
             accuracy.text = getString(R.string.info_accuracy, d.accuracy!!.toInt())
         } else
-            accuracy.visibility = View.GONE
+            accuracy.visibility = GONE
 
         altitude.text = getString(R.string.info_altitude, d.altitude!!.toInt())
+        altitude.visibility = VISIBLE
 
         when {
             d.wifi != null -> {
@@ -334,7 +341,7 @@ class FragmentTracker : Fragment() {
             if (registered != null && registered.isNotEmpty()) {
                 component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, registered[0].getType(), registered[0].dbm, registered[0].asu))
             } else
-                component.setVisibility(CELL_COMPONENT_CURRENT, View.GONE)
+                component.setVisibility(CELL_COMPONENT_CURRENT, GONE)
             component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, d.cellCount))
         } else {
             cellInfo?.detach()
@@ -345,18 +352,22 @@ class FragmentTracker : Fragment() {
             ResolvedActivity.STILL -> {
                 icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_idle)
+                icon_activity.visibility = VISIBLE
             }
             ResolvedActivity.ON_FOOT -> {
                 icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_on_foot)
+                icon_activity.visibility = VISIBLE
             }
             ResolvedActivity.IN_VEHICLE -> {
                 icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_in_vehicle)
+                icon_activity.visibility = VISIBLE
             }
-            else -> {
+            ResolvedActivity.UNKNOWN -> {
                 icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_unknown)
+                icon_activity.visibility = VISIBLE
             }
         }
     }
