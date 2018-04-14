@@ -365,6 +365,7 @@ class FragmentTracker : Fragment() {
                 icon_activity.contentDescription = getString(R.string.activity_unknown)
                 icon_activity.visibility = VISIBLE
             }
+            else -> icon_activity.visibility = GONE
         }
     }
 
