@@ -2,10 +2,15 @@ package com.adsamcik.signalcollector.uitools
 
 import android.graphics.Color
 import android.support.annotation.ColorInt
-import android.support.v4.graphics.ColorUtils
 
+/**
+ * Brightens given color component with given value and ensures it is not larger than 255
+ */
 fun brightenComponent(component: Int, value: Int) = Math.min(component + value, 255)
 
+/**
+ * Brightens color by components with given value.
+ */
 fun brightenColor(@ColorInt color: Int, value: Int): Int {
     val r = brightenComponent(Color.red(color), value)
     val g = brightenComponent(Color.green(color), value)
@@ -13,11 +18,37 @@ fun brightenColor(@ColorInt color: Int, value: Int): Int {
     return Color.rgb(r, g, b)
 }
 
+/**
+ * Converts RGB red (0-255) to % blue (0.0 - 1.0)
+ */
 fun relRed(@ColorInt color: Int) = Color.red(color) / 255.0
+
+/**
+ * Converts RGB green (0-255) to % blue (0.0 - 1.0)
+ */
 fun relGreen(@ColorInt color: Int) = Color.green(color) / 255.0
+
+/**
+ * Converts RGB blue (0-255) to % blue (0.0 - 1.0)
+ */
 fun relBlue(@ColorInt color: Int) = Color.blue(color) / 255.0
 
+/**
+ * Returns perceived relative luminance using an algorithm taken from formula for converting
+ * RGB to YIQ
+ * @see <a href="https://www.w3.org/TR/AERT/#color-contrast">https://www.w3.org/TR/AERT/#color-contrast</a>
+ *
+ * @param color Packed ARGB color
+ * @return Double value from 0 to 1 based on perceived luminance
+ */
 fun perceivedLuminance(@ColorInt color: Int) = 0.299 * relRed(color) + 0.587 * relGreen(color) + 0.114 * relBlue(color)
 
-fun perceivedRelLuminance(@ColorInt color: Int) = Math.signum(perceivedLuminance(color) - 0.5).toByte()
-fun relLuminance(@ColorInt color: Int) = Math.signum(ColorUtils.calculateLuminance(color) - 0.5).toByte()
+/**
+ * Returns perceived relative luminance using an algorithm taken from formula for converting
+ * RGB to YIQ
+ * @see <a href="https://www.w3.org/TR/AERT/#color-contrast">https://www.w3.org/TR/AERT/#color-contrast</a>
+ *
+ * @param color packed ARGB color
+ * @return Value from [Byte.MIN_VALUE] to [Byte.MAX_VALUE]
+ */
+fun perceivedRelLuminance(@ColorInt color: Int) = Math.floor((perceivedLuminance(color) - 0.5) * 255).toByte()
