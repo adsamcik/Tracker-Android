@@ -183,8 +183,6 @@ class FragmentTracker : Fragment() {
         rawData.altitude = 123.0
         rawData.wifiTime = System.currentTimeMillis()
         updateData(rawData)
-
-        colorManager.notifyChangeOn(content)
     }
 
     private fun initializeColorElements() {
