@@ -3,6 +3,9 @@ package com.adsamcik.signalcollector.extensions
 import com.adsamcik.signalcollector.utility.Constants
 import java.util.*
 
+/**
+ * Rounds calendar to date by settings [Calendar.HOUR_OF_DAY], [Calendar.MINUTE], [Calendar.SECOND], [Calendar.MILLISECOND] to 0
+ */
 fun Calendar.roundToDate() {
     set(Calendar.HOUR_OF_DAY, 0)
     set(Calendar.MINUTE, 0)
@@ -10,6 +13,9 @@ fun Calendar.roundToDate() {
     set(Calendar.MILLISECOND, 0)
 }
 
+/**
+ * Creates a new instance of this calendar which is rounded to date using [roundToDate]
+ */
 fun Calendar.date(): Calendar {
     val calendar = cloneCalendar()
     calendar.roundToDate()
@@ -17,6 +23,8 @@ fun Calendar.date(): Calendar {
 }
 
 /**
+ * Creates a new instance of this calendar rounded to UTC date using [roundToDate]
+ *
  * @return Today as a day in unix time
  */
 fun Calendar.dateUTC(): Calendar {
@@ -26,10 +34,16 @@ fun Calendar.dateUTC(): Calendar {
     return calendar
 }
 
+/**
+ * Returns a copy of this calendar
+ */
 fun Calendar.cloneCalendar(): Calendar {
     return clone() as Calendar
 }
 
+/**
+ * Returns time since midnight in milliseconds
+ */
 fun Calendar.timeInMillis(): Long {
     val calendar = cloneCalendar()
     return calendar.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +

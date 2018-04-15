@@ -59,16 +59,25 @@ fun PreferenceGroup.findDirectPreferenceByTitle(title: CharSequence): Preference
     return null
 }
 
+/**
+ * Utility method to get integer from SharedPreferences which has default values saved as String resource
+ */
 fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): Int {
     val resources = context.resources
     return getInt(resources.getString(key), resources.getString(defaultResource).toInt())
 }
 
+/**
+ * Utility method to get string from SharedPreferences which has default values saved as String resource
+ */
 fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
     val resources = context.resources
     return getString(resources.getString(key), resources.getString(defaultResource))
 }
 
+/**
+ * Utility method to get color from SharedPreferences which has default values saved as Integer resource
+ */
 @ColorInt
 fun SharedPreferences.getColor(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
     val defaultColor = ContextCompat.getColor(context, defaultResource)
