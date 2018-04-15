@@ -4,6 +4,7 @@ import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.support.v4.content.ContextCompat
 import android.util.SparseArray
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
@@ -21,10 +22,12 @@ import com.google.android.gms.tasks.Task
  * Handles logging if it is enabled.
  */
 class ActivityService : IntentService("ActivityService") {
-    private var mPowerManager = powerManager
+    private lateinit var mPowerManager: PowerManager
 
     override fun onHandleIntent(intent: Intent?) {
         val result = ActivityRecognitionResult.extractResult(intent)
+
+        mPowerManager = powerManager
 
         lastActivity = ActivityInfo(result.mostProbableActivity)
         if (mBackgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {

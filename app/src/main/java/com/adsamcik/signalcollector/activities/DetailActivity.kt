@@ -33,11 +33,10 @@ abstract class DetailActivity : AppCompatActivity() {
 
     override fun setTitle(title: CharSequence) {
         super.setTitle(title)
-        setTitle(title as String)
+        content_detail_title.text = title
     }
 
     override fun setTitle(titleId: Int) {
-        super.setTitle(titleId)
         title = getString(titleId)
     }
 
