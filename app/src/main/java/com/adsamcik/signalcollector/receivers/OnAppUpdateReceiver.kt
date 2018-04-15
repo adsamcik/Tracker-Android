@@ -12,6 +12,9 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.TrackingLocker
 import com.crashlytics.android.Crashlytics
 
+/**
+ * Receiver that is subscribed to update event so some actions can be performed and services are restored
+ */
 class OnAppUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action

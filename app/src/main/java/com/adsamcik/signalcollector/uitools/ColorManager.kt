@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.TextView
+import com.adsamcik.signalcollector.extensions.contains
 import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.backgroundColorFor
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.foregroundColorFor
@@ -24,7 +25,7 @@ typealias ColorListener = (luminance: Byte, backgroundColor: Int) -> Unit
  * ColorManager class that handles color updates of views in a given Activity or Fragment
  */
 class ColorManager {
-    private val watchedElements = ArrayList<ColorView>(5)
+    private val watchedViews = ArrayList<ColorView>(5)
 
     /**
      * Colors listener array. Holds all listeners.
@@ -33,91 +34,133 @@ class ColorManager {
     private val colorChangeListeners = ArrayList<ColorListener>(0)
 
     /**
-     * Add given [colorView] to the list of watched elements
+     * Add given [colorView] to the list of watched Views
      *
      */
-    fun watchElement(colorView: ColorView) {
-        synchronized(watchedElements) {
-            watchedElements.add(colorView)
+    fun watchView(colorView: ColorView) {
+        synchronized(watchedViews) {
+            watchedViews.add(colorView)
         }
         updateInternal(colorView)
     }
 
     /**
-     * Allow
+     * Notifies [ColorManager] that change has occurred on given view. View needs to be subscribed to color updates.
+     * It is recommended to pass root View of ColorView because it does not trigger recursive lookup.
+     *
+     * @param view root View of ColorView
      */
-    fun notififyChangeOn(view: View) {
+    fun notifyChangeOn(view: View) {
         var find: ColorView? = null
-        synchronized(watchedElements) {
-            find = watchedElements.find { it.view == view }
+        synchronized(watchedViews) {
+            find = watchedViews.find { it.view == view }
+            if (find == null)
+                find = watchedViews.find { it.view.contains(view) }
         }
 
         if (find != null)
             updateInternal(find!!)
+        else
+            throw IllegalArgumentException("View is not subscribed")
     }
 
-    fun watchRecycler(view: ColorView) {
-        if (!view.recursive)
+    /**
+     * Add given [ColorView] that must derive from [AdapterView] to the list of watched view. Provides additional support for recycling so recycled views are styled properly.
+     *
+     * Adapter needs to implement [IViewChange] interface for the best and most reliable color updating.
+     * However it will somehow work even without it, but it might not be reliable.
+     */
+    fun watchAdapterView(colorView: ColorView) {
+        if (!colorView.recursive)
             throw RuntimeException("Recycler view cannot be non recursive")
 
-        view.view as AdapterView<*>
-        val adapter = view.view.adapter
+        colorView.view as AdapterView<*>
+        val adapter = colorView.view.adapter
         if (adapter is IViewChange) {
             adapter.onViewChangedListener = {
-                updateStyleRecursive(it, backgroundColorFor(view), foregroundColorFor(view), view.layer + 1)
+                updateStyleRecursive(it, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
             }
         } else {
-            view.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+            colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
                 override fun onChildViewRemoved(parent: View, child: View) {
                 }
 
                 override fun onChildViewAdded(parent: View, child: View) {
-                    updateStyleRecursive(child, backgroundColorFor(view), foregroundColorFor(view), view.layer + 1)
+                    updateStyleRecursive(child, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
                 }
 
             })
         }
-        watchElement(view)
+        watchView(colorView)
     }
 
-    fun stopWatchingElement(predicate: (ColorView) -> Boolean) {
-        synchronized(watchedElements) {
-            val index = watchedElements.indexOfFirst(predicate)
+    /**
+     * Stop watching [ColorView] based on predicate. This allows more advanced and unpredictable ColorView removals.
+     * Only the first [ColorView] that matches the predicate will be removed.
+     */
+    fun stopWatchingView(predicate: (ColorView) -> Boolean) {
+        synchronized(watchedViews) {
+            val index = watchedViews.indexOfFirst(predicate)
             if (index >= 0)
-                watchedElements.removeAt(index)
+                watchedViews.removeAt(index)
         }
     }
 
-    fun stopWatchingElement(view: View) {
-        stopWatchingElement { it.view == view }
+    /**
+     * Request to stop watching view.
+     *
+     * @param view RootView of ColorView to remove. No child lookups are performed.
+     */
+    fun stopWatchingView(view: View) {
+        stopWatchingView { it.view == view }
     }
 
-    fun stopWatchingElement(@IdRes id: Int) {
-        stopWatchingElement { it.view.id == id }
+    /**
+     * Request to stop watching view with given id
+     *
+     * @param id Id of the RootView of ColorView. No child lookups are performed.
+     */
+    fun stopWatchingView(@IdRes id: Int) {
+        stopWatchingView { it.view.id == id }
     }
 
-    fun stopWatchingRecycler(view: AdapterView<*>) {
+    /**
+     * Request to stop watching adapter view.
+     * This is required to call if AdapterView was added with [watchAdapterView] function, otherwise it will not be unsubscribed properly.
+     *
+     * @param view AdapterView to unsubscribe
+     */
+    fun stopWatchingAdapterView(view: AdapterView<*>) {
         val adapter = view.adapter
         if (adapter is IViewChange)
             adapter.onViewChangedListener = null
         else
             view.setOnHierarchyChangeListener(null)
-        stopWatchingElement(view)
+        stopWatchingView(view)
     }
 
-    fun stopWatchingRecycler(@IdRes id: Int) {
-        synchronized(watchedElements) {
-            val index = watchedElements.indexOfFirst { it.view.id == id }
+    /**
+     * Request to stop watching adapter view.
+     * This is required to call if AdapterView was added with [watchAdapterView] function, otherwise it will not be unsubscribed properly.
+     *
+     * @param id Id of the AdapterView to unsubscribe
+     */
+    fun stopWatchingAdapterView(@IdRes id: Int) {
+        synchronized(watchedViews) {
+            val index = watchedViews.indexOfFirst { it.view.id == id }
             if (index >= 0) {
-                (watchedElements[index].view as ViewGroup).setOnHierarchyChangeListener(null)
-                watchedElements.removeAt(index)
+                (watchedViews[index].view as ViewGroup).setOnHierarchyChangeListener(null)
+                watchedViews.removeAt(index)
             }
         }
     }
 
+    /**
+     * Triggers cleanup of all watched [ColorView] and [ColorListener] removing them from watch lists.
+     */
     fun cleanup() {
-        synchronized(watchedElements) {
-            watchedElements.clear()
+        synchronized(watchedViews) {
+            watchedViews.clear()
         }
 
         synchronized(colorChangeListeners) {
@@ -127,7 +170,7 @@ class ColorManager {
 
     /**
      * Adds color listener which is called on change. It is not guaranteed to be called on UI thread.
-     * For views [watchElement] should be used.
+     * For views [watchView] should be used.
      * Listener returns only luminance and background color
      */
     fun addListener(colorListener: ColorListener) {
@@ -138,7 +181,7 @@ class ColorManager {
     }
 
     /**
-     * Removes listener
+     * Removes color listener
      */
     fun removeListener(colorListener: ColorListener) {
         synchronized(colorChangeListeners) {
@@ -146,10 +189,13 @@ class ColorManager {
         }
     }
 
+    /**
+     * Internal update function which should be called only by ColorSupervisor
+     */
     internal fun update() {
         launch(UI) {
-            synchronized(watchedElements) {
-                watchedElements.forEach {
+            synchronized(watchedViews) {
+                watchedViews.forEach {
                     updateInternal(it)
                 }
             }

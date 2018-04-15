@@ -83,7 +83,7 @@ class InfoComponent : FrameLayout {
 
     internal fun setColorManager(colorManager: ColorManager) {
         this.colorManager = colorManager
-        colorManager.watchElement(ColorView(this, 1, true, false, true))
+        colorManager.watchView(ColorView(this, 1, true, false, true))
     }
 
     private fun setTextViewTheme(textView: TextView, textSizeResource: Int, textColorResource: Int) {
@@ -114,7 +114,7 @@ class InfoComponent : FrameLayout {
 
     fun detach() {
         (parent as ViewGroup).removeView(this)
-        colorManager?.stopWatchingElement(this)
+        colorManager?.stopWatchingView(this)
         colorManager = null
     }
 }

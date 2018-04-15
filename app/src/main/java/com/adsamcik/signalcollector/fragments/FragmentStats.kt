@@ -74,7 +74,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
         this.fragmentView = fragmentView
 
-        colorManager.watchRecycler(ColorView(listView, 1, true, true))
+        colorManager.watchAdapterView(ColorView(listView, 1, true, true))
 
         return fragmentView
     }

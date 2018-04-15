@@ -22,6 +22,9 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.*
 
+/**
+ * Activity that allows user to share his collected data to other apps that support zip files
+ */
 class FileSharingActivity : DetailActivity() {
     private var shareableDir: File? = null
     private lateinit var root: ViewGroup
@@ -116,7 +119,7 @@ class FileSharingActivity : DetailActivity() {
 
             bottomSheetMenu.showHide(750)
 
-            colorManager!!.watchElement(ColorView(layout, 0))
+            colorManager!!.watchView(ColorView(layout, 0))
         }
 
         setTitle(R.string.export_share_button)

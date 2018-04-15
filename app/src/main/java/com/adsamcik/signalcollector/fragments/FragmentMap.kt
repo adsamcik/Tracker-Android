@@ -302,8 +302,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         locationListener!!.setButton(button_map_my_location, context!!)
 
-        colorManager!!.watchElement(ColorView(map_menu_button, 2, false, false))
-        colorManager!!.watchElement(ColorView(layout_map_controls, 3, true, false))
+        colorManager!!.watchView(ColorView(map_menu_button, 2, false, false))
+        colorManager!!.watchView(ColorView(layout_map_controls, 3, true, false))
     }
 
     /**
@@ -485,7 +485,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 payload.height = map_menu_parent.height
                 payload.onInitialized = {
                     fragmentMapMenu.set(it)
-                    colorManager!!.watchRecycler(ColorView(it.view!!, 2))
+                    colorManager!!.watchAdapterView(ColorView(it.view!!, 2))
                     val layers = mapLayers
                     if (layers != null && layers.isNotEmpty()) {
                         val adapter = it.adapter
@@ -500,7 +500,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 }
                 payload.onBeforeDestroyed = {
                     fragmentMapMenu.set(null)
-                    colorManager!!.stopWatchingRecycler(R.id.list)
+                    colorManager!!.stopWatchingAdapterView(R.id.list)
                 }
 
                 map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
@@ -516,7 +516,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 map_menu_button.addPayload(payload)
                 if (mapLayers?.isNotEmpty() == true) {
                     map_menu_button.visibility = View.VISIBLE
-                    colorManager!!.notififyChangeOn(map_menu_button)
+                    colorManager!!.notifyChangeOn(map_menu_button)
                 }
             }
 

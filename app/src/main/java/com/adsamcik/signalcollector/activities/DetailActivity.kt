@@ -20,7 +20,7 @@ abstract class DetailActivity : AppCompatActivity() {
         back_button.setOnClickListener({ _ -> onBackPressed() })
 
         colorManager = ColorSupervisor.createColorManager(this)
-        colorManager!!.watchElement(ColorView(back_button.parent as View, 1, true, false))
+        colorManager!!.watchView(ColorView(back_button.parent as View, 1, true, false))
     }
 
     override fun onBackPressed() {

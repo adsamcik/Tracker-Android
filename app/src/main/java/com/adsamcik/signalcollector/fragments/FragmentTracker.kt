@@ -184,13 +184,13 @@ class FragmentTracker : Fragment() {
         rawData.wifiTime = System.currentTimeMillis()
         updateData(rawData)
 
-        colorManager.notififyChangeOn(content)
+        colorManager.notifyChangeOn(content)
     }
 
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(context!!)
-        colorManager.watchElement(ColorView(top_panel, 1, true, false))
-        colorManager.watchElement(ColorView(bar_info_top, 1, true, false))
+        colorManager.watchView(ColorView(top_panel, 1, true, false))
+        colorManager.watchView(ColorView(bar_info_top, 1, true, false))
 
         cellInfo?.setColorManager(colorManager)
         wifiInfo?.setColorManager(colorManager)

@@ -47,7 +47,7 @@ class UploadReportsActivity : DetailActivity() {
                 adapter.add(generateTableForUploadStat(stats, this, null, AppendBehavior.Any))
             }
 
-            colorManager!!.watchRecycler(ColorView(listView, 0, true, true))
+            colorManager!!.watchAdapterView(ColorView(listView, 0, true, true))
         }
     }
 
