@@ -7,6 +7,9 @@ import android.view.ViewGroup
 import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.table.TableAdapter
 
+/**
+ * ChangeTableAdapter was created to extend TableAdapter with IViewChange interface for proper color updating
+ */
 internal class ChangeTableAdapter(context: Context, itemMarginDp: Int, @StyleRes themeInt: Int) : TableAdapter(context, itemMarginDp, themeInt), IViewChange {
     override var onViewChangedListener: ((View) -> Unit)? = null
 

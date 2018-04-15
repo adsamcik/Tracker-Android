@@ -16,6 +16,9 @@ import com.adsamcik.table.Table
 import com.google.gson.Gson
 import java.util.*
 
+/**
+ * Activity that shows all the recent upload reports user received from the server.
+ */
 class UploadReportsActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +56,9 @@ class UploadReportsActivity : DetailActivity() {
 
     companion object {
 
+        /**
+         * Returns mocked UploadStat
+         */
         fun mockItem() = UploadStats(System.currentTimeMillis(), 45464, 101, 156, 11, 65478, 65546, 5465646541L)
 
         /**

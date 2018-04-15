@@ -4,6 +4,9 @@ import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ChallengeDifficulties
 
+/**
+ * Challenge object that holds information about challenge including it's text localization
+ */
 class Challenge {
     /**
      * Type of challenge
@@ -53,10 +56,18 @@ class Challenge {
         this.difficulty = difficulty
     }
 
+    /**
+     * Sets progress as done
+     * This is useful when progress needs to be updated locally when challenge is completed without redownloading challenges from the server.
+     */
     fun setDone() {
         this.progress = 1f
     }
 
+    /**
+     * This function loads appropriate strings from the resources for this challenge.
+     * Implementing it like this allowed proper localization.
+     */
     fun generateTexts(context: Context) {
         val resources = context.resources
         assert(descVars != null)
@@ -115,6 +126,9 @@ class Challenge {
         }
     }
 
+    /**
+     * Challenge types that are currently supported
+     */
     enum class ChallengeType {
         LawfulExplorer,
         AwfulExplorer,

@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets
 
 /**
  * LicenseActivity shows users all the open source licenses for dependencies this app uses.
- * For some specific libraries there are manually filled in URLs and copyrights. For most licenses it uses Google's automatically generated list
+ * For some specific libraries there are manually filled in URLs and copyrights. For most licenses it uses Google's automatically generated list.
  */
 class LicenseActivity : DetailActivity() {
 

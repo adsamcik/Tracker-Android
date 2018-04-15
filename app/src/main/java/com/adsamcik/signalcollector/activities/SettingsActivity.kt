@@ -33,7 +33,10 @@ import com.adsamcik.signalcollector.utility.TrackingLocker
 import java.io.File
 import java.util.*
 
-
+/**
+ * Settings Activity contains local settings and hosts debugging features
+ * It is based upon Android's [Preference].
+ */
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
     lateinit var fragment: FragmentSettings
 

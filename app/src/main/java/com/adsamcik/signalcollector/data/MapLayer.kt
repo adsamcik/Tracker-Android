@@ -26,13 +26,14 @@ data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right:
         const val MIN_LONGITUDE = -180.0
         const val MAX_LONGITUDE = 180.0
 
+        /**
+         * Converts array of MapLayers to string
+         */
         fun toStringArray(layerArray: Array<MapLayer>): Array<String> = Array(layerArray.size) { layerArray[it].name }
 
-        fun indexOf(layerArray: Array<MapLayer>, name: String): Int {
-            return layerArray.indices.firstOrNull { layerArray[it].name == name }
-                    ?: -1
-        }
-
+        /**
+         * Checks if MapLayer is in given array
+         */
         fun contains(layerArray: Array<MapLayer>, name: String): Boolean =
                 layerArray.any { it.name == name }
 

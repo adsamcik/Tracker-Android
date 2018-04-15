@@ -2,6 +2,9 @@ package com.adsamcik.signalcollector.data
 
 import com.vimeo.stag.UseStag
 
+/**
+ * Instance that holds information about local statistics today
+ */
 @UseStag
 class StatDay {
     var age: Int = 0
@@ -20,11 +23,20 @@ class StatDay {
         this.uploaded = upload
     }
 
+    /**
+     * Adds given cell count and wifi count to this instance
+     *
+     * @param cellCount Number of cells
+     * @param wifiCount Number of Wi-Fi networks
+     */
     fun add(cellCount: Int, wifiCount: Int) {
         bumpLocation().addCell(cellCount).addWifi(wifiCount)
     }
 
-    fun add(day: StatDay) {
+    /**
+     * Adds [StatDay] instance to this instance
+     */
+    operator fun plusAssign(day: StatDay) {
         locations += day.locations
         wifi += day.wifi
         cell += day.cell
@@ -58,7 +70,7 @@ class StatDay {
     }
 
     operator fun plusAssign(days: MutableList<StatDay>) {
-        for (d in days) add(d)
+        days.forEach { this += it }
     }
 
     //STAG CONSTRUCTOR AND GETTERS AND SETTERS//

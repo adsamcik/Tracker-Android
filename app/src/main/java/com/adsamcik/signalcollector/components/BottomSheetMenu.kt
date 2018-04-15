@@ -1,7 +1,5 @@
 package com.adsamcik.signalcollector.components
 
-import android.os.Handler
-import android.os.Looper
 import android.support.annotation.ColorInt
 import android.support.annotation.StringRes
 import android.support.design.widget.BottomSheetBehavior
@@ -9,13 +7,21 @@ import android.support.design.widget.CoordinatorLayout
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.launch
 import java.util.*
+import java.util.concurrent.TimeUnit
 
+/**
+ * Implementation of https://material.io/guidelines/components/bottom-sheets.html
+ *
+ * It is basically a menu that is in the bottom and can be pulled up.
+ * Menu does not allow removal of items.
+ */
 class BottomSheetMenu(root: CoordinatorLayout) {
     private val menuRoot: LinearLayout
     private val menuItems: ArrayList<Button>
@@ -26,15 +32,6 @@ class BottomSheetMenu(root: CoordinatorLayout) {
 
     init {
         val context = root.context
-        /*menuRoot = new LinearLayout(context);
-		CoordinatorLayout.LayoutParams layoutParams = new CoordinatorLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-		layoutParams.setBehavior(new BottomSheetBehavior());
-		menuRoot.setLayoutParams(layoutParams);
-		int dp8padding = Assist.dpToPx(context, 8);
-		menuRoot.setPadding(0, dp8padding, 0, dp8padding);
-		menuRoot.setOrientation(LinearLayout.VERTICAL);
-		menuRoot.setBackgroundColor(ContextCompat.getColor(context, R.color.cardBackground));
-		root.addView(menuRoot);*/
 
         LayoutInflater.from(context).inflate(R.layout.bottom_sheet_menu, root)
         menuRoot = root.getChildAt(root.childCount - 1) as LinearLayout
@@ -49,6 +46,12 @@ class BottomSheetMenu(root: CoordinatorLayout) {
         textColor = typedValue.data
     }
 
+    /**
+     * Add item to the menu
+     *
+     * @param title String resource of the title
+     * @param onClickListener On click listener for the item
+     */
     fun addItem(@StringRes title: Int, onClickListener: View.OnClickListener) {
         val context = menuRoot.context
         val button = Button(context)
@@ -63,21 +66,14 @@ class BottomSheetMenu(root: CoordinatorLayout) {
         menuRoot.addView(button)
     }
 
-    fun removeItemAt(index: Int) {
-        menuRoot.removeView(menuItems[index])
-        menuItems.removeAt(index)
-    }
-
-    fun destroy() {
-        val viewParent = menuRoot.parent
-        if (viewParent != null)
-            (viewParent as ViewGroup).removeView(menuRoot)
-    }
-
+    /**
+     * Special behavior to help user understand what this menu is about. It shows the whole menu for a moment before collapsing
+     */
     fun showHide(delayInMS: Int) {
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
-        if (Looper.myLooper() == null)
-            Looper.prepare()
-        Handler().postDelayed({ bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED) }, delayInMS.toLong())
+        launch {
+            delay(delayInMS.toLong(), TimeUnit.MILLISECONDS)
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+        }
     }
 }

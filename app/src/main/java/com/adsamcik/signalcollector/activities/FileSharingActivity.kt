@@ -117,7 +117,10 @@ class FileSharingActivity : DetailActivity() {
                     listView.setItemChecked(i, false)
             })
 
-            bottomSheetMenu.showHide(750)
+
+            root.post {
+                bottomSheetMenu.showHide(1000)
+            }
 
             colorManager!!.watchView(ColorView(layout, 0))
         }

@@ -10,7 +10,9 @@ import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
 import com.jaredrummler.android.colorpicker.*
 
-
+/**
+ * Custom implementation of the [ColorPickerDialogListener] copied from the library and modified to work with AppCompat Preferences.
+ */
 class ColorSupportPreference : Preference, ColorPickerDialogListener {
     constructor(context: Context, attrs: AttributeSet) : super(context, attrs) {
         init(attrs)

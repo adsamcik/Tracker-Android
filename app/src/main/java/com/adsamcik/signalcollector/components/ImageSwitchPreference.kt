@@ -17,7 +17,9 @@ import androidx.core.view.setMargins
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
 
-
+/**
+ * Custom implementation of Preference that allows use of ImageButtons to switch between different states
+ */
 class ImageSwitchPreference : Preference {
     private var mForegroundColors: ColorStateList? = null
 

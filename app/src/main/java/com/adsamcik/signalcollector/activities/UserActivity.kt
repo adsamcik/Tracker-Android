@@ -35,6 +35,9 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.reflect.KMutableProperty0
 
+/**
+ * User Activity is activity that contains Signin and Server settings
+ */
 class UserActivity : DetailActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

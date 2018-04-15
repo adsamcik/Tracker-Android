@@ -12,7 +12,10 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.slider.implementations.IntValueSlider
 
-
+/**
+ * Custom Preference implementation of the IntValueSlider from Slider library.
+ * It allows Slider to be used as preference.
+ */
 class IntValueSliderPreference : Preference {
     constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
         initAttributes(context, attrs)

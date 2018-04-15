@@ -5,11 +5,15 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.support.annotation.RequiresApi
+import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType
 import com.crashlytics.android.Crashlytics
 
+/**
+ * ShortcutActivity is activity that handles shortcut actions, so no UI is shown.
+ */
 class ShortcutActivity : Activity() {
 
     @RequiresApi(api = Build.VERSION_CODES.N_MR1)
@@ -25,7 +29,7 @@ class ShortcutActivity : Activity() {
                 when (type) {
                     Shortcuts.ShortcutType.START_COLLECTION -> {
                         serviceIntent.putExtra("backTrack", false)
-                        startService(serviceIntent)
+                        ContextCompat.startForegroundService(this, serviceIntent)
                     }
                     Shortcuts.ShortcutType.STOP_COLLECTION -> if (TrackerService.isRunning)
                         stopService(serviceIntent)

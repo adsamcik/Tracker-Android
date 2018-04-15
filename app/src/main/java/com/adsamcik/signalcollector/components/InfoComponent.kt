@@ -10,11 +10,15 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
-import com.adsamcik.signalcollector.extensions.dpAsPx
 
-
+/**
+ * Component that shows custom data with title and items.
+ * Supports ColorManager
+ *
+ */
 class InfoComponent : FrameLayout {
     private var titleTextView: TextView? = null
 
@@ -108,8 +112,8 @@ class InfoComponent : FrameLayout {
         items[identifier]?.text = text
     }
 
-    fun setVisibility(identifier: String, visiblity: Int) {
-        items[identifier]?.visibility = visiblity
+    fun setVisibility(identifier: String, visibility: Int) {
+        items[identifier]?.visibility = visibility
     }
 
     fun detach() {

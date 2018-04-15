@@ -42,6 +42,10 @@ import com.google.android.gms.location.LocationServices
 import kotlinx.android.synthetic.main.activity_ui.*
 
 
+/**
+ * MainActivity containing the core of the App
+ * Users should spend most time in here.
+ */
 class MainActivity : FragmentActivity() {
     private lateinit var colorManager: ColorManager
     private var themeLocationRequestCode = 4513

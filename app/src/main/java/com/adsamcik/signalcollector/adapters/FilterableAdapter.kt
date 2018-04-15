@@ -12,6 +12,9 @@ import android.widget.TextView
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
+/**
+ * Abstract class that contains basic implementation to allow filtering.
+ */
 abstract class FilterableAdapter<T, F> : BaseAdapter {
 
     /**
@@ -66,7 +69,7 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
     }
 
     /**
-     * Adds item to adapter
+     * Adds item to the adapter
      *
      * @param item     object that will be added to adapter
      */
@@ -81,6 +84,11 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         }
     }
 
+    /**
+     * Adds all items from the Collection to the adapter
+     *
+     * @param items Collection of items
+     */
     @Synchronized
     fun addAll(items: Collection<T>) {
         var anyPassed = false
@@ -98,6 +106,9 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
             }
     }
 
+    /**
+     * Clears all items from the adapter
+     */
     fun clear() {
         mRawCollection!!.clear()
         mDisplayCollection.clear()
@@ -112,6 +123,11 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         return mDisplayCollection[position]
     }
 
+    /**
+     * Returns item name for item at a given position
+     *
+     * @param position Position of the item
+     */
     fun getItemName(position: Int): String {
         return mStringify.invoke(mDisplayCollection[position])
     }
@@ -136,10 +152,13 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         return cView
     }
 
-    fun filter() {
-        filter(filterObject)
-    }
-
+    /**
+     * Triggers filtering of the whole adapter using filter object.
+     * This object is used by implementation to filter items. It can be of different type than the containing objects to provide
+     * the exact information that is needed for proper filtering.
+     *
+     * @param filterObject Object used for filtering
+     */
     fun filter(filterObject: F?) {
         this.filterObject = filterObject
         mDisplayCollection = ArrayList(mRawCollection!!.size)
@@ -149,6 +168,13 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         notifyDataSetChanged()
     }
 
+    /**
+     * Filter function that is called to filter specific item
+     *
+     * @param item Item to filter
+     * @param filterObject Object used for filtering
+     * @return True if object should be included
+     */
     protected abstract fun filter(item: T, filterObject: F?): Boolean
 
     internal class ViewHolder {
