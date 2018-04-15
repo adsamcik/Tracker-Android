@@ -16,6 +16,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.marginBottom
 import com.adsamcik.signalcollector.extensions.setMargin
@@ -30,7 +31,9 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.uitools.*
+import com.adsamcik.signalcollector.uitools.ColorManager
+import com.adsamcik.signalcollector.uitools.ColorSupervisor
+import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.BottomBarBehavior
 import com.adsamcik.signalcollector.utility.Constants
@@ -56,8 +59,7 @@ class MainActivity : FragmentActivity() {
 
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
-
-        Assist.initialize(this)
+        
         Signin.signIn(this, null, true)
 
         if (Assist.checkPlayServices(this))
@@ -226,10 +228,10 @@ class MainActivity : FragmentActivity() {
         button_map.setMargin(0, 0, 0, draggableOriginalMargin + navDim.y)
 
         when (position) {
-            Assist.NavBarPosition.RIGHT -> {
+            NavBarPosition.RIGHT -> {
                 root.setPadding(0, 0, navDim.x, 0)
             }
-            Assist.NavBarPosition.LEFT -> {
+            NavBarPosition.LEFT -> {
                 root.setPadding(navDim.x, 0, 0, 0)
             }
             else -> root.setPadding(0, 0, 0, 0)
