@@ -18,12 +18,14 @@ import com.adsamcik.signalcollector.utility.SunSetRise
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
+import javax.annotation.concurrent.ThreadSafe
 import kotlin.collections.ArrayList
 
 /**
  * Class that handles globally calculation of current color
  * It needs to be updated with proper location to have accurate color transitions
  */
+@ThreadSafe
 object ColorSupervisor {
     //Lock order colorList, colorManagerLock, timer
 
@@ -99,6 +101,10 @@ object ColorSupervisor {
             currentBaseColor
     }
 
+    fun initializeColorManager(colorManager: ColorManager) {
+
+    }
+
     /**
      * Creates color manager instance
      */
@@ -119,6 +125,10 @@ object ColorSupervisor {
         return colorManager
     }
 
+    /**
+     * Recycles color manager instance. Cleans it up and prepares it for removal.
+     * It is also removed from active color managers.
+     */
     fun recycleColorManager(colorManager: ColorManager) {
         colorManagerLock.lock()
         colorManagers.remove(colorManager)

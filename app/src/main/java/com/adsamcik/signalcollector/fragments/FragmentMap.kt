@@ -124,7 +124,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         if (keyboardManager != null) {
             val keyboardManager = keyboardManager!!
-            keyboardManager.closeKeyboard()
+            keyboardManager.hideKeyboard()
             keyboardManager.removeKeyboardListener(keyboardListener)
             keyboardInitialized.set(false)
         }

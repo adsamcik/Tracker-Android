@@ -43,8 +43,9 @@ class ColorManager {
         updateInternal(colorView)
     }
 
-    fun watchElement(view: View) = watchElement(ColorView(view, 0))
-
+    /**
+     * Allow
+     */
     fun notififyChangeOn(view: View) {
         var find: ColorView? = null
         synchronized(watchedElements) {

@@ -14,6 +14,7 @@ import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataFile
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
 import java.io.File
@@ -115,7 +116,7 @@ class FileSharingActivity : DetailActivity() {
 
             bottomSheetMenu.showHide(750)
 
-            colorManager!!.watchElement(layout)
+            colorManager!!.watchElement(ColorView(layout, 0))
         }
 
         setTitle(R.string.export_share_button)

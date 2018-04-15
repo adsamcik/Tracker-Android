@@ -8,7 +8,6 @@ import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
-import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.TrackingLocker
 import com.crashlytics.android.Crashlytics
@@ -20,7 +19,6 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 
             val sp = Preferences.getPref(context)
             val editor = sp.edit()
-            Assist.initialize(context)
 
             if (sp.getInt(Preferences.LAST_VERSION, 0) < 207) {
                 DataStore.setCollections(context, 0)

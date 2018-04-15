@@ -271,7 +271,6 @@ class TrackerService : LifecycleService() {
         super.onCreate()
 
         service = WeakReference(this)
-        Assist.initialize(this)
         val sp = Preferences.getPref(this)
 
         //Get managers

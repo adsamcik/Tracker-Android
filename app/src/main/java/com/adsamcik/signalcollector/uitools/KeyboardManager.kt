@@ -1,11 +1,10 @@
 package com.adsamcik.signalcollector.uitools
 
-import android.content.Context
 import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
-import android.view.inputmethod.InputMethodManager
 import com.adsamcik.signalcollector.extensions.dpAsPx
+import com.adsamcik.signalcollector.extensions.inputMethodManager
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
 
 
@@ -53,27 +52,39 @@ class KeyboardManager(private val rootView: View) {
         defaultDiff = calculateHeightDiff() - navbarSize(rootView.context).second.y
     }
 
+    /**
+     * Needs to be called when either rotation occurs or display size is changed for some other reason.
+     */
     fun onDisplaySizeChanged() {
         calculateDefaultDiff()
         layoutListener.onGlobalLayout()
         listeners.forEach { it.invoke(wasOpen, keyboardHeight) }
     }
 
+    /**
+     * Adds keyboard listener to active listeners
+     */
     fun addKeyboardListener(listener: KeyboardListener) {
         listeners.add(listener)
         listener.invoke(wasOpen, keyboardHeight)
     }
 
+    /**
+     * Removes keyboard listener from active listeners
+     */
     fun removeKeyboardListener(listener: KeyboardListener) = listeners.remove(listener)
 
+    /**
+     * Removes all active listeners
+     */
     fun removeAllListeners() = listeners.clear()
 
-    fun keyboardOpen() = wasOpen
-
-    fun closeKeyboard() {
+    /**
+     * Hides software keyboard
+     */
+    fun hideKeyboard() {
         if (wasOpen) {
-            val imm = rootView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.hideSoftInputFromWindow(rootView.windowToken, 0)
+            rootView.context.inputMethodManager.hideSoftInputFromWindow(rootView.windowToken, 0)
             listeners.forEach { it.invoke(false, 0) }
             wasOpen = false
         }
