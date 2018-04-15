@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.data
 
 import android.content.Context
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.enums.ChallengeDifficulty
+import com.adsamcik.signalcollector.enums.ChallengeDifficulties
 
 class Challenge {
     /**
@@ -25,7 +25,7 @@ class Challenge {
     /**
      * Difficulty of the challenge
      */
-    @ChallengeDifficulty
+    @ChallengeDifficulties.ChallengeDifficulty
     private var difficulty: Int = 0
 
     var title: String? = null
@@ -35,7 +35,7 @@ class Challenge {
     var difficultyString: String? = null
         private set
 
-    constructor(type: ChallengeType, title: String, description: String, progress: Float, @ChallengeDifficulty difficulty: Int) {
+    constructor(type: ChallengeType, title: String, description: String, progress: Float, @ChallengeDifficulties.ChallengeDifficulty difficulty: Int) {
         this.type = type
         this.title = title
         this.description = description
@@ -44,7 +44,7 @@ class Challenge {
         this.difficulty = difficulty
     }
 
-    constructor(type: ChallengeType, title: String, descVars: Array<String>, progress: Float, @ChallengeDifficulty difficulty: Int) {
+    constructor(type: ChallengeType, title: String, descVars: Array<String>, progress: Float, @ChallengeDifficulties.ChallengeDifficulty difficulty: Int) {
         this.type = type
         this.title = title
         this.descVars = descVars
@@ -105,12 +105,12 @@ class Challenge {
         }
 
         difficultyString = when (difficulty) {
-            ChallengeDifficulty.EASY -> resources.getString(R.string.challenge_easy)
-            ChallengeDifficulty.HARD -> resources.getString(R.string.challenge_hard)
-            ChallengeDifficulty.MEDIUM -> resources.getString(R.string.challenge_medium)
-            ChallengeDifficulty.VERY_EASY -> resources.getString(R.string.challenge_very_easy)
-            ChallengeDifficulty.VERY_HARD -> resources.getString(R.string.challenge_very_hard)
-            ChallengeDifficulty.UNKNOWN -> null
+            ChallengeDifficulties.EASY -> resources.getString(R.string.challenge_easy)
+            ChallengeDifficulties.HARD -> resources.getString(R.string.challenge_hard)
+            ChallengeDifficulties.MEDIUM -> resources.getString(R.string.challenge_medium)
+            ChallengeDifficulties.VERY_EASY -> resources.getString(R.string.challenge_very_easy)
+            ChallengeDifficulties.VERY_HARD -> resources.getString(R.string.challenge_very_hard)
+            ChallengeDifficulties.UNKNOWN -> null
             else -> null
         }
     }

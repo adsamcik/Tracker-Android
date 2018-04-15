@@ -30,7 +30,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.dpAsPx
-import com.adsamcik.signalcollector.extensions.setBottomMargin
+import com.adsamcik.signalcollector.extensions.marginBottom
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.extensions.transactionStateLoss
 import com.adsamcik.signalcollector.network.Network
@@ -232,16 +232,16 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                 edittext_map_search.paddingBottom +
                                 edittext_map_search.paddingTop + edittext_map_search.height
 
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + keyboardHeight)
+                        map_ui_parent.marginBottom = searchOriginalMargin + keyboardHeight
                         map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
                     }
                 }
                 false -> {
                     if (position == NavBarPosition.BOTTOM) {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
+                        map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + 32.dpAsPx
                         map?.setPadding(0, 0, 0, navbarHeight.y)
                     } else {
-                        map_ui_parent.setBottomMargin(searchOriginalMargin + 32.dpAsPx)
+                        map_ui_parent.marginBottom = searchOriginalMargin + 32.dpAsPx
                         map?.setPadding(0, 0, 0, 0)
                     }
                 }

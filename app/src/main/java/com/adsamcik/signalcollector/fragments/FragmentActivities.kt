@@ -16,13 +16,13 @@ import android.widget.TextView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
-import com.adsamcik.signalcollector.enums.ChallengeDifficulty
+import com.adsamcik.signalcollector.enums.ChallengeDifficulties
+import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
-import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.android.synthetic.main.fragment_activities.*
@@ -61,9 +61,9 @@ class FragmentActivities : Fragment(), IOnDemandView {
         val activity = activity!!
         val context = activity.applicationContext
         if (useMock) {
-            val challenges = arrayOf(Challenge(Challenge.ChallengeType.AIsForAlphabet, "Hello world!", arrayOf("20", "h"), 0.5f, ChallengeDifficulty.MEDIUM),
-                    Challenge(Challenge.ChallengeType.AwfulExplorer, "Hello world!", arrayOf("6000"), 0f, ChallengeDifficulty.HARD),
-                    Challenge(Challenge.ChallengeType.Crowded, "Hello world!", arrayOf("50"), 1f, ChallengeDifficulty.EASY))
+            val challenges = arrayOf(Challenge(Challenge.ChallengeType.AIsForAlphabet, "Hello world!", arrayOf("20", "h"), 0.5f, ChallengeDifficulties.MEDIUM),
+                    Challenge(Challenge.ChallengeType.AwfulExplorer, "Hello world!", arrayOf("6000"), 0f, ChallengeDifficulties.HARD),
+                    Challenge(Challenge.ChallengeType.Crowded, "Hello world!", arrayOf("50"), 1f, ChallengeDifficulties.EASY))
 
             challenges.forEach { it.generateTexts(context) }
             launch(UI) {

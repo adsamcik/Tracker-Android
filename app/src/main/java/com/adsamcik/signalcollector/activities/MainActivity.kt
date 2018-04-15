@@ -15,7 +15,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.marginBottom
@@ -69,11 +69,17 @@ class MainActivity : FragmentActivity() {
         initializeButtons()
         initializeColorElements()
 
-        if (Network.cloudStatus == CloudStatus.UNKNOWN) {
+        if (Network.cloudStatus == CloudStatuses.UNKNOWN) {
             val scheduleSource = UploadJobService.getUploadScheduled(this)
             when (scheduleSource) {
-                UploadJobService.UploadScheduleSource.NONE -> Network.cloudStatus = if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
-                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER -> Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
+                UploadJobService.UploadScheduleSource.NONE ->
+                    Network.cloudStatus =
+                            if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
+                                CloudStatuses.SYNC_AVAILABLE
+                            else
+                                CloudStatuses.NO_SYNC_REQUIRED
+                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER ->
+                    Network.cloudStatus = CloudStatuses.SYNC_SCHEDULED
             }
         }
 

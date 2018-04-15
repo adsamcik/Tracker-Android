@@ -23,7 +23,7 @@ import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.data.CellData
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.WifiData
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.startActivity
@@ -238,26 +238,26 @@ class FragmentTracker : Fragment() {
         }
 
         when (Network.cloudStatus) {
-            CloudStatus.NO_SYNC_REQUIRED, CloudStatus.UNKNOWN -> {
+            CloudStatuses.NO_SYNC_REQUIRED, CloudStatuses.UNKNOWN -> {
                 button_upload.setOnClickListener(null)
                 button_upload.visibility = View.GONE
             }
-            CloudStatus.SYNC_AVAILABLE -> {
+            CloudStatuses.SYNC_AVAILABLE -> {
                 button_upload.setImageResource(R.drawable.ic_cloud_upload_24dp)
                 setUploadButtonClickable()
                 button_upload.visibility = View.VISIBLE
             }
-            CloudStatus.SYNC_SCHEDULED -> {
+            CloudStatuses.SYNC_SCHEDULED -> {
                 button_upload.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
                 setUploadButtonClickable()
                 button_upload.visibility = View.VISIBLE
             }
-            CloudStatus.SYNC_IN_PROGRESS -> {
+            CloudStatuses.SYNC_IN_PROGRESS -> {
                 button_upload.setImageResource(R.drawable.ic_sync_black_24dp)
                 button_upload.setOnClickListener(null)
                 button_upload.visibility = View.VISIBLE
             }
-            CloudStatus.ERROR -> {
+            CloudStatuses.ERROR -> {
                 button_upload.setImageResource(R.drawable.ic_cloud_off_24dp)
                 button_upload.setOnClickListener(null)
                 button_upload.visibility = View.VISIBLE
@@ -301,8 +301,8 @@ class FragmentTracker : Fragment() {
         val res = context.resources
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
 
-        if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED) {
-            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+        if (DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE && Network.cloudStatus == CloudStatuses.NO_SYNC_REQUIRED) {
+            Network.cloudStatus = CloudStatuses.SYNC_AVAILABLE
             updateUploadButton()
         }
 

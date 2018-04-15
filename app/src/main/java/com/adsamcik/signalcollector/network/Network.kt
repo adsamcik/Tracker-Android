@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.network
 
 import android.content.Context
 import android.os.Build
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
@@ -33,8 +33,8 @@ object Network {
     const val URL_USER_UPDATE_MAP_PREFERENCE = Server.URL_USER_UPDATE_MAP_PREFERENCE
     const val URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE
 
-    @CloudStatus
-    var cloudStatus = CloudStatus.UNKNOWN
+    @CloudStatuses.CloudStatus
+    var cloudStatus = CloudStatuses.UNKNOWN
 
     private var cookieJar: PersistentCookieJar? = null
 
