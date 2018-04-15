@@ -7,6 +7,10 @@ import android.os.Build
 import com.vimeo.stag.UseStag
 import java.io.Serializable
 
+/**
+ * Class containing Wi-Fi information.
+ * It is used in RawData
+ */
 @UseStag
 class WifiData : Serializable {
 
@@ -49,13 +53,13 @@ class WifiData : Serializable {
 
     /**
      * Center frequency, used only for 80+80 AP bandwidth mode
-     * Only available on Android 5.1 and newer
+     * Only available on Android 5.1 (API 21) and newer
      */
     var centerFreq1: Int = 0
 
     /**
      * Channel width
-     * Only available on Android 5.1 and newer
+     * Only available on Android 5.1 (API 21) and newer
      */
     var channelWidth: Int = 0
 
@@ -77,14 +81,14 @@ class WifiData : Serializable {
         if (Build.VERSION.SDK_INT > 22) {
             this.centerFreq0 = sr.centerFreq0
             when (sr.channelWidth) {
-                CHANNEL_WIDTH_20MHZ -> sr.channelWidth = 20
-                CHANNEL_WIDTH_40MHZ -> sr.channelWidth = 40
+                CHANNEL_WIDTH_20MHZ -> channelWidth = 20
+                CHANNEL_WIDTH_40MHZ -> channelWidth = 40
                 CHANNEL_WIDTH_80MHZ_PLUS_MHZ -> {
                     this.centerFreq1 = sr.centerFreq1
-                    sr.channelWidth = 80
+                    channelWidth = 80
                 }
-                CHANNEL_WIDTH_80MHZ -> sr.channelWidth = 80
-                CHANNEL_WIDTH_160MHZ -> sr.channelWidth = 160
+                CHANNEL_WIDTH_80MHZ -> channelWidth = 80
+                CHANNEL_WIDTH_160MHZ -> channelWidth = 160
             }
 
             this.isPasspoint = sr.isPasspointNetwork
