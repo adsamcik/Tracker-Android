@@ -5,7 +5,6 @@ import android.support.annotation.RawRes
 import android.view.ViewGroup
 import android.widget.Button
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
@@ -18,6 +17,10 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 
+/**
+ * LicenseActivity shows users all the open source licenses for dependencies this app uses.
+ * For some specific libraries there are manually filled in URLs and copyrights. For most licenses it uses Google's automatically generated list
+ */
 class LicenseActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

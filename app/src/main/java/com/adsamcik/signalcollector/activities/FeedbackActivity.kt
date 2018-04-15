@@ -23,7 +23,9 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-
+/**
+ * FeedbackActivity that provides users with ability to send feedback
+ */
 class FeedbackActivity : DetailActivity() {
     private var currentType: FeedbackType? = null
     private var selected: View? = null
@@ -31,6 +33,9 @@ class FeedbackActivity : DetailActivity() {
     private var mSelectedState: ColorStateList? = null
     private var mDefaultState: ColorStateList? = null
 
+    /**
+     * TextWatcher that watches text for changes to remove errors that are associated with them
+     */
     internal class FeedbackTextWatcher private constructor(private val textLayout: TextInputLayout, private val minLength: Int = 0) : TextWatcher {
         override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
 

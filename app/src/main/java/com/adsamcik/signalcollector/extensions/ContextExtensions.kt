@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.extensions
 
 import android.app.Activity
+import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
@@ -126,3 +127,8 @@ val Context.windowManager get() = getSystemServiceTyped<WindowManager>(Context.W
  * Shortcut to get [PowerManager]. This property does not cache the service.
  */
 val Context.powerManager get() = getSystemServiceTyped<PowerManager>(Context.POWER_SERVICE)
+
+/**
+ * Shortcut to get [JobScheduler]. This property does not cache the service.
+ */
+val Context.jobScheduler get() = getSystemServiceTyped<JobScheduler>(Context.JOB_SCHEDULER_SERVICE)

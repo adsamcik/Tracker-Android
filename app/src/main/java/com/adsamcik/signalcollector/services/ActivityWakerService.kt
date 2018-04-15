@@ -99,7 +99,7 @@ class ActivityWakerService : LifecycleService() {
         fun getServicePreference(context: Context) =
                 Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)
         /**
-         * Pokes Activity Waker Service which checks if it should run
+         * Checks if current [ActivityWakerService] state is the one it should be in right now.
          *
          * @param context context
          */

@@ -6,6 +6,9 @@ import android.support.design.widget.Snackbar
 import android.view.View
 import com.adsamcik.signalcollector.extensions.dpAsPx
 
+/**
+ * Custom behavior that allows specific view to be modified instead of direct child of coordinator layout
+ */
 class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
     private val dp16 = 16.dpAsPx
 

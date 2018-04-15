@@ -7,6 +7,9 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonParseException
 import java.lang.reflect.Type
 
+/**
+ * JsonDeserializer class that is needed to properly deserialize Challenge objects
+ */
 class ChallengeDeserializer : JsonDeserializer<Challenge> {
     @Throws(JsonParseException::class)
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): Challenge {

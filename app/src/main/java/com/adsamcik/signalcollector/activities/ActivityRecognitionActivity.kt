@@ -18,6 +18,9 @@ import java.lang.ref.WeakReference
 import java.text.DateFormat.getDateTimeInstance
 import java.util.*
 
+/**
+ * Activity which helps with debugging of activity related issues.
+ */
 class ActivityRecognitionActivity : DetailActivity() {
 
     private lateinit var adapter: StringFilterableAdapter
