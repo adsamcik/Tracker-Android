@@ -28,6 +28,7 @@ import android.widget.TextView
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
+import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.setBottomMargin
 import com.adsamcik.signalcollector.extensions.transaction
@@ -224,7 +225,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             //check payloads
             when (opened) {
                 true -> {
-                    if (position == Assist.NavBarPosition.BOTTOM) {
+                    if (position == NavBarPosition.BOTTOM) {
                         val top = searchOriginalMargin +
                                 keyboardHeight +
                                 map_menu_button.height +
@@ -236,7 +237,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     }
                 }
                 false -> {
-                    if (position == Assist.NavBarPosition.BOTTOM) {
+                    if (position == NavBarPosition.BOTTOM) {
                         map_ui_parent.setBottomMargin(searchOriginalMargin + navbarHeight.y + 32.dpAsPx)
                         map?.setPadding(0, 0, 0, navbarHeight.y)
                     } else {

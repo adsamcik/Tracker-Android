@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
-import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
@@ -45,8 +44,6 @@ class UploadJobService : JobService() {
 
         DataStore.onUpload(this, 0)
         val context = applicationContext
-        if (!Assist.isInitialized)
-            Assist.initialize(context)
 
         isUploading = true
         val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)

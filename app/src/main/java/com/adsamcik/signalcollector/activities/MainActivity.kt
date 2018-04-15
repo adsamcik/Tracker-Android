@@ -59,7 +59,7 @@ class MainActivity : FragmentActivity() {
 
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
-        
+
         Signin.signIn(this, null, true)
 
         if (Assist.checkPlayServices(this))

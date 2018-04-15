@@ -5,7 +5,7 @@ import android.location.Location
 import android.net.wifi.ScanResult
 import android.os.Build
 import android.telephony.*
-import com.adsamcik.signalcollector.enums.ResolvedActivity
+import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.crashlytics.android.Crashlytics
 import com.vimeo.stag.UseStag
 import java.io.Serializable
@@ -68,7 +68,7 @@ class RawData : Serializable {
     /**
      * Current resolved activity
      */
-    @ResolvedActivity
+    @ResolvedActivities.ResolvedActivity
     var activity: Int? = null
 
     /**
