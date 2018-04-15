@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.uitools
+package com.adsamcik.signalcollector.extensions
 
 import android.content.res.Resources
 import android.support.constraint.ConstraintLayout

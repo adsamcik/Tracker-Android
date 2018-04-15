@@ -23,7 +23,9 @@ import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.data.CellData
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.WifiData
-import com.adsamcik.signalcollector.enums.*
+import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.ResolvedActivities
+import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
@@ -34,7 +36,6 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
-import com.adsamcik.signalcollector.uitools.dpAsPx
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.android.synthetic.main.activity_ui.*
@@ -104,15 +105,15 @@ class FragmentTracker : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        val context = context!!
 
-        val orientation = Assist.orientation(context!!)
+        val orientation = Assist.orientation(context)
         if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
         }
 
         updateTrackerButton(TrackerService.isRunning)
 
-        val context = context!!
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
 
         updateUploadButton()
@@ -172,7 +173,7 @@ class FragmentTracker : Fragment() {
 
     private fun mock() {
         val rawData = RawData(System.currentTimeMillis())
-        rawData.activity = ON_FOOT
+        rawData.activity = ResolvedActivities.ON_FOOT
         rawData.wifi = arrayOf(WifiData(), WifiData(), WifiData())
         rawData.accuracy = 6f
         rawData.cellCount = 8
@@ -345,22 +346,22 @@ class FragmentTracker : Fragment() {
         }
 
         when (d.activity) {
-            STILL -> {
+            ResolvedActivities.STILL -> {
                 icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_idle)
                 icon_activity.visibility = VISIBLE
             }
-            ON_FOOT -> {
+            ResolvedActivities.ON_FOOT -> {
                 icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_on_foot)
                 icon_activity.visibility = VISIBLE
             }
-            IN_VEHICLE -> {
+            ResolvedActivities.IN_VEHICLE -> {
                 icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_in_vehicle)
                 icon_activity.visibility = VISIBLE
             }
-            UNKNOWN -> {
+            ResolvedActivities.UNKNOWN -> {
                 icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_unknown)
                 icon_activity.visibility = VISIBLE

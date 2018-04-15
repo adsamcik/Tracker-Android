@@ -3,50 +3,35 @@ package com.adsamcik.signalcollector.utility
 import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Point
 import android.location.Location
 import android.location.LocationManager
-import android.net.ConnectivityManager
 import android.os.Build
 import android.provider.Settings
 import android.support.v4.content.ContextCompat
 import android.support.v4.content.res.ResourcesCompat
-import android.telephony.TelephonyManager
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.enums.NavBarPosition
+import com.adsamcik.signalcollector.extensions.connectivityManager
+import com.adsamcik.signalcollector.extensions.inputMethodManager
+import com.adsamcik.signalcollector.extensions.locationManager
+import com.adsamcik.signalcollector.extensions.windowManager
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat
 import java.util.*
 
+/**
+ * All purpose utility singleton containing various utility functions
+ */
 object Assist {
-    private var telephonyManager: TelephonyManager? = null
-    private var connectivityManager: ConnectivityManager? = null
-
-    /**
-     * Returns true if initialized
-     */
-    val isInitialized: Boolean
-        get() = telephonyManager != null && connectivityManager != null
-
-    /**
-     * Initializes TelephonyManager and ConnectivityManager in Assist class
-     *
-     * @param c context
-     */
-    fun initialize(c: Context) {
-        telephonyManager = c.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        connectivityManager = c.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    }
 
     /**
      * Converts raw byte count to human readable byte count
@@ -63,21 +48,25 @@ object Assist {
         return String.format(Locale.getDefault(), "%.1f %sB", bytes / Math.pow(unit.toDouble(), exp.toDouble()), pre)
     }
 
-    enum class NavBarPosition {
-        BOTTOM,
-        LEFT,
-        RIGHT,
-        UNKNOWN
-    }
-
+    /**
+     * Returns orientation of the device as one of the following constants
+     * [Surface.ROTATION_0], [Surface.ROTATION_90], [Surface.ROTATION_180], [Surface.ROTATION_270].
+     *
+     * @return One of the following [Surface.ROTATION_0], [Surface.ROTATION_90], [Surface.ROTATION_180], [Surface.ROTATION_270]
+     */
     fun orientation(context: Context): Int {
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        return windowManager.defaultDisplay.rotation
+        return context.windowManager.defaultDisplay.rotation
     }
 
+    /**
+     * Calculates current navbar size and it's current position.
+     * Size is stored inside Point class.
+     *
+     * @param context Context
+     * @return (Position, Size)
+     */
     fun navbarSize(context: Context): Pair<NavBarPosition, Point> {
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val display = windowManager.defaultDisplay
+        val display = context.windowManager.defaultDisplay
 
         val appUsableSize = Point()
         val realScreenSize = Point()
@@ -143,7 +132,7 @@ object Assist {
      * @param coordinate coordinate
      * @return stringified coordinate
      */
-    fun coordsToString(coordinate: Double): String {
+    fun coordinateToString(coordinate: Double): String {
         var coord = coordinate
         val degree = coord.toInt()
         coord = (coord - degree) * 60
@@ -151,13 +140,6 @@ object Assist {
         coord = (coord - minute) * 60
         val second = coord.toInt()
         return String.format(Locale.ENGLISH, "%02d", degree) + "\u00B0 " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\""
-    }
-
-    fun startServiceForeground(context: Context, intent: Intent) {
-        if (Build.VERSION.SDK_INT >= 26)
-            context.startForegroundService(intent)
-        else
-            context.startService(intent)
     }
 
     /**
@@ -177,9 +159,7 @@ object Assist {
      * @return true if connected or connecting
      */
     fun hasNetwork(context: Context): Boolean {
-        if (connectivityManager == null)
-            initialize(context)
-        val activeNetwork = connectivityManager!!.activeNetworkInfo
+        val activeNetwork = context.connectivityManager.activeNetworkInfo
         return activeNetwork != null && activeNetwork.isConnectedOrConnecting
     }
 
@@ -191,7 +171,7 @@ object Assist {
      * @return true if enabled
      */
     fun isGNSSEnabled(context: Context): Boolean =
-            (context.getSystemService(Context.LOCATION_SERVICE) as LocationManager).isProviderEnabled(LocationManager.GPS_PROVIDER)
+            context.locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
 
     /**
      * Checks if there is anything to track
@@ -236,7 +216,7 @@ object Assist {
     }
 
     /**
-     * Animate smooth scroll to y coordinate
+     * Animate scroll to y coordinate
      *
      * @param viewGroup View group
      * @param y         target y coordinate
@@ -271,12 +251,11 @@ object Assist {
     /**
      * Hides software keyboard
      *
-     * @param activity activity
+     * @param context Context
      * @param view     view that should have summoned the keyboard
      */
-    fun hideSoftKeyboard(activity: Activity, view: View) {
-        val imm = activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(view.applicationWindowToken, 0)
+    fun hideSoftKeyboard(context: Context, view: View) {
+        context.inputMethodManager.hideSoftInputFromWindow(view.applicationWindowToken, 0)
     }
 
     /**

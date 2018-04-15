@@ -10,7 +10,7 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.core.content.edit
 import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.utility.Tips.showTips
 import com.takusemba.spotlight.OnTargetStateChangedListener
 import com.takusemba.spotlight.SimpleTarget

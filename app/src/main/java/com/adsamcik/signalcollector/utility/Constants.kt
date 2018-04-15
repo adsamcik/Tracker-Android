@@ -1,9 +1,11 @@
 package com.adsamcik.signalcollector.utility
 
+/**
+ * Singleton containing many useful constant values used across the application
+ * Byte size units prefix U_
+ */
 object Constants {
-    const val NOISE_ENABLED = true
-
-    //Time constats
+    //Time constants
     const val SECOND_IN_MILLISECONDS = 1000L
     const val MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS
     const val HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS

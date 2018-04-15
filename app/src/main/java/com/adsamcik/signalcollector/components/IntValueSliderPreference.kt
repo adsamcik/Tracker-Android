@@ -9,7 +9,7 @@ import android.util.AttributeSet
 import android.widget.TextView
 import androidx.core.view.setPadding
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.slider.implementations.IntValueSlider
 
 

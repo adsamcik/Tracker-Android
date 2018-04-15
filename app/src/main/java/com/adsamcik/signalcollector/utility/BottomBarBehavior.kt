@@ -4,7 +4,7 @@ import android.support.constraint.ConstraintLayout
 import android.support.design.widget.CoordinatorLayout
 import android.support.design.widget.Snackbar
 import android.view.View
-import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.extensions.dpAsPx
 
 class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
     private val dp16 = 16.dpAsPx

@@ -9,6 +9,9 @@ import java.io.IOException
 import java.io.InputStreamReader
 import java.util.*
 
+/**
+ * Utility tool for parsing different types of files to objects
+ */
 object Parser {
 
     /**
@@ -17,7 +20,7 @@ object Parser {
      * @param json   json
      * @param tClass object class
      * @param <T>    object type
-     * @return object if success, nul otherwise
+     * @return object if successful, null otherwise
     </T> */
     fun <T> tryFromJson(json: String?, tClass: Class<T>): T? {
         if (json != null && !json.isEmpty()) {
@@ -31,7 +34,13 @@ object Parser {
         return null
     }
 
-
+    /**
+     * Tries to parse TSV file to an array of string arrays
+     *
+     * @param context Context used for file lookup
+     * @param fileName File's name
+     * @return Parsed array of string arrays
+     */
     fun parseTSVFromFile(context: Context, fileName: String): ArrayList<Array<String>>? {
         if (DataStore.exists(context, fileName)) {
             val items = ArrayList<Array<String>>()

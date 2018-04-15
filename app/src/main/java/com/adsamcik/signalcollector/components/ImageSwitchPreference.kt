@@ -15,7 +15,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.setMargins
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.extensions.dpAsPx
 
 
 class ImageSwitchPreference : Preference {

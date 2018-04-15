@@ -13,7 +13,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.extensions.dpAsPx
 import java.util.*
 
 class BottomSheetMenu(root: CoordinatorLayout) {

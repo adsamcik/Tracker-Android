@@ -4,10 +4,11 @@ import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.PowerManager
+import android.support.v4.content.ContextCompat
 import android.util.SparseArray
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
-import com.adsamcik.signalcollector.enums.ResolvedActivity
+import com.adsamcik.signalcollector.enums.ResolvedActivities
+import com.adsamcik.signalcollector.extensions.powerManager
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
@@ -15,16 +16,18 @@ import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
 
+/**
+ * Intent service that receives all activity updates.
+ * Handles logging if it is enabled.
+ */
 class ActivityService : IntentService("ActivityService") {
+    private var mPowerManager = powerManager
 
     override fun onHandleIntent(intent: Intent?) {
         val result = ActivityRecognitionResult.extractResult(intent)
-        val detectedActivity = result.mostProbableActivity
 
-        lastActivity = ActivityInfo(detectedActivity.type, detectedActivity.confidence)
+        lastActivity = ActivityInfo(result.mostProbableActivity)
         if (mBackgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
-            if (mPowerManager == null)
-                mPowerManager = this.getSystemService(Context.POWER_SERVICE) as PowerManager
             if (TrackerService.isRunning) {
                 if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
                     stopService(Intent(this, TrackerService::class.java))
@@ -32,10 +35,13 @@ class ActivityService : IntentService("ActivityService") {
                 } else {
                     ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
                 }
-            } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) && !TrackingLocker.isLocked.value && !mPowerManager!!.isPowerSaveMode && Assist.canTrack(this)) {
-                val trackerService = Intent(this, TrackerService::class.java)
-                trackerService.putExtra("backTrack", true)
-                startService(trackerService)
+            } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) &&
+                    !TrackingLocker.isLocked.value &&
+                    !mPowerManager.isPowerSaveMode &&
+                    Assist.canTrack(this)) {
+
+                startService()
+
                 ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, "started tracking")
             } else {
                 ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
@@ -49,21 +55,33 @@ class ActivityService : IntentService("ActivityService") {
 		}*/
     }
 
+    private fun startService() {
+        val trackerService = Intent(this, TrackerService::class.java)
+        trackerService.putExtra("backTrack", true)
+        ContextCompat.startForegroundService(this, trackerService)
+    }
+
+    /**
+     * Singleton part of the service that holds information about active requests and last known activity.
+     */
     companion object {
         private val TAG = "Signals" + ActivityService::class.java.simpleName
         private const val REQUIRED_CONFIDENCE = 75
         private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
-        var lastActivity = ActivityInfo(DetectedActivity.UNKNOWN, 0)
-            private set
-
         private var mTask: Task<*>? = null
-        private var mPowerManager: PowerManager? = null
 
         private var mBackgroundTracking: Boolean = false
 
         private var mActiveRequests = SparseArray<ActivityRequestInfo>()
         private var mMinUpdateRate = Integer.MAX_VALUE
+
+        /**
+         * Contains instance of last known activity
+         * Initialization value is Unknown activity with 0 confidence
+         */
+        var lastActivity = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+            private set
 
         /**
          * Request activity updates
@@ -178,6 +196,7 @@ class ActivityService : IntentService("ActivityService") {
             return if (Assist.checkPlayServices(context)) {
                 val activityRecognitionClient = ActivityRecognition.getClient(context)
                 mTask = activityRecognitionClient.requestActivityUpdates((delayInS * Constants.SECOND_IN_MILLISECONDS), getActivityDetectionPendingIntent(context))
+                //todo add handling of task failure
                 true
             } else {
                 Crashlytics.logException(Throwable("Unavailable play services"))
@@ -201,7 +220,7 @@ class ActivityService : IntentService("ActivityService") {
          * @param evalActivity evaluated activity
          * @return true if background tracking can be activated
          */
-        private fun canBackgroundTrack(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
+        private fun canBackgroundTrack(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
             if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false))
                 return false
             val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
@@ -214,7 +233,7 @@ class ActivityService : IntentService("ActivityService") {
          * @param evalActivity evaluated activity
          * @return true if background tracking can continue running
          */
-        private fun canContinueBackgroundTracking(context: Context, @ResolvedActivity evalActivity: Int): Boolean {
+        private fun canContinueBackgroundTracking(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
             if (evalActivity == 0)
                 return false
             val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)

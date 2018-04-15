@@ -10,11 +10,7 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
-import com.adsamcik.signalcollector.enums.IN_VEHICLE
-import com.adsamcik.signalcollector.enums.ON_FOOT
-import com.adsamcik.signalcollector.enums.STILL
-import com.adsamcik.signalcollector.enums.UNKNOWN
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.TrackingLocker
@@ -83,10 +79,10 @@ class ActivityWakerService : LifecycleService() {
         builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
         builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.activityName, activityInfo.confidence))
         when (activityInfo.resolvedActivity) {
-            IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
-            ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
-            STILL -> builder.setSmallIcon(R.drawable.ic_accessibility_white_24dp)
-            UNKNOWN -> builder.setSmallIcon(R.drawable.ic_help_white_24dp)
+            ResolvedActivities.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
+            ResolvedActivities.ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
+            ResolvedActivities.STILL -> builder.setSmallIcon(R.drawable.ic_accessibility_white_24dp)
+            ResolvedActivities.UNKNOWN -> builder.setSmallIcon(R.drawable.ic_help_white_24dp)
         }
 
         return builder.build()
@@ -134,7 +130,7 @@ class ActivityWakerService : LifecycleService() {
         fun poke(context: Context, desiredState: Boolean) {
             if (desiredState) {
                 if (instance == null)
-                    Assist.startServiceForeground(context, Intent(context, ActivityWakerService::class.java))
+                    ContextCompat.startForegroundService(context, Intent(context, ActivityWakerService::class.java))
             } else if (instance != null) {
                 instance!!.stopSelf()
             }

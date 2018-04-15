@@ -12,7 +12,7 @@ import android.widget.TextView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorView
-import com.adsamcik.signalcollector.uitools.dpAsPx
+import com.adsamcik.signalcollector.extensions.dpAsPx
 
 
 class InfoComponent : FrameLayout {

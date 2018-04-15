@@ -16,6 +16,9 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.extensions.dpAsPx
+import com.adsamcik.signalcollector.extensions.marginBottom
+import com.adsamcik.signalcollector.extensions.setMargin
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.fragments.FragmentActivities
