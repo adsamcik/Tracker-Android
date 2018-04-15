@@ -1,7 +1,11 @@
 package com.adsamcik.signalcollector.enums
 
 import android.support.annotation.IntDef
+import com.adsamcik.signalcollector.enums.ResolvedActivities.ResolvedActivity
 
+/**
+ * Singleton that contains [ResolvedActivity]. It is made this way so even the constants are contained within an object.
+ */
 object ResolvedActivities {
     const val STILL = 0
     const val ON_FOOT = 1
