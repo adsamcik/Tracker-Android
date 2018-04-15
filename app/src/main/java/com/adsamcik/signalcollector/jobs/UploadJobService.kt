@@ -9,7 +9,7 @@ import android.content.Context
 import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
@@ -245,7 +245,7 @@ class UploadJobService : JobService() {
                     if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
                         return false
                     updateUploadScheduleSource(context, source)
-                    Network.cloudStatus = CloudStatus.SYNC_SCHEDULED
+                    Network.cloudStatus = CloudStatuses.SYNC_SCHEDULED
 
                     scheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
 

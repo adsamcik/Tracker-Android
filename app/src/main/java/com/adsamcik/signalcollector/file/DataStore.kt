@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
-import com.adsamcik.signalcollector.enums.CloudStatus
+import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
@@ -59,10 +59,10 @@ object DataStore {
      * Call to invoke onDataChanged callback
      */
     private fun onDataChanged(context: Context) {
-        if (Network.cloudStatus == CloudStatus.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
-            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
-        else if (Network.cloudStatus == CloudStatus.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
-            Network.cloudStatus = CloudStatus.NO_SYNC_REQUIRED
+        if (Network.cloudStatus == CloudStatuses.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
+            Network.cloudStatus = CloudStatuses.SYNC_AVAILABLE
+        else if (Network.cloudStatus == CloudStatuses.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
+            Network.cloudStatus = CloudStatuses.NO_SYNC_REQUIRED
 
         onDataChanged?.invoke()
     }
@@ -74,11 +74,11 @@ object DataStore {
      */
     fun onUpload(context: Context, progress: Int) {
         if (progress == 100)
-            Network.cloudStatus = if (sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatus.SYNC_AVAILABLE else CloudStatus.NO_SYNC_REQUIRED
+            Network.cloudStatus = if (sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatuses.SYNC_AVAILABLE else CloudStatuses.NO_SYNC_REQUIRED
         else if (progress == -1 && sizeOfData(context) > 0)
-            Network.cloudStatus = CloudStatus.SYNC_AVAILABLE
+            Network.cloudStatus = CloudStatuses.SYNC_AVAILABLE
         else
-            Network.cloudStatus = CloudStatus.SYNC_IN_PROGRESS
+            Network.cloudStatus = CloudStatuses.SYNC_IN_PROGRESS
 
         onUploadProgress?.invoke(progress)
     }
