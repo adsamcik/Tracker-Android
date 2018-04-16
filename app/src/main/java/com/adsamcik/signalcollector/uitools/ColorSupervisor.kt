@@ -101,10 +101,6 @@ object ColorSupervisor {
             currentBaseColor
     }
 
-    fun initializeColorManager(colorManager: ColorManager) {
-
-    }
-
     /**
      * Creates color manager instance
      */
@@ -142,6 +138,9 @@ object ColorSupervisor {
 
     }
 
+    /**
+     * Checks if a timer is running, if not start a new timer.
+     */
     fun ensureUpdate() {
         synchronized(colorList) {
             if (colorList.size > 1) {
@@ -154,6 +153,12 @@ object ColorSupervisor {
         }
     }
 
+    /**
+     * Returns proper color for given layer
+     *
+     * @param color base color
+     * @param layer layer (should be positive)
+     */
     fun layerColor(@ColorInt color: Int, layer: Int): Int {
         return if (layer == 0)
             color
@@ -161,11 +166,17 @@ object ColorSupervisor {
             brightenColor(color, 17 * layer)
     }
 
+    /**
+     * Add all given colors to colorList. This is usually not the way you want to initialize the colors. Consider using load from preferences.
+     *
+     * @param varargs colors to add
+     */
     fun addColors(@ColorInt vararg varargs: Int) {
         synchronized(colorList) {
             if (varargs.isEmpty())
                 throw RuntimeException("You can't just add no colors.")
 
+            //Has to be added one by one because it is vararg
             colorList.ensureCapacity(colorList.size + varargs.size)
             varargs.forEach { colorList.add(it) }
 
@@ -173,8 +184,13 @@ object ColorSupervisor {
         }
     }
 
-    fun deltaUpdate(delta: Float, newPeriod: Boolean) {
-        if (newPeriod) {
+    /**
+     * Delta update which is called internally by update functions
+     *
+     * @param delta value from 0 to 1
+     */
+    private fun deltaUpdate(delta: Float) {
+        if (delta > 1) {
             currentIndex = nextIndex
             updateUpdate()
         }
@@ -189,7 +205,10 @@ object ColorSupervisor {
         }
     }
 
-    fun update(@ColorInt color: Int) {
+    /**
+     * Update function is called with new color and handles updating of all the colorManagers.
+     */
+    private fun update(@ColorInt color: Int) {
         val lum = perceivedRelLuminance(layerColor(color, 1))
         val fgColor: Int = if (lum > 0)
             darkTextColor
@@ -220,6 +239,10 @@ object ColorSupervisor {
         }
     }
 
+    /**
+     * Handles start update function. Supports only 2 or 4 colors.
+     * 1 color should never call an update, because the color never changes.
+     */
     private fun startUpdate() {
         synchronized(colorList) {
             if (colorList.size >= 2) {
@@ -238,20 +261,26 @@ object ColorSupervisor {
         }
     }
 
+    /**
+     * Starts update function for 2 colors
+     */
     private fun startUpdate2(timer: Timer) {
         timer.schedule(object : TimerTask() {
             override fun run() {
-                deltaUpdate(0f, true)
+                deltaUpdate(0f)
             }
         }, calculateTimeOfDay2().time)
-        deltaUpdate(0f, false)
+        deltaUpdate(0f)
     }
 
+    /**
+     * Starts update function for 4 colors
+     */
     private fun startUpdate4(timer: Timer) {
         val (changeLength, progress, period) = calculateTimeOfDay4()
         timer.scheduleAtFixedRate(ColorUpdateTask(changeLength, progress, period), 0L, period)
 
-        deltaUpdate(changeLength.toFloat() / progress, false)
+        deltaUpdate(progress / changeLength.toFloat())
 
         if (BuildConfig.DEBUG) {
             val sunset = sunsetRise.nextSunset()
@@ -384,6 +413,9 @@ object ColorSupervisor {
         }
     }
 
+    /**
+     * Initializes colors from preference. This completely replaces all current colors with those saved in preferences.
+     */
     fun initializeFromPreferences(context: Context) {
         val preferences = Preferences.getPref(context)
         val mode = preferences.getString(context, R.string.settings_style_mode_key, R.string.settings_style_mode_default).toInt()
@@ -410,6 +442,11 @@ object ColorSupervisor {
         }
     }
 
+    /**
+     * Updates specific color at given index. This function requires proper knowledge of the current colors.
+     * This function can cause a lot of bugs so use it carefully.
+     * It is intended mainly to be used for easy color switching when preference is changed.
+     */
     fun updateColorAt(index: Int, @ColorInt color: Int) {
         synchronized(colorList) {
             if (index < 0 || index >= colorList.size) {
@@ -421,6 +458,10 @@ object ColorSupervisor {
         }
     }
 
+    /**
+     * Sets location for the sunrise and sunset calculator
+     * This should be called every time when location significantly changes
+     */
     fun setLocation(location: Location) {
         sunsetRise.updateLocation(location)
         synchronized(timerActive) {
@@ -429,17 +470,14 @@ object ColorSupervisor {
         }
     }
 
-}
-
-internal class ColorUpdateTask(private val periodLength: Long, private var currentTime: Long = 0, private val deltaTime: Long) : TimerTask() {
-    override fun run() {
-        val newTime = currentTime + deltaTime
-        currentTime = newTime.rem(periodLength)
-        val delta = currentTime.toFloat() / periodLength
-
-        if (newTime != currentTime)
-            ColorSupervisor.deltaUpdate(delta, true)
-        else
-            ColorSupervisor.deltaUpdate(delta, false)
+    /**
+     * Color update task that calculates delta update based on parameters. It is used for color transitions.
+     */
+    internal class ColorUpdateTask(private val periodLength: Long, private var currentTime: Long = 0, private val deltaTime: Long) : TimerTask() {
+        override fun run() {
+            currentTime = (currentTime + deltaTime).rem(periodLength)
+            val delta = currentTime.toFloat() / periodLength
+            ColorSupervisor.deltaUpdate(delta)
+        }
     }
 }
