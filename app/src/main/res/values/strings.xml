@@ -17,6 +17,8 @@
 
     <string name="map_search">Search</string>
     <string name="map_personal">Personal</string>
+    <string name="map_search_no_text">Searching for nothing is not very useful</string>
+    <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
 
     <string name="stats_weekly_title">Last 7 days</string>
     <string name="stats_weekly_collected_wifi">Wi-Fi data collected</string>

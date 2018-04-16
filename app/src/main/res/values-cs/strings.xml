@@ -258,4 +258,6 @@
         <item>Pěšky</item>
         <item>V pohybu</item>
     </string-array>
+    <string name="map_search_no_text">Hledat nic není moc užitečné</string>
+    <string name="map_search_no_geocoder">Bohužel vaše zařízení nemá službu pro překlad adres na souřadnice</string>
 </resources>
