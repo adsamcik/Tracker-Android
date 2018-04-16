@@ -309,7 +309,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         caller.findPreference(defaultColorKey).setOnPreferenceClickListener {
             val sp = it.sharedPreferences
-            sp.edit {
+            sp.edit(true) {
                 remove(morningKey)
                 remove(dayKey)
                 remove(eveningKey)
