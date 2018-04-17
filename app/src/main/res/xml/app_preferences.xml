@@ -154,7 +154,6 @@
         <Preference
             android:key="@string/settings_clear_cache_key"
             android:title="@string/settings_clear_cache_title"/>
-
     </android.support.v7.preference.PreferenceScreen>
     <android.support.v7.preference.PreferenceCategory
         android:title="@string/settings_notifications_title">
