@@ -332,7 +332,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         } catch (e: IOException) {
             Crashlytics.logException(e)
-            SnackMaker(fragmentView!!).showSnackbar(R.string.error_general)
+            SnackMaker(fragmentView!!).showSnackbar(R.string.map_search_no_geocoder)
         }
     }
 
