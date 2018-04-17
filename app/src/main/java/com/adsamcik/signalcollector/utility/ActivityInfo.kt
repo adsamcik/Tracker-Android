@@ -3,15 +3,13 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ResolvedActivities
-import com.adsamcik.signalcollector.utility.ActivityInfo.Companion.getActivityName
-import com.adsamcik.signalcollector.utility.ActivityInfo.Companion.getResolvedActivityName
 import com.google.android.gms.location.DetectedActivity
 
 /**
  * Class containing information about activity.
  * It stores original activity as well as resolved activity and confidence.
  *
- * Using [getActivityName] and [getResolvedActivityName]
+ * Using [getResolvedActivityName]
  */
 class ActivityInfo(val activity: Int, val confidence: Int) {
     constructor(detectedActivity: DetectedActivity) : this(detectedActivity.type, detectedActivity.confidence)
@@ -19,12 +17,16 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
     @ResolvedActivities.ResolvedActivity
     val resolvedActivity: Int
 
-    val activityName: String
-        get() = getActivityName(activity)
-
     init {
         this.resolvedActivity = resolveActivity(activity)
     }
+
+    /**
+     * Shortcut function for static version of this function
+     *
+     * @return Localized name of the resolved activity
+     */
+    fun getResolvedActivityName(context: Context) = getResolvedActivityName(context, resolvedActivity)
 
 
     companion object {
@@ -46,12 +48,6 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
             DetectedActivity.TILTING -> ResolvedActivities.UNKNOWN
             else -> ResolvedActivities.UNKNOWN
         }
-
-        /**
-         * Returns activity string using [DetectedActivity.toString] method.
-         * String might not be localized, it is used mainly for debugging.
-         */
-        fun getActivityName(activity: Int): String = DetectedActivity(activity, 0).toString()
 
         /**
          * Returns resolved activity string. String is localized.
