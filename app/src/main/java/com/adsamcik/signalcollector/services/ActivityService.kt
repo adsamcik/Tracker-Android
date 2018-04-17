@@ -31,12 +31,13 @@ class ActivityService : IntentService("ActivityService") {
 
         lastActivity = ActivityInfo(result.mostProbableActivity)
         if (mBackgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
+            val resolvedActivityName = lastActivity.getResolvedActivityName(this)
             if (TrackerService.isRunning) {
                 if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
                     stopService(Intent(this, TrackerService::class.java))
-                    ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, "stopped tracking")
+                    ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, "stopped tracking")
                 } else {
-                    ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
+                    ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, null)
                 }
             } else if (canBackgroundTrack(this, lastActivity.resolvedActivity) &&
                     !TrackingLocker.isLocked.value &&
@@ -45,9 +46,9 @@ class ActivityService : IntentService("ActivityService") {
 
                 startService()
 
-                ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, "started tracking")
+                ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, "started tracking")
             } else {
-                ActivityRecognitionActivity.addLineIfDebug(this, lastActivity.activityName, null)
+                ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, null)
             }
         }
 
