@@ -11,6 +11,7 @@ import com.franmontiel.persistentcookiejar.cache.SetCookieCache
 import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor
 import okhttp3.*
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
  * Network class that bridges custom Server implementation and the rest of the app
@@ -40,7 +41,7 @@ object Network {
 
     private val spec: ConnectionSpec
         get() = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
-                .tlsVersions(TlsVersion.TLS_1_2)
+                .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
                 .cipherSuites(CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
                         CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
                         CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
@@ -81,6 +82,9 @@ object Network {
     private fun client(): OkHttpClient.Builder {
         return OkHttpClient.Builder()
                 .connectionSpecs(listOf(spec))
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .connectTimeout(60, TimeUnit.SECONDS)
     }
 
     /**
