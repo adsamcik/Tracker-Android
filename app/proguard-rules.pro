@@ -23,7 +23,7 @@
   public private <fields>;
 }
 
--keep public class com.adsamcik.signalcolletor.signin.user {
+-keep public class com.adsamcik.signalcollector.signin.User {
 	public private <fields>;
 }
 
