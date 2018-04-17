@@ -23,6 +23,10 @@
   public private <fields>;
 }
 
+-keep public class com.adsamcik.signalcolletor.signin.user {
+	public private <fields>;
+}
+
 -keep class kotlin.Metadata { *; }
 
 ## BEGIN GSON
