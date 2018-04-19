@@ -249,7 +249,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
             //Update map_menu_button position after UI has been redrawn
             map_menu_button.post {
-                map_menu_button.moveToState(map_menu_button.state, false)
+                if (map_menu_button != null)
+                    map_menu_button.moveToState(map_menu_button.state, false)
             }
         }
     }
@@ -378,7 +379,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         //Unfortunately had to be implemented anyway under new UI because Google requires Google logo to be visible at all times.
         //val padding = navbarHeight(c)
         //map.setPadding(0, 0, 0, padding)
-        tileProvider = SignalsTileProvider(context, MAX_ZOOM)
+
 
         initializeLocationListener(context)
 
@@ -450,6 +451,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                             list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
                         if (networkInfo.hasMapAccess()) {
+                            tileProvider = SignalsTileProvider(activity, user.token, MAX_ZOOM)
                             runBlocking {
                                 val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
                                 if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {
@@ -459,8 +461,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                         savedOverlay = layerArray[0].name
                                         Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
                                     }
-
                                     val defaultOverlay = savedOverlay
+
 
                                     changeMapOverlay(defaultOverlay)
                                     list.addAll(layerArray)

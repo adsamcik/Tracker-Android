@@ -10,9 +10,9 @@ import okhttp3.Response
 import java.io.IOException
 import java.util.*
 
-class SignalsTileProvider(context: Context, private val maxZoom: Int) : TileProvider {
+class SignalsTileProvider(context: Context, userToken: String, private val maxZoom: Int) : TileProvider {
 
-    private val client: OkHttpClient = Network.client(context, null)
+    private val client: OkHttpClient = Network.client(context, userToken)
 
     private var type: String? = null
     private var personal: Boolean = false
@@ -44,9 +44,11 @@ class SignalsTileProvider(context: Context, private val maxZoom: Int) : TileProv
 
         try {
             r = c.execute()
-            val body = r!!.body()
-            if (body != null)
-                return body.bytes()
+            if (r.isSuccessful) {
+                val body = r!!.body()
+                if (body != null)
+                    return body.bytes()
+            }
         } catch (e: IOException) {
             Crashlytics.logException(e)
         } finally {
