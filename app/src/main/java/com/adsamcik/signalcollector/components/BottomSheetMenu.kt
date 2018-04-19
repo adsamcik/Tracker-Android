@@ -23,7 +23,8 @@ import java.util.concurrent.TimeUnit
  * Menu does not allow removal of items.
  */
 class BottomSheetMenu(root: CoordinatorLayout) {
-    private val menuRoot: LinearLayout
+    val menuRoot: LinearLayout
+
     private val menuItems: ArrayList<Button>
     private val bottomSheetBehavior: BottomSheetBehavior<*>
 

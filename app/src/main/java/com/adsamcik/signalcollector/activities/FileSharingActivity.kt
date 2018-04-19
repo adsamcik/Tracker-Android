@@ -122,7 +122,7 @@ class FileSharingActivity : DetailActivity() {
                 bottomSheetMenu.showHide(1000)
             }
 
-            colorManager!!.watchView(ColorView(layout, 0))
+            colorManager!!.watchView(ColorView(bottomSheetMenu.menuRoot, 0))
         }
 
         setTitle(R.string.export_share_button)
