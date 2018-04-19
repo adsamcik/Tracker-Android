@@ -151,7 +151,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         if (!state.success) {
             if (root == null)
                 return
-            
+
             SnackMaker(root).showSnackbar(state.toString(activity))
         }
         refreshingCount--

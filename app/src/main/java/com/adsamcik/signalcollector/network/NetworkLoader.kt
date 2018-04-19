@@ -164,7 +164,7 @@ object NetworkLoader {
 
                     val json = body.string()
 
-                    if (json.isEmpty()) {
+                    if (json.isBlank()) {
                         callbackNoData(context, preferenceString, callback, lastUpdate, returnCode)
                     } else {
                         Preferences.getPref(context).edit().putLong(preferenceString, System.currentTimeMillis()).apply()
