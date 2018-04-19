@@ -149,6 +149,10 @@
     <string name="settings_debug_available">You now have access to debug section</string>
     <string name="settings_debug_enabled">Debug enabled</string>
     <string name="settings_debug_key" translatable="false">showDevSettings</string>
+    <plurals name="settings_debug_available_in">
+        <item quantity="one">%d tap left to enable debug section</item>
+        <item quantity="other">%d taps left to enable debug section</item>
+    </plurals>
 
     <string name="settings_browse_files_title">Browse files</string>
     <string name="settings_browse_files_key" translatable="false">browseFiles</string>
