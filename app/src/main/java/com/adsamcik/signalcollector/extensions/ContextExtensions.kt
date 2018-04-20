@@ -101,34 +101,34 @@ inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String):
 /**
  * Shortcut to get [TelephonyManager]. This property does not cache the service.
  */
-val Context.telephonyManager get() = getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE)
+inline val Context.telephonyManager get() = getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE)
 
 /**
  * Shortcut to get [ConnectivityManager]. This property does not cache the service.
  */
-val Context.connectivityManager get() = getSystemServiceTyped<ConnectivityManager>(Context.CONNECTIVITY_SERVICE)
+inline val Context.connectivityManager get() = getSystemServiceTyped<ConnectivityManager>(Context.CONNECTIVITY_SERVICE)
 
 /**
  * Shortcut to get [LocationManager]. This property does not cache the service.
  */
-val Context.locationManager get() = getSystemServiceTyped<LocationManager>(Context.LOCATION_SERVICE)
+inline val Context.locationManager get() = getSystemServiceTyped<LocationManager>(Context.LOCATION_SERVICE)
 
 /**
  * Shortcut to get [InputMethodManager]. This property does not cache the service.
  */
-val Context.inputMethodManager get() = getSystemServiceTyped<InputMethodManager>(Context.INPUT_METHOD_SERVICE)
+inline val Context.inputMethodManager get() = getSystemServiceTyped<InputMethodManager>(Context.INPUT_METHOD_SERVICE)
 
 /**
  * Shortcut to get [WindowManager]. This property does not cache the service.
  */
-val Context.windowManager get() = getSystemServiceTyped<WindowManager>(Context.WINDOW_SERVICE)
+inline val Context.windowManager get() = getSystemServiceTyped<WindowManager>(Context.WINDOW_SERVICE)
 
 /**
  * Shortcut to get [PowerManager]. This property does not cache the service.
  */
-val Context.powerManager get() = getSystemServiceTyped<PowerManager>(Context.POWER_SERVICE)
+inline val Context.powerManager get() = getSystemServiceTyped<PowerManager>(Context.POWER_SERVICE)
 
 /**
  * Shortcut to get [JobScheduler]. This property does not cache the service.
  */
-val Context.jobScheduler get() = getSystemServiceTyped<JobScheduler>(Context.JOB_SCHEDULER_SERVICE)
+inline val Context.jobScheduler get() = getSystemServiceTyped<JobScheduler>(Context.JOB_SCHEDULER_SERVICE)
