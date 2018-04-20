@@ -35,7 +35,7 @@ class UploadReportsActivity : DetailActivity() {
 
         Arrays.sort(recent) { uploadStats, t1 -> ((t1.time - uploadStats.time) / MINUTE_IN_MILLISECONDS).toInt() }
         if (recent.isNotEmpty()) {
-            val parent = createContentParent(false)
+            val parent = createLinearContentParent(false)
             val listView = ListView(this)
 
             listView.divider = null

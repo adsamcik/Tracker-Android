@@ -25,7 +25,7 @@ class LicenseActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val parent = createScrollableContentParent(true)
+        val parent = createLinearScrollableContentParent(true)
 
         val gsonString = "Gson"
         addButton(parent, gsonString).setOnClickListener { _ ->

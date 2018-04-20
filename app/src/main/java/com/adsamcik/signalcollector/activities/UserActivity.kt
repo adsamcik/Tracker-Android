@@ -41,7 +41,7 @@ import kotlin.reflect.KMutableProperty0
 class UserActivity : DetailActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val parent = createContentParent(true)
+        val parent = createLinearContentParent(true)
         layoutInflater.inflate(R.layout.activity_user, parent)
         setTitle(R.string.settings_account_title)
 

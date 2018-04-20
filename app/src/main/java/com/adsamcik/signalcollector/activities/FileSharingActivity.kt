@@ -36,12 +36,12 @@ class FileSharingActivity : DetailActivity() {
             val tv = TextView(this)
             tv.setText(R.string.share_nothing_to_share)
             tv.gravity = Gravity.CENTER_HORIZONTAL
-            root = createContentParent(true)
+            root = createLinearContentParent(true)
             root.addView(tv)
         } else {
             val fileNames = files.map { file -> file.name }
 
-            root = createContentParent(false)
+            root = createLinearContentParent(false)
             val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as CoordinatorLayout
             val listView = layout.findViewById<ListView>(R.id.share_list_view)
             val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, fileNames)

@@ -30,7 +30,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        layoutInflater.inflate(R.layout.layout_activity_recognition, createContentParent(false))
+        layoutInflater.inflate(R.layout.layout_activity_recognition, createLinearContentParent(false))
 
         setTitle(R.string.settings_activity_debug_title)
 

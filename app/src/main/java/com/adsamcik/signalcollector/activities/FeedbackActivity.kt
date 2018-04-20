@@ -68,7 +68,7 @@ class FeedbackActivity : DetailActivity() {
             val user = Signin.getUserAsync(activity)
             if (user != null) {
                 launch(UI) {
-                    val parent = createScrollableContentParent(true)
+                    val parent = createLinearScrollableContentParent(true)
                     val groupRoot = layoutInflater.inflate(R.layout.layout_feedback, parent) as ViewGroup
 
                     val feedbackLayout = groupRoot.findViewById<LinearLayout>(R.id.feedback_type_layout)

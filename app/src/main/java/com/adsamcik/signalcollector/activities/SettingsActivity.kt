@@ -47,7 +47,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        createContentParent(false)
+        createLinearContentParent(false)
         fragment = FragmentSettings()
         supportFragmentManager.transaction {
             replace(CONTENT_ID, fragment, FragmentSettings.TAG)

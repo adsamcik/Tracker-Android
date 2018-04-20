@@ -22,6 +22,6 @@ class DebugFileActivity : DetailActivity() {
         tv.layoutParams = layoutParams
         val content = FileStore.loadString(FileStore.file(directory, fileName))
         tv.text = content
-        createScrollableContentParent(true).addView(tv)
+        createLinearScrollableContentParent(true).addView(tv)
     }
 }
