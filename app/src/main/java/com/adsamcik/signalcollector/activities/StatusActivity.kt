@@ -28,6 +28,7 @@ class StatusActivity : DetailActivity() {
         lastId = createPair("Is upload scheduled", jobs.contains { it.id == UploadJobService.SCHEDULE_UPLOAD_JOB_ID }.toString(), layout, lastId)
         lastId = createPair("Is time locked", TrackingLocker.isTimeLocked.toString(), layout, lastId)
         lastId = createPair("Is locked until recharge", TrackingLocker.isChargeLocked.toString(), layout, lastId)
+        lastId = createPair("Has active wait for recharge job", jobs.contains { it.id == TrackingLocker.JOB_DISABLE_TILL_RECHARGE_ID }.toString(), layout, lastId)
         lastId = createPair("Current DataFile", DataStore.currentDataFile?.file?.name.toString(), layout, lastId)
     }
 

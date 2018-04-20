@@ -24,7 +24,10 @@ import javax.annotation.concurrent.ThreadSafe
  */
 @ThreadSafe
 object TrackingLocker {
-    private const val JOB_DISABLE_TILL_RECHARGE_ID = 58946
+    /**
+     * Id of the job that disables the recharge lock when device is connected to a charger
+     */
+    const val JOB_DISABLE_TILL_RECHARGE_ID = 58946
 
     //Locking order is in the order of variable definitions
 
