@@ -219,8 +219,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
      * Initializes settings on preferences on debug screen
      */
     private fun initializeDebug(caller: PreferenceFragmentCompat) {
-        //val isDevEnabled = Preferences.getPref(activity).getBoolean(Preferences.PREF_SHOW_DEV_SETTINGS, false)
-        //devView!!.visibility = if (isDevEnabled) View.VISIBLE else View.GONE
+        setOnClickListener(R.string.settings_activity_debug_key) {
+            startActivity<ActivityRecognitionActivity> {  }
+        }
+
+        setOnClickListener(R.string.settings_activity_status_key) {
+            startActivity<StatusActivity> {  }
+        }
 
         caller.findPreference(getString(R.string.settings_clear_cache_key)).setOnPreferenceClickListener { _ ->
             createClearDialog({ CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files)
@@ -266,11 +271,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     .setWhen(System.currentTimeMillis())
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(Notifications.uniqueNotificationId(), notiBuilder.build())
-            false
-        }
-
-        caller.findPreference(getString(R.string.settings_activity_debug_key)).setOnPreferenceClickListener { _ ->
-            startActivity(Intent(this, ActivityRecognitionActivity::class.java))
             false
         }
 

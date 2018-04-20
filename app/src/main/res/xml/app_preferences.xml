@@ -134,23 +134,32 @@
             android:title="@string/settings_debug_enabled"/>
 
         <Preference
+            android:key="@string/settings_activity_status_key"
+            android:title="@string/settings_activity_status_title"/>
+
+        <Preference
+            android:key="@string/settings_activity_debug_key"
+            android:title="@string/settings_activity_debug_title"/>
+
+        <Preference
             android:key="@string/settings_browse_files_key"
             android:title="@string/settings_browse_files_title"/>
         <Preference
             android:key="@string/settings_browse_cache_key"
             android:title="@string/settings_browse_cache_title"/>
-        <Preference
-            android:key="@string/settings_activity_debug_key"
-            android:title="@string/settings_activity_debug_title"/>
+
         <Preference
             android:key="@string/settings_hello_world_key"
             android:title="@string/settings_hello_world_title"/>
+
         <Preference
             android:key="@string/settings_clear_data_key"
             android:title="@string/settings_clear_data_title"/>
+
         <Preference
             android:key="@string/settings_clear_reports_key"
             android:title="@string/settings_clear_reports_title"/>
+
         <Preference
             android:key="@string/settings_clear_cache_key"
             android:title="@string/settings_clear_cache_title"/>

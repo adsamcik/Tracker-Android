@@ -163,6 +163,9 @@
     <string name="settings_activity_debug_title">Activity recognition logger</string>
     <string name="settings_activity_debug_key" translatable="false">activityLogger</string>
 
+    <string name="settings_activity_status_title">Status information</string>
+    <string name="settings_activity_status_key" translatable="false">activityStatus</string>
+
     <string name="settings_hello_world_title">Hello world!</string>
     <string name="settings_hello_world_key" translatable="false">helloWorld</string>
 
