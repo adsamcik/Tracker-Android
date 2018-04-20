@@ -9,6 +9,7 @@ import android.content.Context
 import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
+import androidx.core.content.edit
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
@@ -34,7 +35,10 @@ class UploadJobService : JobService() {
     private var worker: JobWorker? = null
 
     override fun onStartJob(jobParameters: JobParameters): Boolean {
-        Preferences.getPref(this).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal).apply()
+        Preferences.getPref(this).edit {
+            putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal)
+        }
+
         val scheduleSource = UploadScheduleSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
         if (scheduleSource == UploadScheduleSource.NONE)
             throw RuntimeException("Source cannot be null")
@@ -42,10 +46,11 @@ class UploadJobService : JobService() {
         if (!hasEnoughData(this, scheduleSource))
             return false
 
+        isUploading = true
+
         DataStore.onUpload(this, 0)
         val context = applicationContext
 
-        isUploading = true
         val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
         worker = JobWorker(context, { success ->
             if (success) {
