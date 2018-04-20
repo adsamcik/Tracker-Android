@@ -14,6 +14,9 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.utility.TrackingLocker
 
+/**
+ * Debug Activity used for displaying states of some parts of the app
+ */
 class StatusActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,7 +28,6 @@ class StatusActivity : DetailActivity() {
         lastId = createPair("Is upload scheduled", jobs.contains { it.id == UploadJobService.SCHEDULE_UPLOAD_JOB_ID }.toString(), layout, lastId)
         lastId = createPair("Is time locked", TrackingLocker.isTimeLocked.toString(), layout, lastId)
         lastId = createPair("Is locked until recharge", TrackingLocker.isChargeLocked.toString(), layout, lastId)
-        lastId = createPair("Current DataFile", DataStore.currentDataFile?.file?.name.toString(), layout, lastId)
         lastId = createPair("Current DataFile", DataStore.currentDataFile?.file?.name.toString(), layout, lastId)
     }
 

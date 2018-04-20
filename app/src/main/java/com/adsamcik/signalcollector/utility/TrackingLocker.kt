@@ -48,8 +48,14 @@ object TrackingLocker {
         NonNullLiveMutableData(isLockedRightNow())
     }
 
+    /**
+     * Returns true if time lock is active
+     */
     val isTimeLocked = System.currentTimeMillis() < lockedUntil
 
+    /**
+     * Returns true if tracking is locked until recharge
+     */
     val isChargeLocked = lockedUntilRecharge
 
     private fun isLockedRightNow(): Boolean {
