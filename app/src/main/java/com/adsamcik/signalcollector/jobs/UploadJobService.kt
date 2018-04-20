@@ -207,8 +207,15 @@ class UploadJobService : JobService() {
         private val MEDIA_TYPE_ZIP = MediaType.parse("application/zip")
         private const val MIN_NO_ACTIVITY_DELAY = HOUR_IN_MILLISECONDS
 
-        private const val SCHEDULE_UPLOAD_JOB_ID = 1921109
-        private const val UPLOAD_JOB_ID = 2110
+        /**
+         * Id of the schedule job
+         */
+        const val SCHEDULE_UPLOAD_JOB_ID = 1921109
+
+        /**
+         * Id of the upload job
+         */
+        const val UPLOAD_JOB_ID = 2110
 
         /**
          * Returns true if upload is currently in progress
