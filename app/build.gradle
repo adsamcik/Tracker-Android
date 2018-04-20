@@ -116,7 +116,7 @@ dependencies {
     androidTestImplementation 'junit:junit:4.12'
 
     //Kotlin
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jre7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:0.22.5"
     implementation 'androidx.core:core-ktx:0.3'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1', {
