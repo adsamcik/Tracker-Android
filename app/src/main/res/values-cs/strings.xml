@@ -260,4 +260,5 @@
     </string-array>
     <string name="map_search_no_text">Hledat nic není moc užitečné</string>
     <string name="map_search_no_geocoder">Bohužel vaše zařízení nemá službu pro překlad adres na souřadnice</string>
+    <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
 </resources>
