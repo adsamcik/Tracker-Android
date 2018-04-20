@@ -7,7 +7,7 @@ import com.google.gson.*
 import java.lang.reflect.Type
 import java.util.*
 
-class User(val id: String, val token: String) {
+class User(@Transient val id: String, @Transient val token: String) {
 
     var wirelessPoints: Long = 0
         private set
