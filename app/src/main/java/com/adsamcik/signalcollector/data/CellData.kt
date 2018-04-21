@@ -5,9 +5,13 @@ import android.telephony.*
 import com.vimeo.stag.UseStag
 import java.io.Serializable
 
-
+/**
+ * Data class that contains all the information about Cell.
+ * It works universally with every supported cell technology
+ * Supported technologies are GSM, CDMA, WCDMA and LTE
+ */
 @UseStag
-class CellData
+data class CellData
 /**
  * CellData constructor
  *

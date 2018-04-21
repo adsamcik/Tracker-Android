@@ -2,6 +2,9 @@ package com.adsamcik.signalcollector.enums
 
 import android.support.annotation.IntDef
 
+/**
+ * Object containing annotation class and it's [IntDef] for CloudStatus
+ */
 object CloudStatuses {
     const val UNKNOWN = -1
     const val NO_SYNC_REQUIRED = 0

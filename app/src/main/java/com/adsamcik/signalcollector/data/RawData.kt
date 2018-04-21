@@ -11,6 +11,11 @@ import com.vimeo.stag.UseStag
 import java.io.Serializable
 import java.util.*
 
+/**
+ * Object containing raw collection data.
+ * Data in here might have been reordered to different objects
+ * but they have not been modified in any way.
+ */
 @UseStag
 class RawData : Serializable {
     /**

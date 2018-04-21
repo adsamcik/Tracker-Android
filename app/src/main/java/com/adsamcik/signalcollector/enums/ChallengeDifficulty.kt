@@ -2,6 +2,9 @@ package com.adsamcik.signalcollector.enums
 
 import android.support.annotation.IntDef
 
+/**
+ * Object containing annotation class and it's [IntDef] for ChallengeDifficulty
+ */
 object ChallengeDifficulties {
     const val UNKNOWN = -1
     const val VERY_EASY = 0
