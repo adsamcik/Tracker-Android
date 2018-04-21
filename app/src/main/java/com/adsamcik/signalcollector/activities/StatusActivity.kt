@@ -12,7 +12,6 @@ import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
-import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.TrackingLocker
 
 /**
@@ -24,7 +23,6 @@ class StatusActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         val layout = createScrollableContentParent(true, ConstraintLayout::class.java)
         val jobs = jobScheduler.allPendingJobs
-        val sp = Preferences.getPref(this)
 
         var lastId = createPair("Is upload pending", jobs.contains { it.id == UploadJobService.UPLOAD_JOB_ID }.toString(), layout, null)
         lastId = createPair("Is upload scheduled", jobs.contains { it.id == UploadJobService.SCHEDULE_UPLOAD_JOB_ID }.toString(), layout, lastId)
@@ -33,7 +31,7 @@ class StatusActivity : DetailActivity() {
         lastId = createPair("Is time locked", TrackingLocker.isTimeLocked.toString(), layout, lastId)
         lastId = createPair("Is locked until recharge", TrackingLocker.isChargeLocked.toString(), layout, lastId)
         lastId = createPair("Has active wait for recharge job", jobs.contains { it.id == TrackingLocker.JOB_DISABLE_TILL_RECHARGE_ID }.toString(), layout, lastId)
-        lastId = createPair("Current DataFile", DataStore.currentDataFile?.file?.name.toString(), layout, lastId)
+        createPair("Current DataFile", DataStore.currentDataFile?.file?.name.toString(), layout, lastId)
     }
 
     fun createPair(titleString: String, valueString: String, parent: ViewGroup, aboveId: Int?): Int {
