@@ -281,6 +281,7 @@ class UploadJobService : JobService() {
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND)
                     jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY)
+
                     addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb)
                     updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND)
 
@@ -305,6 +306,12 @@ class UploadJobService : JobService() {
         private fun prepareBuilder(id: Int, context: Context, source: UploadScheduleSource): JobInfo.Builder {
             val jobBuilder = JobInfo.Builder(id, ComponentName(context, UploadJobService::class.java))
             jobBuilder.setPersisted(true)
+
+            if (Build.VERSION.SDK_INT >= 26)
+                jobBuilder.setRequiresBatteryNotLow(true)
+
+            jobBuilder.setRequiresDeviceIdle(false)
+
             val pb = PersistableBundle(1)
             pb.putInt(KEY_SOURCE, source.ordinal)
             jobBuilder.setExtras(pb)
