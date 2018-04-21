@@ -118,7 +118,7 @@ class ActivityWakerService : LifecycleService() {
          * @param desiredState desired service state
          */
         fun pokeWithCheck(context: Context, desiredState: Boolean) {
-            poke(context, desiredState && !TrackerService.isRunning && !TrackingLocker.isLocked.value)
+            poke(context, desiredState && !TrackerService.isServiceRunning.value && !TrackingLocker.isLocked.value)
         }
 
         /**

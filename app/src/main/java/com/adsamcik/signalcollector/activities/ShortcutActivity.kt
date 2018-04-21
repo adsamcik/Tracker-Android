@@ -31,7 +31,7 @@ class ShortcutActivity : Activity() {
                         serviceIntent.putExtra("backTrack", false)
                         ContextCompat.startForegroundService(this, serviceIntent)
                     }
-                    Shortcuts.ShortcutType.STOP_COLLECTION -> if (TrackerService.isRunning)
+                    Shortcuts.ShortcutType.STOP_COLLECTION -> if (TrackerService.isServiceRunning.value)
                         stopService(serviceIntent)
                 }
             } else {

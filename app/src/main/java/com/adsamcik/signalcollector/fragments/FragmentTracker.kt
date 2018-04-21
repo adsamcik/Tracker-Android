@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.data.WifiData
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.dpAsPx
+import com.adsamcik.signalcollector.extensions.observe
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
@@ -72,12 +73,12 @@ class FragmentTracker : Fragment() {
 
         button_tracking.setOnClickListener { _ ->
             val activity = activity!!
-            if (TrackerService.isRunning && TrackerService.isBackgroundActivated) {
+            if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = 30
                 TrackingLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
                 SnackMaker(activity.findViewById(R.id.root) as View).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
             } else
-                toggleCollecting(activity, !TrackerService.isRunning)
+                toggleCollecting(activity, !TrackerService.isServiceRunning.value)
         }
 
         button_tracking_lock.setOnClickListener {
@@ -91,13 +92,21 @@ class FragmentTracker : Fragment() {
         }
 
         initializeColorElements()
+
+        TrackerService.isServiceRunning.observe(this) {
+            updateTrackerButton(it)
+        }
+
+        TrackerService.rawDataEcho.observe(this) {
+            if (it != null && it.time > 0) {
+                updateData(it)
+            }
+        }
     }
 
 
     override fun onStop() {
         ColorSupervisor.recycleColorManager(colorManager)
-        TrackerService.onServiceStateChange = null
-        TrackerService.onNewDataFound = null
         DataStore.setOnDataChanged(null)
         DataStore.setOnUploadProgress(null)
         super.onStop()
@@ -112,7 +121,7 @@ class FragmentTracker : Fragment() {
             include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
         }
 
-        updateTrackerButton(TrackerService.isRunning)
+
 
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
 
@@ -122,12 +131,6 @@ class FragmentTracker : Fragment() {
                 updateUploadButton()
         }
 
-        val data = TrackerService.rawDataEcho
-        if (data.time > 0)
-            updateData(data)
-
-        TrackerService.onServiceStateChange = { launch(UI) { updateTrackerButton(TrackerService.isRunning) } }
-        TrackerService.onNewDataFound = { launch(UI) { updateData(it) } }
         DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
         DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
 
@@ -141,13 +144,13 @@ class FragmentTracker : Fragment() {
      * @param enable ensures intended action
      */
     private fun toggleCollecting(activity: Activity, enable: Boolean) {
-        if (TrackerService.isRunning == enable)
+        if (TrackerService.isServiceRunning.value == enable)
             return
 
         val requiredPermissions = Assist.checkTrackingPermissions(activity)
 
         if (requiredPermissions == null) {
-            if (!TrackerService.isRunning) {
+            if (!TrackerService.isServiceRunning.value) {
                 if (!Assist.isGNSSEnabled(activity)) {
                     SnackMaker(root).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
                         val gpsOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)

@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.arch.lifecycle.LifecycleService
+import android.arch.lifecycle.MutableLiveData
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -129,7 +130,7 @@ class TrackerService : LifecycleService() {
             d.setLocation(location).setActivity(activityInfo.resolvedActivity)
 
         data.add(d)
-        rawDataEcho = d
+        rawDataEcho.postValue(d)
 
         DataStore.incData(this, gson.toJson(d).toByteArray(Charset.defaultCharset()).size.toLong(), 1)
 
@@ -137,8 +138,6 @@ class TrackerService : LifecycleService() {
         prevLocation!!.time = d.time
 
         notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
-
-        onNewDataFound?.invoke(d)
 
         if (data.size > 5)
             saveData()
@@ -341,11 +340,6 @@ class TrackerService : LifecycleService() {
         }
 
         UploadJobService.cancelUploadSchedule(this)
-
-        TrackingLocker.isLocked.observe(this) {
-            if (it)
-                stopSelf()
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -353,7 +347,6 @@ class TrackerService : LifecycleService() {
 
         isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
         startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
-        onServiceStateChange?.invoke()
 
         if (isBackgroundActivated)
             ActivityService.requestAutoTracking(this, javaClass)
@@ -361,7 +354,17 @@ class TrackerService : LifecycleService() {
             ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
 
         ActivityWakerService.poke(this, false)
-        return START_REDELIVER_INTENT
+
+        if (isBackgroundActivated) {
+            TrackingLocker.isLocked.observe(this) {
+                if (it)
+                    stopSelf()
+            }
+        }
+
+        isServiceRunning.value = true
+
+        return START_NOT_STICKY
     }
 
 
@@ -370,6 +373,7 @@ class TrackerService : LifecycleService() {
 
         stopForeground(true)
         service = null
+        isServiceRunning.value = false
 
         ActivityWakerService.pokeWithCheck(this)
         ActivityService.removeActivityRequest(this, javaClass)
@@ -381,7 +385,7 @@ class TrackerService : LifecycleService() {
             unregisterReceiver(wifiReceiver)
 
         saveData()
-        onServiceStateChange?.invoke()
+
         DataStore.cleanup(this)
 
         if (wasWifiEnabled) {
@@ -425,14 +429,15 @@ class TrackerService : LifecycleService() {
 
         private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
 
-
-        var onServiceStateChange: (() -> Unit)? = null
-        var onNewDataFound: ((RawData) -> Unit)? = null
+        /**
+         * LiveData containing information about whether the service is currently running
+         */
+        val isServiceRunning = NonNullLiveMutableData(false)
 
         /**
          * RawData from previous collection
          */
-        var rawDataEcho: RawData = RawData(0)
+        var rawDataEcho = MutableLiveData<RawData>()
 
         /**
          * Extra information about distance for tracker
@@ -451,13 +456,5 @@ class TrackerService : LifecycleService() {
          */
         var isBackgroundActivated = false
             private set
-
-        /**
-         * Checks if service is running
-         *
-         * @return true if service is running
-         */
-        val isRunning: Boolean
-            get() = service?.get() != null
     }
 }

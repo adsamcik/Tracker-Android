@@ -42,6 +42,7 @@ object DataStore {
 
     @Volatile
     private var approxSize: Long = -1
+
     @Volatile
     private var collectionsOnDevice = -1
 

@@ -156,7 +156,7 @@ object TrackingLocker {
 
                 ActivityWakerService.pokeWithCheck(context)
 
-                if (TrackerService.isRunning && TrackerService.isBackgroundActivated)
+                if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
                     context.stopService<TrackerService>()
 
                 getAlarmManager(context).set(AlarmManager.RTC_WAKEUP,

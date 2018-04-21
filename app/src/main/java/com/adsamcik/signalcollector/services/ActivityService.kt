@@ -32,7 +32,7 @@ class ActivityService : IntentService("ActivityService") {
         lastActivity = ActivityInfo(result.mostProbableActivity)
         if (mBackgroundTracking && lastActivity.confidence >= REQUIRED_CONFIDENCE) {
             val resolvedActivityName = lastActivity.getResolvedActivityName(this)
-            if (TrackerService.isRunning) {
+            if (TrackerService.isServiceRunning.value) {
                 if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
                     stopService(Intent(this, TrackerService::class.java))
                     ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, "stopped tracking")
@@ -225,7 +225,7 @@ class ActivityService : IntentService("ActivityService") {
          * @return true if background tracking can be activated
          */
         private fun canBackgroundTrack(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
-            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isRunning || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false))
+            if (evalActivity == 3 || evalActivity == 0 || TrackerService.isServiceRunning.value || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false))
                 return false
             val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
             return `val` != 0 && (`val` == evalActivity || `val` > evalActivity)
