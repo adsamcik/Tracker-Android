@@ -424,7 +424,7 @@ class TrackerService : LifecycleService() {
         private const val MIN_DISTANCE_M = 5f
         private const val UPDATE_MAX_DISTANCE_TO_WIFI = 40
 
-        const val UPDATE_TIME_SEC = 2
+        private const val UPDATE_TIME_SEC = 2
         private const val UPDATE_TIME_MILLIS = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
 
         private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
