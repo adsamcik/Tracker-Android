@@ -40,9 +40,10 @@ class FeedbackUploadJob : JobService() {
             val summary = params.extras[SUMMARY] as String
 
             val user = Signin.getUserAsync(this@FeedbackUploadJob)
-            if (user?.token == null || user.token.isBlank())
+            if (user?.token == null || user.token.isBlank()) {
                 notify(R.string.notification_feedback_user_not_signed, summary)
-            else {
+                jobFinished(params, false)
+            } else {
                 val type = params.extras[TYPE] as Int
                 val description = params.extras[DESCRIPTION] as String
                 worker = UploadTask(this@FeedbackUploadJob, user.token) {

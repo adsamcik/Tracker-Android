@@ -15,8 +15,8 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.jobs.FeedbackUploadJob
-import com.adsamcik.signalcollector.jobs.scheduler
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
@@ -100,7 +100,7 @@ class FeedbackActivity : DetailActivity() {
                         if (textLength < MIN_TEXT_LENGTH) {
                             FeedbackTextWatcher.setError(summaryTextLayout, getString(R.string.feedback_error_short_summary), MIN_TEXT_LENGTH)
                         } else if (MAX_TEXT_LENGTH < textLength) {
-                            FeedbackTextWatcher.setError(summaryTextLayout,  getString(R.string.feedback_error_long_summary))
+                            FeedbackTextWatcher.setError(summaryTextLayout, getString(R.string.feedback_error_long_summary))
                         } else {
                             val summary = summaryText.text.toString().trim { it <= ' ' }.replace("\\s+".toRegex(), " ")
                             if (summary.length <= MIN_TEXT_LENGTH)
@@ -108,7 +108,7 @@ class FeedbackActivity : DetailActivity() {
                             else {
                                 val descriptionText = descriptionTextLayout.editText!!
 
-                                if(descriptionText.text.length > descriptionTextLayout.counterMaxLength) {
+                                if (descriptionText.text.length > descriptionTextLayout.counterMaxLength) {
                                     FeedbackTextWatcher.setError(descriptionTextLayout, getString(R.string.feedback_error_long_description))
                                     return@setOnClickListener
                                 }
@@ -127,7 +127,7 @@ class FeedbackActivity : DetailActivity() {
                                         .setExtras(pb)
                                         .build()
 
-                                scheduler(this@FeedbackActivity).schedule(jobInfo)
+                                this@FeedbackActivity.jobScheduler.schedule(jobInfo)
                                 finish()
                             }
                         }

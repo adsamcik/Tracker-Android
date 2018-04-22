@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.PersistableBundle
 import androidx.core.content.edit
 import com.adsamcik.signalcollector.enums.CloudStatuses
+import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
@@ -36,15 +37,17 @@ class UploadJobService : JobService() {
 
     override fun onStartJob(jobParameters: JobParameters): Boolean {
         Preferences.getPref(this).edit {
-            putInt(Preferences.PREF_SCHEDULED_UPLOAD, UploadScheduleSource.NONE.ordinal)
+            remove(Preferences.PREF_SCHEDULED_UPLOAD)
         }
 
         val scheduleSource = UploadScheduleSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
         if (scheduleSource == UploadScheduleSource.NONE)
             throw RuntimeException("Source cannot be null")
 
-        if (!hasEnoughData(this, scheduleSource))
+        if (!hasEnoughData(this, scheduleSource)) {
+            jobFinished(jobParameters, false)
             return false
+        }
 
         isUploading = true
 
@@ -71,10 +74,15 @@ class UploadJobService : JobService() {
     }
 
     override fun onStopJob(jobParameters: JobParameters): Boolean {
-        worker?.cancel(true)
         isUploading = false
-        return true
+        return if (worker?.status == AsyncTask.Status.FINISHED)
+            false
+        else {
+            worker?.cancel(true)
+            true
+        }
     }
+
 
     /**
      * Enum of possible sources that requested upload schedule
@@ -130,6 +138,11 @@ class UploadJobService : JobService() {
 
         override fun doInBackground(vararg params: JobParameters): Boolean? {
             val source = UploadScheduleSource.values()[params[0].extras.getInt(KEY_SOURCE)]
+            if (source == UploadScheduleSource.NONE) {
+                Crashlytics.logException(RuntimeException("Source is none"))
+                return false
+            }
+
             val context = this.context.get()!!
             val files = DataStore.getDataFiles(context, if (source == UploadScheduleSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE)
             if (files == null) {
@@ -253,7 +266,7 @@ class UploadJobService : JobService() {
                     val jb = prepareBuilder(UPLOAD_JOB_ID, context, source)
                     addNetworkTypeRequest(context, source, jb)
 
-                    val scheduler = scheduler(context)
+                    val scheduler = context.jobScheduler
                     if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
                         return false
                     updateUploadScheduleSource(context, source)
@@ -277,7 +290,7 @@ class UploadJobService : JobService() {
             if (canUpload(context, UploadScheduleSource.BACKGROUND) &&
                     hasEnoughData(context, UploadScheduleSource.BACKGROUND) &&
                     Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
-                val scheduler = scheduler(context)
+                val scheduler = context.jobScheduler
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND)
                     jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY)
@@ -340,14 +353,16 @@ class UploadJobService : JobService() {
                 }
 
         private fun updateUploadScheduleSource(context: Context, uss: UploadScheduleSource) {
-            Preferences.getPref(context).edit().putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal).apply()
+            Preferences.getPref(context).edit {
+                putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal)
+            }
         }
 
         /**
          * Cancels any job tak could be scheduled
          */
         fun cancelUploadSchedule(context: Context) {
-            scheduler(context).cancel(SCHEDULE_UPLOAD_JOB_ID)
+            context.jobScheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
             updateUploadScheduleSource(context, UploadScheduleSource.NONE)
         }
     }

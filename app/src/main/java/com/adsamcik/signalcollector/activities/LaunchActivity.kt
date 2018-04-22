@@ -5,9 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.extensions.startActivity
-import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.utility.Shortcuts
@@ -29,20 +27,6 @@ class LaunchActivity : Activity() {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
             val token = FirebaseInstanceId.getInstance().token
             Log.d("Signals", token ?: "null token")
-        }
-
-        val scheduler = jobScheduler
-        val uss = UploadJobService.getUploadScheduled(this)
-        if (uss != UploadJobService.UploadScheduleSource.NONE) {
-            val jobs = scheduler.allPendingJobs
-
-            val found = jobs.count { it.service.className == "UploadJobService" }
-            if (found > 1) {
-                scheduler.cancelAll()
-                UploadJobService.requestUpload(this, uss)
-            } else if (found == 0) {
-                UploadJobService.requestUpload(this, uss)
-            }
         }
 
         startActivity<MainActivity> { }

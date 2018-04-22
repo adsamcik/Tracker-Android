@@ -11,8 +11,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.edit
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
+import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.extensions.stopService
-import com.adsamcik.signalcollector.jobs.scheduler
 import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.services.TrackerService
@@ -125,7 +125,7 @@ object TrackingLocker {
      */
     fun lockUntilRecharge(context: Context): Boolean {
         synchronized(lockedUntilRecharge) {
-            val scheduler = scheduler(context)
+            val scheduler = context.jobScheduler
             val jobBuilder = JobInfo.Builder(JOB_DISABLE_TILL_RECHARGE_ID, ComponentName(context, DisableTillRechargeJobService::class.java))
             jobBuilder.setPersisted(true).setRequiresCharging(true)
             if (scheduler.schedule(jobBuilder.build()) == JobScheduler.RESULT_SUCCESS) {
@@ -141,8 +141,7 @@ object TrackingLocker {
      * Removed recharge lockTimeLock
      */
     fun unlockRechargeLock(context: Context) {
-        val scheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
-        scheduler.cancel(JOB_DISABLE_TILL_RECHARGE_ID)
+        context.jobScheduler.cancel(JOB_DISABLE_TILL_RECHARGE_ID)
         setRechargeLock(context, false)
     }
 
