@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.dpAsPx
@@ -76,13 +77,13 @@ class MainActivity : FragmentActivity() {
         if (Network.cloudStatus == CloudStatuses.UNKNOWN) {
             val scheduleSource = UploadJobService.getUploadScheduled(this)
             when (scheduleSource) {
-                UploadJobService.ActionSource.NONE ->
+                ActionSource.NONE ->
                     Network.cloudStatus =
                             if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
                                 CloudStatuses.SYNC_AVAILABLE
                             else
                                 CloudStatuses.NO_SYNC_REQUIRED
-                UploadJobService.ActionSource.BACKGROUND, UploadJobService.ActionSource.USER ->
+                ActionSource.BACKGROUND, ActionSource.USER ->
                     Network.cloudStatus = CloudStatuses.SYNC_SCHEDULED
             }
         }

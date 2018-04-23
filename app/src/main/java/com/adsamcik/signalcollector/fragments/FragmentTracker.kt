@@ -23,6 +23,7 @@ import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.data.CellData
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.WifiData
+import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.dpAsPx
@@ -200,7 +201,7 @@ class FragmentTracker : Fragment() {
     private fun setUploadButtonClickable() {
         button_upload.setOnClickListener { _ ->
             val context = context!!
-            val success = UploadJobService.requestUpload(context, UploadJobService.ActionSource.USER)
+            val success = UploadJobService.requestUpload(context, ActionSource.USER)
             FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
             if (success)
                 updateUploadButton()
