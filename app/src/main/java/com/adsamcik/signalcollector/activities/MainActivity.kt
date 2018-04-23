@@ -76,13 +76,13 @@ class MainActivity : FragmentActivity() {
         if (Network.cloudStatus == CloudStatuses.UNKNOWN) {
             val scheduleSource = UploadJobService.getUploadScheduled(this)
             when (scheduleSource) {
-                UploadJobService.UploadScheduleSource.NONE ->
+                UploadJobService.ActionSource.NONE ->
                     Network.cloudStatus =
                             if (DataStore.sizeOfData(this) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
                                 CloudStatuses.SYNC_AVAILABLE
                             else
                                 CloudStatuses.NO_SYNC_REQUIRED
-                UploadJobService.UploadScheduleSource.BACKGROUND, UploadJobService.UploadScheduleSource.USER ->
+                UploadJobService.ActionSource.BACKGROUND, UploadJobService.ActionSource.USER ->
                     Network.cloudStatus = CloudStatuses.SYNC_SCHEDULED
             }
         }

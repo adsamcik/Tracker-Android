@@ -10,6 +10,7 @@ import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.core.content.edit
+import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.file.Compress
@@ -28,6 +29,7 @@ import java.io.File
 import java.io.IOException
 import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * JobService used to handle uploading to server
@@ -40,8 +42,8 @@ class UploadJobService : JobService() {
             remove(Preferences.PREF_SCHEDULED_UPLOAD)
         }
 
-        val scheduleSource = UploadScheduleSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
-        if (scheduleSource == UploadScheduleSource.NONE)
+        val scheduleSource = ActionSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
+        if (scheduleSource == ActionSource.NONE)
             throw RuntimeException("Source cannot be null")
 
         if (!hasEnoughData(this, scheduleSource)) {
@@ -49,7 +51,8 @@ class UploadJobService : JobService() {
             return false
         }
 
-        isUploading = true
+        if(isUploading.getAndSet(true))
+            return false
 
         DataStore.onUpload(this, 0)
         val context = applicationContext
@@ -66,7 +69,7 @@ class UploadJobService : JobService() {
                 DataStore.setCollections(this, collectionCount)
                 DataStore.onUpload(this, 100)
             }
-            isUploading = false
+            isUploading.set(false)
             jobFinished(jobParameters, !success)
         })
         worker!!.execute(jobParameters)
@@ -74,23 +77,13 @@ class UploadJobService : JobService() {
     }
 
     override fun onStopJob(jobParameters: JobParameters): Boolean {
-        isUploading = false
+        isUploading.set(false)
         return if (worker?.status == AsyncTask.Status.FINISHED)
             false
         else {
             worker?.cancel(true)
             true
         }
-    }
-
-
-    /**
-     * Enum of possible sources that requested upload schedule
-     */
-    enum class UploadScheduleSource {
-        NONE,
-        BACKGROUND,
-        USER
     }
 
     private class JobWorker internal constructor(context: Context, private val callback: ((Boolean) -> Unit)?) : AsyncTask<JobParameters, Void, Boolean>() {
@@ -137,14 +130,14 @@ class UploadJobService : JobService() {
         }
 
         override fun doInBackground(vararg params: JobParameters): Boolean? {
-            val source = UploadScheduleSource.values()[params[0].extras.getInt(KEY_SOURCE)]
-            if (source == UploadScheduleSource.NONE) {
+            val source = ActionSource.values()[params[0].extras.getInt(KEY_SOURCE)]
+            if (source == ActionSource.NONE) {
                 Crashlytics.logException(RuntimeException("Source is none"))
                 return false
             }
 
             val context = this.context.get()!!
-            val files = DataStore.getDataFiles(context, if (source == UploadScheduleSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE)
+            val files = DataStore.getDataFiles(context, if (source == ActionSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE)
             if (files == null) {
                 Crashlytics.logException(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
                 DataStore.onUpload(context, -1)
@@ -238,14 +231,21 @@ class UploadJobService : JobService() {
         /**
          * Returns true if upload is currently in progress
          */
-        var isUploading = false
+        var isUploading = AtomicBoolean(false)
             private set
 
         /**
          * Returns current upload schedule source from persistent storage
          */
-        fun getUploadScheduled(context: Context): UploadScheduleSource =
-                UploadScheduleSource.values()[Preferences.getPref(context).getInt(Preferences.PREF_SCHEDULED_UPLOAD, 0)]
+        fun getUploadScheduled(context: Context): ActionSource {
+            val preferences = Preferences.getPref(context)
+            val value = preferences.getInt(Preferences.PREF_SCHEDULED_UPLOAD, -1)
+            return if(value >= 0)
+                ActionSource.values()[value]
+            else
+                ActionSource.NONE
+
+        }
 
         /**
          * Requests upload
@@ -255,10 +255,10 @@ class UploadJobService : JobService() {
          * @param source  Source that started the upload
          * @return Success
          */
-        fun requestUpload(context: Context, source: UploadScheduleSource): Boolean {
-            if (source == UploadScheduleSource.NONE)
+        fun requestUpload(context: Context, source: ActionSource): Boolean {
+            if (source == ActionSource.NONE)
                 throw InvalidParameterException("Upload source can't be NONE.")
-            else if (isUploading)
+            else if (isUploading.get())
                 return false
 
             if (hasEnoughData(context, source)) {
@@ -287,16 +287,16 @@ class UploadJobService : JobService() {
          * @param context context
          */
         fun requestUploadSchedule(context: Context) {
-            if (canUpload(context, UploadScheduleSource.BACKGROUND) &&
-                    hasEnoughData(context, UploadScheduleSource.BACKGROUND) &&
+            if (canUpload(context, ActionSource.BACKGROUND) &&
+                    hasEnoughData(context, ActionSource.BACKGROUND) &&
                     Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
                 val scheduler = context.jobScheduler
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
-                    val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, UploadScheduleSource.BACKGROUND)
+                    val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, ActionSource.BACKGROUND)
                     jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY)
 
-                    addNetworkTypeRequest(context, UploadScheduleSource.BACKGROUND, jb)
-                    updateUploadScheduleSource(context, UploadScheduleSource.BACKGROUND)
+                    addNetworkTypeRequest(context, ActionSource.BACKGROUND, jb)
+                    updateUploadScheduleSource(context, ActionSource.BACKGROUND)
 
                     scheduler.schedule(jb.build())
                 }
@@ -311,12 +311,12 @@ class UploadJobService : JobService() {
             }
         }
 
-        private fun canUpload(context: Context, source: UploadScheduleSource): Boolean {
+        private fun canUpload(context: Context, source: ActionSource): Boolean {
             val autoUpload = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD)
-            return autoUpload > 0 || source == UploadScheduleSource.USER
+            return autoUpload > 0 || source == ActionSource.USER
         }
 
-        private fun prepareBuilder(id: Int, context: Context, source: UploadScheduleSource): JobInfo.Builder {
+        private fun prepareBuilder(id: Int, context: Context, source: ActionSource): JobInfo.Builder {
             val jobBuilder = JobInfo.Builder(id, ComponentName(context, UploadJobService::class.java))
             jobBuilder.setPersisted(true)
 
@@ -331,8 +331,8 @@ class UploadJobService : JobService() {
             return jobBuilder
         }
 
-        private fun addNetworkTypeRequest(context: Context, source: UploadScheduleSource, jobBuilder: JobInfo.Builder) {
-            if (source == UploadScheduleSource.USER) {
+        private fun addNetworkTypeRequest(context: Context, source: ActionSource, jobBuilder: JobInfo.Builder) {
+            if (source == ActionSource.USER) {
                 jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
             } else {
                 if (Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD) == 2) {
@@ -345,14 +345,14 @@ class UploadJobService : JobService() {
             }
         }
 
-        private fun hasEnoughData(context: Context, source: UploadScheduleSource): Boolean =
+        private fun hasEnoughData(context: Context, source: ActionSource): Boolean =
                 when (source) {
-                    UploadScheduleSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
-                    UploadScheduleSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
+                    ActionSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
+                    ActionSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
                     else -> false
                 }
 
-        private fun updateUploadScheduleSource(context: Context, uss: UploadScheduleSource) {
+        private fun updateUploadScheduleSource(context: Context, uss: ActionSource) {
             Preferences.getPref(context).edit {
                 putInt(Preferences.PREF_SCHEDULED_UPLOAD, uss.ordinal)
             }
@@ -363,7 +363,7 @@ class UploadJobService : JobService() {
          */
         fun cancelUploadSchedule(context: Context) {
             context.jobScheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
-            updateUploadScheduleSource(context, UploadScheduleSource.NONE)
+            updateUploadScheduleSource(context, ActionSource.NONE)
         }
     }
 }

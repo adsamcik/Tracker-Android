@@ -188,7 +188,7 @@ class TrackerService : LifecycleService() {
             if (result === DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
                     !Preferences.getPref(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
                     DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
-                UploadJobService.requestUpload(this, UploadJobService.UploadScheduleSource.BACKGROUND)
+                UploadJobService.requestUpload(this, UploadJobService.ActionSource.BACKGROUND)
                 Crashlytics.log("Requested upload from tracking")
             }
         }
