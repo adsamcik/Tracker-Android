@@ -46,11 +46,11 @@ object FileStore {
      */
     fun saveString(file: File, data: String, append: Boolean): Boolean {
         try {
-            FileOutputStream(file, append).use { outputStream ->
+            FileOutputStream(file, append).let { outputStream ->
                 outputStream.channel.lock()
-                val osw = OutputStreamWriter(outputStream)
-                osw.write(data)
-                osw.close()
+                OutputStreamWriter(outputStream).use {
+                    it.write(data)
+                }
             }
         } catch (e: Exception) {
             Crashlytics.logException(e)
