@@ -37,22 +37,24 @@ import java.util.concurrent.atomic.AtomicBoolean
 class UploadJobService : JobService() {
     private var worker: JobWorker? = null
 
-    override fun onStartJob(jobParameters: JobParameters): Boolean {
-        Preferences.getPref(this).edit {
-            remove(Preferences.PREF_SCHEDULED_UPLOAD)
-        }
+    private fun removePersistence() = Preferences.getPref(this).edit {
+        remove(Preferences.PREF_SCHEDULED_UPLOAD)
+    }
 
+    override fun onStartJob(jobParameters: JobParameters): Boolean {
         val scheduleSource = ActionSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
         if (scheduleSource == ActionSource.NONE)
-            throw RuntimeException("Source cannot be null")
+            throw RuntimeException("Source cannot be NONE")
 
         if (!hasEnoughData(this, scheduleSource)) {
-            jobFinished(jobParameters, false)
+            removePersistence()
             return false
         }
 
-        if(isUploading.getAndSet(true))
+        if (isUploading.getAndSet(true)) {
+            removePersistence()
             return false
+        }
 
         DataStore.onUpload(this, 0)
         val context = applicationContext
@@ -68,6 +70,7 @@ class UploadJobService : JobService() {
                     collectionCount -= collectionsToUpload
                 DataStore.setCollections(this, collectionCount)
                 DataStore.onUpload(this, 100)
+                removePersistence()
             }
             isUploading.set(false)
             jobFinished(jobParameters, !success)
@@ -119,7 +122,7 @@ class UploadJobService : JobService() {
                 if (isSuccessful)
                     return true
 
-                if (code >= 500 || code == 403)
+                if (code >= 400)
                     Crashlytics.logException(Throwable("Upload failed $code"))
                 return false
             } catch (e: IOException) {
@@ -240,7 +243,7 @@ class UploadJobService : JobService() {
         fun getUploadScheduled(context: Context): ActionSource {
             val preferences = Preferences.getPref(context)
             val value = preferences.getInt(Preferences.PREF_SCHEDULED_UPLOAD, -1)
-            return if(value >= 0)
+            return if (value >= 0)
                 ActionSource.values()[value]
             else
                 ActionSource.NONE
@@ -306,9 +309,9 @@ class UploadJobService : JobService() {
         private fun hasJobWithID(jobScheduler: JobScheduler, id: Int): Boolean {
             return if (Build.VERSION.SDK_INT >= 24)
                 jobScheduler.getPendingJob(id) != null
-            else {
+            else
                 jobScheduler.allPendingJobs.any { it.id == id }
-            }
+
         }
 
         private fun canUpload(context: Context, source: ActionSource): Boolean {
