@@ -114,7 +114,7 @@ class UploadJobService : JobService() {
                     .addFormDataPart("file", Network.generateVerificationString(userID!!, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
                     .build()
             try {
-                call = Network.client(context.get()!!, null).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody))
+                call = Network.client(context.get()!!, token).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody))
                 response = call!!.execute()
                 val code = response!!.code()
                 val isSuccessful = response!!.isSuccessful
