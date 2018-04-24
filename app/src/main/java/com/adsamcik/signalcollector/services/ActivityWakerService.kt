@@ -73,6 +73,7 @@ class ActivityWakerService : LifecycleService() {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
                 .setWhen(System.currentTimeMillis())  // the time stamp
+                .setVibrate(null)
                 .setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
                 .setColor(ContextCompat.getColor(this, R.color.color_accent))
 
@@ -98,6 +99,7 @@ class ActivityWakerService : LifecycleService() {
          */
         fun getServicePreference(context: Context) =
                 Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)
+
         /**
          * Checks if current [ActivityWakerService] state is the one it should be in right now.
          *
