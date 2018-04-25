@@ -212,7 +212,7 @@
     <string name="error_upload_in_progress">Nahrávání již probíhá</string>
     <string name="error_during_upload_scheduling">Objevila se chyba při plánování nahrávání</string>
     <string name="error_not_enough_data">Nemáte dostatek dat pro nahrání dat</string>
-    <string name="error_gnss_not_enabled">Satelitní lokace není povolena (GPS)</string>
+    <string name="error_gnss_not_enabled">Satelitní lokalizace není povolena (GPS)</string>
     <string name="error_general">Objevila se chyba</string>
     <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
     <string name="export_share_button">Sdílet (Export)</string>
