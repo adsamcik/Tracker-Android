@@ -5,11 +5,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
-import android.support.v4.content.ContextCompat
 import android.util.SparseArray
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.powerManager
+import com.adsamcik.signalcollector.extensions.startForegroundService
+import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.utility.*
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
@@ -34,7 +35,7 @@ class ActivityService : IntentService("ActivityService") {
             val resolvedActivityName = lastActivity.getResolvedActivityName(this)
             if (TrackerService.isServiceRunning.value) {
                 if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, lastActivity.resolvedActivity)) {
-                    stopService(Intent(this, TrackerService::class.java))
+                    stopService<TrackerService>()
                     ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, "stopped tracking")
                 } else {
                     ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, null)
@@ -44,7 +45,9 @@ class ActivityService : IntentService("ActivityService") {
                     !mPowerManager.isPowerSaveMode &&
                     Assist.canTrack(this)) {
 
-                startService()
+                startForegroundService<TrackerService> {
+                    putExtra("backTrack", true)
+                }
 
                 ActivityRecognitionActivity.addLineIfDebug(this, resolvedActivityName, "started tracking")
             } else {
@@ -57,12 +60,6 @@ class ActivityService : IntentService("ActivityService") {
 			Log.i(TAG, ActivityInfo.getActivityName(da.getType()) + " " + da.getConfidence() + "%"
 			);
 		}*/
-    }
-
-    private fun startService() {
-        val trackerService = Intent(this, TrackerService::class.java)
-        trackerService.putExtra("backTrack", true)
-        ContextCompat.startForegroundService(this, trackerService)
     }
 
     /**
