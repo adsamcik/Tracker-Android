@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.os.Bundle
 import android.os.PowerManager
 import android.support.v4.app.Fragment
+import android.support.v4.content.ContextCompat
 import android.telephony.TelephonyManager
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
@@ -58,6 +59,30 @@ inline fun <reified T : Any> Context.startActivity(
 }
 
 /**
+ * Starts new service
+ *
+ * @param init Initialization function to setup the intent if needed
+ */
+inline fun <reified T : Any> Context.startService(
+        noinline init: Intent.() -> Unit = {}) {
+    val intent = newIntent<T>()
+    intent.init()
+    startService(intent)
+}
+
+/**
+ * Starts new service in foreground
+ *
+ * @param init Initialization function to setup the intent if needed
+ */
+inline fun <reified T : Any> Context.startForegroundService(
+        noinline init: Intent.() -> Unit = {}) {
+    val intent = newIntent<T>()
+    intent.init()
+    ContextCompat.startForegroundService(this, intent)
+}
+
+/**
  * Requests that a given service should be stopped.
  * Uses standard [Context.stopService] method.
  */
@@ -65,6 +90,7 @@ inline fun <reified T : Any> Context.stopService() {
     val intent = newIntent<T>()
     stopService(intent)
 }
+
 
 /**
  * Creates new intent for class of type [T]

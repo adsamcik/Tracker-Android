@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.provider.Settings
 import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat.getDrawable
-import android.support.v4.content.ContextCompat.startForegroundService
 import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.Surface
@@ -15,6 +14,7 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import androidx.core.content.edit
 import androidx.core.view.children
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.SettingsActivity
@@ -26,9 +26,7 @@ import com.adsamcik.signalcollector.data.WifiData
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
-import com.adsamcik.signalcollector.extensions.dpAsPx
-import com.adsamcik.signalcollector.extensions.observe
-import com.adsamcik.signalcollector.extensions.startActivity
+import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.network.Network
@@ -40,7 +38,6 @@ import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
-import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
@@ -149,27 +146,31 @@ class FragmentTracker : Fragment() {
             return
 
         val requiredPermissions = Assist.checkTrackingPermissions(activity)
+        val view = view
 
-        if (requiredPermissions == null) {
+        if (requiredPermissions == null && view != null) {
             if (!TrackerService.isServiceRunning.value) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(root).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
-                        val gpsOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-                        startActivity(gpsOptionsIntent)
+                    SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
+                        val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                        startActivity(locationOptionsIntent)
                     })
                 } else if (!Assist.canTrack(activity)) {
-                    SnackMaker(root).showSnackbar(R.string.error_nothing_to_track)
+                    SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_nothing_to_track)
                 } else {
-                    Preferences.getPref(activity).edit().putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false).apply()
-                    val trackerService = Intent(activity, TrackerService::class.java)
-                    trackerService.putExtra("backTrack", false)
-                    startForegroundService(activity, trackerService)
+                    Preferences.getPref(activity).edit {
+                        putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false)
+                    }
+
+                    activity.startForegroundService<TrackerService> {
+                        putExtra("backTrack", false)
+                    }
+
                     updateTrackerButton(true)
                 }
             } else {
-                activity.stopService(Intent(activity, TrackerService::class.java))
+                activity.stopService<TrackerService>()
             }
-
         } else if (Build.VERSION.SDK_INT >= 23) {
             activity.requestPermissions(requiredPermissions, 0)
         }
