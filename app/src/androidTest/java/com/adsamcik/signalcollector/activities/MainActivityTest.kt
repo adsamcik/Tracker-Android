@@ -37,7 +37,7 @@ class MainActivityTest {
 
     @Test
     fun newUIActivityTest() {
-        if(isTestMode)
+        if (isTestMode)
             return
 
         val spotlightView = onView(
@@ -119,7 +119,7 @@ class MainActivityTest {
 
         sleep()
 
-        assert(TrackerService.isRunning)
+        assert(TrackerService.isServiceRunning.value)
         assert(!TrackerService.isBackgroundActivated)
 
         val imageButton6 = onView(
