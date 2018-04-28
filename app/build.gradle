@@ -19,8 +19,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 27
-        versionCode 261
-        versionName "6.0.β15 Naaru the colorful"
+        versionCode 262
+        versionName "6.0.β16 Naaru the colorful"
         testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
