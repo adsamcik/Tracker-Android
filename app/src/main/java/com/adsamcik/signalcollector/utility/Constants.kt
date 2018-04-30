@@ -28,16 +28,19 @@ object Constants {
     /**
      * 2^10
      */
-    private const val U_BINARY = 1024
-    const val U_KIBIBYTE = U_BINARY
-    const val U_MEBIBYTE = U_KIBIBYTE * U_BINARY
+    const val U_KIBIBYTE = 1024
+    const val U_MEBIBYTE = U_KIBIBYTE * U_KIBIBYTE
     /**
      * 2^10 / 4 => 2^8
      */
-    private const val U_QUARTER_BINARY = U_BINARY / 4
+    private const val U_QUARTER_KIBIBYTE = U_KIBIBYTE / 4
+    private const val U_EIGHTH_KIBIBYTE = U_KIBIBYTE / 8
     //File sizes
-    const val MIN_BACKGROUND_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_BINARY * 2
-    const val MIN_USER_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_BINARY
+    const val MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE = U_KIBIBYTE * U_EIGHTH_KIBIBYTE
+    const val MAX_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE = U_MEBIBYTE
+    const val MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE = MAX_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE - MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
+
+    const val MIN_USER_UPLOAD_FILE_SIZE = U_KIBIBYTE * U_QUARTER_KIBIBYTE
 
     //Base units to make sure there are no typos
     const val MAX_DATA_FILE_SIZE = U_MEBIBYTE

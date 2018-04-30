@@ -20,7 +20,9 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
+import com.adsamcik.signalcollector.utility.Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
 import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
+import com.adsamcik.signalcollector.utility.Constants.MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.runBlocking
@@ -30,6 +32,7 @@ import java.io.IOException
 import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToLong
 
 /**
  * JobService used to handle uploading to server
@@ -140,7 +143,7 @@ class UploadJobService : JobService() {
             }
 
             val context = this.context.get()!!
-            val files = DataStore.getDataFiles(context, if (source == ActionSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE)
+            val files = DataStore.getDataFiles(context, if (source == ActionSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE)
             if (files == null) {
                 Crashlytics.logException(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
                 DataStore.onUpload(context, -1)
@@ -290,13 +293,15 @@ class UploadJobService : JobService() {
          * @param context context
          */
         fun requestUploadSchedule(context: Context) {
+            val dataSize = DataStore.sizeOfData(context)
             if (canUpload(context, ActionSource.BACKGROUND) &&
-                    hasEnoughData(context, ActionSource.BACKGROUND) &&
+                    hasEnoughData(dataSize, ActionSource.BACKGROUND) &&
                     Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
                 val scheduler = context.jobScheduler
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, ActionSource.BACKGROUND)
-                    jb.setMinimumLatency(MIN_NO_ACTIVITY_DELAY)
+
+                    jb.setMinimumLatency(calculateScheduleDelay(dataSize))
 
                     addNetworkTypeRequest(context, ActionSource.BACKGROUND, jb)
                     updateUploadScheduleSource(context, ActionSource.BACKGROUND)
@@ -304,6 +309,22 @@ class UploadJobService : JobService() {
                     scheduler.schedule(jb.build())
                 }
             }
+        }
+
+        /**
+         * Calculates delay the schedule should have before triggering the upload
+         */
+        private fun calculateScheduleDelay(dataSize: Long): Long {
+            if (dataSize < Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE)
+                throw RuntimeException("Data size is less than minimum allowed value")
+
+            if (dataSize >= Constants.MAX_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE)
+                return MIN_NO_ACTIVITY_DELAY
+
+            //12 hours max delay is target
+            val dist = MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE / (dataSize - MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE).toDouble() * 1.5
+
+            return (MIN_NO_ACTIVITY_DELAY * dist).roundToLong()
         }
 
         private fun hasJobWithID(jobScheduler: JobScheduler, id: Int): Boolean {
@@ -348,10 +369,12 @@ class UploadJobService : JobService() {
             }
         }
 
-        private fun hasEnoughData(context: Context, source: ActionSource): Boolean =
+        private fun hasEnoughData(context: Context, source: ActionSource): Boolean = hasEnoughData(DataStore.sizeOfData(context), source)
+
+        private fun hasEnoughData(dataSize: Long, source: ActionSource): Boolean =
                 when (source) {
-                    ActionSource.BACKGROUND -> DataStore.sizeOfData(context) >= Constants.MIN_BACKGROUND_UPLOAD_FILE_SIZE
-                    ActionSource.USER -> DataStore.sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE
+                    ActionSource.BACKGROUND -> dataSize >= Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
+                    ActionSource.USER -> dataSize >= Constants.MIN_USER_UPLOAD_FILE_SIZE
                     else -> false
                 }
 
