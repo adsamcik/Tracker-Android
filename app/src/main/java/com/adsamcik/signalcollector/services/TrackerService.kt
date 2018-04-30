@@ -43,6 +43,10 @@ import java.nio.charset.Charset
 import java.text.DecimalFormat
 import java.util.*
 
+/**
+ * Tracking service that is used as foreground service and tracks all user data
+ * Uses [DataStore] to store them persistently
+ */
 class TrackerService : LifecycleService() {
     private val data = ArrayList<RawData>()
 
