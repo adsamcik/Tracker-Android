@@ -201,11 +201,15 @@ class FragmentTracker : Fragment() {
 
     private fun setUploadButtonClickable() {
         button_upload.setOnClickListener { _ ->
-            val context = context!!
-            val success = UploadJobService.requestUpload(context, ActionSource.USER)
-            FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
-            if (success)
-                updateUploadButton()
+            val activity = activity!!
+            launch {
+                if(Assist.privacyPolicy(activity)) {
+                    val success = UploadJobService.requestUpload(activity, ActionSource.USER)
+                    FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
+                    if (success)
+                        updateUploadButton()
+                }
+            }
         }
     }
 

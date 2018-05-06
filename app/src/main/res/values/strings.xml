@@ -85,8 +85,16 @@
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
     <string name="share_nothing_to_share">Nothing to share</string>
+    <string name="agree">I agree</string>
+    <string name="disagree">I disagree</string>
 
     <!-- NEW UI -->
     <string name="info_altitude">%d m altitude</string>
     <string name="info_accuracy">%d m accuracy</string>
+
+
+    <string name="privacy_policy_agreement_title">Privacy policy agreement</string>
+    <string name="privacy_policy_agreement_description">You need to agree to privacy policy, before uploading data to Signals servers.</string>
+    <string name="privacy_policy_agreement_autoup_description">Autoupload requires you to agree to privacy policy.</string>
+    <string name="privacy_policy_agreement_link">See privacy policy</string>
 </resources>

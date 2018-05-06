@@ -10,14 +10,17 @@ import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.core.content.edit
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
+import com.adsamcik.signalcollector.extensions.getInt
 import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
@@ -336,8 +339,8 @@ class UploadJobService : JobService() {
         }
 
         private fun canUpload(context: Context, source: ActionSource): Boolean {
-            val autoUpload = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD)
-            return autoUpload > 0 || source == ActionSource.USER
+            val autoUpload = Preferences.getPref(context).getInt(context, R.string.settings_uploading_network_key, R.string.settings_uploading_network_default)
+            return (autoUpload > 0 || source == ActionSource.USER) && Assist.hasAgreedToPrivacyPolicy(context)
         }
 
         private fun prepareBuilder(id: Int, context: Context, source: ActionSource): JobInfo.Builder {
@@ -359,7 +362,7 @@ class UploadJobService : JobService() {
             if (source == ActionSource.USER) {
                 jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
             } else {
-                if (Preferences.getPref(context).getInt(Preferences.PREF_AUTO_UPLOAD, Preferences.DEFAULT_AUTO_UPLOAD) == 2) {
+                if (Preferences.getPref(context).getInt(context, R.string.settings_uploading_network_key, R.string.settings_uploading_network_default) == 2) {
                     if (Build.VERSION.SDK_INT >= 24)
                         jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING)
                     else

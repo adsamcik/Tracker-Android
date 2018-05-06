@@ -24,8 +24,6 @@ object Preferences {
 
     const val PREF_AUTO_TRACKING = "backgroundTracking"
     const val DEFAULT_AUTO_TRACKING = 1
-    const val PREF_AUTO_UPLOAD = "autoUpload"
-    const val DEFAULT_AUTO_UPLOAD = 1
 
     const val PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched"
     const val PREF_STOP_UNTIL_RECHARGE = "stoppedUntilRecharge"

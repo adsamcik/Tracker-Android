@@ -30,6 +30,7 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Tips
 import com.adsamcik.signalcollector.utility.TrackingLocker
+import kotlinx.coroutines.experimental.launch
 import java.io.File
 import java.util.*
 
@@ -85,6 +86,19 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
     }
 
+    private fun initializeUpload(caller: PreferenceFragmentCompat) {
+        caller.findPreference(getString(R.string.settings_uploading_network_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            return@OnPreferenceChangeListener when {
+                Assist.hasAgreedToPrivacyPolicy(this) -> true
+                newValue as Int <= 0 -> true
+                else -> {
+                    launch { Assist.privacyPolicyEnableUpload(this@SettingsActivity) }
+                    false
+                }
+            }
+        }
+    }
+
     private fun initializeRoot(caller: PreferenceFragmentCompat) {
         if (Signin.isSignedIn)
             setOnClickListener(R.string.settings_feedback_key) {
@@ -115,6 +129,15 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 Preferences.getPref(this).edit {
                     remove(Tips.getTipsPreferenceKey(Tips.HOME_TIPS))
                     remove(Tips.getTipsPreferenceKey(Tips.MAP_TIPS))
+                }
+            }
+            true
+        }
+
+        caller.findPreference(getString(R.string.settings_privacy_policy_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            if (newValue as Boolean == false) {
+                Preferences.getPref(this).edit {
+                    putInt(getString(R.string.settings_uploading_network_key), getString(R.string.settings_uploading_network_default).toInt())
                 }
             }
             true
@@ -220,11 +243,11 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
      */
     private fun initializeDebug(caller: PreferenceFragmentCompat) {
         setOnClickListener(R.string.settings_activity_debug_key) {
-            startActivity<ActivityRecognitionActivity> {  }
+            startActivity<ActivityRecognitionActivity> { }
         }
 
         setOnClickListener(R.string.settings_activity_status_key) {
-            startActivity<StatusActivity> {  }
+            startActivity<StatusActivity> { }
         }
 
         caller.findPreference(getString(R.string.settings_clear_cache_key)).setOnPreferenceClickListener { _ ->
@@ -379,6 +402,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             r.getString(R.string.settings_debug_title) -> initializeDebug(caller)
             r.getString(R.string.settings_style_title) -> initializeStyle(caller)
             r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
+            r.getString(R.string.settings_upload_title) -> initializeUpload(caller)
         }
     }
 

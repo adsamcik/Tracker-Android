@@ -8,7 +8,6 @@ import android.support.annotation.DrawableRes
 import android.support.v7.preference.Preference
 import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
-import android.util.Log
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -77,12 +76,16 @@ class ImageSwitchPreference : Preference {
         layoutResource = R.layout.layout_image_switch
     }
 
+    @Synchronized
     fun addItem(title: String, @DrawableRes image: Int) {
         val item = SwitchItem(title, image)
         mItems.add(item)
 
         if (mInitialized)
             initializeItem(item, mItems.lastIndex)
+
+        if(mItems.size == mSelected + 1)
+            select(mSelected)
     }
 
     private fun onClick(index: Int) {
@@ -90,6 +93,9 @@ class ImageSwitchPreference : Preference {
     }
 
     private fun select(index: Int) {
+        if(!callChangeListener(index) || !persistInt(index))
+            return
+
         when {
             mSelected == index -> return
             index < 0 -> return
@@ -101,10 +107,6 @@ class ImageSwitchPreference : Preference {
         mTextView!!.text = newItem.title
 
         mSelected = index
-        if (!persistInt(index)) {
-            Log.w("Signals", "persistInt() returned false. Check if this preference has a key.")
-            return
-        }
     }
 
     override fun onGetDefaultValue(a: TypedArray, index: Int): Any {

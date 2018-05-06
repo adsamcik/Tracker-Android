@@ -143,7 +143,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         } else
             loadMapLayers()
 
-        Tips.showTips(activity, Tips.MAP_TIPS)
+        Tips.showTips(activity, Tips.MAP_TIPS, null)
     }
 
     override fun onStart() {

@@ -47,19 +47,22 @@ object Tips {
      * @param activity Activity used to display tips
      * @param key Key which selects proper tips
      */
-    fun showTips(activity: Activity, @TipKey key: String) {
+    fun showTips(activity: Activity, @TipKey key: String, onDoneListener: (() -> Unit)?) {
         val preferences = Preferences.getPref(activity)
         val tipsPreferenceKey = activity.getString(R.string.show_tips_key)
         if (preferences.getBoolean(tipsPreferenceKey, true) && !preferences.getBoolean(getTipsPreferenceKey(key), false)) {
             when (key) {
-                HOME_TIPS -> showHomeTips(activity)
-                MAP_TIPS -> showMapTips(activity)
+                HOME_TIPS -> showHomeTips(activity, onDoneListener)
+                MAP_TIPS -> showMapTips(activity, onDoneListener)
                 else -> throw RuntimeException("$key is not a valid tips key")
             }
         }
     }
 
-    private fun showHomeTips(activity: Activity) {
+    /**
+     * Shows home tips to the user
+     */
+    private fun showHomeTips(activity: Activity, onDoneListener: (() -> Unit)?) {
         activity.run {
             val resources = resources
             val buttonData = SimpleTarget.ButtonData(resources.getString(R.string.next_part)) { _, spotlight ->
@@ -124,6 +127,7 @@ object Tips {
                             putBoolean(getTipsPreferenceKey(HOME_TIPS), true)
                         }
                         isActive = false
+                        onDoneListener?.invoke()
                     }
                     .start()
 
@@ -131,7 +135,10 @@ object Tips {
         }
     }
 
-    private fun showMapTips(activity: Activity) {
+    /**
+     * Shows map tips to the user
+     */
+    private fun showMapTips(activity: Activity, onDoneListener: (() -> Unit)?) {
         activity.run {
             val buttonData = SimpleTarget.ButtonData(getString(R.string.next_part)) { _, spotlight ->
                 spotlight.next()
@@ -191,6 +198,7 @@ object Tips {
                             putBoolean(getTipsPreferenceKey(MAP_TIPS), true)
                         }
                         isActive = false
+                        onDoneListener?.invoke()
                     }
                     .start()
 

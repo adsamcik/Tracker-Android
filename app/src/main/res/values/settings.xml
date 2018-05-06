@@ -88,7 +88,7 @@
     <string name="settings_auto_upload_category">Automatic uploading</string>
 
     <string name="settings_uploading_network_key" translatable="false">autoUpload</string>
-    <string name="settings_uploading_network_default" translatable="false">1</string>
+    <string name="settings_uploading_network_default" translatable="false">0</string>
 
     <string-array name="auto_upload_options_titles">
         <item>Disabled</item>
@@ -185,6 +185,10 @@
     <string name="settings_allow_upload_notification_key" translatable="false">uploadNotificationsEnabled</string>
     <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
     <string name="settings_allow_upload_notification_default" translatable="false">true</string>
+
+    <string name="settings_privacy_policy_key">agreedToPrivacyPolicy</string>
+    <string name="settings_privacy_policy_title">Agreed to the privacy policy</string>
+    <string name="settings_privacy_policy_summary">You must agree to the privacy policy prior to uploading files. If you purposely use bugs in application to upload data without consent, you automatically agree to the privacy policy.</string>
 
     <string name="settings_export_title">Share tracked data</string>
     <string name="settings_export_key" translatable="false">shareButton</string>

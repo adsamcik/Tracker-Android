@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.support.v4.app.Fragment
@@ -56,6 +57,19 @@ inline fun <reified T : Any> Context.startActivity(
     val intent = newIntent<T>()
     intent.init()
     startActivity(intent, options)
+}
+
+/**
+ * Starts new activity
+ *
+ * @param action Action
+ * @param uri URI
+ */
+fun Context.startActivity(
+        action: String,
+        uri: Uri) {
+    val intent = Intent(action, uri)
+    startActivity(intent)
 }
 
 /**
