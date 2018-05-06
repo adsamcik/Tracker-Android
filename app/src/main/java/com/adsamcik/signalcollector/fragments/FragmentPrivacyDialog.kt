@@ -27,11 +27,11 @@ class FragmentPrivacyDialog : DialogFragment() {
         val textBuilder = StringBuilder()
         val arguments = arguments
 
+        textBuilder.append(resources.getString(R.string.privacy_policy_agreement_description))
+
         val additionalText = arguments?.getInt(BUNDLE_ADDITIONAL_TEXT)
         if (additionalText != null)
             textBuilder.append(resources.getString(additionalText)).append('\n')
-
-        textBuilder.append(resources.getString(R.string.privacy_policy_agreement_description))
 
         val dialog = AlertDialog.Builder(context, R.style.Theme_AppCompat_Light_Dialog)
                 .setMessage(textBuilder.toString())

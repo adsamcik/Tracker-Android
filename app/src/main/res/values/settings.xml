@@ -188,7 +188,7 @@
 
     <string name="settings_privacy_policy_key">agreedToPrivacyPolicy</string>
     <string name="settings_privacy_policy_title">Agreed to the privacy policy</string>
-    <string name="settings_privacy_policy_summary">You must agree to the privacy policy prior to uploading files. If you purposely use bugs in application to upload data without consent, you automatically agree to the privacy policy.</string>
+    <string name="settings_privacy_policy_summary">You must agree to the privacy policy prior to uploading files.</string>
 
     <string name="settings_export_title">Share tracked data</string>
     <string name="settings_export_key" translatable="false">shareButton</string>
