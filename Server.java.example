@@ -16,6 +16,7 @@ public class Server {
 	static final String URL_USER_UPDATE_MAP_PREFERENCE = URL_WEB + "api/example";
 	static final String URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = URL_WEB + "api/example";
 	static final String URL_CHALLENGES_LIST = URL_WEB + "api/example";
+	static final String URL_PRIVACY_POLICY = URL_WEB + "api/example";
 
 	public static String generateVerificationString(String userID, Long length) {
 		return userID.toString();
