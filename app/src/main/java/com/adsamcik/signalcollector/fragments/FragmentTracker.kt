@@ -203,7 +203,7 @@ class FragmentTracker : Fragment() {
         button_upload.setOnClickListener { _ ->
             val activity = activity!!
             launch {
-                if(Assist.privacyPolicy(activity)) {
+                if (Assist.privacyPolicy(activity)) {
                     val success = UploadJobService.requestUpload(activity, ActionSource.USER)
                     FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (success)
@@ -235,39 +235,41 @@ class FragmentTracker : Fragment() {
     }
 
     private fun updateUploadButton() {
-        if (!Signin.isSignedIn) {
-            button_upload.setImageResource(R.drawable.ic_account_circle_black_24dp)
-            button_upload.setOnClickListener {
-                startActivity<UserActivity> { }
+        button_upload.post {
+            if (!Signin.isSignedIn) {
+                button_upload.setImageResource(R.drawable.ic_account_circle_black_24dp)
+                button_upload.setOnClickListener {
+                    startActivity<UserActivity> { }
+                }
+                button_upload.visibility = View.VISIBLE
+                return@post
             }
-            button_upload.visibility = View.VISIBLE
-            return
-        }
 
-        when (Network.cloudStatus) {
-            CloudStatuses.NO_SYNC_REQUIRED, CloudStatuses.UNKNOWN -> {
-                button_upload.setOnClickListener(null)
-                button_upload.visibility = View.GONE
-            }
-            CloudStatuses.SYNC_AVAILABLE -> {
-                button_upload.setImageResource(R.drawable.ic_cloud_upload_24dp)
-                setUploadButtonClickable()
-                button_upload.visibility = View.VISIBLE
-            }
-            CloudStatuses.SYNC_SCHEDULED -> {
-                button_upload.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
-                setUploadButtonClickable()
-                button_upload.visibility = View.VISIBLE
-            }
-            CloudStatuses.SYNC_IN_PROGRESS -> {
-                button_upload.setImageResource(R.drawable.ic_sync_black_24dp)
-                button_upload.setOnClickListener(null)
-                button_upload.visibility = View.VISIBLE
-            }
-            CloudStatuses.ERROR -> {
-                button_upload.setImageResource(R.drawable.ic_cloud_off_24dp)
-                button_upload.setOnClickListener(null)
-                button_upload.visibility = View.VISIBLE
+            when (Network.cloudStatus) {
+                CloudStatuses.NO_SYNC_REQUIRED, CloudStatuses.UNKNOWN -> {
+                    button_upload.setOnClickListener(null)
+                    button_upload.visibility = View.GONE
+                }
+                CloudStatuses.SYNC_AVAILABLE -> {
+                    button_upload.setImageResource(R.drawable.ic_cloud_upload_24dp)
+                    setUploadButtonClickable()
+                    button_upload.visibility = View.VISIBLE
+                }
+                CloudStatuses.SYNC_SCHEDULED -> {
+                    button_upload.setImageResource(R.drawable.ic_cloud_queue_black_24dp)
+                    setUploadButtonClickable()
+                    button_upload.visibility = View.VISIBLE
+                }
+                CloudStatuses.SYNC_IN_PROGRESS -> {
+                    button_upload.setImageResource(R.drawable.ic_sync_black_24dp)
+                    button_upload.setOnClickListener(null)
+                    button_upload.visibility = View.VISIBLE
+                }
+                CloudStatuses.ERROR -> {
+                    button_upload.setImageResource(R.drawable.ic_cloud_off_24dp)
+                    button_upload.setOnClickListener(null)
+                    button_upload.visibility = View.VISIBLE
+                }
             }
         }
     }
