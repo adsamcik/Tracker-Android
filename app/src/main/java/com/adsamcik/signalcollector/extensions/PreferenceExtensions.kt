@@ -43,6 +43,30 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
 }
 
 /**
+ * Finds a {@link Preference} based on its key.
+ *
+ * @param title The title of the preference to retrieve.
+ * @return The {@link Preference} with the key, or null.
+ * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ */
+fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
+    @Suppress("UNCHECKED_CAST")
+    return findPreference(getString(titleId)) as T
+}
+
+/**
+ * Finds a {@link Preference} based on its key.
+ *
+ * @param title The title of the preference to retrieve.
+ * @return The {@link Preference} with the key, or null.
+ * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ */
+fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference {
+    @Suppress("UNCHECKED_CAST")
+    return findPreference(getString(titleId))
+}
+
+/**
  * Searches for preference using title
  *
  * @param title Title used for the search

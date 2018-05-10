@@ -84,8 +84,16 @@
             <android.support.v7.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_smart_upload_default"
                 android:key="@string/settings_smart_upload_key"
+                android:disableDependentsState="true"
                 android:summary="@string/settings_smart_upload_summary"
                 android:title="@string/settings_smart_upload_title"/>
+
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@string/settings_auto_upload_at_default"
+                android:dependency="@string/settings_smart_upload_key"
+                android:key="@string/settings_auto_upload_at_key"
+                android:title="@string/settings_auto_upload_at_title"
+                app:items="@array/settings_auto_upload_at_MB"/>
 
         </android.support.v7.preference.PreferenceCategory>
     </android.support.v7.preference.PreferenceScreen>
@@ -96,8 +104,8 @@
             android:defaultValue="@string/settings_style_mode_default"
             android:entries="@array/settings_style_mode_names"
             android:entryValues="@array/settings_style_mode_values"
-            android:summary="%s"
             android:key="@string/settings_style_mode_key"
+            android:summary="%s"
             android:title="@string/settings_style_mode_title"/>
 
         <com.adsamcik.signalcollector.components.ColorSupportPreference
@@ -196,9 +204,13 @@
 
         <android.support.v7.preference.CheckBoxPreference
             android:defaultValue="false"
+            android:key="@string/settings_privacy_policy_agreement_key"
+            android:title="@string/settings_privacy_policy_agreement_title"
+            android:summary="@string/settings_privacy_policy_agreement_summary"/>
+
+        <Preference
             android:key="@string/settings_privacy_policy_key"
-            android:title="@string/settings_privacy_policy_title"
-            android:summary="@string/settings_privacy_policy_summary"/>
+            android:title="@string/privacy_policy_agreement_link"/>
 
         <Preference
             android:key="@string/settings_licenses_key"

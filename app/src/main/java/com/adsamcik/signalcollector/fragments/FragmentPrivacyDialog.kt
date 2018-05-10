@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.fragments
 
 import android.app.Dialog
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -43,7 +44,7 @@ class FragmentPrivacyDialog : DialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { _ ->
             Preferences.getPref(context).edit {
-                putBoolean(getString(R.string.settings_privacy_policy_key), true)
+                putBoolean(getString(R.string.settings_privacy_policy_agreement_key), true)
 
                 if (arguments?.getBoolean(BUNDLE_SET_AUTOUP_IF_TRUE, false) == true)
                     putInt(getString(R.string.settings_uploading_network_key), 1)
@@ -55,7 +56,7 @@ class FragmentPrivacyDialog : DialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { _ ->
             Preferences.getPref(context).edit {
-                remove(getString(R.string.settings_privacy_policy_key))
+                remove(getString(R.string.settings_privacy_policy_agreement_key))
 
                 if (arguments?.getBoolean(BUNDLE_SET_AUTOUP_IF_TRUE, false) == true)
                     remove(getString(R.string.settings_uploading_network_key))
@@ -66,7 +67,7 @@ class FragmentPrivacyDialog : DialogFragment() {
         }
 
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { _ ->
-            context.startActivity(Intent.ACTION_VIEW, Uri.parse(Network.URL_PRIVACY_POLICY))
+            showPrivacyPolicy(context)
         }
 
         isCancelable = false
@@ -86,6 +87,10 @@ class FragmentPrivacyDialog : DialogFragment() {
                 dialog.arguments = Bundle().apply(init)
 
             return dialog
+        }
+
+        fun showPrivacyPolicy(context: Context) {
+            context.startActivity(Intent.ACTION_VIEW, Uri.parse(Network.URL_PRIVACY_POLICY))
         }
     }
 }

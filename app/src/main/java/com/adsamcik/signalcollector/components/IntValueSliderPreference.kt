@@ -40,7 +40,7 @@ class IntValueSliderPreference : Preference {
         attributes.recycle()
     }
 
-    private var mTextViewString = "$1%d"
+    private var mTextViewString = "%d"
     @IntegerRes
     private var mValuesResource: Int? = null
     private var mInitialValue: Int = 0

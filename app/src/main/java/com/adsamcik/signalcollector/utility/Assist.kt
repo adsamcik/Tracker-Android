@@ -133,7 +133,7 @@ object Assist {
     /**
      * Checks whether user has agreed to privacy policy
      */
-    fun hasAgreedToPrivacyPolicy(context: Context) = Preferences.getPref(context).getBoolean(context.getString(R.string.settings_privacy_policy_key), false)
+    fun hasAgreedToPrivacyPolicy(context: Context) = Preferences.getPref(context).getBoolean(context.getString(R.string.settings_privacy_policy_agreement_key), false)
 
 
     /**

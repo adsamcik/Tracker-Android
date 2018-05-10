@@ -107,6 +107,22 @@
     <string name="settings_smart_upload_key" translatable="false">smartAutoUpload</string>
     <string name="settings_smart_upload_default" translatable="false">true</string>
 
+    <string name="settings_auto_upload_at_title">Auto upload at</string>
+    <string name="settings_auto_upload_at_key" translatable="false">autoUpAtMB</string>
+    <string name="settings_auto_upload_at_default" translatable="false">3</string>
+
+    <integer-array name="settings_auto_upload_at_MB">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>7</item>
+        <item>9</item>
+        <item>12</item>
+        <item>15</item>
+    </integer-array>
+
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
     <string name="settings_style_mode_key" translatable="false">styleMode</string>
@@ -186,9 +202,11 @@
     <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
     <string name="settings_allow_upload_notification_default" translatable="false">true</string>
 
-    <string name="settings_privacy_policy_key" translatable="false">agreedToPrivacyPolicy</string>
-    <string name="settings_privacy_policy_title">Agreed to the privacy policy</string>
-    <string name="settings_privacy_policy_summary">You must agree to the privacy policy prior to uploading files.</string>
+    <string name="settings_privacy_policy_agreement_key" translatable="false">agreedToPrivacyPolicy</string>
+    <string name="settings_privacy_policy_agreement_title">Agreed to the privacy policy</string>
+    <string name="settings_privacy_policy_agreement_summary">You must agree to the privacy policy prior to uploading files.</string>
+
+    <string name="settings_privacy_policy_key" translatable="false">privacyPolicy</string>
 
     <string name="settings_export_title">Share tracked data</string>
     <string name="settings_export_key" translatable="false">shareButton</string>

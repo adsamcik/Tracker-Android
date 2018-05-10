@@ -16,10 +16,12 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
 import com.adsamcik.signalcollector.extensions.findDirectPreferenceByTitle
+import com.adsamcik.signalcollector.extensions.findPreference
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.fragments.FragmentPrivacyDialog
 import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
@@ -59,7 +61,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeTracking(caller: PreferenceFragmentCompat) {
-        caller.findPreference(getString(R.string.settings_activity_watcher_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(R.string.settings_activity_watcher_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
                 val updateRate = caller.preferenceManager.sharedPreferences.getInt(getString(R.string.settings_activity_freq_key), getString(R.string.settings_activity_freq_default).toInt())
                 ActivityService.requestActivity(this, LaunchActivity::class.java, updateRate)
@@ -70,13 +72,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             return@OnPreferenceChangeListener true
         }
 
-        caller.findPreference(getString(R.string.settings_activity_freq_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(R.string.settings_activity_freq_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             ActivityService.requestActivity(this, LaunchActivity::class.java, newValue as Int)
             ActivityWakerService.pokeWithCheck(this)
             return@OnPreferenceChangeListener true
         }
 
-        caller.findPreference(getString(R.string.settings_disabled_recharge_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(R.string.settings_disabled_recharge_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
                 return@OnPreferenceChangeListener TrackingLocker.lockUntilRecharge(this)
             } else
@@ -87,7 +89,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeUpload(caller: PreferenceFragmentCompat) {
-        caller.findPreference(getString(R.string.settings_uploading_network_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(R.string.settings_uploading_network_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             return@OnPreferenceChangeListener when {
                 Assist.hasAgreedToPrivacyPolicy(this) -> true
                 newValue as Int <= 0 -> true
@@ -105,7 +107,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 startActivity<FeedbackActivity> { }
             }
         else
-            caller.findPreference(getString(R.string.settings_feedback_key)).isEnabled = false
+            caller.findPreference(R.string.settings_feedback_key).isEnabled = false
 
         setOnClickListener(R.string.settings_account_key) {
             startActivity<UserActivity> { }
@@ -124,7 +126,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = Preferences.getPref(this).getBoolean(devKey, false)
 
-        caller.findPreference(getString(R.string.show_tips_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(R.string.show_tips_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
                 Preferences.getPref(this).edit {
                     remove(Tips.getTipsPreferenceKey(Tips.HOME_TIPS))
@@ -134,7 +136,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             true
         }
 
-        caller.findPreference(getString(R.string.settings_privacy_policy_key)).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+        caller.findPreference(R.string.settings_privacy_policy_agreement_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean == false) {
                 Preferences.getPref(this).edit {
                     putInt(getString(R.string.settings_uploading_network_key), getString(R.string.settings_uploading_network_default).toInt())
@@ -143,7 +145,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             true
         }
 
-        val version = caller.findPreference(getString(R.string.settings_app_version_key))
+        caller.findPreference(R.string.settings_privacy_policy_key).onPreferenceClickListener = Preference.OnPreferenceClickListener {
+            FragmentPrivacyDialog.showPrivacyPolicy(this)
+            true
+        }
+
+
+        val version = caller.findPreference(R.string.settings_app_version_key)
         version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
 
         version.setOnPreferenceClickListener {
@@ -175,7 +183,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun setOnClickListener(@StringRes key: Int, listener: () -> Unit) {
-        fragment.findPreference(getString(key)).setOnPreferenceClickListener {
+        fragment.findPreference(key).setOnPreferenceClickListener {
             listener.invoke()
             false
         }
@@ -251,15 +259,15 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<StatusActivity> { }
         }
 
-        caller.findPreference(getString(R.string.settings_clear_cache_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_clear_cache_key).setOnPreferenceClickListener { _ ->
             createClearDialog({ CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files)
             false
         }
-        caller.findPreference(getString(R.string.settings_clear_data_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_clear_data_key).setOnPreferenceClickListener { _ ->
             createClearDialog({ DataStore.clearAll(it) }, R.string.settings_cleared_all_data_files)
             false
         }
-        caller.findPreference(getString(R.string.settings_clear_reports_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_clear_reports_key).setOnPreferenceClickListener { _ ->
             createClearDialog({ _ ->
                 DataStore.delete(this, DataStore.RECENT_UPLOADS_FILE)
                 Preferences.getPref(this).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
@@ -267,7 +275,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
-        caller.findPreference(getString(R.string.settings_browse_files_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_browse_files_key).setOnPreferenceClickListener { _ ->
             createFileAlertDialog(filesDir, { file ->
                 val name = file.name
                 !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
@@ -275,12 +283,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
-        caller.findPreference(getString(R.string.settings_browse_cache_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_browse_cache_key).setOnPreferenceClickListener { _ ->
             createFileAlertDialog(cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory })
             false
         }
 
-        caller.findPreference(getString(R.string.settings_hello_world_key)).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_hello_world_key).setOnPreferenceClickListener { _ ->
             val helloWorld = getString(R.string.dev_notification_dummy)
             val color = ContextCompat.getColor(this, R.color.color_primary)
             val rng = Random(System.currentTimeMillis())

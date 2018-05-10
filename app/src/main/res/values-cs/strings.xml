@@ -261,8 +261,8 @@
     <string name="map_search_no_text">Hledat nic není moc užitečné</string>
     <string name="map_search_no_geocoder">Bohužel vaše zařízení nemá službu pro překlad adres na souřadnice</string>
     <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
-    <string name="settings_privacy_policy_title">Souhlas se zásadami ochrany osobních údajů</string>
-    <string name="settings_privacy_policy_summary">Před nahráním dat na server, je nutné souhlasit se zásadami ochrany osobních údajů.</string>
+    <string name="settings_privacy_policy_agreement_title">Souhlas se zásadami ochrany osobních údajů</string>
+    <string name="settings_privacy_policy_agreement_summary">Před nahráním dat na server, je nutné souhlasit se zásadami ochrany osobních údajů.</string>
     <string name="privacy_policy_agreement_title">Souhlas se zásadami ochrany osobních údajů</string>
     <string name="privacy_policy_agreement_description">Před nahráním souborů na server je nutné souhlasit se zásadami ochrany osobních údajů.</string>
     <string name="privacy_policy_agreement_autoup_description">Automatické nahrávání vyžaduje souhlas se zásadami ochrany osobních údajů.</string>
