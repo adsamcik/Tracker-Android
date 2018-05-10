@@ -152,7 +152,7 @@ object Tips {
                         spotlight.finishSpotlight()
                     })
                     .addButtonData(buttonData)
-                    .setShape(RoundedRectangle(target, 8.dpAsPx.toFloat(),8.dpAsPx.toFloat()))
+                    .setShape(RoundedRectangle(target, 8.dpAsPx.toFloat(), 8.dpAsPx.toFloat()))
                     .setDescription(getString(R.string.tips_map_search_description)).build()
 
             target = findViewById<View>(R.id.button_map_my_location)
@@ -162,7 +162,8 @@ object Tips {
                     .setTitle(getString(R.string.tips_map_my_location_title))
                     .addButtonData(buttonData)
                     .setShape(Circle(target))
-                    .setDescription(getString(R.string.tips_map_my_location_description)).build()
+                    .setDescription(getString(R.string.tips_map_my_location_description))
+                    .build()
 
             target = findViewById<View>(R.id.map_menu_button)
             //radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
@@ -170,21 +171,18 @@ object Tips {
                     .setPoint(target.x + target.pivotX, target.y + target.pivotY)
                     .setTitle(getString(R.string.tips_map_overlay_title))
                     .addButtonData(buttonData)
-                    .setShape(RoundedRectangle(target, 8.dpAsPx.toFloat(),8.dpAsPx.toFloat()))
+                    .setShape(RoundedRectangle(target, 8.dpAsPx.toFloat(), 8.dpAsPx.toFloat()))
                     .setDescription(getString(R.string.tips_map_overlay_description))
                     .setOnSpotlightStartedListener(object : OnTargetStateChangedListener {
                         override fun onEnded(target: Target) {
                             val mapMenuButton = findViewById<DraggableImageButton>(R.id.map_menu_button)
-                            if(mapMenuButton != null && mapMenuButton.payloads.isEmpty()) {
+                            if (mapMenuButton != null && mapMenuButton.payloads.isEmpty()) {
                                 mapMenuButton.visibility = View.GONE
                             }
                         }
 
                         override fun onStarted(target: Target) {
-                            val mapMenuButton = findViewById<DraggableImageButton>(R.id.map_menu_button)
-                            if(mapMenuButton != null) {
-                                mapMenuButton.visibility = View.VISIBLE
-                            }
+                            findViewById<DraggableImageButton>(R.id.map_menu_button)?.visibility = View.VISIBLE
                         }
                     })
                     .build()

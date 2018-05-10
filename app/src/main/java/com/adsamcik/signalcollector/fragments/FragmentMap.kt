@@ -299,6 +299,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             search(edittext_map_search.text.toString())
         }
 
+        //todo This has to be invisible so spotlight can properly calculate its width, height and position. Improve forked version of Spotlight to fix this.
         map_menu_button.visibility = View.INVISIBLE
 
         locationListener!!.setButton(button_map_my_location, context!!)
