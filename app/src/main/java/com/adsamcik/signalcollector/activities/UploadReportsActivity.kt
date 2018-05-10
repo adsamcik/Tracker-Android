@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.table.AppendBehavior
+import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.google.gson.Gson
 import java.util.*
@@ -47,7 +47,7 @@ class UploadReportsActivity : DetailActivity() {
             listView.adapter = adapter
 
             recent.forEach { stats ->
-                adapter.add(generateTableForUploadStat(stats, this, null, AppendBehavior.Any))
+                adapter.add(generateTableForUploadStat(stats, this, null, AppendBehaviors.Any))
             }
 
             colorManager!!.watchAdapterView(ColorView(listView, 0, true, true))
@@ -69,7 +69,7 @@ class UploadReportsActivity : DetailActivity() {
          * @param title      title, if null is replaced with upload time
          * @return table
          */
-        fun generateTableForUploadStat(uploadStat: UploadStats, context: Context, title: String?, @AppendBehavior appendBehavior: Int): Table {
+        fun generateTableForUploadStat(uploadStat: UploadStats, context: Context, title: String?, @AppendBehaviors.AppendBehavior appendBehavior: Int): Table {
             val resources = context.resources
             val t = Table(9, false, 16, appendBehavior)
 

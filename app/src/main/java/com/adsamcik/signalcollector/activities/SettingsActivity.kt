@@ -220,6 +220,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 .filter { verifyFunction == null || verifyFunction.invoke(it) }
                 .map { it.name + "|  " + Assist.humanReadableByteCount(it.length(), true) }
 
+        //No clue why this should be a problem, it never crashed or anything.
         Collections.sort(temp) { obj, s -> obj.compareTo(s) }
 
         val alertDialogBuilder = AlertDialog.Builder(this)

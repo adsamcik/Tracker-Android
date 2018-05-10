@@ -29,7 +29,7 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
-import com.adsamcik.table.AppendBehavior
+import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
 import kotlinx.android.synthetic.main.activity_ui.*
@@ -100,15 +100,16 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 
         if (us != null && Assist.getAgeInDays(us.time) < 30) {
-            val lastUpload = UploadReportsActivity.generateTableForUploadStat(us, context!!, resources.getString(R.string.most_recent_upload), AppendBehavior.FirstFirst)
-            lastUpload.addButton(getString(R.string.more_uploads)) { _ ->
+            val lastUpload = UploadReportsActivity.generateTableForUploadStat(us, context!!, resources.getString(R.string.most_recent_upload), AppendBehaviors.FirstFirst)
+
+            lastUpload.addButton(getString(R.string.more_uploads), View.OnClickListener {
                 val intent = Intent(context, UploadReportsActivity::class.java)
                 startActivity(intent)
-            }
+            })
             adapter!!.add(lastUpload)
         }
 
-        val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehavior.FirstFirst)
+        val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
         weeklyStats.title = r.getString(R.string.stats_weekly_title)
         val weekStats = Preferences.countStats(activity)
         weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), weekStats.minutes.toString())
@@ -123,8 +124,8 @@ class FragmentStats : Fragment(), IOnDemandView {
             generateMockData()
         } else {
             refreshingCount = 2
-            NetworkLoader.request(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehavior.FirstLast) })
-            NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehavior.Any) })
+            NetworkLoader.request(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehaviors.FirstLast) })
+            NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) })
         }
         if (!useMock) {
             launch {
@@ -134,7 +135,7 @@ class FragmentStats : Fragment(), IOnDemandView {
                     NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
                         if (value != null && value.size == 1 && value[0].name.isEmpty())
                             value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
-                        handleResponse(activity, state, value, AppendBehavior.First)
+                        handleResponse(activity, state, value, AppendBehaviors.First)
                     })
                 }
             }
@@ -147,7 +148,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         }
     }
 
-    private fun handleResponse(activity: Activity, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehavior appendBehavior: Int) {
+    private fun handleResponse(activity: Activity, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
         if (!state.success) {
             if (root == null)
                 return
@@ -165,7 +166,7 @@ class FragmentStats : Fragment(), IOnDemandView {
     }
 
     private fun generateMockData() {
-        addStatsTable(generateMockStatList(), AppendBehavior.Any)
+        addStatsTable(generateMockStatList(), AppendBehaviors.Any)
     }
 
     private fun generateMockStatList(): Array<Stat> {
@@ -191,7 +192,7 @@ class FragmentStats : Fragment(), IOnDemandView {
      *
      * @param stats stats
      */
-    private fun addStatsTable(stats: Array<Stat>, @AppendBehavior appendBehavior: Int) {
+    private fun addStatsTable(stats: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
         for (s in stats) {
             val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
             table.title = s.name
