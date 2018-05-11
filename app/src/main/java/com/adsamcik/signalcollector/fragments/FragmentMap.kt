@@ -119,7 +119,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         if (hasPermissions) {
             if (locationManager != null)
                 locationManager!!.removeUpdates(locationListener)
-            locationListener!!.cleanup()
+            locationListener!!.unregisterMap()
         }
 
         if (keyboardManager != null) {
@@ -620,6 +620,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
 
 
+        /**
+         * Assign location button to the [UpdateLocationListener] so it can handle clicks on it.
+         *
+         * @param button Button
+         * @param context Context
+         */
         fun setButton(button: ImageButton, context: Context) {
             this.button = button
             button.setOnClickListener {
@@ -637,6 +643,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                 animateTo(targetPosition, targetZoom, 0f, 0f, DURATION_SHORT)
         }
 
+        /**
+         * Call to stop updating camera position to look at user's position.
+         *
+         * @param returnToDefault True if you want to return any tilt to default orientation
+         */
         fun stopUsingUserPosition(returnToDefault: Boolean) {
             if (followMyPosition) {
                 this.followMyPosition = false
@@ -653,17 +664,33 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             setUserPosition(latlng)
         }
 
+        /**
+         * Animates movement from current position to target position and zoom.
+         *
+         * @param position Target position
+         * @param zoom Target zoom
+         */
         fun animateToPositionZoom(position: LatLng, zoom: Float) {
             targetPosition = position
             targetZoom = zoom
             animateTo(position, zoom, targetTilt, targetBearing, DURATION_STANDARD)
         }
 
+        /**
+         * Animates bearing to the desired bearing value.
+         *
+         * @param bearing Target bearing
+         */
         fun animateToBearing(bearing: Float) {
             animateTo(targetPosition, targetZoom, targetTilt, bearing, DURATION_SHORT)
             targetBearing = bearing
         }
 
+        /**
+         * Animates tilt to the target tilt value.
+         *
+         * @param tilt target tilt value
+         */
         fun animateToTilt(tilt: Float) {
             targetTilt = tilt
             animateTo(targetPosition, targetZoom, tilt, targetBearing, DURATION_SHORT)
@@ -674,7 +701,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             map!!.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null)
         }
 
-        fun onMyPositionButtonClick() {
+        private fun onMyPositionButtonClick() {
             val button = button!!
             if (followMyPosition) {
                 when {
@@ -716,9 +743,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         }
 
-        fun cleanup() {
-            if (map != null)
-                map!!.setOnMyLocationButtonClickListener(null)
+        /**
+         * Call when you want stop using location listener
+         */
+        fun unregisterMap() {
+            map?.setOnMyLocationButtonClickListener(null)
+            map = null
         }
 
         private fun updateRotation(rotation: Int) {
