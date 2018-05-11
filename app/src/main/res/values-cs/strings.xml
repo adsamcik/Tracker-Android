@@ -269,4 +269,5 @@
     <string name="privacy_policy_agreement_link">Zásady ochrany osobních údajů</string>
     <string name="agree">Souhlasím</string>
     <string name="disagree">Nesouhlasím</string>
+    <string name="settings_auto_upload_at_title">Automaticky nahrát při</string>
 </resources>
