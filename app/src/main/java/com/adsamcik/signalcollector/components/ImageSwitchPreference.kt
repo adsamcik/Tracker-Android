@@ -76,6 +76,12 @@ class ImageSwitchPreference : Preference {
         layoutResource = R.layout.layout_image_switch
     }
 
+    /**
+     * Add selectable value to the ImageSwitchPreference
+     *
+     * @param title Title of the value
+     * @param image Drawable resource of the value
+     */
     @Synchronized
     fun addItem(title: String, @DrawableRes image: Int) {
         val item = SwitchItem(title, image)

@@ -6,6 +6,7 @@ import android.support.v4.content.ContextCompat
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -65,6 +66,9 @@ class InfoComponent : FrameLayout {
         a.recycle()
     }
 
+    /**
+     * Sets title of an [InfoComponent]
+     */
     fun setTitle(drawable: Drawable?, title: String?) {
         if (title != null)
             titleTextView!!.text = title
@@ -85,6 +89,10 @@ class InfoComponent : FrameLayout {
         return textView
     }
 
+    /**
+     * Sets a [ColorManager] that should manage colors for this [InfoComponent].
+     * Add and remove watch is handled automatically.
+     */
     internal fun setColorManager(colorManager: ColorManager) {
         this.colorManager = colorManager
         colorManager.watchView(ColorView(this, 1, true, false, true))
@@ -96,26 +104,53 @@ class InfoComponent : FrameLayout {
         textView.setTextColor(ContextCompat.getColor(context, textColorResource))
     }
 
+    /**
+     * Adds primary text to the [InfoComponent].
+     *
+     * @param identifier id of the text
+     * @param text text
+     */
     fun addPrimaryText(identifier: String, text: String) {
         val textView = createTextView(text)
         setTextViewTheme(textView, R.dimen.primary_text_size, R.color.text_primary)
         items[identifier] = textView
     }
 
+    /**
+     * Adds secondary text to the [InfoComponent].
+     *
+     * @param identifier id of the text
+     * @param text text
+     */
     fun addSecondaryText(identifier: String, text: String) {
         val textView = createTextView(text)
         setTextViewTheme(textView, R.dimen.secondary_text_size, R.color.text_secondary)
         items[identifier] = textView
     }
 
+    /**
+     * Updates text with passed [identifier] to the value of [text]
+     *
+     * @param identifier id of the text to be update
+     * @param text text
+     */
     fun setText(identifier: String, text: String) {
-        items[identifier]?.text = text
+        items[identifier]!!.text = text
     }
 
+    /**
+     * Updates visibility of the text with [identifier] to the value of [visibility]
+     *
+     * @param identifier id of the text to be update
+     * @param visibility One of [View.VISIBLE], [View.INVISIBLE], or [View.GONE].
+     */
     fun setVisibility(identifier: String, visibility: Int) {
-        items[identifier]?.visibility = visibility
+        items[identifier]!!.visibility = visibility
     }
 
+    /**
+     * Detach the [InfoComponent] from the view. Automatically removes it from [ColorManager] if it was set.
+     */
     fun detach() {
         (parent as ViewGroup).removeView(this)
         colorManager?.stopWatchingView(this)

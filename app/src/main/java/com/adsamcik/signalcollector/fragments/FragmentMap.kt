@@ -607,6 +607,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             }
         }
 
+        /**
+         * Registers map to the [UpdateLocationListener]. Initializing camera position and registering camera listeners.
+         */
         fun registerMap(map: GoogleMap) {
             map.setOnCameraMoveStartedListener(cameraChangeListener)
             val cameraPosition = map.cameraPosition
@@ -615,6 +618,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             targetBearing = cameraPosition.bearing
             targetZoom = cameraPosition.zoom
         }
+
 
         fun setButton(button: ImageButton, context: Context) {
             this.button = button
