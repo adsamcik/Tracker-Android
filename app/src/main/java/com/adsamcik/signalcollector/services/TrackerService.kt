@@ -257,8 +257,9 @@ class TrackerService : LifecycleService() {
             isEmpty = false
         }
 
-        if (d.cellCount != null) {
-            sb.append(resources.getString(R.string.notification_cell, d.cellCount)).append(", ")
+        val cellCount = d.cellCount
+        if (cellCount != null) {
+            sb.append(resources.getQuantityString(R.plurals.notification_cell, cellCount, cellCount)).append(", ")
             isEmpty = false
         }
 
@@ -281,7 +282,7 @@ class TrackerService : LifecycleService() {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager!!.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrackerWakeLock")
+        wakeLock = powerManager!!.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
         //Enable location update
         locationListener = object : LocationListener {

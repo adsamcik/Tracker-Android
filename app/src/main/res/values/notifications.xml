@@ -7,13 +7,16 @@
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
     <string name="notification_wifi">%d Wi-Fi</string>
-    <string name="notification_cell">%d cells</string>
+    <plurals name="notification_cell">
+        <item quantity="one">1 cell</item>
+        <item quantity="other">%d cells</item>
+    </plurals>
     <string name="notification_activity">activity %s</string>
     <string name="notification_nothing_found">Nothing found</string>
 
     <plurals name="notification_auto_tracking_lock">
-        <item quantity="one">Autotracking has been locked for %1$d minute.</item>
-        <item quantity="other">Autotracking has been locked for %1$d minutes.</item>
+        <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
+        <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
 
     <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
