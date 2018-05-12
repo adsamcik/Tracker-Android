@@ -4,11 +4,13 @@ import android.app.Activity
 import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ShortcutManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
+import android.support.annotation.RequiresApi
 import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
 import android.telephony.TelephonyManager
@@ -172,3 +174,8 @@ inline val Context.powerManager get() = getSystemServiceTyped<PowerManager>(Cont
  * Shortcut to get [JobScheduler]. This property does not cache the service.
  */
 inline val Context.jobScheduler get() = getSystemServiceTyped<JobScheduler>(Context.JOB_SCHEDULER_SERVICE)
+
+/**
+ * Shortcut to get [ShortcutManager]. This property does not cache the service.
+ */
+inline val Context.shortcutManager @RequiresApi(25) get() = getSystemServiceTyped<ShortcutManager>(Context.SHORTCUT_SERVICE)

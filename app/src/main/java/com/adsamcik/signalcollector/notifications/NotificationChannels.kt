@@ -10,6 +10,9 @@ import android.support.annotation.StringRes
 import com.adsamcik.signalcollector.R
 
 @RequiresApi(26)
+/**
+ * Singleton that creates notification channels
+ */
 object NotificationChannels {
 
     fun prepareChannels(context: Context) {

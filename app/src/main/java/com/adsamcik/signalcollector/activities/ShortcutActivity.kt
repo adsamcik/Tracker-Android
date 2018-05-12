@@ -1,11 +1,10 @@
 package com.adsamcik.signalcollector.activities
 
-import android.support.v7.app.AppCompatActivity
-import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.support.annotation.RequiresApi
-import android.support.v4.content.ContextCompat
+import android.support.v7.app.AppCompatActivity
+import com.adsamcik.signalcollector.extensions.startForegroundService
+import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.adsamcik.signalcollector.utility.Shortcuts.ShortcutType
@@ -14,9 +13,9 @@ import com.crashlytics.android.Crashlytics
 /**
  * ShortcutActivity is activity that handles shortcut actions, so no UI is shown.
  */
+@RequiresApi(25)
 class ShortcutActivity : AppCompatActivity() {
 
-    @RequiresApi(api = Build.VERSION_CODES.N_MR1)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val intent = intent
@@ -24,15 +23,17 @@ class ShortcutActivity : AppCompatActivity() {
             val value = intent.getIntExtra(Shortcuts.ACTION_STRING, -1)
             if (value >= 0 && value < ShortcutType.values().size) {
                 val type = ShortcutType.values()[value]
-                val serviceIntent = Intent(this, TrackerService::class.java)
 
                 when (type) {
                     Shortcuts.ShortcutType.START_COLLECTION -> {
-                        serviceIntent.putExtra("backTrack", false)
-                        ContextCompat.startForegroundService(this, serviceIntent)
+                        startForegroundService<TrackerService> {
+                            putExtra("backTrack", false)
+                        }
                     }
-                    Shortcuts.ShortcutType.STOP_COLLECTION -> if (TrackerService.isServiceRunning.value)
-                        stopService(serviceIntent)
+                    Shortcuts.ShortcutType.STOP_COLLECTION -> {
+                        if (TrackerService.isServiceRunning.value)
+                            stopService<TrackerService>()
+                    }
                 }
             } else {
                 Crashlytics.logException(Throwable("Invalid value $value"))

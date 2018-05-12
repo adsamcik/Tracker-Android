@@ -2,9 +2,15 @@ package com.adsamcik.signalcollector.test
 
 import android.os.Build
 
-
+/**
+ * Returns true if mocking should be used.
+ * Todo: replace with Mockito in the future or some similiar framework
+ */
 val useMock: Boolean = isEmulator || isTestMode
 
+/**
+ * Returns true if app was launched during a test.
+ */
 val isTestMode: Boolean
     get() {
         return try {

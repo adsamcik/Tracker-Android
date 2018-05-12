@@ -1,10 +1,10 @@
 package com.adsamcik.signalcollector.utility
 
-import android.support.v7.app.AppCompatActivity
 import android.graphics.Color
 import android.graphics.PointF
 import android.support.annotation.StringDef
 import android.support.v4.graphics.ColorUtils
+import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.core.content.edit

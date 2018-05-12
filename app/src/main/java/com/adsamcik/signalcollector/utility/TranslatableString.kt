@@ -6,7 +6,7 @@ import com.vimeo.stag.UseStag
 
 /**
  * Class for future improvements in localized communication with server.
- * Currently unused
+ * Currently unused.
  */
 @UseStag
 class TranslatableString {

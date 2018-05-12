@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.test
 
-import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
+import android.support.v7.app.AppCompatActivity
 import com.adsamcik.signalcollector.signin.ISignInClient
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Preferences
@@ -10,7 +10,9 @@ import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.TimeUnit
 
-
+/**
+ * Mocking Sign in client
+ */
 class MockSignInClient : ISignInClient {
     private var u: User? = null
     private var userValueCallback: ((Context, User?) -> Unit)? = null

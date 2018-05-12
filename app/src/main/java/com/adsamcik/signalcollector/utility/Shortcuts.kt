@@ -9,6 +9,7 @@ import android.support.annotation.DrawableRes
 import android.support.annotation.RequiresApi
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.ShortcutActivity
+import com.adsamcik.signalcollector.extensions.shortcutManager
 import com.adsamcik.signalcollector.services.TrackerService
 import java.util.*
 
@@ -51,14 +52,21 @@ object Shortcuts {
 
     /**
      * Updates shortcuts value
+     *
+     * @param context Context
+     * @param id Shortcut's ID
+     * @param shortLabel Short label of the shortcut. The recommended maximum length is 10 characters. [ShortcutInfo.Builder.setShortLabel]
+     * @param longLabel Long label of the shortcut. The recommend maximum length is 25 characters. [ShortcutInfo.Builder.setLongLabel]
+     * @param iconResource Drawable resource id for the icon
+     * @param shortcutType Shortcut type defined in [ShortcutType]. Action needs to be defined in [ShortcutActivity].
      */
-    fun updateShortcut(context: Context, id: String, shortLabel: String, longLabel: String?, @DrawableRes iconResource: Int, action: ShortcutType) {
+    fun updateShortcut(context: Context, id: String, shortLabel: String, longLabel: String?, @DrawableRes iconResource: Int, shortcutType: ShortcutType) {
         initializeShortcuts(context)
-        val shortcutManager = context.getSystemService(ShortcutManager::class.java)!!
+        val shortcutManager = context.shortcutManager
         val shortcuts = shortcutManager.dynamicShortcuts
         for (i in shortcuts.indices) {
             if (shortcuts[i].id == id) {
-                shortcuts[i] = createShortcut(context, id, shortLabel, longLabel, iconResource, action)
+                shortcuts[i] = createShortcut(context, id, shortLabel, longLabel, iconResource, shortcutType)
                 break
             }
         }
@@ -66,6 +74,9 @@ object Shortcuts {
     }
 
 
+    /**
+     * Supported shortcut types
+     */
     enum class ShortcutType {
         START_COLLECTION,
         STOP_COLLECTION
