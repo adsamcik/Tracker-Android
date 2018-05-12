@@ -45,7 +45,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
 /**
  * Finds a {@link Preference} based on its key.
  *
- * @param title The title of the preference to retrieve.
+ * @param titleId Title resource id of the preference
  * @return The {@link Preference} with the key, or null.
  * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
  */
@@ -57,7 +57,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes tit
 /**
  * Finds a {@link Preference} based on its key.
  *
- * @param title The title of the preference to retrieve.
+ * @param titleId Title resource id of the preference
  * @return The {@link Preference} with the key, or null.
  * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
  */
