@@ -80,7 +80,8 @@
                 android:paddingTop="8dp"
                 android:textColor="?android:textColorPrimary"
                 android:textColorHint="?android:textColorSecondary"
-                android:textSize="16sp"/>
+                android:textSize="16sp"
+                android:importantForAutofill="no"/>
 
             <ImageButton
                 android:id="@+id/button_map_my_location"

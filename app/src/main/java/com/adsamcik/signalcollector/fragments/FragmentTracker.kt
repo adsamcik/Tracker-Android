@@ -235,7 +235,7 @@ class FragmentTracker : Fragment() {
     }
 
     private fun updateUploadButton() {
-        button_upload.post {
+        button_upload?.post {
             if (!Signin.isSignedIn) {
                 button_upload.setImageResource(R.drawable.ic_account_circle_black_24dp)
                 button_upload.setOnClickListener {

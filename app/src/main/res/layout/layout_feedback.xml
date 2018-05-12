@@ -79,7 +79,8 @@
             android:hint="@string/feedback_description"
             android:lines="10"
             android:maxLines="20"
-            android:minLines="4"/>
+            android:minLines="4"
+            android:importantForAutofill="no"/>
 
     </android.support.design.widget.TextInputLayout>
 
