@@ -61,6 +61,11 @@ dokka {
     jdkVersion = 8
     skipEmptyPackages = true
     skipDeprecated = true
+
+    externalDocumentationLink {
+        url = new URL("https://developer.android.com/reference/")
+        packageListUrl = new URL("https://developer.android.com/reference/android/support/package-list")
+    }
 }
 
 dependencies {
