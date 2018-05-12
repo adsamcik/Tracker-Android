@@ -1,7 +1,5 @@
 package com.adsamcik.signalcollector.signin
 
-import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.gson.*
 import java.lang.reflect.Type
@@ -44,8 +42,9 @@ class User(@Transient val id: String, @Transient val token: String) {
     }
 
     internal fun mockServerData() {
-        if (useMock && !BuildConfig.DEBUG)
-            throw RuntimeException("Cannot mock server data on production version")
+        //Needs to be handled better due to pre-launch testing and firebase Test Lab
+        /*if (useMock && !BuildConfig.DEBUG)
+            throw RuntimeException("Cannot mock server data on production version")*/
         val networkPreferences = NetworkPreferences()
         networkPreferences.renewMap = true
         networkPreferences.renewPersonalMap = false

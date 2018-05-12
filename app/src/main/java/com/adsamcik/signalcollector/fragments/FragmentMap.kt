@@ -629,7 +629,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         fun setButton(button: ImageButton, context: Context) {
             this.button = button
             button.setOnClickListener {
-                if (checkLocationPermission(context, true))
+                if (map != null && checkLocationPermission(context, true))
                     onMyPositionButtonClick()
             }
         }
