@@ -17,7 +17,7 @@ object NotificationChannels {
         createChannel(context, R.string.channel_upload_id, R.string.channel_upload_name, R.string.channel_upload_description, false, NotificationManager.IMPORTANCE_HIGH)
         createChannel(context, R.string.channel_other_id, R.string.channel_other_name, R.string.channel_other_description, true, NotificationManager.IMPORTANCE_LOW)
         createChannel(context, R.string.channel_challenges_id, R.string.channel_challenges_name, R.string.channel_challenges_description, true, NotificationManager.IMPORTANCE_HIGH)
-        createChannel(context, R.string.channel_activity_watcher_id, R.string.channel_activity_watcher_name, R.string.channel_activity_watcher_description, false, NotificationManager.IMPORTANCE_NONE)
+        createChannel(context, R.string.channel_activity_watcher_id, R.string.channel_activity_watcher_name, R.string.channel_activity_watcher_description, false, NotificationManager.IMPORTANCE_LOW)
     }
 
     private fun createChannel(context: Context, @StringRes idId: Int, @StringRes nameId: Int, @StringRes descriptionId: Int, useVibration: Boolean, importance: Int) {
