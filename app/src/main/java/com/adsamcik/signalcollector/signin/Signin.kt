@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.signin
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.file.DataStore
@@ -62,7 +62,7 @@ object Signin {
         }
     }
 
-    fun signin(activity: Activity, callback: ((User?) -> Unit)?, silent: Boolean) {
+    fun signin(activity: AppCompatActivity, callback: ((User?) -> Unit)?, silent: Boolean) {
         if (callback != null)
             onSignedCallbackList.add(callback)
 
@@ -134,7 +134,7 @@ object Signin {
 
     var status: SigninStatus = SigninStatus.NOT_SIGNED
 
-    fun signIn(activity: Activity, callback: ((User?) -> Unit)?, silentOnly: Boolean) {
+    fun signIn(activity: AppCompatActivity, callback: ((User?) -> Unit)?, silentOnly: Boolean) {
         statusLock.lock()
         when (status) {
             Signin.SigninStatus.NOT_SIGNED -> {
@@ -187,7 +187,7 @@ object Signin {
     }
 
 
-    suspend fun signIn(activity: Activity, silentOnly: Boolean): User? {
+    suspend fun signIn(activity: AppCompatActivity, silentOnly: Boolean): User? {
         return suspendCoroutine { cont ->
             signIn(activity, { cont.resume(it) }, silentOnly)
         }
@@ -223,7 +223,7 @@ object Signin {
         onSignedCallbackList.clear()
     }
 
-    fun onSignResult(activity: Activity, resultCode: Int, intent: Intent) {
+    fun onSignResult(activity: AppCompatActivity, resultCode: Int, intent: Intent) {
         val result = Auth.GoogleSignInApi.getSignInResultFromIntent(intent)
         if (result.isSuccess) {
             client.onSignInResult(activity, resultCode, intent)

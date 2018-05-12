@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.utility
 
 import android.animation.ObjectAnimator
-import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -15,6 +14,7 @@ import android.provider.Settings
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
 import android.support.v4.content.res.ResourcesCompat
+import android.support.v7.app.AppCompatActivity
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
@@ -155,7 +155,7 @@ object Assist {
      *
      * @return True if user has agreed to privacy policy
      */
-    suspend fun privacyPolicyEnableUpload(activity: FragmentActivity): Boolean = privacyPolicy(activity) {
+    suspend fun privacyPolicyEnableUpload(activity: AppCompatActivity): Boolean = privacyPolicy(activity) {
         putInt(FragmentPrivacyDialog.BUNDLE_ADDITIONAL_TEXT, R.string.privacy_policy_agreement_autoup_description)
         putBoolean(FragmentPrivacyDialog.BUNDLE_SET_AUTOUP_IF_TRUE, true)
     }
@@ -242,7 +242,7 @@ object Assist {
         val resultCode = api.isGooglePlayServicesAvailable(context)
         if (resultCode != ConnectionResult.SUCCESS) {
             if (api.isUserResolvableError(resultCode))
-                api.getErrorDialog(context as Activity, resultCode, playServicesResolutionRequest).show()
+                api.getErrorDialog(context as AppCompatActivity, resultCode, playServicesResolutionRequest).show()
 
             return false
         }

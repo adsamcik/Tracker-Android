@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.test
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.signin.ISignInClient
@@ -15,7 +15,7 @@ class MockSignInClient : ISignInClient {
     private var u: User? = null
     private var userValueCallback: ((Context, User?) -> Unit)? = null
 
-    override fun signIn(activity: Activity, userValueCallback: (Context, User?) -> Unit) {
+    override fun signIn(activity: AppCompatActivity, userValueCallback: (Context, User?) -> Unit) {
         signInSilent(activity, userValueCallback)
     }
 
@@ -56,7 +56,7 @@ class MockSignInClient : ISignInClient {
         u = null
     }
 
-    override fun onSignInResult(activity: Activity, resultCode: Int, data: Intent) {
+    override fun onSignInResult(activity: AppCompatActivity, resultCode: Int, data: Intent) {
         //do nothing
     }
 

@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.extensions
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
@@ -22,7 +22,7 @@ import android.view.inputmethod.InputMethodManager
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Activity.startActivity(
+inline fun <reified T : Any> AppCompatActivity.startActivity(
         requestCode: Int = -1,
         options: Bundle? = null,
         noinline init: Intent.() -> Unit = {}) {

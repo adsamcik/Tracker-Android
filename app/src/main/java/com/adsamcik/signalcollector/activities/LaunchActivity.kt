@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -18,7 +18,7 @@ import com.google.firebase.iid.FirebaseInstanceId
  * LaunchActivity is activity that should always be called first when user should see the layout
  * Not only does it allow for easy switching of appropriate Activities, but it also shows SplashScreen and initializes basic services
  */
-class LaunchActivity : Activity() {
+class LaunchActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

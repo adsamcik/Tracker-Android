@@ -28,9 +28,9 @@
     <style name="Divider">
         <item name="android:layout_height">1dp</item>
         <item name="android:layout_width">match_parent</item>
-        <item name="android:background">@drawable/rectangle</item>
-        <item name="android:backgroundTint">?android:textColorPrimary</item>
-        <item name="android:alpha">0.12</item>
+        <item name="background">@drawable/rectangle</item>
+        <item name="backgroundTint">?android:textColorPrimary</item>
+        <item name="alpha">0.12</item>
     </style>
 
     <style name="ErrorTextAppearance" parent="@android:style/TextAppearance">
@@ -42,17 +42,17 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">@dimen/activity_vertical_margin</item>
-        <item name="android:background">@drawable/textarea_border</item>
+        <item name="background">@drawable/textarea_border</item>
         <item name="android:paddingBottom">@dimen/edge_margin</item>
-        <item name="android:paddingEnd">@dimen/edge_margin</item>
-        <item name="android:paddingStart">@dimen/edge_margin</item>
+        <item name="paddingEnd">@dimen/edge_margin</item>
+        <item name="paddingStart">@dimen/edge_margin</item>
         <item name="android:paddingTop">8dp</item>
     </style>
 
     <style name="InputLayoutEditText">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:background">@null</item>
+        <item name="background">@null</item>
         <item name="android:gravity">top|start</item>
         <item name="android:overScrollMode">always</item>
         <item name="android:paddingTop">8dp</item>

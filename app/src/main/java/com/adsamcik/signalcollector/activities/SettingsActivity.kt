@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.AlertDialog
+import android.support.v7.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent

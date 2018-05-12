@@ -34,7 +34,7 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_upload"
-            android:src="@drawable/ic_cloud_upload_24dp"
+            app:srcCompat="@drawable/ic_cloud_upload_24dp"
             android:tint="@color/text_primary"/>
 
         <ImageButton
@@ -43,7 +43,7 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_lock"
-            android:src="@drawable/ic_lock_black_24dp"
+            app:srcCompat="@drawable/ic_lock_black_24dp"
             android:tint="@color/text_primary"/>
 
         <ImageButton
@@ -52,7 +52,7 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_start"
-            android:src="@drawable/ic_play_circle_filled_black_24dp"
+            app:srcCompat="@drawable/ic_play_circle_filled_black_24dp"
             android:tint="@color/text_primary"/>
 
         <ImageButton
@@ -62,7 +62,7 @@
             android:layout_marginEnd="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_settings"
-            android:src="@drawable/ic_settings_black_24dp"
+            app:srcCompat="@drawable/ic_settings_black_24dp"
             android:tint="@color/text_primary"/>
     </LinearLayout>
 
@@ -83,7 +83,7 @@
             android:layout_height="48dp"
             android:contentDescription="@string/description_storage"
             android:padding="4dp"
-            android:src="@drawable/ic_storage_black_24dp"
+            app:srcCompat="@drawable/ic_storage_black_24dp"
             android:tint="@android:color/white"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"/>
@@ -123,7 +123,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="4dp"
-            android:src="@drawable/ic_help_white_24dp"
+            app:srcCompat="@drawable/ic_help_white_24dp"
             android:tint="@android:color/white"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"

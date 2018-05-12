@@ -18,8 +18,8 @@ import android.os.Looper
 import android.support.annotation.DrawableRes
 import android.support.constraint.ConstraintLayout
 import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.support.v7.app.AppCompatActivity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -70,7 +70,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     private var userRadius: Circle? = null
     private var userCenter: Marker? = null
 
-    private var fActivity: FragmentActivity? = null
+    private var fActivity: AppCompatActivity? = null
 
     private var mapLayerFilterRule = CoordinateBounds()
 
@@ -131,7 +131,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     }
 
     override fun onEnter(activity: Activity) {
-        this.fActivity = activity as FragmentActivity
+        this.fActivity = activity as AppCompatActivity
 
         if (mapFragment == null && view != null) {
             val mapFragment = SupportMapFragment.newInstance()

@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -14,7 +14,7 @@ import com.crashlytics.android.Crashlytics
 /**
  * ShortcutActivity is activity that handles shortcut actions, so no UI is shown.
  */
-class ShortcutActivity : Activity() {
+class ShortcutActivity : AppCompatActivity() {
 
     @RequiresApi(api = Build.VERSION_CODES.N_MR1)
     override fun onCreate(savedInstanceState: Bundle?) {

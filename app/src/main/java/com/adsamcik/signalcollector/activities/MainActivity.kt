@@ -8,8 +8,8 @@ import android.os.Build
 import android.os.Bundle
 import android.support.design.widget.CoordinatorLayout
 import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.support.v7.app.AppCompatActivity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -48,7 +48,7 @@ import kotlinx.coroutines.experimental.launch
  * MainActivity containing the core of the App
  * Users should spend most time in here.
  */
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
     private lateinit var colorManager: ColorManager
     private var themeLocationRequestCode = 4513
 

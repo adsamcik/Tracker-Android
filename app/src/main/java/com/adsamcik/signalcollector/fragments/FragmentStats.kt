@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.fragments
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.support.v4.app.Fragment
@@ -148,12 +149,12 @@ class FragmentStats : Fragment(), IOnDemandView {
         }
     }
 
-    private fun handleResponse(activity: Activity, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+    private fun handleResponse(context: Context, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
         if (!state.success) {
             if (root == null)
                 return
 
-            SnackMaker(root).showSnackbar(state.toString(activity))
+            SnackMaker(root).showSnackbar(state.toString(context))
         }
         refreshingCount--
         if (state.dataAvailable)

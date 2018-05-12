@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.components
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Color
@@ -63,7 +63,7 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
         a.recycle()
     }
 
-    private fun getActivity() = (context as android.view.ContextThemeWrapper).baseContext as Activity
+    private fun getActivity() = (context as android.view.ContextThemeWrapper).baseContext as AppCompatActivity
 
     override fun onClick() {
         super.onClick()

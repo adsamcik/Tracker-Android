@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.signin
 
 
-import android.app.Activity
+import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.R
@@ -43,7 +43,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         }
     }
 
-    override fun signIn(activity: Activity, userValueCallback: (Context, User?) -> Unit) {
+    override fun signIn(activity: AppCompatActivity, userValueCallback: (Context, User?) -> Unit) {
         client = GoogleSignIn.getClient(activity, getOptions(activity))
         this.userValueCallback = userValueCallback
 
@@ -105,7 +105,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         return user
     }
 
-    override fun onSignInResult(activity: Activity, resultCode: Int, data: Intent) {
+    override fun onSignInResult(activity: AppCompatActivity, resultCode: Int, data: Intent) {
         val result = Auth.GoogleSignInApi.getSignInResultFromIntent(data)
         if (result.isSuccess) {
             val acct = result.signInAccount!!
