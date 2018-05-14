@@ -24,7 +24,6 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
-import com.adsamcik.signalcollector.utility.Constants.MIN_COLLECTIONS_SINCE_LAST_UPLOAD
 import com.adsamcik.signalcollector.utility.Constants.MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
@@ -298,8 +297,7 @@ class UploadJobService : JobService() {
         fun requestUploadSchedule(context: Context) {
             val dataSize = DataStore.sizeOfData(context)
             if (canUpload(context, ActionSource.BACKGROUND) &&
-                    hasEnoughData(dataSize, ActionSource.BACKGROUND) &&
-                    Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0) >= MIN_COLLECTIONS_SINCE_LAST_UPLOAD) {
+                    hasEnoughData(dataSize, ActionSource.BACKGROUND)) {
                 val scheduler = context.jobScheduler
                 if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
                     val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, ActionSource.BACKGROUND)
