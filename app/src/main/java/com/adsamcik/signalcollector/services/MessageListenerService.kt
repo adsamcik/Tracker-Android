@@ -16,65 +16,78 @@ import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.Preferences
+import com.crashlytics.android.Crashlytics
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
 class MessageListenerService : FirebaseMessagingService() {
 
-    override fun onMessageReceived(message: RemoteMessage?) {
+    override fun onMessageReceived(message: RemoteMessage) {
 
         val sp = Preferences.getPref(this)
 
-        val data = message!!.data
+        val data = message.data
 
-        val type = data[TYPE] ?: return
+        val type = data[TYPE]
 
-        val typeInt = Integer.parseInt(type)
-        if (MessageType.values().size > typeInt) {
-            when (MessageType.values()[typeInt]) {
-                MessageListenerService.MessageType.UploadReport -> {
-                    DataStore.removeOldRecentUploads(this)
-                    val us = parseAndSaveUploadReport(applicationContext, message.sentTime, data)
-                    if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
-                        sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply()
-                    val resultIntent = Intent(this, UploadReportsActivity::class.java)
+        if(type == null) {
+            Crashlytics.logException(Throwable("No TYPE defined!!"))
+            return
+        }
 
-                    if (Preferences.getPref(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
-                        val r = resources
-                        sendNotification(MessageType.UploadReport, r.getString(R.string.new_upload_summary), us.generateNotificationText(resources), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT), message.sentTime)
-                    }
+        val messageType: MessageType
+
+        try {
+            messageType = MessageType.valueOf(type)
+        } catch (e: Exception) {
+            Crashlytics.logException(e)
+            return
+        }
+
+        when (messageType) {
+            MessageListenerService.MessageType.UploadReport -> {
+                DataStore.removeOldRecentUploads(this)
+                val us = parseAndSaveUploadReport(applicationContext, message.sentTime, data)
+                if (!sp.contains(Preferences.PREF_OLDEST_RECENT_UPLOAD))
+                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, us.time).apply()
+                val resultIntent = Intent(this, UploadReportsActivity::class.java)
+
+                if (Preferences.getPref(this).getBoolean(Preferences.PREF_UPLOAD_NOTIFICATIONS_ENABLED, true)) {
+                    val r = resources
+                    sendNotification(MessageType.UploadReport, r.getString(R.string.new_upload_summary), us.generateNotificationText(resources), PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT), message.sentTime)
                 }
-                MessageListenerService.MessageType.Notification -> sendNotification(MessageType.Notification, data[TITLE]!!, data[MESSAGE]!!, null, message.sentTime)
-                MessageListenerService.MessageType.ChallengeReport -> {
-                    val isDone = java.lang.Boolean.parseBoolean(data["isDone"])
-                    if (isDone) {
-                        val challengeType: Challenge.ChallengeType
-                        try {
-                            challengeType = Challenge.ChallengeType.valueOf(data["challengeType"]!!)
-                        } catch (e: Exception) {
-                            sendNotification(MessageType.ChallengeReport, getString(R.string.notification_challenge_unknown_title), getString(R.string.notification_challenge_unknown_description), null, message.sentTime)
-                            return
-                        }
+            }
+            MessageListenerService.MessageType.Notification -> sendNotification(MessageType.Notification, data[TITLE]!!, data[MESSAGE]!!, null, message.sentTime)
+            MessageListenerService.MessageType.ChallengeReport -> {
+                val isDone = java.lang.Boolean.parseBoolean(data["isDone"])
+                if (isDone) {
+                    val challengeType: Challenge.ChallengeType
+                    try {
+                        challengeType = Challenge.ChallengeType.valueOf(data["challengeType"]!!)
+                    } catch (e: Exception) {
+                        sendNotification(MessageType.ChallengeReport, getString(R.string.notification_challenge_unknown_title), getString(R.string.notification_challenge_unknown_description), null, message.sentTime)
+                        return
+                    }
 
-                        ChallengeManager.getChallenges(this, false, { source, challenges ->
-                            if (source.success && challenges != null) {
-                                for (challenge in challenges) {
-                                    if (challenge.type == challengeType) {
-                                        challenge.setDone()
-                                        challenge.generateTexts(this)
-                                        sendNotification(MessageType.ChallengeReport,
-                                                getString(R.string.notification_challenge_done_title, challenge.title),
-                                                getString(R.string.notification_challenge_done_description, challenge.title), null,
-                                                message.sentTime)
-                                        break
-                                    }
+                    ChallengeManager.getChallenges(this, false, { source, challenges ->
+                        if (source.success && challenges != null) {
+                            for (challenge in challenges) {
+                                if (challenge.type == challengeType) {
+                                    challenge.setDone()
+                                    challenge.generateTexts(this)
+                                    sendNotification(MessageType.ChallengeReport,
+                                            getString(R.string.notification_challenge_done_title, challenge.title),
+                                            getString(R.string.notification_challenge_done_description, challenge.title), null,
+                                            message.sentTime)
+                                    break
                                 }
-                                //todo It should generate texts every time when loaded to properly handle localization changes
-                                ChallengeManager.saveChallenges(this, challenges)
                             }
-                        })
-                    }
+                            //todo It should generate texts every time when loaded to properly handle localization changes
+                            ChallengeManager.saveChallenges(this, challenges)
+                        }
+                    })
                 }
+
             }
         }
     }
