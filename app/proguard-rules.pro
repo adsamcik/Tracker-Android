@@ -21,10 +21,12 @@
 
 -keep public class com.adsamcik.signalcollector.data.** {
   public private <fields>;
+  public <methods>;
 }
 
 -keep public class com.adsamcik.signalcollector.signin.User {
 	public private <fields>;
+	public <methods>;
 }
 
 -keep class kotlin.Metadata { *; }
