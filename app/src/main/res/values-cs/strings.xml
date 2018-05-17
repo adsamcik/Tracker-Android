@@ -52,7 +52,7 @@
     <string name="settings_style_mode_title">Režim barev</string>
     <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
     <string name="new_upload_summary">Nový souhrn nahraných dat</string>
-    <string name="new_wifi">%1$d nových Wi-Fi</string>
+    <string name="new_wifi_count">%1$d nových Wi-Fi</string>
     <string name="map_personal">Osobní</string>
     <string name="map_search">Vyhledávání</string>
     <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
@@ -239,7 +239,7 @@
     <string name="most_recent_upload">Poslední nahrání</string>
     <string name="more_uploads">Více nahrání</string>
     <string name="notification_found">Nalezeno</string>
-    <string name="new_cell">%1$d nových mobilních vysílačů</string>
+    <string name="new_cell_count">%1$d nových mobilních vysílačů</string>
     <string name="main_cell_current">%1$s %2$d dbm, %3$d asu</string>
     <string name="main_last_update">%1$s</string>
     <string name="wifi">Wi-Fi</string>
@@ -274,4 +274,17 @@
     <string name="agree">Souhlasím</string>
     <string name="disagree">Nesouhlasím</string>
     <string name="settings_auto_upload_at_title">Automaticky nahrát při</string>
+
+    <plurals name="new_locations">
+        <item quantity="one">1 nové místo</item>
+        <item quantity="few">%d nová místa</item>
+        <item quantity="other">%d nových míst</item>
+    </plurals>
+
+    <string name="wifi_count" tools:ignore="PluralsCandidate">%1$d Wi-Fi</string>
+    <plurals name="cell_count">
+        <item quantity="one">1 mobilní síť</item>
+        <item quantity="few">%d mobilní sítě</item>
+        <item quantity="other">%d mobilních sítí</item>
+    </plurals>
 </resources>

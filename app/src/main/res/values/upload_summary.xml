@@ -10,6 +10,13 @@
         <item quantity="one">1 new location</item>
         <item quantity="other">%d new locations</item>
     </plurals>
-    <string name="new_wifi" tools:ignore="PluralsCandidate">%1$d new Wi-Fi</string>
-    <string name="new_cell" tools:ignore="PluralsCandidate">%1$d new cell</string>
+    <string name="new_wifi_count" tools:ignore="PluralsCandidate">%1$d new Wi-Fi</string>
+    <string name="new_cell_count" tools:ignore="PluralsCandidate">%1$d new cell</string>
+
+    <string name="wifi_count" tools:ignore="PluralsCandidate">%1$d Wi-Fi</string>
+    <plurals name="cell_count">
+        <item quantity="zero">no cells</item>
+        <item quantity="one">1 cell</item>
+        <item quantity="other">%1$d cells</item>
+    </plurals>
 </resources>
