@@ -24,7 +24,7 @@ data class UploadStats(var time: Long, var wifi: Int, var newWifi: Int, var cell
         if (newCell > 0)
             stringBuilder.append(resources.getString(R.string.new_cell_count, newCell)).append(", ")
         else if(cell > 0)
-            stringBuilder.append(resources.getQuantityString(R.plurals.cell_count, cell)).append(", ")
+            stringBuilder.append(resources.getQuantityString(R.plurals.cell_count, cell, cell)).append(", ")
 
         stringBuilder.setLength(stringBuilder.length - 2)
         return stringBuilder.toString()
