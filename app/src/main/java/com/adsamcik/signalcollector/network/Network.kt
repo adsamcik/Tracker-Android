@@ -6,9 +6,6 @@ import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import com.franmontiel.persistentcookiejar.PersistentCookieJar
-import com.franmontiel.persistentcookiejar.cache.SetCookieCache
-import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor
 import okhttp3.*
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -19,6 +16,7 @@ import java.util.concurrent.TimeUnit
  */
 object Network {
     private const val TAG = "SignalsNetwork"
+    const val URL_AUTHENTICATE = Server.URL_AUTHENTICATE
     const val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
     const val URL_TILES = Server.URL_TILES
     const val URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES
@@ -38,8 +36,6 @@ object Network {
     @CloudStatuses.CloudStatus
     var cloudStatus = CloudStatuses.UNKNOWN
 
-    private var cookieJar: PersistentCookieJar? = null
-
     private val spec: ConnectionSpec
         get() = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
                 .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
@@ -49,27 +45,14 @@ object Network {
                         CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA)
                 .build()
 
-    private fun getCookieJar(context: Context): CookieJar {
-        if (cookieJar == null)
-            cookieJar = PersistentCookieJar(SetCookieCache(), SharedPrefsCookiePersistor(context))
-        return cookieJar!!
-    }
-
-    fun clearCookieJar(context: Context) {
-        if (cookieJar == null)
-            getCookieJar(context)
-        cookieJar!!.clear()
-    }
-
     /**
      * Class prepares [OkHttpClient]
      * If userToken is provided class also handles signin cookies and authentication header
      */
-    fun client(context: Context, userToken: String?): OkHttpClient {
+    fun client(userToken: String?): OkHttpClient {
         return if (userToken == null) client().build()
         else
             client()
-                    .cookieJar(getCookieJar(context))
                     .authenticator({ _, response ->
                         if (response.request().header("userToken") != null)
                             return@authenticator null
@@ -100,20 +83,20 @@ object Network {
      * @param body Body that will be put into the created request
      * @return Request
      */
-    fun requestPOST(url: String, body: RequestBody): Request =
-            Request.Builder().url(url).post(body).build()
+    fun requestPOST(url: String, body: RequestBody): Request.Builder = Request
+            .Builder()
+            .url(url)
+            .post(body)
 
-    /**
-     * Generates authentication body
-     * This is mainly used for device registration
-     */
-    fun generateAuthBody(userToken: String): MultipartBody.Builder {
-        return MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("userToken", userToken)
-                .addFormDataPart("manufacturer", Build.MANUFACTURER)
-                .addFormDataPart("model", Build.MODEL)
+    fun requestPOSTAuth(context: Context, url: String, body: RequestBody): Request.Builder {
+        val request = requestPOST(url, body)
+        val token = Jwt.getToken(context)
+        if(token != null) {
+
+        }
     }
+
+    fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())
 
     /**
      * Registers device on the server
@@ -125,11 +108,14 @@ object Network {
     }
 
     private fun register(context: Context, userToken: String, valueName: String, value: String, preferencesName: String, url: String) {
-        val formBody = generateAuthBody(userToken)
+        val formBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("manufacturer", Build.MANUFACTURER)
+                .addFormDataPart("model", Build.MODEL)
                 .addFormDataPart(valueName, value)
                 .build()
-        val request = requestPOST(url, formBody)
-        client(context, userToken).newCall(request).enqueue(object : Callback {
+        val request = requestPOST(url, formBody).build()
+        client(userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Crashlytics.log("Register $preferencesName")
                 Crashlytics.logException(e)

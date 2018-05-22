@@ -76,18 +76,17 @@ dependencies {
     implementation 'com.adsamcik.android-forks:spotlight:2.0.7'
 
     //3rd party dependencies
-    implementation 'com.squareup.okhttp3:okhttp:3.10.0'
+    implementation 'com.squareup.moshi:moshi:1.6.0'
+    kapt 'com.squareup.moshi:moshi-kotlin-codegen:1.6.0'
+
+    implementation "com.squareup.retrofit2:converter-moshi:2.4.0"
     implementation 'com.squareup.retrofit2:retrofit:2.4.0'
     implementation 'com.jaredrummler:colorpicker:1.0.2'
-    implementation "com.vimeo.stag:stag-library:$stag_version", {
-        exclude group: 'com.intellij', module: 'annotations'
-    }
 
     implementation 'de.psdev.licensesdialog:licensesdialog:1.8.3'
     implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
 
     //Google dependencies
-    implementation 'com.google.code.gson:gson:2.8.5'
     implementation 'com.google.android:flexbox:1.0.0'
     implementation 'com.android.support.constraint:constraint-layout:1.1.0'
 

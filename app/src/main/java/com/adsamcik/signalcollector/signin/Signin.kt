@@ -32,7 +32,6 @@ object Signin {
         statusLock.lock()
         val status = when {
             this.user != null && user == null -> {
-                Network.clearCookieJar(context)
                 Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
                 DataStore.delete(context, Preferences.PREF_USER_DATA)
                 DataStore.delete(context, Preferences.PREF_USER_STATS)

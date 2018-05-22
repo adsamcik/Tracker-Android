@@ -5,6 +5,7 @@ import android.app.job.JobParameters
 import android.app.job.JobService
 import android.content.Context
 import android.os.AsyncTask
+import android.os.Build
 import android.support.annotation.StringRes
 import android.support.v4.app.NotificationCompat
 import com.adsamcik.signalcollector.R
@@ -15,6 +16,8 @@ import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.signin.Signin
 import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.launch
+import okhttp3.MultipartBody
+import okhttp3.Request
 import okhttp3.internal.http2.StreamResetException
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -70,7 +73,8 @@ class FeedbackUploadJob : JobService() {
     private class UploadTask(context: Context,
                              val token: String,
                              val onFinished: (Boolean) -> Unit) : AsyncTask<String, Void, Boolean>() {
-        val client = Network.client(context, token)
+        val client = Network.client(token)
+        val request = Network.requestPOSTAuth(context, Network.URL_FEEDBACK)
 
         /**
          * Summary = param[0]
@@ -82,11 +86,16 @@ class FeedbackUploadJob : JobService() {
                 return false
             }
             //todo stop using auth body, it's not needed and is replaced with cookies
-            val builder = Network.generateAuthBody(token).addFormDataPart("summary", params[0]).addFormDataPart("type", params[1])
+            val builder = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("manufacturer", Build.MANUFACTURER)
+                    .addFormDataPart("model", Build.MODEL)
+                    .addFormDataPart("summary", params[0])
+                    .addFormDataPart("type", params[1])
             builder.addFormDataPart("description", if (params[2].isNotEmpty()) params[2] else "")
 
             return try {
-                val result = client.newCall(Network.requestPOST(Network.URL_FEEDBACK, builder.build())).execute()
+                val result = client.newCall(Network.requestPOSTAuth(Network.URL_FEEDBACK, builder.build())).execute()
                 result.isSuccessful
             } catch (e: StreamResetException) {
                 false

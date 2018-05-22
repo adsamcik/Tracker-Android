@@ -148,7 +148,7 @@ class UserActivity : DetailActivity() {
                 }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
+                Network.client(user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
                         onChangeMapNetworkPreference(switch_renew_map,
                                 isChecked,
                                 user,
@@ -180,7 +180,7 @@ class UserActivity : DetailActivity() {
                 }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
+                Network.client(user.token).newCall(Network.requestPOSTAuth(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
                         //this could be done better but due to time constraint there is not enough time to properly rewrite it to kotlin
                         onChangeMapNetworkPreference(switch_renew_personal_map,
                                 isChecked,
