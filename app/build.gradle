@@ -77,12 +77,12 @@ dependencies {
 
     //3rd party dependencies
     implementation 'com.squareup.okhttp3:okhttp:3.10.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.4.0'
     implementation 'com.jaredrummler:colorpicker:1.0.2'
     implementation "com.vimeo.stag:stag-library:$stag_version", {
         exclude group: 'com.intellij', module: 'annotations'
     }
 
-    implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
     implementation 'de.psdev.licensesdialog:licensesdialog:1.8.3'
     implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
 
