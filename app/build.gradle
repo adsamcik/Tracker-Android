@@ -4,6 +4,7 @@ apply plugin: 'org.jetbrains.dokka-android'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'com.google.gms.oss.licenses.plugin'
 apply plugin: 'io.fabric'
+apply plugin: 'com.google.android.gms.strict-version-matcher-plugin'
 
 if (file('key.gradle').exists())
     apply from: 'key.gradle'
@@ -100,8 +101,8 @@ dependencies {
     implementation "com.google.android.gms:play-services-maps:15.0.1"
     implementation "com.google.android.gms:play-services-location:15.0.1"
     implementation "com.google.android.gms:play-services-auth:15.0.1"
-    implementation "com.google.firebase:firebase-core:15.0.2"
-    implementation "com.google.firebase:firebase-messaging:15.0.2"
+    implementation "com.google.firebase:firebase-core:16.0.0"
+    implementation "com.google.firebase:firebase-messaging:17.0.0"
     implementation 'com.crashlytics.sdk.android:crashlytics:2.9.2@aar', {
         transitive = true
     }
