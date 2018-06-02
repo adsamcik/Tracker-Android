@@ -1,9 +1,9 @@
 package com.adsamcik.signalcollector.signin
 
 
-import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
+import android.support.v7.app.AppCompatActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
@@ -85,6 +85,8 @@ class GoogleSignInSignalsClient : ISignInClient {
         Preferences.getPref(context).edit().putString(Preferences.PREF_USER_ID, user.id).apply()
 
         userValueCallback?.invoke(context, user)
+
+
 
         //todo uncomment this when server is ready
         //SharedPreferences sp = Preferences.getPref(context);
