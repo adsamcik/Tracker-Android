@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.data
 
-import com.vimeo.stag.UseStag
 import java.util.*
 
 /**
@@ -8,7 +7,6 @@ import java.util.*
  * Does not use [com.adsamcik.signalcollector.utility.CoordinateBounds] because Stag does not support this level of customization for TypeAdapters and custom type adapter is not a priority right now.
  */
 //todo Update to use CoordinateBounds
-@UseStag
 data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right: Double = MAX_LONGITUDE, var bottom: Double = MIN_LATITUDE, var left: Double = MIN_LONGITUDE) {
     /**
      * Contains information for the legend
@@ -16,8 +14,6 @@ data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right:
     var values: ArrayList<ValueColor>? = null
 
     inner class ValueColor(val name: String, val color: Int)
-
-    constructor() : this("")
 
     companion object {
 

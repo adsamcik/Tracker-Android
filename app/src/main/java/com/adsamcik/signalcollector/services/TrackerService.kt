@@ -29,6 +29,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ActionSource
+import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
+import com.adsamcik.signalcollector.extensions.telephonyManager
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
@@ -64,8 +66,6 @@ class TrackerService : LifecycleService() {
     private var telephonyManager: TelephonyManager? = null
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
-    private val gson = Gson()
-
 
     /**
      * True if previous collection was mocked
@@ -314,7 +314,7 @@ class TrackerService : LifecycleService() {
 
         //Wifi tracking setup
         if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
-            wifiManager = this.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            wifiManager = getSystemServiceTyped(Context.WIFI_SERVICE)
             assert(wifiManager != null)
             wasWifiEnabled = !(wifiManager!!.isScanAlwaysAvailable || wifiManager!!.isWifiEnabled)
             if (wasWifiEnabled)
@@ -327,9 +327,9 @@ class TrackerService : LifecycleService() {
 
         //Cell tracking setup
         if (sp.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, true)) {
-            telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            telephonyManager = getSystemServiceTyped(Context.TELEPHONY_SERVICE)
             subscriptionManager = if (Build.VERSION.SDK_INT >= 22)
-                SubscriptionManager.from(this)
+                getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
             else
                 null
         }
