@@ -30,7 +30,6 @@ import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
-import com.adsamcik.signalcollector.extensions.telephonyManager
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
@@ -38,7 +37,6 @@ import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
 import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.nio.charset.Charset
