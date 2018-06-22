@@ -6,8 +6,8 @@ import android.app.job.JobService
 import android.content.Context
 import android.os.AsyncTask
 import android.os.Build
-import android.support.annotation.StringRes
-import android.support.v4.app.NotificationCompat
+import androidx.annotation.StringRes
+import androidx.core.app.NotificationCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.R.string.channel_other_id
 import com.adsamcik.signalcollector.R.string.notification_feedback_success

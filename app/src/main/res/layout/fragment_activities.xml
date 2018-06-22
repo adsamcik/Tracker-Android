@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.v4.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                                              android:id="@+id/swiperefresh_activites"
-                                              android:layout_width="match_parent"
-                                              android:layout_height="match_parent">
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                                       android:id="@+id/swiperefresh_activites"
+                                                       android:layout_width="match_parent"
+                                                       android:layout_height="match_parent">
 
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
                   xmlns:tools="http://schemas.android.com/tools"
@@ -12,7 +12,7 @@
                   android:paddingTop="@dimen/status_bar_height"
         android:id="@+id/activities_root">
 
-        <android.support.v7.widget.CardView
+        <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="@dimen/edge_margin">
@@ -38,7 +38,7 @@
                     android:layout_height="wrap_content"
                     tools:listitem="@layout/layout_challenge_small"/>
             </LinearLayout>
-        </android.support.v7.widget.CardView>
+        </androidx.cardview.widget.CardView>
 
     </LinearLayout>
-</android.support.v4.widget.SwipeRefreshLayout>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

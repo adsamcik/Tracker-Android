@@ -13,11 +13,10 @@ import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import com.google.gson.stream.MalformedJsonException
+import com.squareup.moshi.Moshi
 import java.io.File
 import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * Utility class for storing data files
@@ -48,6 +47,8 @@ object DataStore {
 
     @Volatile
     private var dataLocked = false
+
+    private var moshi = Moshi.Builder().build()
 
     var currentDataFile: DataFile? = null
         private set
@@ -123,7 +124,7 @@ object DataStore {
      * @param lastFileSizeThreshold Include last datafile if it exceeds this size
      * @return array of datafile names
      */
-    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
+    fun getDataFiles(context: Context, @androidx.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
         val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
         return if (list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
             list.dropLast(1).toTypedArray()
@@ -477,10 +478,10 @@ object DataStore {
         if (oldestUpload != -1L) {
             val days = Assist.getAgeInDays(oldestUpload).toLong()
             if (days > 30) {
-                val gson = Gson()
-                val stats = gson.fromJson<ArrayList<UploadStats?>>(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE)), object : TypeToken<List<UploadStats>>() {
 
-                }.type) ?: return
+                //javaClass has to be there twice
+                val adapter = moshi.adapter(ArrayList<UploadStats?>::class.java)
+                val stats = adapter.fromJson(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))!!) ?: return
                 var i = 0
                 while (i < stats.size) {
                     val stat = stats[i]

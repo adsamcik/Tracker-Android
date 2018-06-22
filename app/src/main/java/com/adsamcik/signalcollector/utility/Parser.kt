@@ -3,8 +3,6 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 import com.adsamcik.signalcollector.file.DataStore
 import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
-import com.google.gson.JsonSyntaxException
 import java.io.IOException
 import java.io.InputStreamReader
 import java.util.*

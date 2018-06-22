@@ -11,10 +11,9 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.support.v4.app.FragmentActivity
-import android.support.v4.content.ContextCompat
-import android.support.v4.content.res.ResourcesCompat
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
@@ -141,7 +140,7 @@ object Assist {
      *
      * @return True if user has agreed to privacy policy
      */
-    suspend fun privacyPolicy(activity: FragmentActivity, init: (Bundle.() -> Unit)? = null): Boolean = suspendCoroutine {
+    suspend fun privacyPolicy(activity: AppCompatActivity, init: (Bundle.() -> Unit)? = null): Boolean = suspendCoroutine {
         if (!hasAgreedToPrivacyPolicy(activity)) {
             val privacyFragment = FragmentPrivacyDialog.newInstance(init)
             privacyFragment.setContinuation(it)

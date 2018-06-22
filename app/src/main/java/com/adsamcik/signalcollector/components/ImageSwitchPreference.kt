@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.TypedArray
 import android.graphics.Color
-import android.support.annotation.DrawableRes
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceViewHolder
+import androidx.annotation.DrawableRes
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
 import android.util.AttributeSet
 import android.view.ViewGroup
 import android.widget.ImageView

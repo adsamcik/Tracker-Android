@@ -4,8 +4,8 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.arch.lifecycle.LifecycleService
-import android.arch.lifecycle.MutableLiveData
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.MutableLiveData
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -20,8 +20,8 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.core.content.edit

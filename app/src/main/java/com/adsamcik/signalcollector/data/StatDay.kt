@@ -1,11 +1,8 @@
 package com.adsamcik.signalcollector.data
 
-import com.vimeo.stag.UseStag
-
 /**
  * Instance that holds information about local statistics today
  */
-@UseStag
 class StatDay {
     var age: Int = 0
     var wifi: Int = 0

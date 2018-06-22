@@ -7,8 +7,6 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import kotlinx.coroutines.experimental.launch
 import kotlin.coroutines.experimental.suspendCoroutine
 

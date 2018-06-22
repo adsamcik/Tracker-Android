@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.test
 
 import android.content.Context
 import android.content.Intent
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.signin.ISignInClient
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Preferences

@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.components
 
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Color
-import android.support.annotation.ColorInt
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceViewHolder
+import androidx.annotation.ColorInt
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
 import android.util.AttributeSet
 import com.jaredrummler.android.colorpicker.*
 

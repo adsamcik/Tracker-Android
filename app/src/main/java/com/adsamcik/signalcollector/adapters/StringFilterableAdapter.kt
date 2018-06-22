@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.adapters
 
 import android.content.Context
-import android.support.annotation.LayoutRes
+import androidx.annotation.LayoutRes
 
 /**
  * Implementation of the [FilterableAdapter] using Array of string for items and String for filtering

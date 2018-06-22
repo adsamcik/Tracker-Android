@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.activities
 
 import android.graphics.Color
 import android.os.Bundle
-import android.support.constraint.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintLayout
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -21,7 +21,7 @@ class StatusActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val layout = createScrollableContentParent(true, ConstraintLayout::class.java)
+        val layout = createScrollableContentParent(true, androidx.constraintlayout.widget.ConstraintLayout::class.java)
         val jobs = jobScheduler.allPendingJobs
 
         var lastId = createPair("Is upload pending", jobs.contains { it.id == UploadJobService.UPLOAD_JOB_ID }.toString(), layout, null)
@@ -36,7 +36,7 @@ class StatusActivity : DetailActivity() {
 
     fun createPair(titleString: String, valueString: String, parent: ViewGroup, aboveId: Int?): Int {
         val title = TextView(this)
-        val titleParams = ConstraintLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+        val titleParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
 
         if (aboveId != null)
             titleParams.topToBottom = aboveId
@@ -49,7 +49,7 @@ class StatusActivity : DetailActivity() {
         parent.addView(title)
 
         val value = TextView(this)
-        val valueParams = ConstraintLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+        val valueParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
 
         valueParams.leftToRight = title.id
         valueParams.topToTop = title.id

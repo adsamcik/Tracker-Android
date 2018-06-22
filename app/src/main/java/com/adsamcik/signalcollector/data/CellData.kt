@@ -1,8 +1,7 @@
 package com.adsamcik.signalcollector.data
 
-import android.support.annotation.RequiresApi
 import android.telephony.*
-import com.vimeo.stag.UseStag
+import androidx.annotation.RequiresApi
 import java.io.Serializable
 
 /**
@@ -10,7 +9,6 @@ import java.io.Serializable
  * It works universally with every supported cell technology
  * Supported technologies are GSM, CDMA, WCDMA and LTE
  */
-@UseStag
 data class CellData
 /**
  * CellData constructor

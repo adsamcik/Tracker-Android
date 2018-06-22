@@ -4,8 +4,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.graphics.Color
-import android.support.annotation.RequiresApi
-import android.support.annotation.StringRes
+import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 
 import com.adsamcik.signalcollector.R
 

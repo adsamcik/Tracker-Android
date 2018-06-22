@@ -2,13 +2,13 @@ package com.adsamcik.signalcollector.extensions
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.support.annotation.ColorInt
-import android.support.annotation.ColorRes
-import android.support.annotation.StringRes
-import android.support.v4.content.ContextCompat
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceFragmentCompat
-import android.support.v7.preference.PreferenceGroup
+import androidx.annotation.ColorInt
+import androidx.annotation.ColorRes
+import androidx.annotation.StringRes
+import androidx.core.content.ContextCompat
+import androidx.preference.Preference
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceGroup
 
 /**
  * Finds a {@link Preference} based on its title.

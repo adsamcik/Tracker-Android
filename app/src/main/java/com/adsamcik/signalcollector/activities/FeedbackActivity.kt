@@ -7,7 +7,7 @@ import android.content.res.ColorStateList
 import android.graphics.Paint
 import android.os.Bundle
 import android.os.PersistableBundle
-import android.support.design.widget.TextInputLayout
+import com.google.android.material.textfield.TextInputLayout
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -36,7 +36,7 @@ class FeedbackActivity : DetailActivity() {
     /**
      * TextWatcher that watches text for changes to remove errors that are associated with them
      */
-    internal class FeedbackTextWatcher private constructor(private val textLayout: TextInputLayout, private val minLength: Int = 0) : TextWatcher {
+    internal class FeedbackTextWatcher private constructor(private val textLayout: com.google.android.material.textfield.TextInputLayout, private val minLength: Int = 0) : TextWatcher {
         override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
 
         }
@@ -53,7 +53,7 @@ class FeedbackActivity : DetailActivity() {
         }
 
         companion object {
-            fun setError(textLayout: TextInputLayout, errorText: String, minLength: Int = 0) {
+            fun setError(textLayout: com.google.android.material.textfield.TextInputLayout, errorText: String, minLength: Int = 0) {
                 textLayout.error = errorText
                 textLayout.editText!!.addTextChangedListener(FeedbackTextWatcher(textLayout, minLength))
             }
@@ -88,8 +88,8 @@ class FeedbackActivity : DetailActivity() {
                             return@setOnClickListener
                         }
 
-                        val summaryTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_summary_wrap)
-                        val descriptionTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_description_wrap)
+                        val summaryTextLayout = parent.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.feedback_summary_wrap)
+                        val descriptionTextLayout = parent.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.feedback_description_wrap)
 
                         val summaryText = summaryTextLayout.editText!!
 

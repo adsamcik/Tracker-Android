@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.activities
 
 import android.os.Build
 import android.os.Bundle
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.extensions.startActivity

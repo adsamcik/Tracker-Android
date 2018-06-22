@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.signin
 
-import android.support.annotation.RestrictTo
+import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.gson.*
 import java.lang.reflect.Type

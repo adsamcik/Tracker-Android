@@ -1,11 +1,11 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.widget.SwipeRefreshLayout
+import androidx.fragment.app.Fragment
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -37,12 +37,12 @@ import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentStats : Fragment(), IOnDemandView {
+class FragmentStats : androidx.fragment.app.Fragment(), IOnDemandView {
     private lateinit var fragmentView: View
 
     private var adapter: TableAdapter? = null
 
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
+    private lateinit var swipeRefreshLayout: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
     private var refreshingCount = 0
 
@@ -206,11 +206,11 @@ class FragmentStats : Fragment(), IOnDemandView {
     }
 
 
-    override fun onEnter(activity: Activity) {
+    override fun onEnter(activity: AppCompatActivity) {
 
     }
 
-    override fun onLeave(activity: Activity) {
+    override fun onLeave(activity: AppCompatActivity) {
     }
 
 

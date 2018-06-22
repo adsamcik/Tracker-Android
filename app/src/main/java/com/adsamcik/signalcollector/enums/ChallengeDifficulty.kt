@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.enums
 
-import android.support.annotation.IntDef
+import androidx.annotation.IntDef
 
 /**
  * Object containing annotation class and it's [IntDef] for ChallengeDifficulty

@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.fragments
 
 
 import android.Manifest
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Point
@@ -15,11 +15,10 @@ import android.location.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
-import android.support.annotation.DrawableRes
-import android.support.constraint.ConstraintLayout
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
-import android.support.v7.app.AppCompatActivity
+import androidx.annotation.DrawableRes
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.fragment.app.Fragment
+import androidx.core.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -55,7 +54,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
+class FragmentMap : androidx.fragment.app.Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
     private var locationListener: UpdateLocationListener? = null
     private var type: String? = null
     private var map: GoogleMap? = null
@@ -115,7 +114,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         return false
     }
 
-    override fun onLeave(activity: Activity) {
+    override fun onLeave(activity: AppCompatActivity) {
         if (hasPermissions) {
             if (locationManager != null)
                 locationManager!!.removeUpdates(locationListener)
@@ -130,8 +129,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
-    override fun onEnter(activity: Activity) {
-        this.fActivity = activity as AppCompatActivity
+    override fun onEnter(activity: AppCompatActivity) {
+        this.fActivity = activity
 
         if (mapFragment == null && view != null) {
             val mapFragment = SupportMapFragment.newInstance()
@@ -266,7 +265,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             keyboardManager!!.onDisplaySizeChanged()
         else {
             if (keyboardManager == null) {
-                searchOriginalMargin = (map_ui_parent.layoutParams as ConstraintLayout.LayoutParams).bottomMargin
+                searchOriginalMargin = (map_ui_parent.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams).bottomMargin
                 keyboardManager = KeyboardManager(fragmentView!!.rootView)
             }
 

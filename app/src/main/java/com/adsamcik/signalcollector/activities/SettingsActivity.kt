@@ -1,15 +1,15 @@
 package com.adsamcik.signalcollector.activities
 
-import android.support.v7.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.support.annotation.StringRes
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
-import android.support.v7.preference.*
+import androidx.annotation.StringRes
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import androidx.preference.*
 import android.widget.Toast
 import androidx.core.content.edit
 import com.adsamcik.signalcollector.BuildConfig
@@ -323,7 +323,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         val dayKey = getString(R.string.settings_color_day_key)
         val day = caller.findPreference(dayKey) as ColorSupportPreference
 
-        val onStyleChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
+        val onStyleChange = androidx.preference.Preference.OnPreferenceChangeListener { _, newValue ->
             val newValueInt = (newValue as String).toInt()
             night.isVisible = newValueInt >= 1
 

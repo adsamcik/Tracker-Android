@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.uitools
 
 import android.graphics.Color
-import android.support.annotation.ColorInt
+import androidx.annotation.ColorInt
 
 /**
  * Brightens given color component with given value and ensures it is not larger than 255

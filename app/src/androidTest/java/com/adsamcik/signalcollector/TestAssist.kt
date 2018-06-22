@@ -1,10 +1,10 @@
 package com.adsamcik.signalcollector
 
 import android.os.Build
-import android.support.test.InstrumentationRegistry.getInstrumentation
-import android.support.test.uiautomator.UiDevice
-import android.support.test.uiautomator.UiObjectNotFoundException
-import android.support.test.uiautomator.UiSelector
+import androidx.test.InstrumentationRegistry.getInstrumentation
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObjectNotFoundException
+import androidx.test.uiautomator.UiSelector
 import android.util.Log
 
 val device get() = UiDevice.getInstance(getInstrumentation())!!

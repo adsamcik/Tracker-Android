@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
-import android.support.v4.graphics.ColorUtils
-import android.support.v4.widget.SwipeRefreshLayout
+import androidx.fragment.app.Fragment
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -30,9 +30,9 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import kotlin.math.roundToInt
 
-class FragmentActivities : Fragment(), IOnDemandView {
+class FragmentActivities : androidx.fragment.app.Fragment(), IOnDemandView {
     private lateinit var listViewChallenges: ListView
-    private lateinit var refreshLayout: SwipeRefreshLayout
+    private lateinit var refreshLayout: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
     private lateinit var colorManager: ColorManager
 
@@ -85,9 +85,9 @@ class FragmentActivities : Fragment(), IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: Activity) {}
+    override fun onEnter(activity: AppCompatActivity) {}
 
-    override fun onLeave(activity: Activity) {}
+    override fun onLeave(activity: AppCompatActivity) {}
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 

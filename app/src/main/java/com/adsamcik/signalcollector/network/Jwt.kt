@@ -6,7 +6,6 @@ import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.coroutines.experimental.launch
 import okhttp3.RequestBody
 import kotlin.coroutines.experimental.suspendCoroutine
-import com.adsamcik.signalcollector.extensions.createEmpty
 import com.adsamcik.signalcollector.signin.User
 import okhttp3.Call
 import okhttp3.Callback
@@ -52,8 +51,6 @@ object Jwt {
         })
     }
 
-    class Token {
-
-    }
+    class Token
 
 }

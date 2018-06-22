@@ -19,7 +19,7 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
+import com.squareup.moshi.Moshi
 import kotlinx.android.synthetic.main.activity_user.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.async
@@ -34,6 +34,8 @@ import java.text.DateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.reflect.KMutableProperty0
+
+
 
 /**
  * User Activity is activity that contains Signin and Server settings
@@ -81,9 +83,9 @@ class UserActivity : DetailActivity() {
                             if (usr != null) {
                                 if (!usr.isServerDataAvailable) {
                                     onUserStateChange(Signin.SigninStatus.SIGNED_NO_DATA, user)
-                                    usr.addServerDataCallback({ value ->
+                                    usr.addServerDataCallback { value ->
                                         onUserStateChange(Signin.status, value)
-                                    })
+                                    }
                                 } else
                                     onUserStateChange(Signin.SigninStatus.SIGNED, user)
                             } else
@@ -148,7 +150,8 @@ class UserActivity : DetailActivity() {
                 }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                Network.client(user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
+                val request = Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body).build()
+                Network.client(user.token).newCall(request).enqueue(
                         onChangeMapNetworkPreference(switch_renew_map,
                                 isChecked,
                                 user,
@@ -180,7 +183,8 @@ class UserActivity : DetailActivity() {
                 }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                Network.client(user.token).newCall(Network.requestPOSTAuth(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
+                val request = Network.requestPOSTAuth(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body).build()
+                Network.client(user.token).newCall(request).enqueue(
                         //this could be done better but due to time constraint there is not enough time to properly rewrite it to kotlin
                         onChangeMapNetworkPreference(switch_renew_personal_map,
                                 isChecked,
@@ -240,7 +244,9 @@ class UserActivity : DetailActivity() {
                         } else
                             Crashlytics.logException(Throwable("Body is null"))
                     }
-                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, Gson().toJson(user), false)
+                    val moshi = Moshi.Builder().build()
+                    val jsonAdapter = moshi.adapter(User::class.java)
+                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, jsonAdapter.toJson(user), false)
                 } else {
                     launch(UI) { compoundButton.isChecked = !desiredState }
                     if (response.code() == 403)
@@ -252,11 +258,11 @@ class UserActivity : DetailActivity() {
         }
     }
 
-    public override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent) {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode == Signin.RC_SIGN_IN) {
-            Signin.onSignResult(this, resultCode, data)
+            Signin.onSignResult(this, resultCode, data!!)
         }
     }
 }

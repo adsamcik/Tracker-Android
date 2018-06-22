@@ -1,16 +1,16 @@
 package com.adsamcik.signalcollector.components
 
-import android.support.annotation.ColorInt
-import android.support.annotation.StringRes
-import android.support.design.widget.BottomSheetBehavior
-import android.support.design.widget.CoordinatorLayout
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
+import androidx.annotation.ColorInt
+import androidx.annotation.StringRes
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import java.util.*
@@ -71,10 +71,10 @@ class BottomSheetMenu(root: CoordinatorLayout) {
      * Special behavior to help user understand what this menu is about. It shows the whole menu for a moment before collapsing
      */
     fun showHide(delayInMS: Int) {
-        bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+        bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
         launch {
             delay(delayInMS.toLong(), TimeUnit.MILLISECONDS)
-            bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
         }
     }
 }

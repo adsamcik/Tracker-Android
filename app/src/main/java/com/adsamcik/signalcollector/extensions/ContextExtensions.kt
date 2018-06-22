@@ -10,12 +10,12 @@ import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
-import android.support.annotation.RequiresApi
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
 import android.telephony.TelephonyManager
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 
 /**
  * Starts new activity for result
@@ -40,7 +40,7 @@ inline fun <reified T : Any> Activity.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Fragment.startActivity(
+inline fun <reified T : Any> androidx.fragment.app.Fragment.startActivity(
         options: Bundle? = null,
         noinline init: Intent.() -> Unit = {}) {
     context!!.startActivity<T>(options, init)
@@ -120,7 +120,7 @@ inline fun <reified T : Any> Context.newIntent(): Intent =
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
-inline fun android.support.v4.app.FragmentManager.transaction(func: android.support.v4.app.FragmentTransaction.() -> android.support.v4.app.FragmentTransaction) {
+inline fun androidx.fragment.app.FragmentManager.transaction(func: androidx.fragment.app.FragmentTransaction.() -> androidx.fragment.app.FragmentTransaction) {
     beginTransaction().func().commit()
 }
 
@@ -130,7 +130,7 @@ inline fun android.support.v4.app.FragmentManager.transaction(func: android.supp
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
-inline fun android.support.v4.app.FragmentManager.transactionStateLoss(func: android.support.v4.app.FragmentTransaction.() -> android.support.v4.app.FragmentTransaction) {
+inline fun androidx.fragment.app.FragmentManager.transactionStateLoss(func: androidx.fragment.app.FragmentTransaction.() -> androidx.fragment.app.FragmentTransaction) {
     beginTransaction().func().commitAllowingStateLoss()
 }
 

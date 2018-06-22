@@ -1,9 +1,8 @@
 package com.adsamcik.signalcollector.utility
 
 
-import android.support.test.InstrumentationRegistry
+import androidx.test.InstrumentationRegistry
 import com.adsamcik.signalcollector.R
-import com.google.gson.Gson
 import org.junit.Assert
 import org.junit.Test
 import org.junit.runner.RunWith

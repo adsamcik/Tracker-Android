@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector
 
-import android.support.annotation.CheckResult
-import android.support.test.espresso.*
+import androidx.annotation.CheckResult
+import androidx.test.espresso.*
 import android.view.View
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers

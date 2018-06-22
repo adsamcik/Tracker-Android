@@ -6,10 +6,10 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
-import android.support.design.widget.CoordinatorLayout
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
-import android.support.v7.app.AppCompatActivity
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.fragment.app.Fragment
+import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AppCompatActivity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
 
     private var mapFragment: FragmentMap? = null
 
-    private lateinit var trackerFragment: Fragment
+    private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,11 +98,11 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         root.post {
-            Tips.showTips(this, Tips.HOME_TIPS, {
+            Tips.showTips(this, Tips.HOME_TIPS) {
                 launch {
                     Assist.privacyPolicyEnableUpload(this@MainActivity)
                 }
-            })
+            }
         }
     }
 
@@ -196,7 +196,7 @@ class MainActivity : AppCompatActivity() {
 
         button_map.addPayload(mapPayload)
 
-        val params = root.layoutParams as CoordinatorLayout.LayoutParams
+        val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
         params.behavior = BottomBarBehavior(button_map)
         root.requestLayout()
     }

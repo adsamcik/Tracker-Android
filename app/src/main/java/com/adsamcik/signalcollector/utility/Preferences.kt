@@ -6,7 +6,6 @@ import android.preference.PreferenceManager
 import com.adsamcik.signalcollector.data.StatDay
 import com.adsamcik.signalcollector.extensions.dateUTC
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.google.gson.Gson
 import java.util.*
 
 /**

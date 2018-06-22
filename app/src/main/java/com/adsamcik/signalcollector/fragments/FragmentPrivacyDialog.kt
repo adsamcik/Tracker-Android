@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.support.v4.app.DialogFragment
-import android.support.v7.app.AlertDialog
+import androidx.fragment.app.DialogFragment
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.edit
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.startActivity
@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.utility.Preferences
 import kotlin.coroutines.experimental.Continuation
 
 
-class FragmentPrivacyDialog : DialogFragment() {
+class FragmentPrivacyDialog : androidx.fragment.app.DialogFragment() {
     private var cont: Continuation<Boolean>? = null
 
     fun setContinuation(continuation: Continuation<Boolean>) {

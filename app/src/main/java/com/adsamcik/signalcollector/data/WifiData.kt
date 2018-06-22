@@ -4,14 +4,12 @@ import android.net.wifi.ScanResult
 import android.net.wifi.ScanResult.*
 import android.net.wifi.WifiManager
 import android.os.Build
-import com.vimeo.stag.UseStag
 import java.io.Serializable
 
 /**
  * Class containing Wi-Fi information.
  * It is used in RawData
  */
-@UseStag
 class WifiData : Serializable {
 
     /**

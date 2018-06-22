@@ -13,8 +13,10 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
-import com.google.gson.Gson
+import com.squareup.moshi.Moshi
 import java.util.*
+
+
 
 /**
  * Activity that shows all the recent upload reports user received from the server.
@@ -25,16 +27,19 @@ class UploadReportsActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         setTitle(R.string.recent_uploads)
 
+        val moshi = Moshi.Builder().build()
+        val jsonAdapter = moshi.adapter(Array<UploadStats>::class.java)
+
         val recent = if (useMock) {
             val arr = ArrayList<UploadStats>()
             for (i in 0 until 10)
                 arr.add(mockItem())
             arr.toTypedArray()
         } else
-            Gson().fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE), Array<UploadStats>::class.java)
+            jsonAdapter.fromJson(DataStore.loadAppendableJsonArray(this, DataStore.RECENT_UPLOADS_FILE)!!)
 
         Arrays.sort(recent) { uploadStats, t1 -> ((t1.time - uploadStats.time) / MINUTE_IN_MILLISECONDS).toInt() }
-        if (recent.isNotEmpty()) {
+        if (recent?.isNotEmpty() == true) {
             val parent = createLinearContentParent(false)
             val listView = ListView(this)
 

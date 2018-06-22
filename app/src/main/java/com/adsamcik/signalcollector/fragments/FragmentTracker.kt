@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat.getDrawable
+import androidx.fragment.app.Fragment
+import androidx.core.content.ContextCompat.getDrawable
 import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.Surface
@@ -43,7 +43,7 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import java.util.*
 
-class FragmentTracker : Fragment() {
+class FragmentTracker : androidx.fragment.app.Fragment() {
     private lateinit var colorManager: ColorManager
 
     private var wifiInfo: InfoComponent? = null
@@ -141,7 +141,7 @@ class FragmentTracker : Fragment() {
      *
      * @param enable ensures intended action
      */
-    private fun toggleCollecting(activity: Activity, enable: Boolean) {
+    private fun toggleCollecting(activity: AppCompatActivity, enable: Boolean) {
         if (TrackerService.isServiceRunning.value == enable)
             return
 

@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.signin
 
 import android.content.Context
 import android.content.Intent
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.test.MockSignInClient

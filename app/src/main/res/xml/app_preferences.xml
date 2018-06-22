@@ -1,4 +1,4 @@
-<android.support.v7.preference.PreferenceScreen
+<androidx.preference.PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     key="root"
@@ -9,7 +9,7 @@
         android:key="@string/settings_account_key"
         android:title="@string/settings_account_title"/>
 
-    <android.support.v7.preference.PreferenceScreen
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_tracking_title">
         <android.support.v7.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
@@ -66,9 +66,9 @@
         </android.support.v7.preference.PreferenceCategory>
 
 
-    </android.support.v7.preference.PreferenceScreen>
+    </androidx.preference.PreferenceScreen>
 
-    <android.support.v7.preference.PreferenceScreen
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_upload_title">
 
         <android.support.v7.preference.PreferenceCategory
@@ -96,9 +96,9 @@
                 app:items="@array/settings_auto_upload_at_MB"/>
 
         </android.support.v7.preference.PreferenceCategory>
-    </android.support.v7.preference.PreferenceScreen>
+    </androidx.preference.PreferenceScreen>
 
-    <android.support.v7.preference.PreferenceScreen
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_style_title">
         <ListPreference
             android:defaultValue="@string/settings_style_mode_default"
@@ -132,9 +132,9 @@
             android:key="@string/settings_color_default_key"
             android:title="@string/settings_color_default_title"/>
 
-    </android.support.v7.preference.PreferenceScreen>
+    </androidx.preference.PreferenceScreen>
 
-    <android.support.v7.preference.PreferenceScreen
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_debug_title">
 
         <android.support.v7.preference.SwitchPreferenceCompat
@@ -171,8 +171,8 @@
         <Preference
             android:key="@string/settings_clear_cache_key"
             android:title="@string/settings_clear_cache_title"/>
-    </android.support.v7.preference.PreferenceScreen>
-    <android.support.v7.preference.PreferenceCategory
+    </androidx.preference.PreferenceScreen>
+    <androidx.preference.PreferenceCategory
         android:title="@string/settings_notifications_title">
 
         <android.support.v7.preference.CheckBoxPreference
@@ -181,10 +181,10 @@
             android:summary="@string/settings_allow_upload_notification_summary"
             android:title="@string/settings_allow_upload_notification_title"/>
 
-    </android.support.v7.preference.PreferenceCategory>
+    </androidx.preference.PreferenceCategory>
 
 
-    <android.support.v7.preference.PreferenceCategory
+    <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">
 
         <Preference
@@ -219,6 +219,6 @@
         <Preference
             android:key="@string/settings_app_version_key"/>
 
-    </android.support.v7.preference.PreferenceCategory>
+    </androidx.preference.PreferenceCategory>
 
-</android.support.v7.preference.PreferenceScreen>
+</androidx.preference.PreferenceScreen>

@@ -3,11 +3,11 @@ package com.adsamcik.signalcollector.services
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.arch.lifecycle.LifecycleService
+import androidx.lifecycle.LifecycleService
 import android.content.Context
 import android.content.Intent
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivities

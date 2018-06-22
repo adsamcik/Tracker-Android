@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.uitools
 
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
-import android.support.annotation.ColorInt
-import android.support.annotation.IdRes
-import android.support.v7.widget.CardView
+import androidx.annotation.ColorInt
+import androidx.annotation.IdRes
+import androidx.cardview.widget.CardView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -254,7 +254,7 @@ class ColorManager {
 
     private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
         val background = view.background
-        if (view is CardView) {
+        if (view is androidx.cardview.widget.CardView) {
             view.setCardBackgroundColor(bgColor)
             return true
         } else if (background != null && background.isVisible) {

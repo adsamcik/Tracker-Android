@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
-import android.support.constraint.ConstraintLayout
-import android.support.v7.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.appcompat.app.AppCompatActivity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -59,8 +59,8 @@ abstract class DetailActivity : AppCompatActivity() {
         return linearLayout
     }
 
-    private fun createConstraintContentLayout(scrollable: Boolean, addContentPadding: Boolean): ConstraintLayout {
-        val constraintLayout = ConstraintLayout(this)
+    private fun createConstraintContentLayout(scrollable: Boolean, addContentPadding: Boolean): androidx.constraintlayout.widget.ConstraintLayout {
+        val constraintLayout = androidx.constraintlayout.widget.ConstraintLayout(this)
         initContentLayout(constraintLayout, scrollable, addContentPadding)
         return constraintLayout
     }
@@ -70,7 +70,7 @@ abstract class DetailActivity : AppCompatActivity() {
         //Casts are safe and due to limitations it was done this way. Can be revisited in the future for improvements.
         return when(tClass) {
             LinearLayout::class.java -> createLinearContentLayout(scrollable, addContentPadding) as T
-            ConstraintLayout::class.java -> createConstraintContentLayout(scrollable, addContentPadding) as T
+            androidx.constraintlayout.widget.ConstraintLayout::class.java -> createConstraintContentLayout(scrollable, addContentPadding) as T
             else -> throw RuntimeException("Support for ${tClass.name} is not implemented")
         }
     }

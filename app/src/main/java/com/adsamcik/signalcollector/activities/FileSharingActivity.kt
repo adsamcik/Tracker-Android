@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.activities
 
 import android.content.Intent
 import android.os.Bundle
-import android.support.design.widget.CoordinatorLayout
-import android.support.v4.content.FileProvider
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.content.FileProvider
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -42,7 +42,7 @@ class FileSharingActivity : DetailActivity() {
             val fileNames = files.map { file -> file.name }
 
             root = createLinearContentParent(false)
-            val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as CoordinatorLayout
+            val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as androidx.coordinatorlayout.widget.CoordinatorLayout
             val listView = layout.findViewById<ListView>(R.id.share_list_view)
             val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, fileNames)
             listView.adapter = adapter

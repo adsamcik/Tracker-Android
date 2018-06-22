@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.extensions
 
 import android.content.res.Resources
-import android.support.constraint.ConstraintLayout
-import android.support.design.widget.CoordinatorLayout
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -17,10 +17,10 @@ import androidx.core.view.children
 fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
     val layoutParams = layoutParams ?: return
     when (layoutParams) {
-        is ConstraintLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
+        is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
         is LinearLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
         is RelativeLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
-        is CoordinatorLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
+        is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
     }
     requestLayout()
 }
@@ -44,20 +44,20 @@ var View.marginLeft: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.leftMargin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.leftMargin
             is LinearLayout.LayoutParams -> layoutParams.leftMargin
             is RelativeLayout.LayoutParams -> layoutParams.leftMargin
-            is CoordinatorLayout.LayoutParams -> layoutParams.leftMargin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.leftMargin
             else -> 0
         }
     }
     set(margin) {
         val layoutParams = layoutParams ?: return
         when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.leftMargin = margin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.leftMargin = margin
             is LinearLayout.LayoutParams -> layoutParams.leftMargin = margin
             is RelativeLayout.LayoutParams -> layoutParams.leftMargin = margin
-            is CoordinatorLayout.LayoutParams -> layoutParams.leftMargin = margin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.leftMargin = margin
             else -> return
         }
         requestLayout()
@@ -72,20 +72,20 @@ var View.marginTop: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.topMargin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.topMargin
             is LinearLayout.LayoutParams -> layoutParams.topMargin
             is RelativeLayout.LayoutParams -> layoutParams.topMargin
-            is CoordinatorLayout.LayoutParams -> layoutParams.topMargin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.topMargin
             else -> 0
         }
     }
     set(margin) {
         val layoutParams = layoutParams ?: return
         when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.topMargin = margin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.topMargin = margin
             is LinearLayout.LayoutParams -> layoutParams.topMargin = margin
             is RelativeLayout.LayoutParams -> layoutParams.topMargin = margin
-            is CoordinatorLayout.LayoutParams -> layoutParams.topMargin = margin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.topMargin = margin
             else -> return
         }
         requestLayout()
@@ -100,20 +100,20 @@ var View.marginRight: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.rightMargin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.rightMargin
             is LinearLayout.LayoutParams -> layoutParams.rightMargin
             is RelativeLayout.LayoutParams -> layoutParams.rightMargin
-            is CoordinatorLayout.LayoutParams -> layoutParams.rightMargin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.rightMargin
             else -> 0
         }
     }
     set(margin) {
         val layoutParams = layoutParams ?: return
         when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.rightMargin = margin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.rightMargin = margin
             is LinearLayout.LayoutParams -> layoutParams.rightMargin = margin
             is RelativeLayout.LayoutParams -> layoutParams.rightMargin = margin
-            is CoordinatorLayout.LayoutParams -> layoutParams.rightMargin = margin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.rightMargin = margin
             else -> return
         }
         requestLayout()
@@ -128,20 +128,20 @@ var View.marginBottom: Int
     get() {
         val layoutParams = layoutParams ?: return 0
         return when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.bottomMargin
             is LinearLayout.LayoutParams -> layoutParams.bottomMargin
             is RelativeLayout.LayoutParams -> layoutParams.bottomMargin
-            is CoordinatorLayout.LayoutParams -> layoutParams.bottomMargin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.bottomMargin
             else -> 0
         }
     }
     set(margin) {
         val layoutParams = layoutParams ?: return
         when (layoutParams) {
-            is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin = margin
+            is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams -> layoutParams.bottomMargin = margin
             is LinearLayout.LayoutParams -> layoutParams.bottomMargin = margin
             is RelativeLayout.LayoutParams -> layoutParams.bottomMargin = margin
-            is CoordinatorLayout.LayoutParams -> layoutParams.bottomMargin = margin
+            is androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams -> layoutParams.bottomMargin = margin
             else -> return
         }
         requestLayout()

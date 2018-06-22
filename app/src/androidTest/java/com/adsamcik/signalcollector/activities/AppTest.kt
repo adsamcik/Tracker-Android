@@ -1,16 +1,15 @@
 package com.adsamcik.signalcollector.activities
 
 import android.content.Context
-import android.support.test.InstrumentationRegistry.getInstrumentation
-import android.support.test.runner.AndroidJUnit4
-import android.support.test.uiautomator.UiDevice
+import androidx.test.InstrumentationRegistry.getInstrumentation
+import androidx.test.runner.AndroidJUnit4
+import androidx.test.uiautomator.UiDevice
 import android.util.MalformedJsonException
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.MessageListenerService
 import com.adsamcik.signalcollector.utility.Preferences
-import com.google.gson.Gson
 import org.junit.Assert
 import org.junit.Test
 import org.junit.runner.RunWith
