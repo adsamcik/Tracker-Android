@@ -8,6 +8,7 @@ import android.content.pm.ShortcutManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.telephony.TelephonyManager
@@ -113,6 +114,14 @@ inline fun <reified T : Any> Context.stopService() {
  */
 inline fun <reified T : Any> Context.newIntent(): Intent =
         Intent(this, T::class.java)
+
+fun Context.appVersion(): Long {
+    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+    return if (Build.VERSION.SDK_INT >= 28)
+        packageInfo.longVersionCode
+    else
+        packageInfo.versionCode.toLong()
+}
 
 /**
  * Creates new transaction for a [android.support.v4.app.FragmentManager].

@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.file
 
 import android.util.MalformedJsonException
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.Moshi
 import java.io.*
 import java.security.InvalidParameterException
 
@@ -138,12 +139,13 @@ object FileStore {
      */
     fun <T> loadLastFromAppendableJsonArray(file: File, tClass: Class<T>): T? {
         val str = loadString(file) ?: return null
+        val adapter = Moshi.Builder().build().adapter(tClass)
         (str.length - 1 downTo 0)
                 .filter { str[it] == '{' }
                 .forEach {
                     return try {
-                        Gson().fromJson(str.substring(it), tClass)
-                    } catch (e: JsonSyntaxException) {
+                        adapter.fromJson(str.substring(it))
+                    } catch (e: IOException) {
                         Crashlytics.logException(e)
                         null
                     }

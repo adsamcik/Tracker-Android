@@ -7,6 +7,7 @@ import android.os.Build
 import android.telephony.*
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.JsonClass
 import java.io.Serializable
 import java.util.*
 
@@ -15,6 +16,7 @@ import java.util.*
  * Data in here might have been reordered to different objects
  * but they have not been modified in any way.
  */
+@JsonClass(generateAdapter = true)
 class RawData : Serializable {
     /**
      * Time of collection in milliseconds since midnight, January 1, 1970 UTC

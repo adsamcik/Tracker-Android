@@ -2,14 +2,12 @@ package com.adsamcik.signalcollector.components
 
 import android.content.Context
 import android.content.res.TypedArray
+import android.util.AttributeSet
+import android.widget.TextView
 import androidx.annotation.IntegerRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import android.util.AttributeSet
-import android.widget.TextView
-import androidx.core.view.setPadding
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.slider.implementations.IntValueSlider
 
 /**
@@ -66,7 +64,7 @@ class IntValueSliderPreference : Preference {
         val textView = holder.findViewById(R.id.slider_value) as TextView
 
         slider.setItems(context.resources.getIntArray(mValuesResource!!).toTypedArray())
-        slider.setPadding(8.dpAsPx)
+        //slider.setPadding(8.dpAsPx)
         slider.setTextView(textView) { String.format(mTextViewString, it) }
 
         slider.setPreferences(sharedPreferences, key, mInitialValue)

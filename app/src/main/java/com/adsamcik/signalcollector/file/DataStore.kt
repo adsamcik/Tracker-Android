@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.file
 
 import android.content.Context
 import android.os.Bundle
+import android.util.MalformedJsonException
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatuses
@@ -14,9 +15,12 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
+
+
 
 /**
  * Utility class for storing data files
@@ -478,26 +482,25 @@ object DataStore {
         if (oldestUpload != -1L) {
             val days = Assist.getAgeInDays(oldestUpload).toLong()
             if (days > 30) {
-
-                //javaClass has to be there twice
-                val adapter = moshi.adapter(ArrayList<UploadStats?>::class.java)
-                val stats = adapter.fromJson(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))!!) ?: return
+                val adapter = moshi.adapter<ArrayList<UploadStats>>(Types.newParameterizedType(ArrayList::class.java, UploadStats::class.java))
+                val data = FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))
+                val stats = adapter.fromJson(data!!) ?: return
                 var i = 0
                 while (i < stats.size) {
                     val stat = stats[i]
-                    if (stat == null || Assist.getAgeInDays(stat.time) > 30)
+                    if (Assist.getAgeInDays(stat.time) > 30)
                         stats.removeAt(i)
                     else
                         i++
                 }
 
                 if (stats.size > 0)
-                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0]!!.time).apply()
+                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0].time).apply()
                 else
                     sp.edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
 
                 try {
-                    FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), gson.toJson(stats), false)
+                    FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), adapter.toJson(stats), false)
                 } catch (e: Exception) {
                     Crashlytics.logException(e)
                 }
@@ -509,8 +512,8 @@ object DataStore {
     fun saveString(context: Context, fileName: String, data: String, append: Boolean): Boolean =
             FileStore.saveString(file(context, fileName), data, append)
 
-    fun <T> saveAppendableJsonArray(context: Context, fileName: String, data: T, append: Boolean): Boolean =
-            saveAppendableJsonArray(context, fileName, Gson().toJson(data), append)
+    fun <T> saveAppendableJsonArray(context: Context, fileName: String, data: T, tClass: Class<T>, append: Boolean): Boolean =
+            saveAppendableJsonArray(context, fileName, moshi.adapter(tClass).toJson(data), append)
 
     fun saveAppendableJsonArray(context: Context, fileName: String, data: String, append: Boolean): Boolean {
         return try {

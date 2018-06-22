@@ -1,8 +1,11 @@
 package com.adsamcik.signalcollector.data
 
+import com.squareup.moshi.JsonClass
+
 /**
  * Instance that holds information about local statistics today
  */
+@JsonClass(generateAdapter = true)
 class StatDay {
     var age: Int = 0
     var wifi: Int = 0

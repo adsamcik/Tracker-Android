@@ -1,27 +1,57 @@
 package com.adsamcik.signalcollector.utility
 
 import com.adsamcik.signalcollector.data.Challenge
-import java.lang.reflect.Type
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.JsonReader
+import com.squareup.moshi.JsonWriter
+import java.io.IOException
 
 /**
  * JsonDeserializer class that is needed to properly deserialize Challenge objects
  */
-class ChallengeDeserializer : JsonDeserializer<Challenge> {
-    @Throws(JsonParseException::class)
-    override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): Challenge {
-        val jobject = json.asJsonObject
-        val jDescVars = jobject.get("descVars").asJsonArray
-        val descVars = Array(jDescVars.size()) { jDescVars[it].asString }
+class ChallengeDeserializer : JsonAdapter<Challenge>() {
+    override fun fromJson(reader: JsonReader): Challenge? {
+        var challengeType: Challenge.ChallengeType? = null
+        var title: String? = null
+        var descVars: Array<String>? = null
+        var progress: Float? = null
+        var difficulty: Int? = null
 
-        val progressElement = jobject.get("progress")
-        val progress: Float
-        progress = progressElement.asFloat ?: 0f
+        while (reader.hasNext()) {
+            val name = reader.nextName()
+            when (name) {
+                "descVars" -> descVars = readStringArray(reader).toTypedArray()
+                "progress" -> progress = reader.nextDouble().toFloat()
+                "type" -> challengeType = Challenge.ChallengeType.valueOf(reader.nextString())
+                "difficulty" -> difficulty = reader.nextInt()
+                "title" -> title = reader.nextString()
+            }
+        }
+
+        if (challengeType == null || title == null || descVars == null || progress == null || difficulty == null)
+            return null
 
         return Challenge(
-                Challenge.ChallengeType.valueOf(jobject.get("type").asString),
-                jobject.get("title").asString,
+                challengeType,
+                title,
                 descVars,
                 progress,
-                jobject.get("difficulty").asInt)
+                difficulty)
+    }
+
+    @Throws(IOException::class)
+    private fun readStringArray(reader: JsonReader): List<String> {
+        val strings = ArrayList<String>()
+
+        reader.beginArray()
+        while (reader.hasNext())
+            strings.add(reader.nextString())
+
+        reader.endArray()
+        return strings
+    }
+
+    override fun toJson(writer: JsonWriter?, value: Challenge?) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 }

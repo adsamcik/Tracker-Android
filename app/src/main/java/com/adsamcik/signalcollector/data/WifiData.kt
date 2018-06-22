@@ -4,12 +4,14 @@ import android.net.wifi.ScanResult
 import android.net.wifi.ScanResult.*
 import android.net.wifi.WifiManager
 import android.os.Build
+import com.squareup.moshi.JsonClass
 import java.io.Serializable
 
 /**
  * Class containing Wi-Fi information.
  * It is used in RawData
  */
+@JsonClass(generateAdapter = true)
 class WifiData : Serializable {
 
     /**

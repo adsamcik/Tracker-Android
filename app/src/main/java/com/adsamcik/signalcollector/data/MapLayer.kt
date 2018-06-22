@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.data
 
+import com.squareup.moshi.JsonClass
 import java.util.*
 
 /**
@@ -7,6 +8,7 @@ import java.util.*
  * Does not use [com.adsamcik.signalcollector.utility.CoordinateBounds] because Stag does not support this level of customization for TypeAdapters and custom type adapter is not a priority right now.
  */
 //todo Update to use CoordinateBounds
+@JsonClass(generateAdapter = true)
 data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right: Double = MAX_LONGITUDE, var bottom: Double = MIN_LATITUDE, var left: Double = MIN_LONGITUDE) {
     /**
      * Contains information for the legend

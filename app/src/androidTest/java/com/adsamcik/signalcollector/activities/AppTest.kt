@@ -1,15 +1,16 @@
 package com.adsamcik.signalcollector.activities
 
 import android.content.Context
+import android.util.MalformedJsonException
 import androidx.test.InstrumentationRegistry.getInstrumentation
 import androidx.test.runner.AndroidJUnit4
 import androidx.test.uiautomator.UiDevice
-import android.util.MalformedJsonException
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.MessageListenerService
 import com.adsamcik.signalcollector.utility.Preferences
+import com.squareup.moshi.Moshi
 import org.junit.Assert
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,25 +25,25 @@ class AppTest {
     @Throws(MalformedJsonException::class, InterruptedException::class)
     fun notificationSavingTest() {
         val testFileName = DataStore.RECENT_UPLOADS_FILE
-        val gson = Gson()
+        val adapter = Moshi.Builder().build().adapter(UploadStats::class.java)
 
         val time = System.currentTimeMillis()
         val us = UploadStats(time, 2500, 10, 130, 1, 130, 2, 10654465)
         val usOld = UploadStats(20, 2500, 10, 130, 1, 130, 2, 10654465)
-        val data = gson.toJson(us)
-        val dataOld = gson.toJson(usOld)
+        val data = adapter.toJson(us)
+        val dataOld = adapter.toJson(usOld)
 
         Preferences.getPref(context).edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, 20).apply()
-        Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(us), false))
+        Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, adapter.toJson(us), false))
         Assert.assertEquals(true, DataStore.exists(context, testFileName))
         Assert.assertEquals("[$data", DataStore.loadString(context, testFileName))
         Assert.assertEquals("[$data]", DataStore.loadAppendableJsonArray(context, testFileName))
         //DataStore.removeOldRecentUploads();
-        Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, us, true))
+        Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, us, UploadStats::class.java, true))
         Assert.assertEquals("[$data,$data", DataStore.loadString(context, testFileName))
         Assert.assertEquals("[$data,$data]", DataStore.loadAppendableJsonArray(context, testFileName))
 
-        Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, gson.toJson(usOld), true))
+        Assert.assertEquals(true, DataStore.saveAppendableJsonArray(context, testFileName, adapter.toJson(usOld), true))
         Assert.assertEquals("[$data,$data,$dataOld", DataStore.loadString(context, testFileName))
         Assert.assertEquals("[$data,$data,$dataOld]", DataStore.loadAppendableJsonArray(context, testFileName))
         DataStore.removeOldRecentUploads(context)

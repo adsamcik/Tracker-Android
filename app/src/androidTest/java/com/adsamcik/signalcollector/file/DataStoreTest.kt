@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
+import com.squareup.moshi.Moshi
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -15,7 +16,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DataStoreTest {
-    private val gson = Gson()
+    private val moshi = Moshi.Builder().build()
     private val appContext = InstrumentationRegistry.getTargetContext()
 
     @Before

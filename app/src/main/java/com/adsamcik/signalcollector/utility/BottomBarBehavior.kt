@@ -1,15 +1,15 @@
 package com.adsamcik.signalcollector.utility
 
+import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import com.google.android.material.snackbar.Snackbar
-import android.view.View
 import com.adsamcik.signalcollector.extensions.dpAsPx
 
 /**
  * Custom behavior that allows specific view to be modified instead of direct child of coordinator layout
  */
-class BottomBarBehavior(private val targetView: View) : androidx.coordinatorlayout.widget.CoordinatorLayout.Behavior<androidx.constraintlayout.widget.ConstraintLayout>() {
+class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
+
     private val dp16 = 16.dpAsPx
 
     /**
@@ -20,10 +20,11 @@ class BottomBarBehavior(private val targetView: View) : androidx.coordinatorlayo
     private var layoutChange = 0f
     private var ignore = false
 
-    override fun layoutDependsOn(parent: androidx.coordinatorlayout.widget.CoordinatorLayout?, child: androidx.constraintlayout.widget.ConstraintLayout?, dependency: View?): Boolean =
-            dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout
+    override fun layoutDependsOn(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View): Boolean {
+        return dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout
+    }
 
-    override fun onDependentViewChanged(parent: androidx.coordinatorlayout.widget.CoordinatorLayout?, child: androidx.constraintlayout.widget.ConstraintLayout?, dependency: View?): Boolean {
+    override fun onDependentViewChanged(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View): Boolean {
         var changed = false
         if (dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout) {
             if (last == Float.MIN_VALUE) {
@@ -59,7 +60,7 @@ class BottomBarBehavior(private val targetView: View) : androidx.coordinatorlayo
         return changed
     }
 
-    override fun onDependentViewRemoved(parent: androidx.coordinatorlayout.widget.CoordinatorLayout?, child: androidx.constraintlayout.widget.ConstraintLayout?, dependency: View?) {
+    override fun onDependentViewRemoved(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View) {
         //Ensures that the view does not get stuck in out of the way position
         targetView.translationY += layoutChange
         last = Float.MIN_VALUE

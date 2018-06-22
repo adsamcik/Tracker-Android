@@ -3,13 +3,15 @@ package com.adsamcik.signalcollector.file
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
-import androidx.annotation.IntDef
 import android.util.MalformedJsonException
+import androidx.annotation.IntDef
 import com.adsamcik.signalcollector.data.RawData
+import com.adsamcik.signalcollector.extensions.appVersion
 import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signalcollector.utility.Constants
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.Moshi
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -19,12 +21,12 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
     var file: File = file
         private set
 
-    private val gson = Gson()
+    private val gson = Moshi.Builder().build().adapter(Array<RawData>::class.java)
     private var collectionCount: Int = 0
     /**
-     * Returns whether the DataFile is writeable
+     * Returns whether the DataFile is writable
      *
-     * @return True if is writeable
+     * @return True if is writable
      */
     var isWriteable: Boolean = false
         private set
@@ -69,7 +71,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                         "\"model\":\"" + Build.MODEL +
                         "\",\"manufacturer\":\"" + Build.MANUFACTURER +
                         "\",\"api\":" + Build.VERSION.SDK_INT +
-                        ",\"version\":" + context.packageManager.getPackageInfo(context.packageName, 0).versionCode + "," +
+                        ",\"version\":" + context.appVersion() + "," +
                         "\"data\":", false)
             empty = true
             isWriteable = true

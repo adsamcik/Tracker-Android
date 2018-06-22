@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.fragments
 
 
 import android.Manifest
-import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Point
@@ -15,15 +14,15 @@ import android.location.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
-import androidx.annotation.DrawableRes
-import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.fragment.app.Fragment
-import androidx.core.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.annotation.DrawableRes
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
@@ -54,7 +53,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-class FragmentMap : androidx.fragment.app.Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
+class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
     private var locationListener: UpdateLocationListener? = null
     private var type: String? = null
     private var map: GoogleMap? = null
@@ -133,6 +132,7 @@ class FragmentMap : androidx.fragment.app.Fragment(), GoogleMap.OnCameraIdleList
         this.fActivity = activity
 
         if (mapFragment == null && view != null) {
+            MapFragment.newInstance().getMapAsync(this)
             val mapFragment = SupportMapFragment.newInstance()
             mapFragment.getMapAsync(this)
             fragmentManager!!.transaction {

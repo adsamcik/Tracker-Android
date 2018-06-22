@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.data
 
 import android.telephony.*
 import androidx.annotation.RequiresApi
+import com.squareup.moshi.JsonClass
 import java.io.Serializable
 
 /**
@@ -9,6 +10,7 @@ import java.io.Serializable
  * It works universally with every supported cell technology
  * Supported technologies are GSM, CDMA, WCDMA and LTE
  */
+@JsonClass(generateAdapter = true)
 data class CellData
 /**
  * CellData constructor

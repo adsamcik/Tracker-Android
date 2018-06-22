@@ -2,10 +2,12 @@ package com.adsamcik.signalcollector.data
 
 import android.content.res.Resources
 import com.adsamcik.signalcollector.R
+import com.squareup.moshi.JsonClass
 
 /**
  * Data class containing UploadStats information
  */
+@JsonClass(generateAdapter = true)
 data class UploadStats(var time: Long, var wifi: Int, var newWifi: Int, var cell: Int, var newCell: Int, var collections: Int, var newLocations: Int, var uploadSize: Long) {
 
     fun generateNotificationText(resources: Resources): String {
