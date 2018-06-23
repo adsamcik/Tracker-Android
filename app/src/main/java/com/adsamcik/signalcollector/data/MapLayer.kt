@@ -9,13 +9,15 @@ import java.util.*
  */
 //todo Update to use CoordinateBounds
 @JsonClass(generateAdapter = true)
-data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right: Double = MAX_LONGITUDE, var bottom: Double = MIN_LATITUDE, var left: Double = MIN_LONGITUDE) {
-    /**
-     * Contains information for the legend
-     */
-    var values: ArrayList<ValueColor>? = null
-
-    inner class ValueColor(val name: String, val color: Int)
+data class MapLayer(var name: String,
+                    var top: Double = MAX_LATITUDE,
+                    var right: Double = MAX_LONGITUDE,
+                    var bottom: Double = MIN_LATITUDE,
+                    var left: Double = MIN_LONGITUDE,
+                    /**
+                     * Contains information for the legend
+                     */
+                    var values: ArrayList<ValueColor>? = null) {
 
     companion object {
 
@@ -23,12 +25,6 @@ data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right:
         const val MAX_LATITUDE = 90.0
         const val MIN_LONGITUDE = -180.0
         const val MAX_LONGITUDE = 180.0
-
-        /**
-         * Converts array of MapLayers to string
-         */
-        fun toStringArray(layerArray: Array<MapLayer>): Array<String> = Array(layerArray.size) { layerArray[it].name }
-
         /**
          * Checks if MapLayer is in given array
          */
@@ -44,3 +40,5 @@ data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right:
         )
     }
 }
+
+class ValueColor(val name: String, val color: Int)

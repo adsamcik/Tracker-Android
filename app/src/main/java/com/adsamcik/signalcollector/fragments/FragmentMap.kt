@@ -20,9 +20,9 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.annotation.DrawableRes
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
@@ -68,7 +68,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     private var userRadius: Circle? = null
     private var userCenter: Marker? = null
 
-    private var fActivity: AppCompatActivity? = null
+    private var fActivity: FragmentActivity? = null
 
     private var mapLayerFilterRule = CoordinateBounds()
 
@@ -113,7 +113,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         return false
     }
 
-    override fun onLeave(activity: AppCompatActivity) {
+    override fun onLeave(activity: FragmentActivity) {
         if (hasPermissions) {
             if (locationManager != null)
                 locationManager!!.removeUpdates(locationListener)
@@ -128,15 +128,15 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         }
     }
 
-    override fun onEnter(activity: AppCompatActivity) {
+    override fun onEnter(activity: FragmentActivity) {
         this.fActivity = activity
 
-        if (mapFragment == null && view != null) {
+        if (view != null) {
             MapFragment.newInstance().getMapAsync(this)
             val mapFragment = SupportMapFragment.newInstance()
             mapFragment.getMapAsync(this)
             fragmentManager!!.transaction {
-                replace(R.id.container_map, mapFragment)
+                replace(R.id.container_map, mapFragment as Fragment)
             }
             this.mapFragment = mapFragment
         } else
@@ -451,7 +451,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                             list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
                         if (networkInfo.hasMapAccess()) {
-                            tileProvider = SignalsTileProvider(activity, user.token, MAX_ZOOM)
+                            tileProvider = SignalsTileProvider(user.token, MAX_ZOOM)
                             runBlocking {
                                 val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
                                 if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {

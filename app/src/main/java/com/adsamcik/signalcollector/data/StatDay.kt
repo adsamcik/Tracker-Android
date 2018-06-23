@@ -6,22 +6,8 @@ import com.squareup.moshi.JsonClass
  * Instance that holds information about local statistics today
  */
 @JsonClass(generateAdapter = true)
-class StatDay {
-    var age: Int = 0
-    var wifi: Int = 0
-    var cell: Int = 0
-    var locations: Int = 0
-    var minutes: Int = 0
-    var uploaded: Long = 0
+data class StatDay(var minutes: Int, var locations: Int, var wifi: Int, var cell: Int, var age: Int, var uploaded: Long) {
 
-    constructor(minutes: Int, locations: Int, wifi: Int, cell: Int, age: Int, upload: Long) {
-        this.minutes = minutes
-        this.wifi = wifi
-        this.cell = cell
-        this.locations = locations
-        this.age = age
-        this.uploaded = upload
-    }
 
     /**
      * Adds given cell count and wifi count to this instance
@@ -71,15 +57,5 @@ class StatDay {
 
     operator fun plusAssign(days: MutableList<StatDay>) {
         days.forEach { this += it }
-    }
-
-    //STAG CONSTRUCTOR AND GETTERS AND SETTERS//
-
-    internal constructor()
-
-    internal fun getUpload(): Long = uploaded
-
-    internal fun setUpload(upload: Long) {
-        this.uploaded = upload
     }
 }

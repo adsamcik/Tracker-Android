@@ -53,13 +53,13 @@ object Network {
         return if (userToken == null) client().build()
         else
             client()
-                    .authenticator({ _, response ->
+                    .authenticator { _, response ->
                         if (response.request().header("userToken") != null)
                             return@authenticator null
                         else {
                             response.request().newBuilder().header("userToken", userToken).build()
                         }
-                    })
+                    }
                     .build()
     }
 
@@ -83,20 +83,12 @@ object Network {
      * @param body Body that will be put into the created request
      * @return Request
      */
-    fun requestPOST(url: String, body: RequestBody): Request.Builder = Request
+    fun requestPOST(url: String, body: RequestBody?): Request.Builder = Request
             .Builder()
             .url(url)
-            .post(body)
+            .post(body ?: emptyRequestBody())
 
-    fun requestPOSTAuth(context: Context, url: String, body: RequestBody): Request.Builder {
-        val request = requestPOST(url, body)
-        val token = Jwt.getToken(context)
-        if(token != null) {
-
-        }
-    }
-
-    fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())
+    fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())!!
 
     /**
      * Registers device on the server

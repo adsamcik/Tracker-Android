@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.MutableLiveData
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -20,11 +18,13 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
-import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
@@ -37,6 +37,7 @@ import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.Moshi
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.nio.charset.Charset
@@ -74,6 +75,8 @@ class TrackerService : LifecycleService() {
      * Previous location of collection
      */
     private var prevLocation: Location? = null
+
+    private var jsonAdapter = Moshi.Builder().build().adapter(RawData::class.java)
 
     /**
      * Collects data from necessary places and sensors and creates new RawData instance
@@ -135,7 +138,7 @@ class TrackerService : LifecycleService() {
         data.add(d)
         rawDataEcho.postValue(d)
 
-        DataStore.incData(this, gson.toJson(d).toByteArray(Charset.defaultCharset()).size.toLong(), 1)
+        DataStore.incData(this, jsonAdapter.toJson(d).toByteArray(Charset.defaultCharset()).size.toLong(), 1)
 
         prevLocation = location
         prevLocation!!.time = d.time

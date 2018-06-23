@@ -35,7 +35,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  *
  * @param title The title of the preference to retrieve.
  * @return The {@link Preference} with the key, or null.
- * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
     @Suppress("UNCHECKED_CAST")
@@ -47,7 +47,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
  *
  * @param titleId Title resource id of the preference
  * @return The {@link Preference} with the key, or null.
- * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
     @Suppress("UNCHECKED_CAST")
@@ -59,7 +59,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes tit
  *
  * @param titleId Title resource id of the preference
  * @return The {@link Preference} with the key, or null.
- * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference {
     @Suppress("UNCHECKED_CAST")

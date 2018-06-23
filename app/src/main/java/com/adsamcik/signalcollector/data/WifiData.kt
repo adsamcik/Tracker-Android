@@ -5,76 +5,71 @@ import android.net.wifi.ScanResult.*
 import android.net.wifi.WifiManager
 import android.os.Build
 import com.squareup.moshi.JsonClass
-import java.io.Serializable
 
 /**
  * Class containing Wi-Fi information.
  * It is used in RawData
  */
 @JsonClass(generateAdapter = true)
-class WifiData : Serializable {
+data class WifiData(/**
+                     * Unique wifi identification
+                     */
+                    var BSSID: String,
 
-    /**
-     * Unique wifi identification
-     */
-    var BSSID: String
+                    /**
+                     * Wifi name
+                     */
+                    var SSID: String,
 
-    /**
-     * Wifi name
-     */
-    var SSID: String
+                    /**
+                     * Capabilities of the network
+                     */
+                    var capabilities: String,
 
-    /**
-     * Capabilities of the network
-     */
-    var capabilities: String
+                    /**
+                     * Primary frequency used to communicate with AP. Channel width is 20MHz.
+                     */
+                    var frequency: Int = 0,
 
-    /**
-     * Primary frequency used to communicate with AP. Channel width is 20MHz.
-     */
-    var frequency: Int = 0
+                    /**
+                     * The detected signal level in dBm.
+                     */
+                    var level: Int = 0,
 
-    /**
-     * The detected signal level in dBm.
-     */
-    var level: Int = 0
+                    /**
+                     * Calculated signal level
+                     * Has value from 0 to {@value #MAX_SIGNAL_BAR}
+                     */
+                    var bar: Int = 0,
 
-    /**
-     * Calculated signal level
-     * Has value from 0 to {@value #MAX_SIGNAL_BAR}
-     */
-    var bar: Int = 0
+                    /**
+                     * Center frequency, not used for 20MHz AP bandwidth
+                     * Only available on Android 5.1 and newer
+                     */
+                    var centerFreq0: Int = 0,
 
-    /**
-     * Center frequency, not used for 20MHz AP bandwidth
-     * Only available on Android 5.1 and newer
-     */
-    var centerFreq0: Int = 0
+                    /**
+                     * Center frequency, used only for 80+80 AP bandwidth mode
+                     * Only available on Android 5.1 (API 21) and newer
+                     */
+                    var centerFreq1: Int = 0,
 
-    /**
-     * Center frequency, used only for 80+80 AP bandwidth mode
-     * Only available on Android 5.1 (API 21) and newer
-     */
-    var centerFreq1: Int = 0
+                    /**
+                     * Channel width
+                     * Only available on Android 5.1 (API 21) and newer
+                     */
+                    var channelWidth: Int = 0,
 
-    /**
-     * Channel width
-     * Only available on Android 5.1 (API 21) and newer
-     */
-    var channelWidth: Int = 0
+                    /**
+                     * Is wifi passpoint certified
+                     */
+                    var isPasspoint: Boolean = false) {
 
-    /**
-     * Is wifi passpoint certified
-     */
-    var isPasspoint: Boolean = false
 
-    constructor() {
-        this.BSSID = ""
-        this.SSID = ""
-        this.capabilities = ""
-    }
 
-    constructor(sr: ScanResult) {
+    constructor() : this("", "", "")
+
+    constructor(sr: ScanResult) : this() {
         this.BSSID = sr.BSSID
         this.SSID = sr.SSID
         this.capabilities = sr.capabilities

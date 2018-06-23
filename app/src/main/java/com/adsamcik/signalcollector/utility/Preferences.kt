@@ -6,7 +6,9 @@ import android.preference.PreferenceManager
 import com.adsamcik.signalcollector.data.StatDay
 import com.adsamcik.signalcollector.extensions.dateUTC
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
+import com.squareup.moshi.Moshi
 import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * Object that simplifies access to some preferences
@@ -117,8 +119,8 @@ object Preferences {
             else
                 stringStats.clear()
 
-            val gson = Gson()
-            stats.mapTo(stringStats) { gson.toJson(it) }
+            val jsonAdapter = Moshi.Builder().build().adapter(StatDay::class.java)
+            stats.mapTo(stringStats) { jsonAdapter.toJson(it) }
 
             preferences.edit()
                     .putLong(PREF_STATS_STAT_LAST_DAY, todayUTC)
@@ -160,13 +162,13 @@ object Preferences {
      * @param age how much should stats age
      * @return list with items that are not too old
      */
-    private fun fromJson(set: Set<String>?, age: Int): MutableList<StatDay> {
-        val statDays = ArrayList<StatDay>()
+    private fun fromJson(set: Set<String>?, age: Int): ArrayList<StatDay> {
+        val statDays: ArrayList<StatDay> = ArrayList()
         if (set == null)
             return statDays
-        val gson = Gson()
+        val jsonAdapter = Moshi.Builder().build().adapter(StatDay::class.java)
         set
-                .map { gson.fromJson(it, StatDay::class.java) }
+                .map { jsonAdapter.fromJson(it)!! }
                 .filterTo(statDays) { age <= 0 || it.age(age) < MAX_DAY_DIFF_STATS }
         return statDays
     }

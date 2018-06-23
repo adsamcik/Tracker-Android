@@ -11,7 +11,7 @@
 
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_tracking_title">
-        <android.support.v7.preference.PreferenceCategory
+        <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
 
             <com.adsamcik.signalcollector.components.ImageSwitchPreference
@@ -21,7 +21,7 @@
                 app:foregroundStateColors="@color/image_switch_colors"
                 app:titles="@array/tracking_options_titles"/>
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_activity_watcher_default"
                 android:key="@string/settings_activity_watcher_key"
                 android:summary="@string/settings_activity_watcher_summary"
@@ -35,35 +35,35 @@
                 app:items="@array/activity_watching_interval"
                 app:stringFormat="%1$d s"/>
 
-            <android.support.v7.preference.SwitchPreferenceCompat
+            <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_disabled_recharge_default"
                 android:key="@string/settings_disabled_recharge_key"
                 android:summary="@string/settings_disabled_recharge_summary"
                 android:thumbTint="@color/negative_switch_color"
                 android:thumbTintMode="src_in"
                 android:title="@string/settings_disabled_recharge_title"/>
-        </android.support.v7.preference.PreferenceCategory>
+        </androidx.preference.PreferenceCategory>
 
-        <android.support.v7.preference.PreferenceCategory
+        <androidx.preference.PreferenceCategory
             android:title="@string/settings_tracking_enable_category">
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_location_enabled_default"
                 android:key="@string/settings_location_enabled_key"
                 android:title="@string/settings_location_enabled_title"/>
 
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_wifi_enabled_default"
                 android:key="@string/settings_wifi_enabled_key"
                 android:title="@string/settings_wifi_enabled_title"/>
 
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_cell_enabled_default"
                 android:key="@string/settings_cell_enabled_key"
                 android:title="@string/settings_cell_enabled_title"/>
-        </android.support.v7.preference.PreferenceCategory>
+        </androidx.preference.PreferenceCategory>
 
 
     </androidx.preference.PreferenceScreen>
@@ -71,7 +71,7 @@
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_upload_title">
 
-        <android.support.v7.preference.PreferenceCategory
+        <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_upload_category">
 
             <com.adsamcik.signalcollector.components.ImageSwitchPreference
@@ -81,7 +81,7 @@
                 app:foregroundStateColors="@color/image_switch_colors"
                 app:titles="@array/auto_upload_options_titles"/>
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_smart_upload_default"
                 android:key="@string/settings_smart_upload_key"
                 android:disableDependentsState="true"
@@ -95,7 +95,7 @@
                 android:title="@string/settings_auto_upload_at_title"
                 app:items="@array/settings_auto_upload_at_MB"/>
 
-        </android.support.v7.preference.PreferenceCategory>
+        </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
@@ -137,7 +137,7 @@
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_debug_title">
 
-        <android.support.v7.preference.SwitchPreferenceCompat
+        <androidx.preference.SwitchPreferenceCompat
             android:key="@string/settings_debug_key"
             android:title="@string/settings_debug_enabled"/>
 
@@ -175,7 +175,7 @@
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_notifications_title">
 
-        <android.support.v7.preference.CheckBoxPreference
+        <androidx.preference.CheckBoxPreference
             android:defaultValue="@string/settings_allow_upload_notification_default"
             android:key="@string/settings_allow_upload_notification_key"
             android:summary="@string/settings_allow_upload_notification_summary"
@@ -197,12 +197,12 @@
             android:summary="@string/settings_export_summary"
             android:title="@string/settings_export_title"/>
 
-        <android.support.v7.preference.CheckBoxPreference
+        <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/show_tips_key"
             android:title="@string/show_tips_title"/>
 
-        <android.support.v7.preference.CheckBoxPreference
+        <androidx.preference.CheckBoxPreference
             android:defaultValue="false"
             android:key="@string/settings_privacy_policy_agreement_key"
             android:title="@string/settings_privacy_policy_agreement_title"

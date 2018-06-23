@@ -1,9 +1,12 @@
 package com.adsamcik.signalcollector.signin
 
+import android.annotation.SuppressLint
 import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.google.gson.*
-import java.lang.reflect.Type
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.JsonReader
+import com.squareup.moshi.JsonWriter
+import com.squareup.moshi.Moshi
 import java.util.*
 
 /**
@@ -47,15 +50,17 @@ class User(@Transient val id: String, @Transient val token: String) {
         wirelessPoints += value
     }
 
-    /**
+    //No need to use from json value because it is already updated
+    @SuppressLint("CheckResult")
+            /**
      * This method should be called when server data are available.
      * It automatically fills in the data from the server to this instance.
      *
      * @param json Serialized JSON with server data
      */
     fun deserializeServerData(json: String) {
-        val gson = GsonBuilder().registerTypeAdapter(User::class.java, ServerUserDeserializer(this)).create()
-        gson.fromJson(json, User::class.java)
+        val moshi = Moshi.Builder().add(ServerUserDeserializer(this)).build()
+        moshi.adapter(User::class.java).fromJson(json)
     }
 
     /**
@@ -154,16 +159,40 @@ class User(@Transient val id: String, @Transient val token: String) {
         var renewPersonalMap: Boolean = false
     }
 
-    private inner class ServerUserDeserializer constructor(private val user: User) : JsonDeserializer<User> {
+    private inner class ServerUserDeserializer constructor(private val user: User) : JsonAdapter<User>() {
+        override fun fromJson(reader: JsonReader): User? {
+            var wirelessPoints: Long? = null
+            var networkInfo: NetworkInfo? = null
+            var networkPreferences: NetworkPreferences? = null
 
-        @Throws(JsonParseException::class)
-        override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): User {
-            val `object` = json.asJsonObject
-            val wirelessPoints = `object`.get("wirelessPoints").asLong
-            val networkInfo = context.deserialize<User.NetworkInfo>(`object`.get("networkInfo"), User.NetworkInfo::class.java)
-            val networkPreferences = context.deserialize<User.NetworkPreferences>(`object`.get("networkPreferences"), User.NetworkPreferences::class.java)
-            user.setServerData(wirelessPoints, networkInfo, networkPreferences)
-            return user
+            while (reader.hasNext()) {
+                val name = reader.nextName()
+
+                when (name) {
+                    "wirelessPoints" -> wirelessPoints = reader.nextLong()
+                    "networkInfo" -> {
+                        reader.beginObject()
+                        networkInfo = reader.readJsonValue() as NetworkInfo
+                        reader.endObject()
+                    }
+                    "networkPreferences" -> {
+                        reader.beginObject()
+                        networkPreferences = reader.readJsonValue() as NetworkPreferences
+                        reader.endObject()
+                    }
+                }
+            }
+
+            return if (wirelessPoints == null || networkInfo == null || networkPreferences == null)
+                null
+            else {
+                user.setServerData(wirelessPoints, networkInfo, networkPreferences)
+                user
+            }
+        }
+
+        override fun toJson(writer: JsonWriter?, value: User?) {
+            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         }
     }
 

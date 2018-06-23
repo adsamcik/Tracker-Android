@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.data
 import android.telephony.*
 import androidx.annotation.RequiresApi
 import com.squareup.moshi.JsonClass
-import java.io.Serializable
 
 /**
  * Data class that contains all the information about Cell.
@@ -57,7 +56,7 @@ data class CellData
     /**
      * Signal strength as int 0...4 calculated by device
      */
-    var level: Int) : Serializable {
+    var level: Int)  {
 
     /**
      * Converts int type to string

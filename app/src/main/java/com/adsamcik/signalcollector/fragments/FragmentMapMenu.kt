@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.fragments
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
-class FragmentMapMenu : androidx.fragment.app.Fragment(), IOnDemandView {
+class FragmentMapMenu : Fragment(), IOnDemandView {
     val adapter get() = list.adapter as MapFilterableAdapter
 
     var onClickListener : ((MapLayer) -> Unit)? = null
@@ -52,11 +52,11 @@ class FragmentMapMenu : androidx.fragment.app.Fragment(), IOnDemandView {
         (list.adapter as MapFilterableAdapter).filter(filterRule)
     }
 
-    override fun onEnter(activity: AppCompatActivity) {
+    override fun onEnter(activity: FragmentActivity) {
 
     }
 
-    override fun onLeave(activity: AppCompatActivity) {
+    override fun onLeave(activity: FragmentActivity) {
 
     }
 

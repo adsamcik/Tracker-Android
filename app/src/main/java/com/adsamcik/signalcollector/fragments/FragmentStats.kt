@@ -1,15 +1,15 @@
 package com.adsamcik.signalcollector.fragments
 
-import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
@@ -37,12 +37,12 @@ import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 
-class FragmentStats : androidx.fragment.app.Fragment(), IOnDemandView {
+class FragmentStats : Fragment(), IOnDemandView {
     private lateinit var fragmentView: View
 
     private var adapter: TableAdapter? = null
 
-    private lateinit var swipeRefreshLayout: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
     private var refreshingCount = 0
 
@@ -133,11 +133,11 @@ class FragmentStats : androidx.fragment.app.Fragment(), IOnDemandView {
                 val user = Signin.getUserAsync(activity)
                 if (user != null) {
                     refreshingCount++
-                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
+                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java) { state, value ->
                         if (value != null && value.size == 1 && value[0].name.isEmpty())
                             value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
                         handleResponse(activity, state, value, AppendBehaviors.First)
-                    })
+                    }
                 }
             }
         }
@@ -206,11 +206,11 @@ class FragmentStats : androidx.fragment.app.Fragment(), IOnDemandView {
     }
 
 
-    override fun onEnter(activity: AppCompatActivity) {
+    override fun onEnter(activity: FragmentActivity) {
 
     }
 
-    override fun onLeave(activity: AppCompatActivity) {
+    override fun onLeave(activity: FragmentActivity) {
     }
 
 

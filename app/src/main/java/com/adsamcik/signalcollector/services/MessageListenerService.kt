@@ -176,7 +176,7 @@ class MessageListenerService : FirebaseMessagingService() {
                 uploadSize = java.lang.Long.parseLong(data[UPLOAD_SIZE])
 
             val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, uploadSize)
-            DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)
+            DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, UploadStats::class.java, true)
 
             Preferences.checkStatsDay(context)
             val sp = Preferences.getPref(context)

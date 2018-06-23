@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 import com.adsamcik.signalcollector.file.DataStore
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.Moshi
 import java.io.IOException
 import java.io.InputStreamReader
 import java.util.*
@@ -22,9 +23,10 @@ object Parser {
     </T> */
     fun <T> tryFromJson(json: String?, tClass: Class<T>): T? {
         if (json != null && !json.isEmpty()) {
+            val moshi = Moshi.Builder().build()
             try {
-                return Gson().fromJson(json, tClass)
-            } catch (e: JsonSyntaxException) {
+                return moshi.adapter(tClass).fromJson(json)
+            } catch (e: IOException) {
                 Crashlytics.logException(e)
             }
 

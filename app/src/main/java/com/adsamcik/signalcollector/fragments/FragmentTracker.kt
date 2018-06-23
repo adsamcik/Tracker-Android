@@ -1,12 +1,9 @@
 package com.adsamcik.signalcollector.fragments
 
-import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import androidx.fragment.app.Fragment
-import androidx.core.content.ContextCompat.getDrawable
 import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.Surface
@@ -14,8 +11,10 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat.getDrawable
 import androidx.core.content.edit
 import androidx.core.view.children
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.SettingsActivity
 import com.adsamcik.signalcollector.activities.UserActivity
@@ -141,7 +140,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
      *
      * @param enable ensures intended action
      */
-    private fun toggleCollecting(activity: AppCompatActivity, enable: Boolean) {
+    private fun toggleCollecting(activity: FragmentActivity, enable: Boolean) {
         if (TrackerService.isServiceRunning.value == enable)
             return
 

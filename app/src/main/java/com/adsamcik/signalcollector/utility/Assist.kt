@@ -11,12 +11,13 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.connectivityManager
@@ -140,7 +141,7 @@ object Assist {
      *
      * @return True if user has agreed to privacy policy
      */
-    suspend fun privacyPolicy(activity: AppCompatActivity, init: (Bundle.() -> Unit)? = null): Boolean = suspendCoroutine {
+    suspend fun privacyPolicy(activity: FragmentActivity, init: (Bundle.() -> Unit)? = null): Boolean = suspendCoroutine {
         if (!hasAgreedToPrivacyPolicy(activity)) {
             val privacyFragment = FragmentPrivacyDialog.newInstance(init)
             privacyFragment.setContinuation(it)
@@ -154,7 +155,7 @@ object Assist {
      *
      * @return True if user has agreed to privacy policy
      */
-    suspend fun privacyPolicyEnableUpload(activity: AppCompatActivity): Boolean = privacyPolicy(activity) {
+    suspend fun privacyPolicyEnableUpload(activity: FragmentActivity): Boolean = privacyPolicy(activity) {
         putInt(FragmentPrivacyDialog.BUNDLE_ADDITIONAL_TEXT, R.string.privacy_policy_agreement_autoup_description)
         putBoolean(FragmentPrivacyDialog.BUNDLE_SET_AUTOUP_IF_TRUE, true)
     }

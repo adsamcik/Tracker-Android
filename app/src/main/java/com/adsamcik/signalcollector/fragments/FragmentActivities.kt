@@ -1,18 +1,17 @@
 package com.adsamcik.signalcollector.fragments
 
-import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.ColorUtils
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
@@ -30,7 +29,7 @@ import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
 import kotlin.math.roundToInt
 
-class FragmentActivities : androidx.fragment.app.Fragment(), IOnDemandView {
+class FragmentActivities : Fragment(), IOnDemandView {
     private lateinit var listViewChallenges: ListView
     private lateinit var refreshLayout: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
@@ -44,7 +43,7 @@ class FragmentActivities : androidx.fragment.app.Fragment(), IOnDemandView {
         refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
         refreshLayout.setColorSchemeResources(R.color.color_primary)
         refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
-        refreshLayout.setOnRefreshListener({ this.updateData() })
+        refreshLayout.setOnRefreshListener { this.updateData() }
 
         updateData()
 
@@ -85,9 +84,9 @@ class FragmentActivities : androidx.fragment.app.Fragment(), IOnDemandView {
         }
     }
 
-    override fun onEnter(activity: AppCompatActivity) {}
+    override fun onEnter(activity: FragmentActivity) {}
 
-    override fun onLeave(activity: AppCompatActivity) {}
+    override fun onLeave(activity: FragmentActivity) {}
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 

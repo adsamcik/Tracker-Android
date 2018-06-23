@@ -22,7 +22,6 @@ import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.Moshi
 import kotlinx.android.synthetic.main.activity_user.*
 import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import okhttp3.Call
@@ -78,7 +77,7 @@ class UserActivity : DetailActivity() {
                     button_sign_in.visibility = View.VISIBLE
                     layout_signed_in.visibility = View.GONE
                     button_sign_in.setOnClickListener { _ ->
-                        async {
+                        launch {
                             val usr = Signin.signIn(this@UserActivity, false)
                             if (usr != null) {
                                 if (!usr.isServerDataAvailable) {
@@ -109,7 +108,7 @@ class UserActivity : DetailActivity() {
             return
         }
 
-        async {
+        launch {
             val user = Signin.getUserAsync(this@UserActivity)
             if (user != null) {
                 if (useMock) {
@@ -183,7 +182,7 @@ class UserActivity : DetailActivity() {
                 }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                val request = Network.requestPOSTAuth(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body).build()
+                val request = Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body).build()
                 Network.client(user.token).newCall(request).enqueue(
                         //this could be done better but due to time constraint there is not enough time to properly rewrite it to kotlin
                         onChangeMapNetworkPreference(switch_renew_personal_map,

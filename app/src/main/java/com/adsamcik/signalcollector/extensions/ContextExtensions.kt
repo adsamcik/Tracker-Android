@@ -17,6 +17,8 @@ import android.view.inputmethod.InputMethodManager
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentTransaction
 
 /**
  * Starts new activity for result
@@ -124,22 +126,22 @@ fun Context.appVersion(): Long {
 }
 
 /**
- * Creates new transaction for a [android.support.v4.app.FragmentManager].
+ * Creates new transaction for a [FragmentManager].
  * Transaction is committed using commit.
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
-inline fun androidx.fragment.app.FragmentManager.transaction(func: androidx.fragment.app.FragmentTransaction.() -> androidx.fragment.app.FragmentTransaction) {
+inline fun FragmentManager.transaction(func: FragmentTransaction.() -> FragmentTransaction) {
     beginTransaction().func().commit()
 }
 
 /**
- * Creates new transaction for a [android.support.v4.app.FragmentManager].
+ * Creates new transaction for a [FragmentManager].
  * Transaction is committed using commitAllowingStateLoss.
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
-inline fun androidx.fragment.app.FragmentManager.transactionStateLoss(func: androidx.fragment.app.FragmentTransaction.() -> androidx.fragment.app.FragmentTransaction) {
+inline fun FragmentManager.transactionStateLoss(func: FragmentTransaction.() -> FragmentTransaction) {
     beginTransaction().func().commitAllowingStateLoss()
 }
 

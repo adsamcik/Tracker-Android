@@ -8,7 +8,6 @@ import android.telephony.*
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.JsonClass
-import java.io.Serializable
 import java.util.*
 
 /**
@@ -17,78 +16,60 @@ import java.util.*
  * but they have not been modified in any way.
  */
 @JsonClass(generateAdapter = true)
-class RawData : Serializable {
-    /**
-     * Time of collection in milliseconds since midnight, January 1, 1970 UTC
-     */
-    var time: Long = 0
+data class RawData(
+        /**
+         * Time of collection in milliseconds since midnight, January 1, 1970 UTC
+         */
+        var time: Long = 0,
 
-    /**
-     * Longitude
-     */
-    var longitude: Double? = null
+        /**
+         * Longitude
+         */
+        var longitude: Double? = null,
 
-    /**
-     * Latitude
-     */
-    var latitude: Double? = null
+        /**
+         * Latitude
+         */
+        var latitude: Double? = null,
 
-    /**
-     * Altitude
-     */
-    var altitude: Double? = null
+        /**
+         * Altitude
+         */
+        var altitude: Double? = null,
 
-    /**
-     * Accuracy in meters
-     */
-    var accuracy: Float? = null
+        /**
+         * Accuracy in meters
+         */
+        var accuracy: Float? = null,
 
-    /**
-     * List of registered cells
-     * Null if not collected
-     */
-    /**
-     * Returns cells that user is registered to
-     *
-     * @return list of cells
-     */
-    var registeredCells: Array<CellData>? = null
+        /**
+         * List of registered cells
+         * Null if not collected
+         */
+        var registeredCells: Array<CellData>? = null,
 
-    /**
-     * Total cell count
-     * default null if not collected.
-     */
-    var cellCount: Int? = null
+        /**
+         * Total cell count
+         * default null if not collected.
+         */
+        var cellCount: Int? = null,
 
-    /**
-     * Array of collected wifi networks
-     */
-    var wifi: Array<WifiData>? = null
+        /**
+         * Array of collected wifi networks
+         */
+        var wifi: Array<WifiData>? = null,
 
-    /**
-     * Time of collection of wifi data
-     */
-    var wifiTime: Long? = null
+        /**
+         * Time of collection of wifi data
+         */
+        var wifiTime: Long? = null,
 
-    /**
-     * Current resolved activity
-     */
-    @ResolvedActivities.ResolvedActivity
-    var activity: Int? = null
+        /**
+         * Current resolved activity
+         */
+        @ResolvedActivities.ResolvedActivity
+        var activity: Int? = null) {
 
-    /**
-     * Stag constructor
-     */
-    internal constructor()
-
-    /**
-     * RawData constructor
-     *
-     * @param time collection time
-     */
-    constructor(time: Long) {
-        this.time = time
-    }
 
     /**
      * Sets collection location
@@ -175,5 +156,39 @@ class RawData : Serializable {
                 this.registeredCells = registeredCells.toTypedArray()
             }
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as RawData
+
+        if (time != other.time) return false
+        if (longitude != other.longitude) return false
+        if (latitude != other.latitude) return false
+        if (altitude != other.altitude) return false
+        if (accuracy != other.accuracy) return false
+        if (!Arrays.equals(registeredCells, other.registeredCells)) return false
+        if (cellCount != other.cellCount) return false
+        if (!Arrays.equals(wifi, other.wifi)) return false
+        if (wifiTime != other.wifiTime) return false
+        if (activity != other.activity) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = time.hashCode()
+        result = 31 * result + (longitude?.hashCode() ?: 0)
+        result = 31 * result + (latitude?.hashCode() ?: 0)
+        result = 31 * result + (altitude?.hashCode() ?: 0)
+        result = 31 * result + (accuracy?.hashCode() ?: 0)
+        result = 31 * result + (registeredCells?.let { Arrays.hashCode(it) } ?: 0)
+        result = 31 * result + (cellCount ?: 0)
+        result = 31 * result + (wifi?.let { Arrays.hashCode(it) } ?: 0)
+        result = 31 * result + (wifiTime?.hashCode() ?: 0)
+        result = 31 * result + (activity ?: 0)
+        return result
     }
 }

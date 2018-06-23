@@ -19,6 +19,7 @@ import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.network.Network
+import com.adsamcik.signalcollector.network.NetworkInterface
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -28,7 +29,12 @@ import com.adsamcik.signalcollector.utility.Constants.MIN_MAX_DIFF_BGUP_FILE_LIM
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.runBlocking
-import okhttp3.*
+import okhttp3.MediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import retrofit2.Call
+import retrofit2.Response
+import retrofit2.Retrofit
 import java.io.File
 import java.io.IOException
 import java.lang.ref.WeakReference
@@ -65,7 +71,7 @@ class UploadJobService : JobService() {
         val context = applicationContext
 
         val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
-        worker = JobWorker(context, { success ->
+        worker = JobWorker(context) { success ->
             if (success) {
                 var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
                 if (collectionCount < collectionsToUpload) {
@@ -79,7 +85,7 @@ class UploadJobService : JobService() {
             }
             isUploading.set(false)
             jobFinished(jobParameters, !success)
-        })
+        }
         worker!!.execute(jobParameters)
         return true
     }
@@ -98,8 +104,8 @@ class UploadJobService : JobService() {
         private val context: WeakReference<Context> = WeakReference(context.applicationContext)
 
         private var tempZipFile: File? = null
-        private var response: Response? = null
-        private var call: Call? = null
+        private var response: Response<Boolean>? = null
+        private var call: Call<Boolean>? = null
 
         /**
          * Uploads data to server.
@@ -119,14 +125,15 @@ class UploadJobService : JobService() {
                     .addFormDataPart("file", Network.generateVerificationString(userID!!, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
                     .build()
             try {
-                call = Network.client(context.get()!!, token).newCall(Network.requestPOST(Network.URL_DATA_UPLOAD, formBody))
+                val retroClient = Retrofit.Builder().client(Network.client(token)).build()
+                val networkInterface = retroClient.create(NetworkInterface::class.java)
+                call = networkInterface.dataUpload(formBody)
                 response = call!!.execute()
-                val code = response!!.code()
                 val isSuccessful = response!!.isSuccessful
-                response!!.close()
                 if (isSuccessful)
                     return true
 
+                val code = response!!.code()
                 if (code >= 400)
                     Crashlytics.logException(Throwable("Upload failed $code"))
                 return false
