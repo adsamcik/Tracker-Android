@@ -1,22 +1,26 @@
 package com.adsamcik.signalcollector.utility
 
 import com.adsamcik.signalcollector.data.Challenge
-import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.FromJson
 import com.squareup.moshi.JsonReader
 import com.squareup.moshi.JsonWriter
+import com.squareup.moshi.ToJson
 import java.io.IOException
 
 /**
  * JsonDeserializer class that is needed to properly deserialize Challenge objects
  */
-class ChallengeDeserializer : JsonAdapter<Challenge>() {
-    override fun fromJson(reader: JsonReader): Challenge? {
+class ChallengeDeserializer {
+    @FromJson fun fromJson(reader: JsonReader): Challenge? {
         var challengeType: Challenge.ChallengeType? = null
         var title: String? = null
         var descVars: Array<String>? = null
         var progress: Float? = null
         var difficulty: Int? = null
 
+        reader.isLenient = true
+
+        reader.beginObject()
         while (reader.hasNext()) {
             val name = reader.nextName()
             when (name) {
@@ -27,6 +31,7 @@ class ChallengeDeserializer : JsonAdapter<Challenge>() {
                 "title" -> title = reader.nextString()
             }
         }
+        reader.endObject()
 
         if (challengeType == null || title == null || descVars == null || progress == null || difficulty == null)
             return null
@@ -51,7 +56,7 @@ class ChallengeDeserializer : JsonAdapter<Challenge>() {
         return strings
     }
 
-    override fun toJson(writer: JsonWriter?, value: Challenge?) {
+    @ToJson fun toJson(writer: JsonWriter?, value: Challenge?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 }

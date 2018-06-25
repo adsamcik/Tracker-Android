@@ -3,10 +3,9 @@ package com.adsamcik.signalcollector.signin
 import android.annotation.SuppressLint
 import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.squareup.moshi.JsonAdapter
-import com.squareup.moshi.JsonReader
-import com.squareup.moshi.JsonWriter
+import com.squareup.moshi.FromJson
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.ToJson
 import java.util.*
 
 /**
@@ -53,14 +52,15 @@ class User(@Transient val id: String, @Transient val token: String) {
     //No need to use from json value because it is already updated
     @SuppressLint("CheckResult")
             /**
-     * This method should be called when server data are available.
-     * It automatically fills in the data from the server to this instance.
-     *
-     * @param json Serialized JSON with server data
-     */
+             * This method should be called when server data are available.
+             * It automatically fills in the data from the server to this instance.
+             *
+             * @param json Serialized JSON with server data
+             */
     fun deserializeServerData(json: String) {
         val moshi = Moshi.Builder().add(ServerUserDeserializer(this)).build()
-        moshi.adapter(User::class.java).fromJson(json)
+        val adapter = moshi.adapter(User::class.java)
+        adapter.fromJson(json)
     }
 
     /**
@@ -114,86 +114,75 @@ class User(@Transient val id: String, @Transient val token: String) {
         }
     }
 
-    /**
-     * Class that holds information about user's basic information.
-     */
-    inner class NetworkInfo {
-        /**
-         * When does user's map access expire.
-         */
-        var mapAccessUntil: Long = 0
-
-        /**
-         * When does user's personal map access expire.
-         */
-        var personalMapAccessUntil: Long = 0
-
-        /**
-         * Can the user upload feedback.
-         */
-        var feedbackAccess: Boolean = false
-
-        /**
-         * Upload access is currently unused on the mobile device, because synchronization needs to be tested first.
-         * todo add this to the uploader so restriction on upload is applied sooner.
-         */
-        var uploadAccess: Boolean = false
 
 
-        /**
-         * Returns true if user has access to the map.
-         */
-        fun hasMapAccess(): Boolean = System.currentTimeMillis() < mapAccessUntil
-
-        /**
-         * Returns true if user has access to the personal map.
-         */
-        fun hasPersonalMapAccess(): Boolean = System.currentTimeMillis() < personalMapAccessUntil
-    }
-
-    /**
-     * Class that holds information about network preferences.
-     */
-    inner class NetworkPreferences {
-        var renewMap: Boolean = false
-        var renewPersonalMap: Boolean = false
-    }
-
-    private inner class ServerUserDeserializer constructor(private val user: User) : JsonAdapter<User>() {
-        override fun fromJson(reader: JsonReader): User? {
-            var wirelessPoints: Long? = null
-            var networkInfo: NetworkInfo? = null
-            var networkPreferences: NetworkPreferences? = null
-
-            while (reader.hasNext()) {
-                val name = reader.nextName()
-
-                when (name) {
-                    "wirelessPoints" -> wirelessPoints = reader.nextLong()
-                    "networkInfo" -> {
-                        reader.beginObject()
-                        networkInfo = reader.readJsonValue() as NetworkInfo
-                        reader.endObject()
-                    }
-                    "networkPreferences" -> {
-                        reader.beginObject()
-                        networkPreferences = reader.readJsonValue() as NetworkPreferences
-                        reader.endObject()
-                    }
-                }
-            }
-
-            return if (wirelessPoints == null || networkInfo == null || networkPreferences == null)
+    private inner class ServerUserDeserializer constructor(private val user: User) {
+        @FromJson
+        fun fromJson(userJson: UserJson): User? {
+            return if (!userJson.isValid())
                 null
             else {
-                user.setServerData(wirelessPoints, networkInfo, networkPreferences)
+                user.setServerData(userJson.wirelessPoints!!, userJson.networkInfo!!, userJson.networkPreferences!!)
                 user
             }
         }
 
-        override fun toJson(writer: JsonWriter?, value: User?) {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        @ToJson
+        fun toJson(user: User?): String {
+            throw NotImplementedError()
         }
     }
+}
 
+/**
+ * Class that holds information about user's basic information.
+ */
+class NetworkInfo {
+    /**
+     * When does user's map access expire.
+     */
+    var mapAccessUntil: Long = 0
+
+    /**
+     * When does user's personal map access expire.
+     */
+    var personalMapAccessUntil: Long = 0
+
+    /**
+     * Can the user upload feedback.
+     */
+    var feedbackAccess: Boolean = false
+
+    /**
+     * Upload access is currently unused on the mobile device, because synchronization needs to be tested first.
+     * todo add this to the uploader so restriction on upload is applied sooner.
+     */
+    var uploadAccess: Boolean = false
+
+
+    /**
+     * Returns true if user has access to the map.
+     */
+    fun hasMapAccess(): Boolean = System.currentTimeMillis() < mapAccessUntil
+
+    /**
+     * Returns true if user has access to the personal map.
+     */
+    fun hasPersonalMapAccess(): Boolean = System.currentTimeMillis() < personalMapAccessUntil
+}
+
+/**
+ * Class that holds information about network preferences.
+ */
+class NetworkPreferences {
+    var renewMap: Boolean = false
+    var renewPersonalMap: Boolean = false
+}
+
+internal class UserJson {
+    var wirelessPoints: Long? = null
+    var networkInfo: NetworkInfo? = null
+    var networkPreferences: NetworkPreferences? = null
+
+    fun isValid() = wirelessPoints != null && networkInfo != null && networkPreferences != null
 }

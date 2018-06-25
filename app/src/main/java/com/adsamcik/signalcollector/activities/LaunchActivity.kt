@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.activities
 
 import android.os.Build
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.notifications.NotificationChannels
@@ -14,6 +14,8 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.iid.FirebaseInstanceId
 
 
+
+
 /**
  * LaunchActivity is activity that should always be called first when user should see the layout
  * Not only does it allow for easy switching of appropriate Activities, but it also shows SplashScreen and initializes basic services
@@ -22,6 +24,7 @@ class LaunchActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
 
         if (BuildConfig.DEBUG) {
             FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
