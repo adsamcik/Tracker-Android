@@ -26,7 +26,7 @@ const val URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE = Server.URL_USER_UPDATE_PERSO
 
 interface NetworkInterface {
     @POST(Network.URL_AUTHENTICATE)
-    fun authenticate(@Field("user") user: String): Call<JwtData>
+    fun authenticate(@Query("token") token: String): Call<JwtData>
 
     @POST(Network.URL_DATA_UPLOAD)
     fun dataUpload(@Body file: RequestBody): Call<Boolean>

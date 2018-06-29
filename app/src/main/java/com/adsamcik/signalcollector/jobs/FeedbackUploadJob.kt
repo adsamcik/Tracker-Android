@@ -28,7 +28,7 @@ class FeedbackUploadJob : Worker() {
         return runBlocking {
             val user = Signin.getUserAsync(applicationContext)
             if (user?.token == null || user.token.isBlank()) {
-                notify(R.string.notification_feedback_user_not_signed, summary)
+                notify(R.string.notification_feedback_user_not_signed, summary!!)
                 return@runBlocking Result.FAILURE
             }
             val type = inputData.getInt(TYPE, -1)
@@ -43,11 +43,11 @@ class FeedbackUploadJob : Worker() {
                     .addFormDataPart("model", Build.MODEL)
                     .addFormDataPart("summary", summary)
                     .addFormDataPart("type", type.toString())
-            builder.addFormDataPart("description", if (description.isNotEmpty()) description else "")
+            builder.addFormDataPart("description", description ?: "")
 
             return@runBlocking try {
-                val request = Network.requestPOST(Network.URL_FEEDBACK, builder.build()).build()
-                val result = Network.client(applicationContext, user.token).newCall(request).execute()
+                val request = Network.requestPOST(applicationContext, Network.URL_FEEDBACK, builder.build()).build()
+                val result = Network.clientAuth(applicationContext, user.token).newCall(request).execute()
                 if (result.isSuccessful)
                     Result.SUCCESS
                 else

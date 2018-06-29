@@ -31,15 +31,15 @@ object Jwt {
         return requestToken(context, userToken)
     }
 
-    suspend fun getToken(context: Context): String? = Preferences.getPref(context).getString(tokenPreference, null)
-            ?: refreshToken(context)?.token
+    fun getTokenLocal(context: Context): String? = Preferences.getPref(context).getString(tokenPreference, null)
 
-    suspend fun getToken(context: Context, userToken: String): String? = Preferences.getPref(context).getString(tokenPreference, null)
-            ?: refreshToken(context, userToken)?.token
+    suspend fun getToken(context: Context): String? = getToken(context) ?: refreshToken(context)?.token
+
+    suspend fun getToken(context: Context, userToken: String): String? = getToken(context) ?: refreshToken(context, userToken)?.token
 
     @Synchronized
     suspend fun requestToken(context: Context, userToken: String): JwtData? = suspendCoroutine {
-        val client = Network.client(context)
+        val client = Network.clientAuth(context)
         val networkInterface = Retrofit.Builder().client(client).baseUrl(Network.URL_BASE).addConverterFactory(MoshiConverterFactory.create()).build().create(NetworkInterface::class.java)
 
         val call = networkInterface.authenticate(userToken)

@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.network
 import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatuses
+import com.adsamcik.signalcollector.extensions.addBearer
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
@@ -52,42 +53,22 @@ object Network {
      * Class prepares [OkHttpClient]
      * If userToken is provided class also handles signin cookies and authentication header
      */
-    fun client(context: Context): OkHttpClient {
+    fun clientAuth(context: Context, userToken: String? = null): OkHttpClient {
         return client()
                 .authenticator { _, response ->
                     val tokenRejected = response.request().header("Authorization") != null
                     var token: String? = null
                     runBlocking {
-                        token = if (tokenRejected)
-                            Jwt.refreshToken(context)?.token
-                        else
+                        token = if (tokenRejected) {
+                            if (userToken == null)
+                                Jwt.refreshToken(context)?.token
+                            else
+                                Jwt.refreshToken(context, userToken)?.token
+                        } else
                             Jwt.getToken(context)
                     }
                     if (token != null)
-                        response.request().newBuilder().header("Authorization", "Bearer $token").build()
-                    else
-                        null
-                }
-                .build()
-    }
-
-    /**
-     * Class prepares [OkHttpClient]
-     * If userToken is provided class also handles signin cookies and authentication header
-     */
-    fun client(context: Context, userToken: String): OkHttpClient {
-        return client()
-                .authenticator { _, response ->
-                    val tokenRejected = response.request().header("Authorization") != null
-                    var token: String? = null
-                    runBlocking {
-                        token = if (tokenRejected)
-                            Jwt.refreshToken(context, userToken)?.token
-                        else
-                            Jwt.getToken(context)
-                    }
-                    if (token != null)
-                        response.request().newBuilder().header("Authorization", "Bearer $token").build()
+                        response.request().newBuilder().addBearer(token!!).build()
                     else
                         null
                 }
@@ -96,7 +77,7 @@ object Network {
 
     private fun client(): OkHttpClient.Builder {
         return OkHttpClient.Builder()
-                .connectionSpecs(listOf(spec))
+                .connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT))
                 .writeTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .connectTimeout(60, TimeUnit.SECONDS)
@@ -105,18 +86,30 @@ object Network {
     /**
      * Builds simple GET request to given [url]
      */
-    fun requestGET(url: String): Request = Request.Builder().url(url).build()
+    fun requestGET(url: String): Request = Request.Builder()
+            .url(url)
+            .build()
+
+    /**
+     * Builds simple GET request to given [url]
+     */
+    fun requestGET(context: Context, url: String): Request = Request.Builder()
+            .addBearer(Jwt.getTokenLocal(context))
+            .url(url)
+            .build()
 
     /**
      * Builds basic POST request to given [url] with given [body]
      *
+     * @param context Context required for getting bearer
      * @param url URL for which request will be created
      * @param body Body that will be put into the created request
      * @return Request
      */
-    fun requestPOST(url: String, body: RequestBody?): Request.Builder = Request
+    fun requestPOST(context: Context, url: String, body: RequestBody?): Request.Builder = Request
             .Builder()
             .url(url)
+            .addBearer(Jwt.getTokenLocal(context))
             .post(body ?: emptyRequestBody())
 
     fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())!!
@@ -137,8 +130,8 @@ object Network {
                 .addFormDataPart("model", Build.MODEL)
                 .addFormDataPart(valueName, value)
                 .build()
-        val request = requestPOST(url, formBody).build()
-        client(context, userToken).newCall(request).enqueue(object : Callback {
+        val request = requestPOST(context, url, formBody).build()
+        clientAuth(context, userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Crashlytics.log("Register $preferencesName")
                 Crashlytics.logException(e)
@@ -146,7 +139,9 @@ object Network {
 
             @Throws(IOException::class)
             override fun onResponse(call: Call, response: Response) {
-                Preferences.getPref(context).edit().putBoolean(preferencesName, true).apply()
+                if(response.isSuccessful) {
+                    Preferences.getPref(context).edit().putBoolean(preferencesName, true).apply()
+                }
                 response.close()
             }
         })

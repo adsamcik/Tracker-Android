@@ -132,7 +132,7 @@ class FeedbackActivity : DetailActivity() {
                                         .addTag(FeedbackUploadJob.TAG)
                                         .setConstraints(constraints)
                                         .build()
-                                WorkManager.getInstance().enqueue(uploadWork)
+                                WorkManager.getInstance()!!.enqueue(uploadWork)
 
                                 finish()
                             }

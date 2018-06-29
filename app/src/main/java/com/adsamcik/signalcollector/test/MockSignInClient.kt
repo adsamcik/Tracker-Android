@@ -11,7 +11,7 @@ import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.TimeUnit
 
 /**
- * Mocking Sign in client
+ * Mocking Sign in clientAuth
  */
 class MockSignInClient : ISignInClient {
     private var u: User? = null

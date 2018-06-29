@@ -16,7 +16,7 @@ import java.util.*
 class User(@Transient val id: String, @Transient val token: String) {
     /**
      * Number of Wireless Points the user owns.
-     * It might not reflect the actual amount, because server does not instantly update this amount on the client.
+     * It might not reflect the actual amount, because server does not instantly update this amount on the clientAuth.
      */
     var wirelessPoints: Long = 0
         private set

@@ -125,7 +125,7 @@ class UploadJobService : JobService() {
                     .addFormDataPart("file", Network.generateVerificationString(userID!!, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
                     .build()
             try {
-                val retroClient = Retrofit.Builder().client(Network.client(context.get()!!, token)).build()
+                val retroClient = Retrofit.Builder().client(Network.clientAuth(context.get()!!, token)).build()
                 val networkInterface = retroClient.create(NetworkInterface::class.java)
                 call = networkInterface.dataUpload(formBody)
                 response = call!!.execute()

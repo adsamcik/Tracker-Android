@@ -5,7 +5,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Interface for the sign-in client.
+ * Interface for the sign-in clientAuth.
  */
 internal interface ISignInClient {
     /**
@@ -30,7 +30,7 @@ internal interface ISignInClient {
     fun signOut(context: Context)
 
     /**
-     * Called if the client requires [AppCompatActivity.onActivityResult] for some reason. Looking at you Google.
+     * Called if the clientAuth requires [AppCompatActivity.onActivityResult] for some reason. Looking at you Google.
      */
     fun onSignInResult(activity: AppCompatActivity, resultCode: Int, data: Intent)
 }
