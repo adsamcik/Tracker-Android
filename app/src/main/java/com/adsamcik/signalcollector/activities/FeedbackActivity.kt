@@ -1,27 +1,25 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.job.JobInfo
-import android.app.job.JobInfo.NETWORK_TYPE_ANY
-import android.content.ComponentName
 import android.content.res.ColorStateList
 import android.graphics.Paint
 import android.os.Bundle
 import android.os.PersistableBundle
-import com.google.android.material.textfield.TextInputLayout
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.work.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.jobs.FeedbackUploadJob
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.coroutines.experimental.android.UI
 import kotlinx.coroutines.experimental.launch
+
+
 
 /**
  * FeedbackActivity that provides users with ability to send feedback
@@ -121,13 +119,21 @@ class FeedbackActivity : DetailActivity() {
                                 pb.putString(FeedbackUploadJob.DESCRIPTION, description)
                                 pb.putInt(FeedbackUploadJob.TYPE, currentType!!.ordinal)
 
-                                val jobInfo = JobInfo.Builder(jobId++, ComponentName(this@FeedbackActivity, FeedbackUploadJob::class.java))
-                                        .setRequiredNetworkType(NETWORK_TYPE_ANY)
-                                        .setPersisted(true)
-                                        .setExtras(pb)
+                                val data = Data.Builder()
+                                        .putString(FeedbackUploadJob.SUMMARY, summary)
+                                        .putString(FeedbackUploadJob.DESCRIPTION, description)
+                                        .putInt(FeedbackUploadJob.TYPE, currentType!!.ordinal)
                                         .build()
 
-                                this@FeedbackActivity.jobScheduler.schedule(jobInfo)
+                                val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+                                val uploadWork = OneTimeWorkRequestBuilder<FeedbackUploadJob>()
+                                        .setInputData(data)
+                                        .addTag(FeedbackUploadJob.TAG)
+                                        .setConstraints(constraints)
+                                        .build()
+                                WorkManager.getInstance().enqueue(uploadWork)
+
                                 finish()
                             }
                         }

@@ -6,6 +6,7 @@ import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
+import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -16,6 +17,7 @@ import java.util.concurrent.TimeUnit
  */
 object Network {
     private const val TAG = "SignalsNetwork"
+    const val URL_BASE = Server.URL_WEB
     const val URL_AUTHENTICATE = Server.URL_AUTHENTICATE
     const val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
     const val URL_TILES = Server.URL_TILES
@@ -45,22 +47,51 @@ object Network {
                         CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA)
                 .build()
 
+
     /**
      * Class prepares [OkHttpClient]
      * If userToken is provided class also handles signin cookies and authentication header
      */
-    fun client(userToken: String?): OkHttpClient {
-        return if (userToken == null) client().build()
-        else
-            client()
-                    .authenticator { _, response ->
-                        if (response.request().header("userToken") != null)
-                            return@authenticator null
-                        else {
-                            response.request().newBuilder().header("userToken", userToken).build()
-                        }
+    fun client(context: Context): OkHttpClient {
+        return client()
+                .authenticator { _, response ->
+                    val tokenRejected = response.request().header("Authorization") != null
+                    var token: String? = null
+                    runBlocking {
+                        token = if (tokenRejected)
+                            Jwt.refreshToken(context)?.token
+                        else
+                            Jwt.getToken(context)
                     }
-                    .build()
+                    if (token != null)
+                        response.request().newBuilder().header("Authorization", "Bearer $token").build()
+                    else
+                        null
+                }
+                .build()
+    }
+
+    /**
+     * Class prepares [OkHttpClient]
+     * If userToken is provided class also handles signin cookies and authentication header
+     */
+    fun client(context: Context, userToken: String): OkHttpClient {
+        return client()
+                .authenticator { _, response ->
+                    val tokenRejected = response.request().header("Authorization") != null
+                    var token: String? = null
+                    runBlocking {
+                        token = if (tokenRejected)
+                            Jwt.refreshToken(context, userToken)?.token
+                        else
+                            Jwt.getToken(context)
+                    }
+                    if (token != null)
+                        response.request().newBuilder().header("Authorization", "Bearer $token").build()
+                    else
+                        null
+                }
+                .build()
     }
 
     private fun client(): OkHttpClient.Builder {
@@ -107,7 +138,7 @@ object Network {
                 .addFormDataPart(valueName, value)
                 .build()
         val request = requestPOST(url, formBody).build()
-        client(userToken).newCall(request).enqueue(object : Callback {
+        client(context, userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Crashlytics.log("Register $preferencesName")
                 Crashlytics.logException(e)

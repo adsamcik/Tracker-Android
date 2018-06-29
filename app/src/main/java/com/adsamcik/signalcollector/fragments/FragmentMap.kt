@@ -451,7 +451,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                             list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
                         if (networkInfo.hasMapAccess()) {
-                            tileProvider = SignalsTileProvider(user.token, MAX_ZOOM)
+                            tileProvider = SignalsTileProvider(context!!, user.token, MAX_ZOOM)
                             runBlocking {
                                 val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
                                 if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {

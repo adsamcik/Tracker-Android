@@ -1,14 +1,15 @@
 package com.adsamcik.signalcollector.network
 
+import android.content.Context
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import retrofit2.Retrofit
 import java.io.IOException
 
-class SignalsTileProvider(userToken: String, private val maxZoom: Int) : TileProvider {
+class SignalsTileProvider(context: Context, userToken: String, private val maxZoom: Int) : TileProvider {
 
-    private val client = Retrofit.Builder().client(Network.client(userToken)).build().create(NetworkInterface::class.java)
+    private val client = Retrofit.Builder().client(Network.client(context, userToken)).build().create(NetworkInterface::class.java)
 
     private var type: String? = null
     private var personal: Boolean = false

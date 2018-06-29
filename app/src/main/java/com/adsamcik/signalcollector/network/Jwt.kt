@@ -7,12 +7,13 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.experimental.launch
 import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
 import kotlin.coroutines.experimental.suspendCoroutine
 
 object Jwt {
     const val tokenPreference = "jwtToken"
 
-    suspend fun refreshToken(context: Context) = suspendCoroutine<String?> {
+    suspend fun refreshToken(context: Context) = suspendCoroutine<JwtData?> {
         launch {
             val user = Signin.getUserAsync(context)
 
@@ -21,21 +22,27 @@ object Jwt {
                 return@launch
             }
 
-
+            it.resume(refreshToken(context, user.token))
         }
     }
 
-    suspend fun refreshToken(context: Context, googleToken: String): JwtData? {
-        return requestToken(context, googleToken)
+    @Synchronized
+    suspend fun refreshToken(context: Context, userToken: String): JwtData? {
+        return requestToken(context, userToken)
     }
 
-    fun getToken(context: Context): String? = Preferences.getPref(context).getString(tokenPreference, null)
+    suspend fun getToken(context: Context): String? = Preferences.getPref(context).getString(tokenPreference, null)
+            ?: refreshToken(context)?.token
 
-    suspend fun requestToken(context: Context, googleToken: String): JwtData? = suspendCoroutine {
-        val client = Network.client(googleToken)
-        val networkInterface = Retrofit.Builder().client(client).build().create(NetworkInterface::class.java)
+    suspend fun getToken(context: Context, userToken: String): String? = Preferences.getPref(context).getString(tokenPreference, null)
+            ?: refreshToken(context, userToken)?.token
 
-        val call = networkInterface.authenticate(googleToken)
+    @Synchronized
+    suspend fun requestToken(context: Context, userToken: String): JwtData? = suspendCoroutine {
+        val client = Network.client(context)
+        val networkInterface = Retrofit.Builder().client(client).baseUrl(Network.URL_BASE).addConverterFactory(MoshiConverterFactory.create()).build().create(NetworkInterface::class.java)
+
+        val call = networkInterface.authenticate(userToken)
         call.enqueue(object : retrofit2.Callback<JwtData> {
             override fun onFailure(call: retrofit2.Call<JwtData>?, t: Throwable?) {
                 it.resume(null)

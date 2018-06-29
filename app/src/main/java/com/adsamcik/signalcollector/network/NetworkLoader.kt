@@ -27,7 +27,7 @@ object NetworkLoader {
      * @param <T>                 Value type
     </T> */
     fun <T> request(url: String, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
-        requestString(Network.client(null),
+        requestString(Network.client(context),
                 Request.Builder().url(url).build(),
                 updateTimeInMinutes,
                 context,
@@ -47,7 +47,7 @@ object NetworkLoader {
     </T> */
     fun <T> requestSigned(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
         if (userToken != null)
-            requestString(Network.client(userToken),
+            requestString(Network.client(context, userToken),
                     Request.Builder().url(url).build(),
                     updateTimeInMinutes,
                     context,
@@ -71,7 +71,7 @@ object NetworkLoader {
             if (useMock)
                 cont.resume(Pair(Source.NO_DATA, null))
             else
-                requestString(Network.client(userToken),
+                requestString(Network.client(context, userToken),
                         Request.Builder().url(url).build(),
                         updateTimeInMinutes,
                         context,
@@ -90,7 +90,7 @@ object NetworkLoader {
      */
     suspend fun requestStringSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String): Pair<Source, String?> = suspendCoroutine { cont ->
         if (userToken != null)
-            requestString(Network.client(userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString) { source, string ->
+            requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString) { source, string ->
                 cont.resume(Pair(source, string))
             }
         else
@@ -108,7 +108,7 @@ object NetworkLoader {
      */
     fun requestStringSigned(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
         if (userToken != null)
-            requestString(Network.client(userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
+            requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
         else
             callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
     }
