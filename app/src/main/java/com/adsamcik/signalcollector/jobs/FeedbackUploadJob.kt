@@ -23,7 +23,7 @@ import java.net.SocketTimeoutException
  */
 class FeedbackUploadJob : Worker() {
     override fun doWork(): Result {
-        val summary = inputData.getString(SUMMARY, null)
+        val summary = inputData.getString(SUMMARY)
 
         return runBlocking {
             val user = Signin.getUserAsync(applicationContext)
@@ -32,7 +32,7 @@ class FeedbackUploadJob : Worker() {
                 return@runBlocking Result.FAILURE
             }
             val type = inputData.getInt(TYPE, -1)
-            val description = inputData.getString(DESCRIPTION, null)
+            val description = inputData.getString(DESCRIPTION)
 
             if (summary == null || type < 0)
                 return@runBlocking Result.FAILURE

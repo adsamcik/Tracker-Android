@@ -8,3 +8,7 @@ fun Request.Builder.addBearer(token: String?): Request.Builder {
         addHeader("Authorization", "Bearer $token")
     return this
 }
+
+fun Request.hasAuthorizationToken(token: String): Boolean {
+    return header("Authorization") == "Bearer $token"
+}

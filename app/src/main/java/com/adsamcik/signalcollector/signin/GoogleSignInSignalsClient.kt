@@ -8,7 +8,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.utility.Preferences
-import com.crashlytics.android.Crashlytics
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -87,15 +86,15 @@ class GoogleSignInSignalsClient : ISignInClient {
         userValueCallback?.invoke(context, user)
 
 
-
         //todo uncomment this when server is ready
         //SharedPreferences sp = Preferences.getPref(context);
         //if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
-        val token = FirebaseInstanceId.getInstance().token
-        if (token != null)
-            Network.register(context, user.token, token)
-        else
-            Crashlytics.logException(Throwable("Token is null"))
+        FirebaseInstanceId.getInstance().instanceId.continueWith {
+            if (it.isSuccessful) {
+                val result = it.result
+                Network.register(context, user.token, result.token)
+            }
+        }
         //}
 
         NetworkLoader.requestStringSigned(Network.URL_USER_INFO, user.token, 10, context, Preferences.PREF_USER_DATA) { state, value ->

@@ -46,6 +46,7 @@
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/button_map"
+            android:visibility="gone"
             android:layout_width="220dp"
             android:layout_height="8dp"
             android:layout_marginBottom="20dp"

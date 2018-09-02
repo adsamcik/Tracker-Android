@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.core.content.edit
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Preferences
-import com.squareup.moshi.Moshi
 import kotlinx.coroutines.experimental.launch
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
@@ -33,9 +32,11 @@ object Jwt {
 
     fun getTokenLocal(context: Context): String? = Preferences.getPref(context).getString(tokenPreference, null)
 
-    suspend fun getToken(context: Context): String? = getToken(context) ?: refreshToken(context)?.token
+    suspend fun getToken(context: Context): String? = getToken(context)
+            ?: refreshToken(context)?.token
 
-    suspend fun getToken(context: Context, userToken: String): String? = getToken(context) ?: refreshToken(context, userToken)?.token
+    suspend fun getToken(context: Context, userToken: String): String? = getToken(context)
+            ?: refreshToken(context, userToken)?.token
 
     @Synchronized
     suspend fun requestToken(context: Context, userToken: String): JwtData? = suspendCoroutine {
@@ -50,9 +51,8 @@ object Jwt {
 
             override fun onResponse(call: retrofit2.Call<JwtData>?, response: retrofit2.Response<JwtData>) {
                 val data = response.body()
-                val jAdapter = Moshi.Builder().build().adapter(JwtData::class.java)
-                val serializedToken = jAdapter.toJson(data)
-                Preferences.getPref(context).edit { putString(tokenPreference, serializedToken) }
+                if (data != null)
+                    Preferences.getPref(context).edit { putString(tokenPreference, data.token) }
                 it.resume(data)
             }
 

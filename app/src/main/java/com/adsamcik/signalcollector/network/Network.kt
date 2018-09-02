@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.extensions.addBearer
+import com.adsamcik.signalcollector.extensions.hasAuthorizationToken
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
@@ -67,8 +68,9 @@ object Network {
                         } else
                             Jwt.getToken(context)
                     }
-                    if (token != null)
-                        response.request().newBuilder().addBearer(token!!).build()
+                    val request = response.request()
+                    if (token != null && !request.hasAuthorizationToken(token!!))
+                        request.newBuilder().removeHeader("Authorization").addBearer(token!!).build()
                     else
                         null
                 }
