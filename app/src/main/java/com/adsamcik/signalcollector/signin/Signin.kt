@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.test.MockSignInClient
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
@@ -265,7 +264,7 @@ object Signin {
      * User can be null if signin fails
      */
     suspend fun getUserAsync(context: Context): User? = suspendCoroutine { cont ->
-        getUserAsync(context, { user -> cont.resume(user) })
+        getUserAsync(context) { user -> cont.resume(user) }
     }
 
     /**

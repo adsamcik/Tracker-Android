@@ -49,32 +49,47 @@ object Network {
                         CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA)
                 .build()
 
+    var client: OkHttpClient? = null
+    var userToken: String? = null
+    var triedAuth: Boolean = false
+
 
     /**
      * Class prepares [OkHttpClient]
      * If userToken is provided class also handles signin cookies and authentication header
      */
+    @Synchronized
     fun clientAuth(context: Context, userToken: String? = null): OkHttpClient {
-        return client()
-                .authenticator { _, response ->
-                    val tokenRejected = response.request().header("Authorization") != null
-                    var token: String? = null
-                    runBlocking {
-                        token = if (tokenRejected) {
-                            if (userToken == null)
-                                Jwt.refreshToken(context)?.token
-                            else
-                                Jwt.refreshToken(context, userToken)?.token
-                        } else
-                            Jwt.getToken(context)
-                    }
-                    val request = response.request()
-                    if (token != null && !request.hasAuthorizationToken(token!!))
-                        request.newBuilder().removeHeader("Authorization").addBearer(token!!).build()
-                    else
-                        null
-                }
-                .build()
+        if (Network.userToken != userToken || client == null) {
+            client = client()
+                    .authenticator { _, response -> authenticate(context, response) }
+                    .build()
+            this.userToken = userToken
+            triedAuth = false
+        }
+        return client!!
+    }
+
+    @Synchronized
+    private fun authenticate(context: Context, response: Response): Request? {
+        val tokenRejected = response.request().header("Authorization") != null
+        var tokenCoroutine: String? = null
+        runBlocking {
+            tokenCoroutine = if (tokenRejected) {
+                if (userToken == null)
+                    Jwt.refreshToken(context)?.token
+                else
+                    Jwt.refreshToken(context, userToken!!)?.token
+            } else
+                Jwt.getToken(context)
+        }
+        val request = response.request()
+        val token = tokenCoroutine
+        return if (token != null && !request.hasAuthorizationToken(token)) {
+            triedAuth = true
+            request.newBuilder().removeHeader("Authorization").addBearer(token).build()
+        } else
+            null
     }
 
     private fun client(): OkHttpClient.Builder {
@@ -141,7 +156,7 @@ object Network {
 
             @Throws(IOException::class)
             override fun onResponse(call: Call, response: Response) {
-                if(response.isSuccessful) {
+                if (response.isSuccessful) {
                     Preferences.getPref(context).edit().putBoolean(preferencesName, true).apply()
                 }
                 response.close()

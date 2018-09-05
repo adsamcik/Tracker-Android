@@ -32,10 +32,10 @@ object Jwt {
 
     fun getTokenLocal(context: Context): String? = Preferences.getPref(context).getString(tokenPreference, null)
 
-    suspend fun getToken(context: Context): String? = getToken(context)
+    suspend fun getToken(context: Context): String? = getTokenLocal(context)
             ?: refreshToken(context)?.token
 
-    suspend fun getToken(context: Context, userToken: String): String? = getToken(context)
+    suspend fun getToken(context: Context, userToken: String): String? = getTokenLocal(context)
             ?: refreshToken(context, userToken)?.token
 
     @Synchronized
