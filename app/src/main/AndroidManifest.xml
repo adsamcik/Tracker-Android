@@ -25,7 +25,8 @@
         android:supportsRtl="true"
         android:theme="@style/AppThemeLight"
         tools:ignore="GoogleAppIndexingWarning"
-        tools:replace="android:allowBackup">
+        tools:replace="android:allowBackup"
+        android:usesCleartextTraffic="true">
         <meta-data
             android:name="android.max_aspect"
             android:value="2.1"/>

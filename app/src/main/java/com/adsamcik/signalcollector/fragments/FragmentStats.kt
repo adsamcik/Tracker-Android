@@ -64,7 +64,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
         swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
-        swipeRefreshLayout.setOnRefreshListener({ this.updateStats() })
+        swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
         swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
         swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 
@@ -125,8 +125,16 @@ class FragmentStats : Fragment(), IOnDemandView {
             generateMockData()
         } else {
             refreshingCount = 2
-            NetworkLoader.request(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehaviors.FirstLast) })
-            NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) })
+            NetworkLoader.request(Network.URL_GENERAL_STATS,
+                    if (isRefresh) 0 else DAY_IN_MINUTES,
+                    context!!,
+                    Preferences.PREF_GENERAL_STATS,
+                    Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.FirstLast) }
+            NetworkLoader.request(Network.URL_STATS,
+                    if (isRefresh) 0 else DAY_IN_MINUTES,
+                    context!!,
+                    Preferences.PREF_STATS,
+                    Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) }
         }
         if (!useMock) {
             launch {
@@ -150,20 +158,25 @@ class FragmentStats : Fragment(), IOnDemandView {
     }
 
     private fun handleResponse(context: Context, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+        refreshingCount--
+        swipeRefreshLayout.post {
+            if (refreshingCount == 0)
+                swipeRefreshLayout.isRefreshing = false
+        }
+
         if (!state.success) {
             if (root == null)
                 return
 
             SnackMaker(root).showSnackbar(state.toString(context))
         }
-        refreshingCount--
-        if (state.dataAvailable)
+
+        if (value != null) {
             launch(UI) {
-                addStatsTable(value!!, appendBehavior)
+                addStatsTable(value, appendBehavior)
                 adapter!!.sort()
-                if (refreshingCount == 0)
-                    swipeRefreshLayout.isRefreshing = false
             }
+        }
     }
 
     private fun generateMockData() {

@@ -97,7 +97,7 @@ dependencies {
     androidTestImplementation "android.arch.work:work-testing:$work_version"
 
 
-    implementation 'com.google.android.material:material:1.0.0-rc01'
+    implementation 'com.google.android.material:material:1.0.0-rc02'
     implementation 'androidx.fragment:fragment:1.0.0-rc02'
     implementation 'androidx.appcompat:appcompat:1.0.0-rc02'
     implementation 'androidx.core:core:1.0.0-rc02'
@@ -109,7 +109,7 @@ dependencies {
     implementation "com.google.android.gms:play-services-location:15.0.1"
     implementation "com.google.android.gms:play-services-auth:16.0.0"
     implementation "com.google.firebase:firebase-core:16.0.3"
-    implementation "com.google.firebase:firebase-messaging:17.3.0"
+    implementation "com.google.firebase:firebase-messaging:17.3.1"
     implementation 'com.crashlytics.sdk.android:crashlytics:2.9.5@aar', {
         transitive = true
     }
@@ -117,7 +117,6 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-extensions:2.0.0-rc01"
 
     //Annotation processors
-    annotationProcessor "com.vimeo.stag:stag-library-compiler:$stag_version"
     kapt "androidx.lifecycle:lifecycle-compiler:2.0.0-rc01"
 
     //Test implementations
@@ -128,7 +127,7 @@ dependencies {
 
     //Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:0.24.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:0.26.0"
     implementation 'androidx.core:core-ktx:1.0.0-rc02'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.0-alpha4', {
         exclude group: 'com.android.support', module: 'support-annotations'

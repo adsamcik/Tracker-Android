@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.squareup.moshi.FromJson
+import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.ToJson
 import java.util.*
@@ -13,7 +14,8 @@ import java.util.*
  * It has two states, the first is signed-in with basic info available.
  * The second is when all data from server are available.
  */
-class User(@Transient val id: String, @Transient val token: String) {
+@JsonClass(generateAdapter = true)
+class User(@Transient val id: String = "", @Transient val token: String = "") {
     /**
      * Number of Wireless Points the user owns.
      * It might not reflect the actual amount, because server does not instantly update this amount on the clientAuth.

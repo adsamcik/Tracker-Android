@@ -1,8 +1,11 @@
 package com.adsamcik.signalcollector.utility
 
 import android.content.Context
+import android.util.Log
+import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.file.DataStore
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import java.io.IOException
 import java.io.InputStreamReader
@@ -27,7 +30,15 @@ object Parser {
             try {
                 return moshi.adapter(tClass).fromJson(json)
             } catch (e: IOException) {
-                Crashlytics.logException(e)
+                if (BuildConfig.DEBUG)
+                    Log.e("FATAL EXCEPTION", json)
+                else
+                    Crashlytics.logException(e)
+            } catch (e: JsonDataException) {
+                if (BuildConfig.DEBUG)
+                    Log.e("FATAL EXCEPTION", "type ${tClass.name} data $json")
+                else
+                    Crashlytics.logException(e)
             }
 
         }

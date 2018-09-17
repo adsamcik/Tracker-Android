@@ -21,9 +21,9 @@ import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.Moshi
 import kotlinx.android.synthetic.main.activity_user.*
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MultipartBody
@@ -216,10 +216,10 @@ class UserActivity : DetailActivity() {
                                              timeTextView: TextView): Callback {
         return object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                launch(UI) {
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                     compoundButton.isEnabled = true
                     compoundButton.isChecked = !desiredState
-                }
+                })
             }
 
             @Throws(IOException::class)
@@ -243,15 +243,16 @@ class UserActivity : DetailActivity() {
                         } else
                             Crashlytics.logException(Throwable("Body is null"))
                     }
-                    val moshi = Moshi.Builder().build()
+                    val moshi = Moshi.Builder().add().build()
                     val jsonAdapter = moshi.adapter(User::class.java)
-                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, jsonAdapter.toJson(user), false)
+                    val json = jsonAdapter.toJson(user)
+                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, json, false)
                 } else {
-                    launch(UI) { compoundButton.isChecked = !desiredState }
+                    GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isChecked = !desiredState })
                     if (response.code() == 403)
                         SnackMaker(root).showSnackbar(R.string.user_not_enough_wp)
                 }
-                launch(UI) { compoundButton.isEnabled = true }
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isEnabled = true })
                 response.close()
             }
         }

@@ -6,13 +6,11 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
-import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.fragment.app.Fragment
-import androidx.core.content.ContextCompat
-import androidx.appcompat.app.AppCompatActivity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ActionSource
@@ -250,7 +248,7 @@ class MainActivity : AppCompatActivity() {
             NavBarPosition.LEFT -> {
                 root.setPadding(navDim.x, 0, 0, 0)
             }
-            else -> root.setPadding(0, 0, 0, 0)
+            else -> root.setPadding(0, 0, 0, navDim.y)
         }
     }
 
