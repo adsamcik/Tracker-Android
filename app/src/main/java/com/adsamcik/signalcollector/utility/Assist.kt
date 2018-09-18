@@ -194,7 +194,7 @@ object Assist {
      */
     fun hasNetwork(context: Context): Boolean {
         val activeNetwork = context.connectivityManager.activeNetworkInfo
-        return activeNetwork != null && activeNetwork.isConnectedOrConnecting
+        return activeNetwork != null && activeNetwork.isConnected
     }
 
     /**

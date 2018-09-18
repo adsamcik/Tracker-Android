@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
+import kotlinx.coroutines.experimental.CoroutineStart
 import kotlinx.coroutines.experimental.Dispatchers
 import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch

@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.data
 
+import android.os.Build
 import android.telephony.*
 import androidx.annotation.RequiresApi
 import com.squareup.moshi.JsonClass
@@ -9,6 +10,7 @@ import com.squareup.moshi.JsonClass
  * It works universally with every supported cell technology
  * Supported technologies are GSM, CDMA, WCDMA and LTE
  */
+@Suppress("DEPRECATION")
 @JsonClass(generateAdapter = true)
 data class CellData
 /**
@@ -39,12 +41,12 @@ data class CellData
      * Mobile country code
      * Replaced with System ID on CDMA
      */
-    var mcc: Int,
+    var mcc: String,
     /**
      * Mobile network code
      * Replaced with Network ID on CDMA
      */
-    var mnc: Int,
+    var mnc: String,
     /**
      * Strength of signal in decibels
      */
@@ -56,7 +58,7 @@ data class CellData
     /**
      * Signal strength as int 0...4 calculated by device
      */
-    var level: Int)  {
+    var level: Int) {
 
     /**
      * Converts int type to string
@@ -86,23 +88,23 @@ data class CellData
          * @return carrier name or null if not found
          */
         @RequiresApi(22)
-        private fun getCarrierName(mnc: Int, mcc: Int, subscriptionInfoList: List<SubscriptionInfo>): String? {
-            if (mcc == Integer.MAX_VALUE)
+        private fun getCarrierName(mnc: String, mcc: String, subscriptionInfoList: List<SubscriptionInfo>): String? {
+            if (mcc == Integer.MAX_VALUE.toString())
                 return null
 
             return subscriptionInfoList
-                    .firstOrNull { it.mcc == mcc && it.mnc == mnc }?.carrierName?.toString()
+                    .firstOrNull { it.mcc.toString() == mcc && it.mnc.toString() == mnc }?.carrierName?.toString()
         }
 
         @RequiresApi(22)
-        private fun getCarrierNameAndRemove(mnc: Int, mcc: Int, siList: MutableList<SubscriptionInfo>): String? {
-            if (mcc == Integer.MAX_VALUE)
+        private fun getCarrierNameAndRemove(mnc: String, mcc: String, siList: MutableList<SubscriptionInfo>): String? {
+            if (mcc == Integer.MAX_VALUE.toString())
                 return null
 
             val iter = siList.iterator()
             while (iter.hasNext()) {
                 val si = iter.next()
-                if (si.mcc == mcc && si.mnc == mnc) {
+                if (si.mcc.toString() == mcc && si.mnc.toString() == mnc) {
                     val carrierName = si.carrierName.toString()
                     iter.remove()
                     return carrierName
@@ -124,14 +126,34 @@ data class CellData
                 return null
             val cig = cing.cellIdentity
             val cssg = cing.cellSignalStrength
-            return CellData(operatorName, GSM, cig.cid, cig.mcc, cig.mnc, cssg.dbm, cssg.asuLevel, cssg.level)
+
+            val mcc: String
+            val mnc: String
+            if (Build.VERSION.SDK_INT == 28) {
+                mcc = cig.mccString
+                mnc = cig.mncString
+            } else {
+                mcc = cig.mcc.toString()
+                mnc = cig.mnc.toString()
+            }
+
+            return CellData(operatorName, GSM, cig.cid, mcc, mnc, cssg.dbm, cssg.asuLevel, cssg.level)
         }
 
 
         @RequiresApi(22)
         fun newInstance(cing: CellInfoGsm, subscriptionInfoList: MutableList<SubscriptionInfo>): CellData? {
             val cig = cing.cellIdentity
-            return newInstance(cing, getCarrierNameAndRemove(cig.mnc, cig.mcc, subscriptionInfoList))
+            val mcc: String
+            val mnc: String
+            if (Build.VERSION.SDK_INT == 28) {
+                mcc = cig.mccString
+                mnc = cig.mncString
+            } else {
+                mcc = cig.mcc.toString()
+                mnc = cig.mnc.toString()
+            }
+            return newInstance(cing, getCarrierNameAndRemove(mnc, mcc, subscriptionInfoList))
         }
 
         /**
@@ -146,7 +168,8 @@ data class CellData
                 return null
             val cic = cinc.cellIdentity
             val cssg = cinc.cellSignalStrength
-            return CellData(operatorName, CDMA, cic.basestationId, cic.systemId, cic.networkId, cssg.dbm, cssg.asuLevel, cssg.level)
+
+            return CellData(operatorName, CDMA, cic.basestationId, cic.systemId.toString(), cic.networkId.toString(), cssg.dbm, cssg.asuLevel, cssg.level)
         }
 
         @RequiresApi(22)
@@ -169,7 +192,18 @@ data class CellData
                 return null
             val cil = cinl.cellIdentity
             val cssg = cinl.cellSignalStrength
-            return CellData(operatorName, WCDMA, cil.cid, cil.mcc, cil.mnc, cssg.dbm, cssg.asuLevel, cssg.level)
+
+            val mcc: String
+            val mnc: String
+            if (Build.VERSION.SDK_INT == 28) {
+                mcc = cil.mccString
+                mnc = cil.mncString
+            } else {
+                mcc = cil.mcc.toString()
+                mnc = cil.mnc.toString()
+            }
+
+            return CellData(operatorName, WCDMA, cil.cid, mcc, mnc, cssg.dbm, cssg.asuLevel, cssg.level)
         }
 
 
@@ -178,8 +212,19 @@ data class CellData
             return if (subscriptionInfoList.size == 1)
                 newInstance(cinl, subscriptionInfoList[0].carrierName.toString())
             else {
+
+                val mcc: String
+                val mnc: String
                 val cil = cinl.cellIdentity
-                newInstance(cinl, getCarrierNameAndRemove(cil.mnc, cil.mcc, subscriptionInfoList))
+                if (Build.VERSION.SDK_INT == 28) {
+                    mcc = cil.mccString
+                    mnc = cil.mncString
+                } else {
+                    mcc = cil.mcc.toString()
+                    mnc = cil.mnc.toString()
+                }
+
+                newInstance(cinl, getCarrierNameAndRemove(mnc, mcc, subscriptionInfoList))
             }
         }
 
@@ -196,7 +241,18 @@ data class CellData
                 return null
             val cil = cinl.cellIdentity
             val cssg = cinl.cellSignalStrength
-            return CellData(operatorName, LTE, cil.ci, cil.mcc, cil.mnc, cssg.dbm, cssg.asuLevel, cssg.level)
+
+            val mcc: String
+            val mnc: String
+            if (Build.VERSION.SDK_INT == 28) {
+                mcc = cil.mccString
+                mnc = cil.mncString
+            } else {
+                mcc = cil.mcc.toString()
+                mnc = cil.mnc.toString()
+            }
+
+            return CellData(operatorName, LTE, cil.ci, mcc, mnc, cssg.dbm, cssg.asuLevel, cssg.level)
         }
 
 
@@ -206,7 +262,16 @@ data class CellData
                 newInstance(cinl, subscriptionInfoList[0].carrierName.toString())
             else {
                 val cil = cinl.cellIdentity
-                newInstance(cinl, getCarrierNameAndRemove(cil.mnc, cil.mcc, subscriptionInfoList))
+                val mcc: String
+                val mnc: String
+                if (Build.VERSION.SDK_INT == 28) {
+                    mcc = cil.mccString
+                    mnc = cil.mncString
+                } else {
+                    mcc = cil.mcc.toString()
+                    mnc = cil.mnc.toString()
+                }
+                newInstance(cinl, getCarrierNameAndRemove(mnc, mcc, subscriptionInfoList))
             }
         }
     }
