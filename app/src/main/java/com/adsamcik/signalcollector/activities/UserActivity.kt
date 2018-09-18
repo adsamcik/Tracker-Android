@@ -23,7 +23,6 @@ import com.squareup.moshi.Moshi
 import kotlinx.android.synthetic.main.activity_user.*
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.android.UI
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MultipartBody
@@ -57,7 +56,7 @@ class UserActivity : DetailActivity() {
         if (status == Signin.SigninStatus.SIGNED)
             user!!
 
-        launch(UI) {
+        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
             when (status) {
                 Signin.SigninStatus.SIGNED -> {
                     progressbar_user.visibility = View.GONE
@@ -99,7 +98,7 @@ class UserActivity : DetailActivity() {
                     layout_signed_in.visibility = View.GONE
                 }
             }
-        }
+        })
     }
 
     private fun resolveUserMenuOnLogin(u: User) {
@@ -108,24 +107,24 @@ class UserActivity : DetailActivity() {
             return
         }
 
-        launch {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             val user = Signin.getUserAsync(this@UserActivity)
             if (user != null) {
                 if (useMock) {
-                    launch(UI) {
+                    launch(Dispatchers.Main) {
                         initUserMenu(user, Prices.mock())
                     }
                 } else {
                     val priceRequestState = NetworkLoader.requestSignedAsync(Network.URL_USER_PRICES, user.token, Constants.DAY_IN_MINUTES, this@UserActivity, Preferences.PREF_USER_PRICES, Prices::class.java)
                     if (priceRequestState.first.success) {
                         val prices = priceRequestState.second!!
-                        launch(UI) {
+                        launch(Dispatchers.Main) {
                             initUserMenu(user, prices)
                         }
                     }
                 }
             }
-        }
+        })
     }
 
     /**
@@ -137,16 +136,16 @@ class UserActivity : DetailActivity() {
         textview_wireless_points.text = String.format(getString(R.string.user_have_wireless_points), Assist.formatNumber(user.wirelessPoints))
 
         switch_renew_map.text = getString(R.string.user_renew_map)
-        switch_renew_map.isChecked = user.networkPreferences!!.renewMap
+        switch_renew_map.isChecked = user.networkPreferences.renewMap
         switch_renew_map.setOnClickListener {
             switch_renew_map.isEnabled = false
             val isChecked = switch_renew_map.isChecked
 
             if (useMock) {
-                launch {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                     delay(1, TimeUnit.SECONDS)
-                    launch(UI) { switch_renew_map.isEnabled = true }
-                }
+                    launch(Dispatchers.Main) { switch_renew_map.isEnabled = true }
+                })
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
                 val request = Network.requestPOST(this, Network.URL_USER_UPDATE_MAP_PREFERENCE, body).build()
@@ -154,32 +153,32 @@ class UserActivity : DetailActivity() {
                         onChangeMapNetworkPreference(switch_renew_map,
                                 isChecked,
                                 user,
-                                user.networkPreferences!!::renewMap,
-                                user.networkInfo!!::mapAccessUntil,
+                                user.networkPreferences::renewMap,
+                                user.networkInfo::mapAccessUntil,
                                 prices.PRICE_30DAY_MAP.toLong(),
                                 textview_map_access_time)
                 )
             }
         }
 
-        if (user.networkInfo!!.mapAccessUntil > System.currentTimeMillis())
-            textview_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo!!.mapAccessUntil)))
+        if (user.networkInfo.mapAccessUntil > System.currentTimeMillis())
+            textview_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo.mapAccessUntil)))
         else
             textview_map_access_time.visibility = View.GONE
         textview_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
 
         switch_renew_personal_map.text = getString(R.string.user_renew_personal_map)
-        switch_renew_personal_map.isChecked = user.networkPreferences!!.renewPersonalMap
+        switch_renew_personal_map.isChecked = user.networkPreferences.renewPersonalMap
         switch_renew_personal_map.setOnClickListener {
             switch_renew_personal_map.isEnabled = false
 
             val isChecked = switch_renew_personal_map.isChecked
 
             if (useMock) {
-                launch {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                     delay(1, TimeUnit.SECONDS)
-                    launch(UI) { switch_renew_personal_map.isEnabled = true }
-                }
+                    launch(Dispatchers.Main) { switch_renew_personal_map.isEnabled = true }
+                })
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
                 val request = Network.requestPOST(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body).build()
@@ -188,16 +187,16 @@ class UserActivity : DetailActivity() {
                         onChangeMapNetworkPreference(switch_renew_personal_map,
                                 isChecked,
                                 user,
-                                user.networkPreferences!!::renewPersonalMap,
-                                user.networkInfo!!::personalMapAccessUntil,
+                                user.networkPreferences::renewPersonalMap,
+                                user.networkInfo::personalMapAccessUntil,
                                 prices.PRICE_30DAY_PERSONAL_MAP.toLong(),
                                 textview_personal_map_access_time)
                 )
             }
         }
 
-        if (user.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
-            textview_personal_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo!!.personalMapAccessUntil)))
+        if (user.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
+            textview_personal_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo.personalMapAccessUntil)))
         else
             textview_personal_map_access_time.visibility = View.GONE
         textview_personal_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
@@ -233,17 +232,17 @@ class UserActivity : DetailActivity() {
                             accessTime.set(rBody.string().toLong())
                             if (temp != accessTime.get()) {
                                 user.addWirelessPoints(-price)
-                                launch(UI) {
+                                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                                     textview_wireless_points.text = getString(R.string.user_have_wireless_points, Assist.formatNumber(user.wirelessPoints))
                                     timeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(accessTime.get())))
                                     timeTextView.visibility = View.VISIBLE
-                                }
+                                })
                             }
 
                         } else
                             Crashlytics.logException(Throwable("Body is null"))
                     }
-                    val moshi = Moshi.Builder().add().build()
+                    val moshi = Moshi.Builder().build()
                     val jsonAdapter = moshi.adapter(User::class.java)
                     val json = jsonAdapter.toJson(user)
                     CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, json, false)

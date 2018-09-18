@@ -96,7 +96,7 @@ fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes d
  */
 fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
     val resources = context.resources
-    return getString(resources.getString(key), resources.getString(defaultResource))
+    return getString(resources.getString(key), resources.getString(defaultResource))!!
 }
 
 /**

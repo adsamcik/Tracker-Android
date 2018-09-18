@@ -44,10 +44,8 @@ import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_map.*
-import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.android.Main
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -203,10 +201,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
                 val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
-                launch(UI) {
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                     activeOverlay?.remove()
                     activeOverlay = map!!.addTileOverlay(tileOverlayOptions)
-                }
+                })
             }
         } else
             this.type = type
@@ -365,13 +363,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
                 isMapLight.set(true)
 
-                launch(UI) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) }
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) })
             } else {
                 if (!isMapLight.get())
                     return@addListener
 
                 isMapLight.set(false)
-                launch(UI) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) }
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) })
             }
         }
 
@@ -429,7 +427,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     private fun loadMapLayers() {
         val activity = activity!!
         if (useMock) {
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 delay(1, TimeUnit.SECONDS)
                 val user = Signin.getUserAsync(activity)
                 if (user != null) {
@@ -439,12 +437,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     mapLayers = mockArrayList
                     initializeMenuButton()
                 }
-            }
+            })
         } else {
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 val user = Signin.getUserAsync(activity)
                 user?.addServerDataCallback {
-                    val networkInfo = it.networkInfo!!
+                    val networkInfo = it.networkInfo
                     if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
                         val list = ArrayList<MapLayer>()
                         if (networkInfo.hasPersonalMapAccess())
@@ -456,7 +454,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                                 val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
                                 if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {
                                     val layerArray = mapListRequest.second!!
-                                    var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)
+                                    var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)!!
                                     if (!MapLayer.contains(layerArray, savedOverlay)) {
                                         savedOverlay = layerArray[0].name
                                         Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
@@ -475,7 +473,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     }
 
                 }
-            }
+            })
         }
     }
 

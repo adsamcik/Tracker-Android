@@ -1,17 +1,17 @@
 package com.adsamcik.signalcollector.activities
 
-import androidx.appcompat.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.widget.Toast
 import androidx.annotation.StringRes
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.preference.*
-import android.widget.Toast
 import androidx.core.content.edit
+import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
@@ -32,6 +32,9 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Tips
 import com.adsamcik.signalcollector.utility.TrackingLocker
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch
 import java.io.File
 import java.util.*
@@ -94,7 +97,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 Assist.hasAgreedToPrivacyPolicy(this) -> true
                 newValue as Int <= 0 -> true
                 else -> {
-                    launch { Assist.privacyPolicyEnableUpload(this@SettingsActivity) }
+                    GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, { Assist.privacyPolicyEnableUpload(this@SettingsActivity) })
                     false
                 }
             }

@@ -325,13 +325,13 @@ object DataStore {
      * Recursively deletes all files in a directory
      *
      * @param file File or directory
-     * @return True if successfull
+     * @return True if successful
      */
     fun recursiveDelete(file: File): Boolean {
         if (file.isDirectory) {
             file.listFiles()
                     .filterNot { recursiveDelete(it) }
-                    .forEach { return false }
+                    .forEach { _ -> return false }
         }
         return file.delete()
     }

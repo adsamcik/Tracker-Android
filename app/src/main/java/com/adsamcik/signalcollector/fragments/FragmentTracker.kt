@@ -38,7 +38,10 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.*
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.android.synthetic.main.fragment_tracker.*
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 import java.util.*
 
@@ -128,8 +131,8 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
                 updateUploadButton()
         }
 
-        DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
-        DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
+        DataStore.setOnDataChanged { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) }) }
+        DataStore.setOnUploadProgress { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { updateUploadButton() }) }
 
         if (useMock)
             mock()
@@ -201,14 +204,14 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
     private fun setUploadButtonClickable() {
         button_upload.setOnClickListener { _ ->
             val activity = activity!!
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 if (Assist.privacyPolicy(activity)) {
                     val success = UploadJobService.requestUpload(activity, ActionSource.USER)
                     FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (success)
                         updateUploadButton()
                 }
-            }
+            })
         }
     }
 

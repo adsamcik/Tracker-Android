@@ -2,20 +2,22 @@ package com.adsamcik.signalcollector.uitools
 
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
-import androidx.annotation.ColorInt
-import androidx.annotation.IdRes
-import androidx.cardview.widget.CardView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.annotation.ColorInt
+import androidx.annotation.IdRes
 import com.adsamcik.signalcollector.extensions.contains
 import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.backgroundColorFor
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.foregroundColorFor
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 
 //Cannot be annotated with ColorInt yet
@@ -193,13 +195,13 @@ class ColorManager {
      * Internal update function which should be called only by ColorSupervisor
      */
     internal fun update() {
-        launch(UI) {
+        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
             synchronized(watchedViews) {
                 watchedViews.forEach {
                     updateInternal(it)
                 }
             }
-        }
+        })
 
         synchronized(colorChangeListeners) {
             colorChangeListeners.forEach { it.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(false)) }

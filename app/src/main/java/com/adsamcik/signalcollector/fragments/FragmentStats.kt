@@ -34,7 +34,10 @@ import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
 import kotlinx.android.synthetic.main.activity_ui.*
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 
 class FragmentStats : Fragment(), IOnDemandView {
@@ -137,7 +140,7 @@ class FragmentStats : Fragment(), IOnDemandView {
                     Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) }
         }
         if (!useMock) {
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 val user = Signin.getUserAsync(activity)
                 if (user != null) {
                     refreshingCount++
@@ -147,13 +150,13 @@ class FragmentStats : Fragment(), IOnDemandView {
                         handleResponse(activity, state, value, AppendBehaviors.First)
                     }
                 }
-            }
+            })
         }
 
         if (refreshingCount > 0) {
-            launch(UI) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                 swipeRefreshLayout.isRefreshing = true
-            }
+            })
         }
     }
 
@@ -172,10 +175,10 @@ class FragmentStats : Fragment(), IOnDemandView {
         }
 
         if (value != null) {
-            launch(UI) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                 addStatsTable(value, appendBehavior)
                 adapter!!.sort()
-            }
+            })
         }
     }
 

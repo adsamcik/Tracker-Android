@@ -8,6 +8,9 @@ import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.squareup.moshi.Moshi
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch
 import kotlin.coroutines.experimental.suspendCoroutine
 
@@ -29,7 +32,7 @@ object ChallengeManager {
      */
     suspend fun getChallenges(ctx: Context, force: Boolean): Pair<NetworkLoader.Source, Array<Challenge>?> = suspendCoroutine { cont ->
         val context = ctx.applicationContext
-        launch {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             val user = Signin.getUserAsync(context)
             if (user != null) {
                 val str = NetworkLoader.requestStringSignedAsync(Network.URL_CHALLENGES_LIST, user.token, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST)
@@ -46,7 +49,7 @@ object ChallengeManager {
                     cont.resume(Pair(str.first, null))
                 }
             }
-        }
+        })
     }
 
     /**
@@ -59,7 +62,7 @@ object ChallengeManager {
      */
     fun getChallenges(ctx: Context, force: Boolean, callback: (NetworkLoader.Source, Array<Challenge>?) -> Unit) {
         val context = ctx.applicationContext
-        launch {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             val user = Signin.getUserAsync(context)
             if (user != null) {
                 NetworkLoader.requestStringSigned(Network.URL_CHALLENGES_LIST, user.token, if (force) 0 else DAY_IN_MINUTES, context, Preferences.PREF_ACTIVE_CHALLENGE_LIST) { source, jsonChallenges ->
@@ -72,7 +75,7 @@ object ChallengeManager {
                     }
                 }
             }
-        }
+        })
     }
 
     /***

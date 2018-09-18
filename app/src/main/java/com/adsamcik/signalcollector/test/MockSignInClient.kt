@@ -6,8 +6,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.signin.ISignInClient
 import com.adsamcik.signalcollector.signin.User
 import com.adsamcik.signalcollector.utility.Preferences
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.*
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,10 +38,10 @@ class MockSignInClient : ISignInClient {
             0 -> user.mockServerData()
             1 -> {
                 //server data received later on
-                launch {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                     delay(2, TimeUnit.SECONDS)
                     user.mockServerData()
-                }
+                })
             }
             3 -> {
             }

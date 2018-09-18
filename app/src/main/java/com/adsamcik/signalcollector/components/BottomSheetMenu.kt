@@ -11,8 +11,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.*
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -72,9 +71,9 @@ class BottomSheetMenu(root: CoordinatorLayout) {
      */
     fun showHide(delayInMS: Int) {
         bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
-        launch {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             delay(delayInMS.toLong(), TimeUnit.MILLISECONDS)
             bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
-        }
+        })
     }
 }

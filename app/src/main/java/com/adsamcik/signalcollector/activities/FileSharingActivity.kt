@@ -2,12 +2,11 @@ package com.adsamcik.signalcollector.activities
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.core.content.FileProvider
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.BottomSheetMenu
 import com.adsamcik.signalcollector.file.Compress

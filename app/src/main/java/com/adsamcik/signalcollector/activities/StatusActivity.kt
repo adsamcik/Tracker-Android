@@ -2,11 +2,11 @@ package com.adsamcik.signalcollector.activities
 
 import android.graphics.Color
 import android.os.Bundle
-import androidx.constraintlayout.widget.ConstraintLayout
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.adsamcik.signalcollector.extensions.contains
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.jobScheduler

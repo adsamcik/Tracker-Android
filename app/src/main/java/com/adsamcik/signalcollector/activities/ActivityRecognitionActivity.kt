@@ -12,7 +12,10 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 import java.lang.ref.WeakReference
 import java.text.DateFormat.getDateTimeInstance
@@ -102,11 +105,11 @@ class ActivityRecognitionActivity : DetailActivity() {
                 if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / DAY_IN_MILLISECONDS > 0) {
                     preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply()
                     if (instance?.get() != null) {
-                        launch(UI) {
+                        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                             val inst = instance?.get()
                             if (inst != null)
                                 inst.start_stop_button.text = inst.getString(R.string.start)
-                        }
+                        })
                     }
                 }
                 addLine(context, activity, action)

@@ -16,7 +16,10 @@ import com.adsamcik.signalcollector.jobs.FeedbackUploadJob
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 
 
@@ -62,10 +65,10 @@ class FeedbackActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         setTitle(R.string.feedback_title)
         val activity = this
-        launch {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             val user = Signin.getUserAsync(activity)
             if (user != null) {
-                launch(UI) {
+                launch(Dispatchers.Main) {
                     val parent = createLinearScrollableContentParent(true)
                     val groupRoot = layoutInflater.inflate(R.layout.layout_feedback, parent) as ViewGroup
 
@@ -140,7 +143,7 @@ class FeedbackActivity : DetailActivity() {
                     }
                 }
             }
-        }
+        })
     }
 
     override fun onDestroy() {

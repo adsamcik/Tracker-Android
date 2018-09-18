@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.activities
 
 
+import android.view.View
+import android.view.ViewGroup
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -9,9 +11,6 @@ import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.rule.ActivityTestRule
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.runner.AndroidJUnit4
-import androidx.recyclerview.widget.RecyclerView
-import android.view.View
-import android.view.ViewGroup
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.exists
 import com.adsamcik.signalcollector.services.TrackerService

@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.squareup.moshi.FromJson
-import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.ToJson
 import java.util.*
@@ -14,26 +13,25 @@ import java.util.*
  * It has two states, the first is signed-in with basic info available.
  * The second is when all data from server are available.
  */
-@JsonClass(generateAdapter = true)
 class User(@Transient val id: String = "", @Transient val token: String = "") {
-    /**
-     * Number of Wireless Points the user owns.
-     * It might not reflect the actual amount, because server does not instantly update this amount on the clientAuth.
-     */
-    var wirelessPoints: Long = 0
-        private set
+    private var userData: UserData? = null
 
-    /**
-     * Server information about availability of services etc.
-     */
-    var networkInfo: NetworkInfo? = null
-        private set
+    var wirelessPoints: Long
+        get() {
+            return if (userData == null)
+                0
+            else
+                userData!!.wirelessPoints
+        }
+        set(value) {
+            userData!!.wirelessPoints = value
+        }
 
-    /**
-     * Server preferences.
-     */
-    var networkPreferences: NetworkPreferences? = null
-        private set
+    val networkPreferences: NetworkPreferences
+        get() = userData!!.networkPreferences
+
+    val networkInfo: NetworkInfo
+        get() = userData!!.networkInfo
 
     private var callbackList: MutableList<(User) -> Unit>? = null
 
@@ -41,14 +39,14 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
      * Returns true if server data are available
      */
     val isServerDataAvailable: Boolean
-        get() = networkInfo != null && networkPreferences != null
+        get() = userData != null
 
     /**
      * Add wireless points to the user.
      * This method helps with offsetting some synchronisation issues.
      */
     fun addWirelessPoints(value: Long) {
-        wirelessPoints += value
+        userData!!.wirelessPoints += value
     }
 
     //No need to use from json value because it is already updated
@@ -72,9 +70,7 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
      */
     @RestrictTo(RestrictTo.Scope.SUBCLASSES)
     internal fun setServerData(wirelessPoints: Long, networkInfo: NetworkInfo, networkPreferences: NetworkPreferences) {
-        this.wirelessPoints = wirelessPoints
-        this.networkInfo = networkInfo
-        this.networkPreferences = networkPreferences
+        userData = UserData(wirelessPoints, networkInfo, networkPreferences)
 
         if (callbackList != null) {
             for (cb in callbackList!!)
@@ -115,7 +111,6 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
             callbackList!!.add(callback)
         }
     }
-
 
 
     private inner class ServerUserDeserializer constructor(private val user: User) {

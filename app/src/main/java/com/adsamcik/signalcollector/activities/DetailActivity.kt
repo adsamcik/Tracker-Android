@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
-import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.appcompat.app.AppCompatActivity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor

@@ -2,11 +2,10 @@ package com.adsamcik.signalcollector.utility
 
 import android.os.Handler
 import android.os.Looper
-import androidx.annotation.IntDef
-import androidx.annotation.StringRes
-import com.google.android.material.snackbar.Snackbar
 import android.util.Pair
 import android.view.View
+import androidx.annotation.IntDef
+import androidx.annotation.StringRes
 import java.util.concurrent.LinkedBlockingQueue
 
 /**
