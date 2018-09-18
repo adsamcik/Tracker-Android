@@ -7,10 +7,12 @@
 
     <Preference
         android:key="@string/settings_account_key"
-        android:title="@string/settings_account_title"/>
+        android:title="@string/settings_account_title"
+        app:icon="@drawable/ic_outline_account_circle_24px"/>
 
     <androidx.preference.PreferenceScreen
-        android:title="@string/settings_tracking_title">
+        android:title="@string/settings_tracking_title"
+        app:icon="@drawable/ic_outline_perm_scan_wifi_24px">
         <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
 
@@ -44,8 +46,20 @@
                 android:title="@string/settings_disabled_recharge_title"/>
         </androidx.preference.PreferenceCategory>
 
-        <androidx.preference.PreferenceCategory
-            android:title="@string/settings_tracking_enable_category">
+        <androidx.preference.PreferenceCategory>
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@integer/settings_tracking_min_distance_default"
+                android:key="@string/settings_tracking_min_distance_key"
+                android:title="@string/settings_tracking_min_distance_title"
+                app:items="@array/settings_tracking_min_distance_values"
+                app:stringFormat="%1$d m"/>
+
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@integer/settings_tracking_min_time_default"
+                android:key="@string/settings_tracking_min_time_key"
+                android:title="@string/settings_tracking_min_time_title"
+                app:items="@array/settings_tracking_min_time_values"
+                app:stringFormat="%1$d s"/>
 
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_location_enabled_default"
@@ -69,7 +83,8 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
-        android:title="@string/settings_upload_title">
+        android:title="@string/settings_upload_title"
+        app:icon="@drawable/ic_outline_cloud_upload_24px">
 
         <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_upload_category">
@@ -83,8 +98,8 @@
 
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_smart_upload_default"
-                android:key="@string/settings_smart_upload_key"
                 android:disableDependentsState="true"
+                android:key="@string/settings_smart_upload_key"
                 android:summary="@string/settings_smart_upload_summary"
                 android:title="@string/settings_smart_upload_title"/>
 
@@ -99,7 +114,8 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
-        android:title="@string/settings_style_title">
+        android:title="@string/settings_style_title"
+        app:icon="@drawable/ic_outline_style_24px">
         <ListPreference
             android:defaultValue="@string/settings_style_mode_default"
             android:entries="@array/settings_style_mode_names"
@@ -135,7 +151,8 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
-        android:title="@string/settings_debug_title">
+        android:title="@string/settings_debug_title"
+        app:icon="@drawable/ic_outline_developer_mode_24px">
 
         <androidx.preference.SwitchPreferenceCompat
             android:key="@string/settings_debug_key"
@@ -190,12 +207,14 @@
         <Preference
             android:key="@string/settings_feedback_key"
             android:summary="@string/settings_feedback_summary"
-            android:title="@string/settings_feedback_title"/>
+            android:title="@string/settings_feedback_title"
+            app:icon="@drawable/ic_outline_feedback_24px"/>
 
         <Preference
             android:key="@string/settings_export_key"
             android:summary="@string/settings_export_summary"
-            android:title="@string/settings_export_title"/>
+            android:title="@string/settings_export_title"
+            app:icon="@drawable/ic_outline_share_24px"/>
 
         <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
@@ -205,8 +224,8 @@
         <androidx.preference.CheckBoxPreference
             android:defaultValue="false"
             android:key="@string/settings_privacy_policy_agreement_key"
-            android:title="@string/settings_privacy_policy_agreement_title"
-            android:summary="@string/settings_privacy_policy_agreement_summary"/>
+            android:summary="@string/settings_privacy_policy_agreement_summary"
+            android:title="@string/settings_privacy_policy_agreement_title"/>
 
         <Preference
             android:key="@string/settings_privacy_policy_key"

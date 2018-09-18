@@ -24,7 +24,7 @@
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>
-    <string name="settings_debug_title">Debug</string>
+    <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
     <!--- TRACKING -->
@@ -82,6 +82,41 @@
         <item>240</item>
         <item>300</item>
         <item>600</item>
+    </integer-array>
+
+    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
+    <string name="settings_tracking_min_distance_key" translatable="false">minTrackingDistance</string>
+    <integer name="settings_tracking_min_distance_default">10</integer>
+
+    <integer-array name="settings_tracking_min_distance_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>40</item>
+        <item>80</item>
+    </integer-array>
+
+    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
+    <string name="settings_tracking_min_time_key" translatable="false">minTrackingTimeDifference</string>
+    <integer name="settings_tracking_min_time_default">2</integer>
+
+    <integer-array name="settings_tracking_min_time_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>7</item>
+        <item>10</item>
+        <item>20</item>
+        <item>40</item>
+        <item>60</item>
     </integer-array>
 
     <!--- UPLOAD -->
@@ -161,13 +196,13 @@
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
 
     <!-- DEBUG -->
-    <string name="settings_debug_already_available">You already have access to debug</string>
-    <string name="settings_debug_available">You now have access to debug section</string>
-    <string name="settings_debug_enabled">Debug enabled</string>
+    <string name="settings_debug_already_available">You already have access to developer options</string>
+    <string name="settings_debug_available">You now have access to developer options</string>
+    <string name="settings_debug_enabled">Dev options enabled</string>
     <string name="settings_debug_key" translatable="false">showDevSettings</string>
     <plurals name="settings_debug_available_in">
-        <item quantity="one">%d tap left to enable debug section</item>
-        <item quantity="other">%d taps left to enable debug section</item>
+        <item quantity="one">%d tap left to enable developer options</item>
+        <item quantity="other">%d taps left to enable developer options</item>
     </plurals>
 
     <string name="settings_browse_files_title">Browse files</string>

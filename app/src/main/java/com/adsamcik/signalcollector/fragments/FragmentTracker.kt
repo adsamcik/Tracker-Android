@@ -174,7 +174,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
                 activity.stopService<TrackerService>()
             }
         } else if (Build.VERSION.SDK_INT >= 23) {
-            activity.requestPermissions(requiredPermissions, 0)
+            activity.requestPermissions(requiredPermissions!!, 0)
         }
     }
 
@@ -184,7 +184,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         rawData.wifi = arrayOf(WifiData(), WifiData(), WifiData())
         rawData.accuracy = 6f
         rawData.cellCount = 8
-        rawData.registeredCells = arrayOf(CellData("MOCK", 2, 0, 123, 456, -30, 90, 0))
+        rawData.registeredCells = arrayOf(CellData("MOCK", 2, 0, "123", "456", -30, 90, 0))
         rawData.latitude = 15.0
         rawData.longitude = 15.0
         rawData.altitude = 123.0

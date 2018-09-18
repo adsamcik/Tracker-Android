@@ -8,7 +8,7 @@
     <string name="settings_tracking_title">Sběr dat</string>
     <string name="settings_upload_title">Nahrávání dat</string>
     <string name="settings_style_title">Vzhled</string>
-    <string name="settings_debug_title">Debug</string>
+    <string name="settings_debug_title">Vývojářské nástroje</string>
     <string name="settings_other_title">Ostatní</string>
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
     <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
@@ -24,12 +24,12 @@
     <string name="settings_color_evening_title">Barva večer</string>
     <string name="settings_color_morning_title">Barva ráno</string>
     <string name="settings_color_night_title">Barva v noci</string>
-    <string name="settings_debug_already_available">Již máte přístup k debugu</string>
-    <string name="settings_debug_available">Nyní máte přístup k debug sekci</string>
+    <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
+    <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>
     <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
         <item quantity="other">Zbývá %d stisknutí pro přístup k vývojářským nástrojům</item>
     </plurals>
-    <string name="settings_debug_enabled">Debug povolen</string>
+    <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
     <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
     <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
     <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
@@ -287,4 +287,8 @@
         <item quantity="few">%d mobilní sítě</item>
         <item quantity="other">%d mobilních sítí</item>
     </plurals>
+
+
+    <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
+    <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
 </resources>
