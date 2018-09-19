@@ -25,7 +25,7 @@ import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentMap
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.fragments.FragmentTracker
-import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.jobs.UploadWorker
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityService
@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
         initializeColorElements()
 
         if (Network.cloudStatus == CloudStatuses.UNKNOWN) {
-            val scheduleSource = UploadJobService.getUploadScheduled(this)
+            val scheduleSource = UploadWorker.getUploadScheduled(this)
             when (scheduleSource) {
                 ActionSource.NONE ->
                     Network.cloudStatus =

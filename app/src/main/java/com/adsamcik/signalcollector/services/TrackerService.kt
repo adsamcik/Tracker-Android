@@ -31,7 +31,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.jobs.UploadWorker
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
@@ -196,7 +196,7 @@ class TrackerService : LifecycleService() {
             if (result === DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
                     !Preferences.getPref(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
                     DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
-                UploadJobService.requestUpload(this, ActionSource.BACKGROUND)
+                UploadWorker.requestUpload(this, ActionSource.BACKGROUND)
                 Crashlytics.log("Requested upload from tracking")
             }
         }
@@ -351,7 +351,7 @@ class TrackerService : LifecycleService() {
                     Shortcuts.ShortcutType.STOP_COLLECTION)
         }
 
-        UploadJobService.cancelUploadSchedule(this)
+        UploadWorker.cancelUploadSchedule(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -417,7 +417,7 @@ class TrackerService : LifecycleService() {
         }
 
         if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
-            UploadJobService.requestUploadSchedule(this)
+            UploadWorker.requestUploadSchedule(this)
     }
 
     private inner class WifiReceiver : BroadcastReceiver() {

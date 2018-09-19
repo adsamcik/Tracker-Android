@@ -27,7 +27,7 @@ import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.jobs.UploadWorker
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
@@ -206,7 +206,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
             val activity = activity!!
             GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 if (Assist.privacyPolicy(activity)) {
-                    val success = UploadJobService.requestUpload(activity, ActionSource.USER)
+                    val success = UploadWorker.requestUpload(activity, ActionSource.USER)
                     FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (success)
                         updateUploadButton()

@@ -1,13 +1,9 @@
 package com.adsamcik.signalcollector.jobs
 
-import android.app.job.JobInfo
-import android.app.job.JobScheduler
-import android.content.ComponentName
 import android.content.Context
 import android.os.Build
-import android.os.PersistableBundle
 import androidx.core.content.edit
-import androidx.work.Worker
+import androidx.work.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
@@ -35,13 +31,14 @@ import okhttp3.RequestBody
 import java.io.File
 import java.io.IOException
 import java.security.InvalidParameterException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToLong
 
 /**
  * JobService used to handle uploading to server
  */
-class UploadJobService : Worker() {
+class UploadWorker : Worker() {
     override fun doWork(): Result {
         val scheduleSource = ActionSource.values()[inputData.getInt(KEY_SOURCE, 0)]
         if (scheduleSource == ActionSource.NONE)
@@ -193,7 +190,7 @@ class UploadJobService : Worker() {
         /**
          * Id of the upload job
          */
-        const val UPLOAD_JOB_ID = 2110
+        const val UPLOAD_TAG = "upload"
 
         /**
          * Returns true if upload is currently in progress
@@ -230,16 +227,12 @@ class UploadJobService : Worker() {
 
             if (hasEnoughData(context, source)) {
                 if (canUpload(context, source)) {
-                    val jb = prepareBuilder(UPLOAD_JOB_ID, context, source)
-                    addNetworkTypeRequest(context, source, jb)
+                    val work = prepareBuilder(context, source)
 
-                    val scheduler = context.jobScheduler
-                    if (scheduler.schedule(jb.build()) == JobScheduler.RESULT_FAILURE)
-                        return false
+                    WorkManager.getInstance().enqueue(work.build())
+
                     updateUploadScheduleSource(context, source)
                     Network.cloudStatus = CloudStatuses.SYNC_SCHEDULED
-
-                    scheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
 
                     return true
                 }
@@ -257,16 +250,13 @@ class UploadJobService : Worker() {
             val dataSize = DataStore.sizeOfData(context)
             if (canUpload(context, ActionSource.BACKGROUND) &&
                     hasEnoughData(dataSize, ActionSource.BACKGROUND)) {
-                val scheduler = context.jobScheduler
-                if (!hasJobWithID(scheduler, UPLOAD_JOB_ID)) {
-                    val jb = prepareBuilder(SCHEDULE_UPLOAD_JOB_ID, context, ActionSource.BACKGROUND)
+                if (!hasUploadJob()) {
+                    val work = prepareBuilder(context, ActionSource.BACKGROUND)
+                    work.setInitialDelay(calculateScheduleDelay(dataSize), TimeUnit.SECONDS)
 
-                    jb.setMinimumLatency(calculateScheduleDelay(dataSize))
-
-                    addNetworkTypeRequest(context, ActionSource.BACKGROUND, jb)
                     updateUploadScheduleSource(context, ActionSource.BACKGROUND)
 
-                    scheduler.schedule(jb.build())
+                    WorkManager.getInstance().enqueue(work.build())
                 }
             }
         }
@@ -287,12 +277,9 @@ class UploadJobService : Worker() {
             return (MIN_NO_ACTIVITY_DELAY * dist).roundToLong()
         }
 
-        private fun hasJobWithID(jobScheduler: JobScheduler, id: Int): Boolean {
-            return if (Build.VERSION.SDK_INT >= 24)
-                jobScheduler.getPendingJob(id) != null
-            else
-                jobScheduler.allPendingJobs.any { it.id == id }
-
+        private fun hasUploadJob(): Boolean {
+            val list = WorkManager.getInstance().getStatusesByTag(UPLOAD_TAG).value
+            return list != null && list.size > 0
         }
 
         private fun canUpload(context: Context, source: ActionSource): Boolean {
@@ -300,32 +287,30 @@ class UploadJobService : Worker() {
             return (autoUpload > 0 || source == ActionSource.USER) && Assist.hasAgreedToPrivacyPolicy(context)
         }
 
-        private fun prepareBuilder(id: Int, context: Context, source: ActionSource): JobInfo.Builder {
-            val jobBuilder = JobInfo.Builder(id, ComponentName(context, UploadJobService::class.java))
-            jobBuilder.setPersisted(true)
+        private fun prepareBuilder(context: Context, source: ActionSource): OneTimeWorkRequest.Builder {
 
-            if (Build.VERSION.SDK_INT >= 26)
-                jobBuilder.setRequiresBatteryNotLow(true)
+            val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).setRequiresBatteryNotLow(true)
 
-            jobBuilder.setRequiresDeviceIdle(false)
+            addNetworkTypeRequest(context, source, constraints)
 
-            val pb = PersistableBundle(1)
-            pb.putInt(KEY_SOURCE, source.ordinal)
-            jobBuilder.setExtras(pb)
-            return jobBuilder
+            val workBuilder = OneTimeWorkRequestBuilder<UploadWorker>()
+                    .addTag(UPLOAD_TAG)
+                    .setConstraints(constraints.build())
+
+            val inputData = workDataOf(Pair(KEY_SOURCE, source.ordinal))
+
+            workBuilder.setInputData(inputData)
+            return workBuilder
         }
 
-        private fun addNetworkTypeRequest(context: Context, source: ActionSource, jobBuilder: JobInfo.Builder) {
+        private fun addNetworkTypeRequest(context: Context, source: ActionSource, constraints: Constraints.Builder) {
             if (source == ActionSource.USER) {
-                jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                constraints.setRequiredNetworkType(NetworkType.CONNECTED)
             } else {
-                if (Preferences.getPref(context).getInt(context, R.string.settings_uploading_network_key, R.string.settings_uploading_network_default) == 2) {
-                    if (Build.VERSION.SDK_INT >= 24)
-                        jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NOT_ROAMING)
-                    else
-                        jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                } else
-                    jobBuilder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+                if (Preferences.getPref(context).getInt(context, R.string.settings_uploading_network_key, R.string.settings_uploading_network_default) == 2)
+                    constraints.setRequiredNetworkType(NetworkType.NOT_ROAMING)
+                else
+                    constraints.setRequiredNetworkType(NetworkType.UNMETERED)
             }
         }
 
