@@ -28,7 +28,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
      *
      * @return True if is writable
      */
-    var isWriteable: Boolean = false
+    var isWritable: Boolean = false
         private set
 
     private var empty: Boolean = false
@@ -74,7 +74,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                         ",\"version\":" + context.appVersion() + "," +
                         "\"data\":", false)
             empty = true
-            isWriteable = true
+            isWritable = true
             collectionCount = 0
         } else {
             var ascii: String? = null
@@ -84,7 +84,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                 Crashlytics.logException(e)
             }
 
-            isWriteable = ascii == null || ascii != "]}"
+            isWritable = ascii == null || ascii != "]}"
             empty = ascii == null || ascii.endsWith(":")
             collectionCount = getCollectionCount(file)
         }
@@ -134,7 +134,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
      */
     @Synchronized
     fun addData(data: Array<RawData>): Boolean {
-        if (!isWriteable) {
+        if (!isWritable) {
             try {
                 FileOutputStream(file, true).channel.truncate(file.length() - 2).close()
             } catch (e: IOException) {
@@ -142,7 +142,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
                 return false
             }
 
-            isWriteable = true
+            isWritable = true
         }
 
         return if (saveData(gson.toJson(data))) {
@@ -177,11 +177,11 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
     fun close(): Boolean {
         return try {
             val last2 = FileStore.loadLastAscii(file, 2)!!
-            isWriteable = false
+            isWritable = false
             last2 == "]}" || FileStore.saveString(file, "]}", true)
         } catch (e: FileNotFoundException) {
             Crashlytics.logException(e)
-            isWriteable = true
+            isWritable = true
             false
         }
 
