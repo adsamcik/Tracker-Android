@@ -35,7 +35,6 @@ import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
 import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.Moshi
 import java.lang.ref.WeakReference
@@ -66,6 +65,9 @@ class TrackerService : LifecycleService() {
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
 
+    private var minUpdateDelayInSeconds = -1
+    private var minDistanceInMeters = -1f
+
     /**
      * True if previous collection was mocked
      */
@@ -87,7 +89,7 @@ class TrackerService : LifecycleService() {
             return
         } else if (prevMocked && prevLocation != null) {
             prevMocked = false
-            if (location.distanceTo(prevLocation) < MIN_DISTANCE_M)
+            if (location.distanceTo(prevLocation) < minDistanceInMeters)
                 return
         }
 
@@ -278,6 +280,7 @@ class TrackerService : LifecycleService() {
 
         service = WeakReference(this)
         val sp = Preferences.getPref(this)
+        val resources = resources
 
         //Get managers
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -305,9 +308,11 @@ class TrackerService : LifecycleService() {
             }
         }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLIS, MIN_DISTANCE_M, locationListener)
-        else {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            minUpdateDelayInSeconds = sp.getInt(resources.getString(R.string.settings_tracking_min_time_key), resources.getInteger(R.integer.settings_tracking_min_time_default))
+            minDistanceInMeters = sp.getInt(resources.getString(R.string.settings_tracking_min_distance_key), resources.getInteger(R.integer.settings_tracking_min_distance_default)).toFloat()
+            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, minUpdateDelayInSeconds.toLong() * Constants.SECOND_IN_MILLISECONDS, minDistanceInMeters, locationListener)
+        } else {
             Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
             stopSelf()
             return
@@ -358,7 +363,7 @@ class TrackerService : LifecycleService() {
         if (isBackgroundActivated)
             ActivityService.requestAutoTracking(this, javaClass)
         else
-            ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
+            ActivityService.requestActivity(this, javaClass, minUpdateDelayInSeconds)
 
         ActivityWakerService.poke(this, false)
 
@@ -428,11 +433,7 @@ class TrackerService : LifecycleService() {
         private const val TAG = "SignalsTracker"
         private const val NOTIFICATION_ID_SERVICE = -7643
 
-        private const val MIN_DISTANCE_M = 5f
         private const val UPDATE_MAX_DISTANCE_TO_WIFI = 40
-
-        private const val UPDATE_TIME_SEC = 2
-        private const val UPDATE_TIME_MILLIS = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
 
         private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
 
