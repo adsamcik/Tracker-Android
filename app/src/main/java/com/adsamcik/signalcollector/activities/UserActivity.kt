@@ -33,7 +33,6 @@ import java.util.concurrent.TimeUnit
 import kotlin.reflect.KMutableProperty0
 
 
-
 /**
  * User Activity is activity that contains Signin and Server settings
  */
@@ -75,7 +74,7 @@ class UserActivity : DetailActivity() {
                     button_sign_in.visibility = View.VISIBLE
                     layout_signed_in.visibility = View.GONE
                     button_sign_in.setOnClickListener { _ ->
-                        launch {
+                        GlobalScope.launch {
                             val usr = Signin.signIn(this@UserActivity, false)
                             if (usr != null) {
                                 if (!usr.isServerDataAvailable) {
@@ -106,7 +105,7 @@ class UserActivity : DetailActivity() {
             return
         }
 
-        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+        GlobalScope.launch {
             val user = Signin.getUserAsync(this@UserActivity)
             if (user != null) {
                 if (useMock) {
@@ -123,7 +122,7 @@ class UserActivity : DetailActivity() {
                     }
                 }
             }
-        })
+        }
     }
 
     /**
