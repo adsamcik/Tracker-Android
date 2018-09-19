@@ -1,11 +1,8 @@
 package com.adsamcik.signalcollector.signin
 
-import android.annotation.SuppressLint
 import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.squareup.moshi.FromJson
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.ToJson
 import java.util.*
 
 /**
@@ -41,6 +38,14 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
     val isServerDataAvailable: Boolean
         get() = userData != null
 
+
+    val userDataJson: String
+        get() {
+            val moshi = Moshi.Builder().build()
+            val jsonAdapter = moshi.adapter(UserData::class.java)
+            return jsonAdapter.toJson(userData)
+        }
+
     /**
      * Add wireless points to the user.
      * This method helps with offsetting some synchronisation issues.
@@ -49,18 +54,14 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
         userData!!.wirelessPoints += value
     }
 
-    //No need to use from json value because it is already updated
-    @SuppressLint("CheckResult")
-            /**
-             * This method should be called when server data are available.
-             * It automatically fills in the data from the server to this instance.
-             *
-             * @param json Serialized JSON with server data
-             */
-    fun deserializeServerData(json: String) {
-        val moshi = Moshi.Builder().add(ServerUserDeserializer(this)).build()
-        val adapter = moshi.adapter(User::class.java)
-        adapter.fromJson(json)
+    fun setData(userData: UserData) {
+        this.userData = userData
+
+        if (callbackList != null) {
+            for (cb in callbackList!!)
+                cb.invoke(this)
+            callbackList = null
+        }
     }
 
     /**
@@ -69,14 +70,8 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
      * It is internal, because it needs to be exposed to inner class.
      */
     @RestrictTo(RestrictTo.Scope.SUBCLASSES)
-    internal fun setServerData(wirelessPoints: Long, networkInfo: NetworkInfo, networkPreferences: NetworkPreferences) {
-        userData = UserData(wirelessPoints, networkInfo, networkPreferences)
-
-        if (callbackList != null) {
-            for (cb in callbackList!!)
-                cb.invoke(this)
-            callbackList = null
-        }
+    internal fun setData(wirelessPoints: Long, networkInfo: NetworkInfo, networkPreferences: NetworkPreferences) {
+        setData(UserData(wirelessPoints, networkInfo, networkPreferences))
     }
 
     /**
@@ -96,7 +91,7 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
         networkInfo.mapAccessUntil = System.currentTimeMillis() + DAY_IN_MILLISECONDS
         networkInfo.personalMapAccessUntil = 0
 
-        setServerData((Math.random() * 64546).toLong(), networkInfo, networkPreferences)
+        setData((Math.random() * 64546).toLong(), networkInfo, networkPreferences)
     }
 
     /**
@@ -109,24 +104,6 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
             if (callbackList == null)
                 callbackList = ArrayList()
             callbackList!!.add(callback)
-        }
-    }
-
-
-    private inner class ServerUserDeserializer constructor(private val user: User) {
-        @FromJson
-        fun fromJson(userJson: UserJson): User? {
-            return if (!userJson.isValid())
-                null
-            else {
-                user.setServerData(userJson.wirelessPoints!!, userJson.networkInfo!!, userJson.networkPreferences!!)
-                user
-            }
-        }
-
-        @ToJson
-        fun toJson(user: User?): String {
-            throw NotImplementedError()
         }
     }
 }

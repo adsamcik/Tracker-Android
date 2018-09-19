@@ -19,7 +19,6 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
-import com.squareup.moshi.Moshi
 import kotlinx.android.synthetic.main.activity_user.*
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.android.Main
@@ -242,10 +241,7 @@ class UserActivity : DetailActivity() {
                         } else
                             Crashlytics.logException(Throwable("Body is null"))
                     }
-                    val moshi = Moshi.Builder().build()
-                    val jsonAdapter = moshi.adapter(User::class.java)
-                    val json = jsonAdapter.toJson(user)
-                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, json, false)
+                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, user.userDataJson, false)
                 } else {
                     GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isChecked = !desiredState })
                     if (response.code() == 403)

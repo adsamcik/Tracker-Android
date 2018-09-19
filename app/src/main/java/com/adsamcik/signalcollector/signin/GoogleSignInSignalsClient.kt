@@ -97,9 +97,9 @@ class GoogleSignInSignalsClient : ISignInClient {
         }
         //}
 
-        NetworkLoader.requestStringSigned(Network.URL_USER_INFO, user.token, 10, context, Preferences.PREF_USER_DATA) { state, value ->
+        NetworkLoader.requestSigned(Network.URL_USER_INFO, user.token, 10, context, Preferences.PREF_USER_DATA, UserData::class.java) { state, value ->
             if (state.dataAvailable) {
-                user.deserializeServerData(value!!)
+                user.setData(value!!)
             }
         }
 
