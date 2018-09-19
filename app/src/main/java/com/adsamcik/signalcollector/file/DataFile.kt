@@ -1,13 +1,8 @@
 package com.adsamcik.signalcollector.file
 
-import android.annotation.SuppressLint
-import android.content.Context
-import android.os.Build
 import android.util.MalformedJsonException
 import androidx.annotation.IntDef
 import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.extensions.appVersion
-import com.adsamcik.signalcollector.file.DataStore.PREF_CACHE_FILE_INDEX
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signalcollector.utility.Constants
 import com.crashlytics.android.Crashlytics
@@ -17,11 +12,11 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(file: File, private val fileNameTemplate: String?, userID: String?, @FileType type: Int, context: Context) {
+class DataFile(file: File, private val fileNameTemplate: String?) {
     var file: File = file
         private set
 
-    private val gson = Moshi.Builder().build().adapter(Array<RawData>::class.java)
+    private val adapter = Moshi.Builder().build().adapter(Array<RawData>::class.java)
     private var collectionCount: Int = 0
     /**
      * Returns whether the DataFile is writable
@@ -34,26 +29,12 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
     private var empty: Boolean = false
 
     /**
-     * Returns FileType
-     *
-     * @return FileType
-     */
-    @FileType
-    @get:FileType
-    val type: Int
-
-    /**
      * Returns preference string for index
      *
      * @return Preference string for index
      */
-    val preference: String?
-        @SuppressLint("SwitchIntDef")
-        get() = when (type) {
-            CACHE -> PREF_CACHE_FILE_INDEX
-            STANDARD -> PREF_DATA_FILE_INDEX
-            else -> null
-        }
+    val preference: String
+        get() = PREF_DATA_FILE_INDEX
 
     /**
      * Checks if DataFile is larger or equal than maximum DataFile size
@@ -64,15 +45,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
         @Synchronized get() = size() > Constants.MAX_DATA_FILE_SIZE
 
     init {
-        this.type = if (userID == null) CACHE else type
         if (!file.exists() || file.length() == 0L) {
-            if (this.type == STANDARD)
-                FileStore.saveString(file, "{\"userID\":\"" + userID + "\"," +
-                        "\"model\":\"" + Build.MODEL +
-                        "\",\"manufacturer\":\"" + Build.MANUFACTURER +
-                        "\",\"api\":" + Build.VERSION.SDK_INT +
-                        ",\"version\":" + context.appVersion() + "," +
-                        "\"data\":", false)
             empty = true
             isWritable = true
             collectionCount = 0
@@ -104,7 +77,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             file = newFile
     }
 
-    @IntDef(STANDARD, CACHE)
+    @IntDef(STANDARD)
     @Retention(AnnotationRetention.SOURCE)
     annotation class FileType
 
@@ -145,7 +118,7 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
             isWritable = true
         }
 
-        return if (saveData(gson.toJson(data))) {
+        return if (saveData(adapter.toJson(data))) {
             updateCollectionCount(data.size)
             true
         } else
@@ -196,7 +169,6 @@ class DataFile(file: File, private val fileNameTemplate: String?, userID: String
 
     companion object {
         const val STANDARD = 0
-        const val CACHE = 1
         const val SEPARATOR = " "
 
         /**

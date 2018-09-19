@@ -7,7 +7,6 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist
@@ -19,7 +18,6 @@ import com.squareup.moshi.Types
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
-
 
 
 /**
@@ -337,45 +335,27 @@ object DataStore {
     }
 
     enum class SaveStatus {
+        FILE_LOCKED,
         SAVE_FAILED,
         SAVE_SUCCESS,
         SAVE_SUCCESS_FILE_DONE
     }
 
     fun getCurrentDataFile(context: Context): DataFile? {
-        if (currentDataFile == null) {
-            val userID = Signin.getUserID(context)
-            updateCurrentData(context, if (userID == null) DataFile.CACHE else DataFile.STANDARD, userID)
-        }
+        if (currentDataFile == null)
+            updateCurrentData(context)
         return currentDataFile
     }
 
     @Synchronized
-    private fun updateCurrentData(context: Context, @DataFile.FileType type: Int, userID: String?) {
-        val dataFile: String
-        val preference: String
+    private fun updateCurrentData(context: Context) {
+        //true or null
+        if (currentDataFile?.isFull != false) {
+            val dataFile = DATA_FILE
+            val preference = PREF_DATA_FILE_INDEX
 
-        if (type == DataFile.STANDARD && userID == null)
-            throw RuntimeException("Type should be cache")
-
-        when (type) {
-            DataFile.CACHE -> {
-                dataFile = DATA_CACHE_FILE
-                preference = PREF_CACHE_FILE_INDEX
-            }
-            DataFile.STANDARD -> {
-                dataFile = DATA_FILE
-                preference = PREF_DATA_FILE_INDEX
-            }
-            else -> {
-                Crashlytics.logException(Throwable("Unknown type $type"))
-                return
-            }
-        }
-
-        if (currentDataFile?.type != type || currentDataFile!!.isFull) {
             val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
-            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type, context)
+            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template)
         }
     }
 
@@ -386,75 +366,19 @@ object DataStore {
      * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
-        val userID = Signin.getUserID(context)
-        if (dataLocked || userID == null)
-            updateCurrentData(context, DataFile.CACHE, userID)
-        else
-            updateCurrentData(context, DataFile.STANDARD, userID)
+        if (dataLocked)
+            return SaveStatus.FILE_LOCKED
+
+        //true or null
+        if(currentDataFile?.isFull != false)
+            updateCurrentData(context)
+
         return saveData(context, currentDataFile, rawData)
-    }
-
-    @Synchronized
-    private fun writeTempData(context: Context) {
-        val userId = Signin.getUserID(context)
-        if (currentDataFile!!.type != DataFile.STANDARD || userId == null)
-            return
-
-        val files = getDir(context).listFiles { _, s -> s.startsWith(DATA_CACHE_FILE) }
-        if (files.isNotEmpty()) {
-            var newFileCount = files.size
-            var i = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
-
-            if (files[0].length() + currentDataFile!!.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
-                val tempFileName = files[0].name
-                val indexOf = tempFileName.indexOf(" - ")
-                var collectionCount = 0
-                if (indexOf > 0) {
-                    collectionCount = Integer.parseInt(tempFileName.substring(indexOf + 3))
-                }
-
-                val data = FileStore.loadString(files[0])!!
-                if (!currentDataFile!!.addData(data, collectionCount))
-                    return
-
-                newFileCount--
-                i++
-                if (currentDataFile!!.isFull)
-                    currentDataFile!!.close()
-            } else {
-                currentDataFile!!.close()
-            }
-
-            if (files.size > 1) {
-                val currentDataIndex = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
-                Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, i + newFileCount).putInt(PREF_CACHE_FILE_INDEX, 0).apply()
-                var dataFile: DataFile
-                while (i < files.size) {
-                    val data = FileStore.loadString(files[0])!!
-                    val nameTemplate = DATA_FILE + (currentDataIndex + i)
-                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD, context)
-                    if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
-                        throw RuntimeException()
-
-                    if (i < files.size - 1)
-                        dataFile.close()
-                    i++
-                }
-            }
-
-            files
-                    .filterNot { FileStore.delete(it) }
-                    .forEach { Crashlytics.logException(RuntimeException("Failed to delete " + it.name)) }
-        }
     }
 
     @Synchronized
     private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
         val prevSize = file!!.size()
-
-        if (file.type == DataFile.STANDARD)
-            writeTempData(context)
-
         if (file.addData(rawData)) {
             val currentSize = file.size()
             val editor = Preferences.getPref(context).edit()
@@ -463,6 +387,7 @@ object DataStore {
             if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
                 file.close()
                 editor.putInt(file.preference, Preferences.getPref(context).getInt(file.preference, 0) + 1).apply()
+                updateCurrentData(context)
                 return SaveStatus.SAVE_SUCCESS_FILE_DONE
             }
 

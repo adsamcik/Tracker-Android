@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.signin
 import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.test.MockSignInClient
 import com.adsamcik.signalcollector.test.useMock
@@ -24,13 +26,16 @@ object Signin {
      * Provides instance object for the current user. If user is not signed in, null is returned.
      */
     //todo Rework to LiveData so changes are properly reflected in the UI on each user sign-in or sign-out.
-    var user: User? = null
-        private set
+    val mUser = MutableLiveData<User>()
+
+    val user: LiveData<User>
+        get() = mUser
 
     private val onSignInInternal: (Context, User?) -> Unit = { context, user ->
         statusLock.lock()
+        val signedUser = this.mUser.value
         val status = when {
-            this.user != null && user == null -> {
+            signedUser != null && user == null -> {
                 Preferences.getPref(context).edit().remove(Preferences.PREF_USER_ID).remove(Preferences.PREF_USER_DATA).remove(Preferences.PREF_USER_STATS).remove(Preferences.PREF_REGISTERED_USER).apply()
                 DataStore.delete(context, Preferences.PREF_USER_DATA)
                 DataStore.delete(context, Preferences.PREF_USER_STATS)
@@ -41,7 +46,7 @@ object Signin {
             else -> SigninStatus.SIGNED_NO_DATA
         }
 
-        this.user = user
+        this.mUser.postValue(user)
         updateStatus(status)
         callOnSigninCallbacks()
 
@@ -59,7 +64,7 @@ object Signin {
 
     private fun listenForServerData(user: User) {
         user.addServerDataCallback {
-            if (this.user != it)
+            if (this.mUser.value != it)
                 return@addServerDataCallback
             statusLock.lock()
             status = SigninStatus.SIGNED
@@ -71,7 +76,7 @@ object Signin {
 
     private fun updateStatus(signinStatus: SigninStatus) {
         this.status = signinStatus
-        onStateChangeCallback?.invoke(signinStatus, user)
+        onStateChangeCallback?.invoke(signinStatus, mUser.value)
     }
 
     /**
@@ -84,6 +89,7 @@ object Signin {
 
     @Synchronized
     private fun callOnSigninCallbacks() {
+        val user = mUser.value
         for (c in onSignedCallbackList)
             c.invoke(user)
         onSignedCallbackList.clear()
@@ -151,7 +157,7 @@ object Signin {
      */
     var onStateChangeCallback: ((SigninStatus, User?) -> Unit)? = null
         set(value) {
-            value?.invoke(status, user)
+            value?.invoke(status, mUser.value)
             field = value
         }
 
@@ -185,7 +191,7 @@ object Signin {
             }
             Signin.SigninStatus.SIGNED_NO_DATA,
             Signin.SigninStatus.SIGNED -> {
-                callback?.invoke(user)
+                callback?.invoke(mUser.value)
             }
             Signin.SigninStatus.SIGNIN_FAILED,
             Signin.SigninStatus.SILENT_SIGNIN_FAILED -> {
@@ -214,7 +220,7 @@ object Signin {
             }
             Signin.SigninStatus.SIGNED_NO_DATA,
             Signin.SigninStatus.SIGNED -> {
-                callback?.invoke(user)
+                callback?.invoke(mUser.value)
             }
             Signin.SigninStatus.SILENT_SIGNIN_FAILED,
             Signin.SigninStatus.SIGNIN_FAILED -> {
@@ -253,6 +259,7 @@ object Signin {
      * User can be null if signin fails
      */
     fun getUserAsync(context: Context, callback: (User?) -> Unit) {
+        val user = mUser.value
         if (user != null)
             callback.invoke(user)
         else

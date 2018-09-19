@@ -12,7 +12,6 @@ import com.adsamcik.signalcollector.components.BottomSheetMenu
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataFile
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
@@ -53,7 +52,7 @@ class FileSharingActivity : DetailActivity() {
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
                         temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), null, Signin.getUserID(this), DataFile.STANDARD, this).close()
+                        DataFile(DataStore.file(this, fileNames[i]), null).close()
                     }
 
                 if (temp.size == 0)

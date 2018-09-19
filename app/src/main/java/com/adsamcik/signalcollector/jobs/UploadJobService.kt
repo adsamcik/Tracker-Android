@@ -1,15 +1,13 @@
 package com.adsamcik.signalcollector.jobs
 
 import android.app.job.JobInfo
-import android.app.job.JobParameters
 import android.app.job.JobScheduler
-import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
-import android.os.AsyncTask
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.core.content.edit
+import androidx.work.Worker
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
@@ -18,26 +16,24 @@ import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
+import com.adsamcik.signalcollector.network.Jwt
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkInterface
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
 import com.adsamcik.signalcollector.utility.Constants.MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE
+import com.adsamcik.signalcollector.utility.DeviceId
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
+import com.squareup.moshi.Moshi
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.MediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
-import retrofit2.Call
-import retrofit2.Response
-import retrofit2.Retrofit
 import java.io.File
 import java.io.IOException
-import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToLong
@@ -45,186 +41,142 @@ import kotlin.math.roundToLong
 /**
  * JobService used to handle uploading to server
  */
-class UploadJobService : JobService() {
-    private var worker: JobWorker? = null
-
-    private fun removePersistence() = Preferences.getPref(this).edit {
-        remove(Preferences.PREF_SCHEDULED_UPLOAD)
-    }
-
-    override fun onStartJob(jobParameters: JobParameters): Boolean {
-        val scheduleSource = ActionSource.values()[jobParameters.extras.getInt(KEY_SOURCE)]
+class UploadJobService : Worker() {
+    override fun doWork(): Result {
+        val scheduleSource = ActionSource.values()[inputData.getInt(KEY_SOURCE, 0)]
         if (scheduleSource == ActionSource.NONE)
             throw RuntimeException("Source cannot be NONE")
 
-        if (!hasEnoughData(this, scheduleSource)) {
+        val context = applicationContext
+
+        if (!hasEnoughData(context, scheduleSource)) {
             removePersistence()
-            return false
+            return Result.FAILURE
         }
 
         if (isUploading.getAndSet(true)) {
             removePersistence()
-            return false
+            return Result.FAILURE
         }
 
-        DataStore.onUpload(this, 0)
-        val context = applicationContext
+        DataStore.onUpload(context, 0)
+
+        val file = preUpload(scheduleSource) ?: return Result.FAILURE
+
+        val result = upload(file)
 
         val collectionsToUpload = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
-        worker = JobWorker(context) { success ->
-            if (success) {
-                var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
-                if (collectionCount < collectionsToUpload) {
-                    collectionCount = 0
-                    Crashlytics.logException(Throwable("There are less collections than thought"))
-                } else
-                    collectionCount -= collectionsToUpload
-                DataStore.setCollections(this, collectionCount)
-                DataStore.onUpload(this, 100)
-                removePersistence()
-            }
-            isUploading.set(false)
-            jobFinished(jobParameters, !success)
-        }
-        worker!!.execute(jobParameters)
-        return true
+
+        postUpload(file, collectionsToUpload, result)
+
+
+        return result
     }
 
-    override fun onStopJob(jobParameters: JobParameters): Boolean {
-        isUploading.set(false)
-        return if (worker?.status == AsyncTask.Status.FINISHED)
-            false
-        else {
-            worker?.cancel(true)
-            true
-        }
+    private fun removePersistence() = Preferences.getPref(applicationContext).edit {
+        remove(Preferences.PREF_SCHEDULED_UPLOAD)
     }
 
-    private class JobWorker internal constructor(context: Context, private val callback: ((Boolean) -> Unit)?) : AsyncTask<JobParameters, Void, Boolean>() {
-        private val context: WeakReference<Context> = WeakReference(context.applicationContext)
+    /**
+     * Uploads data to server.
+     *
+     * @param file file to be uploaded
+     */
+    private fun upload(file: File?): Result {
+        if (file == null)
+            throw InvalidParameterException("file is null")
 
-        private var tempZipFile: File? = null
-        private var response: Response<Boolean>? = null
-        private var call: Call<Boolean>? = null
+        val context = applicationContext
 
-        /**
-         * Uploads data to server.
-         *
-         * @param file file to be uploaded
-         */
-        private fun upload(file: File?, token: String?, userID: String?): Boolean {
-            if (file == null)
-                throw InvalidParameterException("file is null")
-            else if (token == null) {
-                Crashlytics.logException(Throwable("Token is null"))
-                return false
-            }
+        var token: String? = null
+        runBlocking {
+            token = Jwt.getToken(context)
+        }
 
-            val formBody = MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart("file", Network.generateVerificationString(userID!!, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
-                    .build()
-            try {
-                val retroClient = Retrofit.Builder().client(Network.clientAuth(context.get()!!, token)).build()
-                val networkInterface = retroClient.create(NetworkInterface::class.java)
-                call = networkInterface.dataUpload(formBody)
-                response = call!!.execute()
-                val isSuccessful = response!!.isSuccessful
-                if (isSuccessful)
-                    return true
+        if (token == null) {
+            Crashlytics.logException(Throwable("Token is null"))
+            return Result.FAILURE
+        }
 
-                val code = response!!.code()
-                if (code >= 400)
-                    Crashlytics.logException(Throwable("Upload failed $code"))
-                return false
+        val userID = Signin.getUserID(context) ?: return Result.FAILURE
+
+        val adapter = Moshi.Builder().build().adapter(DeviceId::class.java)
+        val deviceId = DeviceId(Build.MANUFACTURER, Build.MODEL, userID)
+        val deviceIdJson = adapter.toJson(deviceId)
+
+        val formBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("deviceID", deviceIdJson)
+                .addFormDataPart("API", Build.VERSION.SDK_INT.toString())
+                .addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
+                .build()
+
+        val request = Network.requestPOST(context, Network.URL_DATA_UPLOAD, formBody).build()
+        try {
+            val call = Network.clientAuth(context, token).newCall(request)
+            val response = call.execute()
+            val code = response.code()
+            val isSuccessful = response.isSuccessful
+            response.close()
+            if (isSuccessful)
+                return Result.SUCCESS
+
+            if (code >= 400)
+                Crashlytics.logException(Throwable("Upload failed $code"))
+            return Result.RETRY
+        } catch (e: IOException) {
+            Crashlytics.logException(e)
+            return Result.RETRY
+        }
+
+    }
+
+    private fun preUpload(source: ActionSource): File? {
+        val context = applicationContext
+        val files = DataStore.getDataFiles(context, if (source == ActionSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE)
+        if (files == null) {
+            Crashlytics.logException(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
+            DataStore.onUpload(context, -1)
+            return null
+        } else {
+            DataStore.lockData()
+            DataStore.getCurrentDataFile(context)!!.close()
+            val zipName = "up" + System.currentTimeMillis()
+            return try {
+                val compress = Compress(DataStore.file(context, zipName))
+                compress += files
+                compress.finish()
             } catch (e: IOException) {
                 Crashlytics.logException(e)
-                return false
-            }
-
-        }
-
-        override fun doInBackground(vararg params: JobParameters): Boolean? {
-            val source = ActionSource.values()[params[0].extras.getInt(KEY_SOURCE)]
-            if (source == ActionSource.NONE) {
-                Crashlytics.logException(RuntimeException("Source is none"))
-                return false
-            }
-
-            val context = this.context.get()!!
-            val files = DataStore.getDataFiles(context, if (source == ActionSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE)
-            if (files == null) {
-                Crashlytics.logException(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
-                DataStore.onUpload(context, -1)
-                return false
-            } else {
-                DataStore.lockData()
-                DataStore.getCurrentDataFile(context)!!.close()
-                val zipName = "up" + System.currentTimeMillis()
-                try {
-                    val compress = Compress(DataStore.file(context, zipName))
-                    compress += files
-                    tempZipFile = compress.finish()
-                } catch (e: IOException) {
-                    Crashlytics.logException(e)
-                    return false
-                }
-
-                return runBlocking {
-                    val user = Signin.getUserAsync(context)
-
-                    if (user != null) {
-                        if (upload(tempZipFile, user.token, user.id)) {
-                            for (file in files) {
-                                FileStore.delete(file)
-                            }
-
-                            if (!tempZipFile!!.delete())
-                                tempZipFile!!.deleteOnExit()
-
-                            DataStore.recountData(context)
-                            return@runBlocking true
-                        } else {
-                            return@runBlocking false
-                        }
-                    } else {
-                        return@runBlocking false
-                    }
-                }
+                null
             }
         }
+    }
 
-        override fun onPostExecute(result: Boolean) {
-            super.onPostExecute(result)
-            val ctx = context.get()!!
-            DataStore.cleanup(ctx)
-            DataStore.unlockData()
+    private fun postUpload(tempZipFile: File, collectionsToUpload: Int, result: Result) {
+        val context = applicationContext
+        DataStore.cleanup(context)
+        DataStore.unlockData()
 
-            if (!result) {
-                DataStore.onUpload(ctx, -1)
-            }
-
-            if (tempZipFile != null && !FileStore.delete(tempZipFile))
-                Crashlytics.logException(IOException("Upload zip file was not deleted"))
-
-            callback?.invoke(result)
+        if (result == Result.RETRY || result == Result.FAILURE) {
+            DataStore.onUpload(context, -1)
         }
 
-        override fun onCancelled() {
-            val context = this.context.get()!!
-            DataStore.cleanup(context)
-            DataStore.recountData(context)
-            DataStore.unlockData()
+        if (!FileStore.delete(tempZipFile))
+            Crashlytics.logException(IOException("Upload zip file was not deleted"))
 
-            if (tempZipFile != null)
-                FileStore.delete(tempZipFile)
-
-            call?.cancel()
-
-            callback?.invoke(call != null && call!!.isExecuted && !call!!.isCanceled)
-
-            super.onCancelled()
+        if (result == Result.SUCCESS) {
+            var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
+            if (collectionCount < collectionsToUpload) {
+                collectionCount = 0
+                Crashlytics.logException(Throwable("There are less collections than thought"))
+            } else
+                collectionCount -= collectionsToUpload
+            DataStore.setCollections(context, collectionCount)
+            DataStore.onUpload(context, 100)
+            removePersistence()
         }
+        isUploading.set(false)
     }
 
     companion object {
