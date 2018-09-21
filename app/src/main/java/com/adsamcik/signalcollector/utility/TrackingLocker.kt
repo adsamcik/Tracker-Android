@@ -2,21 +2,18 @@ package com.adsamcik.signalcollector.utility
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.app.job.JobInfo
-import android.app.job.JobParameters
-import android.app.job.JobScheduler
-import android.app.job.JobService
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.edit
-import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
-import com.adsamcik.signalcollector.extensions.jobScheduler
+import androidx.work.Constraints
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.Worker
+import com.adsamcik.signalcollector.extensions.alarmManager
 import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
 import com.adsamcik.signalcollector.services.ActivityWakerService
 import com.adsamcik.signalcollector.services.TrackerService
-import com.crashlytics.android.Crashlytics
 import javax.annotation.concurrent.ThreadSafe
 
 /**
@@ -27,7 +24,7 @@ object TrackingLocker {
     /**
      * Id of the job that disables the recharge lock when device is connected to a charger
      */
-    const val JOB_DISABLE_TILL_RECHARGE_ID = 58946
+    const val JOB_DISABLE_TILL_RECHARGE_TAG = "disableTillRecharge"
 
     //Locking order is in the order of variable definitions
 
@@ -123,17 +120,13 @@ object TrackingLocker {
     /**
      * Locks tracking until phone is connected to a charger
      */
-    fun lockUntilRecharge(context: Context): Boolean {
+    fun lockUntilRecharge(context: Context) {
         synchronized(lockedUntilRecharge) {
-            val scheduler = context.jobScheduler
-            val jobBuilder = JobInfo.Builder(JOB_DISABLE_TILL_RECHARGE_ID, ComponentName(context, DisableTillRechargeJobService::class.java))
-            jobBuilder.setPersisted(true).setRequiresCharging(true)
-            if (scheduler.schedule(jobBuilder.build()) == JobScheduler.RESULT_SUCCESS) {
-                setRechargeLock(context, true)
-                return true
-            } else
-                Crashlytics.logException(Throwable("failed to schedule job"))
-            return false
+            val workManager = WorkManager.getInstance()
+            val constraints = Constraints.Builder().setRequiresCharging(true).build()
+            val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(constraints).build()
+            workManager.enqueue(work)
+            setRechargeLock(context, true)
         }
     }
 
@@ -141,7 +134,7 @@ object TrackingLocker {
      * Removed recharge lockTimeLock
      */
     fun unlockRechargeLock(context: Context) {
-        context.jobScheduler.cancel(JOB_DISABLE_TILL_RECHARGE_ID)
+        WorkManager.getInstance().cancelAllWorkByTag(JOB_DISABLE_TILL_RECHARGE_TAG)
         setRechargeLock(context, false)
     }
 
@@ -158,7 +151,7 @@ object TrackingLocker {
                 if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
                     context.stopService<TrackerService>()
 
-                getAlarmManager(context).set(AlarmManager.RTC_WAKEUP,
+                context.alarmManager.set(AlarmManager.RTC_WAKEUP,
                         lockedUntil, getIntent(context))
             }
         }
@@ -170,7 +163,7 @@ object TrackingLocker {
      */
     fun unlockTimeLock(context: Context) {
         synchronized(lockedUntil) {
-            getAlarmManager(context).cancel(getIntent(context))
+            context.alarmManager.cancel(getIntent(context))
             setTimeLock(context, 0)
 
             ActivityWakerService.pokeWithCheck(context)
@@ -194,17 +187,13 @@ object TrackingLocker {
         return PendingIntent.getBroadcast(context, 0, intent, 0)
     }
 
-    private fun getAlarmManager(context: Context) = context.getSystemServiceTyped<AlarmManager>(Context.ALARM_SERVICE)
-
     /**
      * JobService used for job that waits until device is connected to a charger to remove recharge lockTimeLock
      */
-    class DisableTillRechargeJobService : JobService() {
-        override fun onStartJob(jobParameters: JobParameters): Boolean {
-            unlockRechargeLock(this)
-            return false
+    class DisableTillRechargeWorker : Worker() {
+        override fun doWork(): Result {
+            unlockRechargeLock(applicationContext)
+            return Result.SUCCESS
         }
-
-        override fun onStopJob(jobParameters: JobParameters): Boolean = true
     }
 }
