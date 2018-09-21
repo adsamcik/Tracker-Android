@@ -83,7 +83,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         caller.findPreference(R.string.settings_disabled_recharge_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
-                return@OnPreferenceChangeListener TrackingLocker.lockUntilRecharge(this)
+                TrackingLocker.lockUntilRecharge(this)
             } else
                 TrackingLocker.unlockRechargeLock(this)
 

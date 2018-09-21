@@ -8,7 +8,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.extensions.getInt
-import com.adsamcik.signalcollector.extensions.jobScheduler
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
@@ -185,7 +184,7 @@ class UploadWorker : Worker() {
         /**
          * Id of the schedule job
          */
-        const val SCHEDULE_UPLOAD_JOB_ID = 1921109
+        const val SCHEDULE_UPLOAD_JOB_TAG = "uploadSchedule"
 
         /**
          * Id of the upload job
@@ -229,6 +228,8 @@ class UploadWorker : Worker() {
                 if (canUpload(context, source)) {
                     val work = prepareBuilder(context, source)
 
+                    work.addTag(UPLOAD_TAG)
+
                     WorkManager.getInstance().enqueue(work.build())
 
                     updateUploadScheduleSource(context, source)
@@ -252,6 +253,7 @@ class UploadWorker : Worker() {
                     hasEnoughData(dataSize, ActionSource.BACKGROUND)) {
                 if (!hasUploadJob()) {
                     val work = prepareBuilder(context, ActionSource.BACKGROUND)
+                    work.addTag(SCHEDULE_UPLOAD_JOB_TAG)
                     work.setInitialDelay(calculateScheduleDelay(dataSize), TimeUnit.SECONDS)
 
                     updateUploadScheduleSource(context, ActionSource.BACKGROUND)
@@ -294,7 +296,6 @@ class UploadWorker : Worker() {
             addNetworkTypeRequest(context, source, constraints)
 
             val workBuilder = OneTimeWorkRequestBuilder<UploadWorker>()
-                    .addTag(UPLOAD_TAG)
                     .setConstraints(constraints.build())
 
             val inputData = workDataOf(Pair(KEY_SOURCE, source.ordinal))
@@ -333,7 +334,7 @@ class UploadWorker : Worker() {
          * Cancels any job tak could be scheduled
          */
         fun cancelUploadSchedule(context: Context) {
-            context.jobScheduler.cancel(SCHEDULE_UPLOAD_JOB_ID)
+            WorkManager.getInstance().cancelAllWorkByTag(SCHEDULE_UPLOAD_JOB_TAG)
             updateUploadScheduleSource(context, ActionSource.NONE)
         }
     }
