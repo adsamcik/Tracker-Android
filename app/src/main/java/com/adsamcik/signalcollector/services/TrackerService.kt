@@ -174,10 +174,13 @@ class TrackerService : LifecycleService() {
         cellCount = sp.getInt(Preferences.PREF_STATS_CELL_FOUND, 0)
         locations = sp.getInt(Preferences.PREF_STATS_LOCATIONS_FOUND, 0)
         for (d in data) {
-            if (d.wifi != null)
-                wifiCount += d.wifi!!.size
-            if (d.cellCount != null)
-                cellCount += d.cellCount!!
+            val wifi = d.wifi
+            if (wifi != null)
+                wifiCount += wifi.inRange.size
+
+            val cell = d.cell
+            if (cell != null)
+                cellCount += cell.totalCount
         }
 
         val result = DataStore.saveData(this, data.toTypedArray())
@@ -255,14 +258,17 @@ class TrackerService : LifecycleService() {
             sb.append(resources.getString(R.string.notification_activity,
                     ActivityInfo.getResolvedActivityName(this, d.activity!!))).append(", ")
 
-        if (d.wifi != null) {
-            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(", ")
+        val wifi = d.wifi
+        if (wifi != null) {
+            sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(", ")
             isEmpty = false
         }
 
-        val cellCount = d.cellCount
-        if (cellCount != null) {
-            sb.append(resources.getQuantityString(R.plurals.notification_cell, cellCount, cellCount)).append(", ")
+        val cell = d.cell
+        if (cell != null && cell.registeredCells.isNotEmpty()) {
+            val mainCell = cell.registeredCells[0]
+            sb.append(resources.getString(R.string.notification_cell_current, mainCell.typeString, mainCell.dbm))
+            sb.append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount)).append(", ")
             isEmpty = false
         }
 

@@ -18,7 +18,7 @@ import java.util.*
 @JsonClass(generateAdapter = true)
 data class RawData(
         /**
-         * Time of collection in milliseconds since midnight, January 1, 1970 UTC
+         * Time of collection in milliseconds since midnight, January 1, 1970 UTC (UNIX time)
          */
         var time: Long = 0,
 
@@ -43,32 +43,20 @@ data class RawData(
         var accuracy: Float? = null,
 
         /**
-         * List of registered cells
-         * Null if not collected
-         */
-        var registeredCells: Array<CellData>? = null,
-
-        /**
-         * Total cell count
-         * default null if not collected.
-         */
-        var cellCount: Int? = null,
-
-        /**
-         * Array of collected wifi networks
-         */
-        var wifi: Array<WifiData>? = null,
-
-        /**
-         * Time of collection of wifi data
-         */
-        var wifiTime: Long? = null,
-
-        /**
          * Current resolved activity
          */
         @ResolvedActivities.ResolvedActivity
-        var activity: Int? = null) {
+        var activity: Int? = null,
+
+        /**
+         * Data about cells
+         */
+        var cell: CellData? = null,
+
+        /**
+         * Data about Wi-Fi
+         */
+        var wifi: WifiData? = null) {
 
 
     /**
@@ -94,8 +82,8 @@ data class RawData(
      */
     fun setWifi(data: Array<ScanResult>?, time: Long): RawData {
         if (data != null && time > 0) {
-            wifi = data.map { scanResult -> WifiData(scanResult) }.toTypedArray()
-            this.wifiTime = time
+            val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }.toTypedArray()
+            this.wifi = WifiData(time, scannedWifi)
         }
         return this
     }
@@ -113,38 +101,37 @@ data class RawData(
 
     fun addCell(telephonyManager: TelephonyManager) {
 //Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
-        @SuppressLint("MissingPermission") val cellInfos = telephonyManager.allCellInfo
+        @SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo
         val nOp = telephonyManager.networkOperator
         if (!nOp.isEmpty()) {
             val mcc = java.lang.Short.parseShort(nOp.substring(0, 3))
             val mnc = java.lang.Short.parseShort(nOp.substring(3))
 
-            if (cellInfos != null) {
-                cellCount = cellInfos.size
-                val registeredCells = ArrayList<CellData>(if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1)
-                for (ci in cellInfos) {
+            if (cellInfo != null) {
+                val registeredCells = ArrayList<CellInfo>(if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1)
+                for (ci in cellInfo) {
                     if (ci.isRegistered) {
-                        var cd: CellData? = null
+                        var cd: CellInfo? = null
                         when (ci) {
                             is CellInfoLte -> cd =
                                     if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-                                        CellData.newInstance(ci, telephonyManager.networkOperatorName)
+                                        CellInfo.newInstance(ci, telephonyManager.networkOperatorName)
                                     else
-                                        CellData.newInstance(ci, null as String?)
+                                        CellInfo.newInstance(ci, null as String?)
                             is CellInfoGsm -> cd =
                                     if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-                                        CellData.newInstance(ci, telephonyManager.networkOperatorName)
+                                        CellInfo.newInstance(ci, telephonyManager.networkOperatorName)
                                     else
-                                        CellData.newInstance(ci, null as String?)
+                                        CellInfo.newInstance(ci, null as String?)
                             is CellInfoWcdma -> cd =
                                     if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-                                        CellData.newInstance(ci, telephonyManager.networkOperatorName)
+                                        CellInfo.newInstance(ci, telephonyManager.networkOperatorName)
                                     else
-                                        CellData.newInstance(ci, null as String?)
+                                        CellInfo.newInstance(ci, null as String?)
                             is CellInfoCdma -> /*if (cic.getCellIdentity().getMnc() == mnc && cic.getCellIdentity().getMcc() == mcc)
-                addCell(CellData.newInstance(cic, telephonyManager.getNetworkOperatorName()));
+                addCell(CellInfo.newInstance(cic, telephonyManager.getNetworkOperatorName()));
                 else*/
-                                cd = CellData.newInstance(ci, null as String?)
+                                cd = CellInfo.newInstance(ci, null as String?)
                             else -> Crashlytics.logException(Throwable("UNKNOWN CELL TYPE"))
                         }
 
@@ -153,42 +140,8 @@ data class RawData(
                     }
                 }
 
-                this.registeredCells = registeredCells.toTypedArray()
+                this.cell = CellData(registeredCells.toTypedArray(), cellInfo.size)
             }
         }
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as RawData
-
-        if (time != other.time) return false
-        if (longitude != other.longitude) return false
-        if (latitude != other.latitude) return false
-        if (altitude != other.altitude) return false
-        if (accuracy != other.accuracy) return false
-        if (!Arrays.equals(registeredCells, other.registeredCells)) return false
-        if (cellCount != other.cellCount) return false
-        if (!Arrays.equals(wifi, other.wifi)) return false
-        if (wifiTime != other.wifiTime) return false
-        if (activity != other.activity) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = time.hashCode()
-        result = 31 * result + (longitude?.hashCode() ?: 0)
-        result = 31 * result + (latitude?.hashCode() ?: 0)
-        result = 31 * result + (altitude?.hashCode() ?: 0)
-        result = 31 * result + (accuracy?.hashCode() ?: 0)
-        result = 31 * result + (registeredCells?.let { Arrays.hashCode(it) } ?: 0)
-        result = 31 * result + (cellCount ?: 0)
-        result = 31 * result + (wifi?.let { Arrays.hashCode(it) } ?: 0)
-        result = 31 * result + (wifiTime?.hashCode() ?: 0)
-        result = 31 * result + (activity ?: 0)
-        return result
     }
 }

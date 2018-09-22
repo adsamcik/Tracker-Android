@@ -7,10 +7,11 @@
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
     <string name="notification_wifi">%d Wi-Fi</string>
-    <plurals name="notification_cell">
+    <plurals name="notification_cell_count">
         <item quantity="one">1 cell</item>
         <item quantity="other">%d cells</item>
     </plurals>
+    <string name="notification_cell_current">active %1$s %2$d dBm</string>
     <string name="notification_activity">activity %s</string>
     <string name="notification_nothing_found">Nothing found</string>
 

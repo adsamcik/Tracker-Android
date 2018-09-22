@@ -149,9 +149,9 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
     @Synchronized
     fun close(): Boolean {
         return try {
-            val last2 = FileStore.loadLastAscii(file, 2)!!
+            val lastChar = FileStore.loadLastAscii(file, 1)!!
             isWritable = false
-            last2 == "]}" || FileStore.saveString(file, "]}", true)
+            lastChar == "]" || FileStore.saveString(file, "]", true)
         } catch (e: FileNotFoundException) {
             Crashlytics.logException(e)
             isWritable = true

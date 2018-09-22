@@ -19,9 +19,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.SettingsActivity
 import com.adsamcik.signalcollector.activities.UserActivity
 import com.adsamcik.signalcollector.components.InfoComponent
-import com.adsamcik.signalcollector.data.CellData
-import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.data.WifiData
+import com.adsamcik.signalcollector.data.*
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
@@ -181,14 +179,12 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
     private fun mock() {
         val rawData = RawData(System.currentTimeMillis())
         rawData.activity = ResolvedActivities.ON_FOOT
-        rawData.wifi = arrayOf(WifiData(), WifiData(), WifiData())
+        rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
         rawData.accuracy = 6f
-        rawData.cellCount = 8
-        rawData.registeredCells = arrayOf(CellData("MOCK", 2, 0, "123", "456", -30, 90, 0))
+        rawData.cell = CellData(arrayOf(CellInfo("MOCK", 2, 0, "123", "456", -30, 90, 0)), 8)
         rawData.latitude = 15.0
         rawData.longitude = 15.0
         rawData.altitude = 123.0
-        rawData.wifiTime = System.currentTimeMillis()
         updateData(rawData)
     }
 
@@ -331,7 +327,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         when {
             d.wifi != null -> {
                 val component = initializeWifiInfo()
-                component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, d.wifi!!.size))
+                component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, d.wifi!!.inRange.size))
                 component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
                 lastWifiTime = d.time
             }
@@ -343,14 +339,14 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
             }
         }
 
-        if (d.cellCount != null) {
+        val cell = d.cell
+        if (cell != null) {
             val component = initializeCellInfo()
-            val registered = d.registeredCells
-            if (registered != null && registered.isNotEmpty()) {
-                component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, registered[0].getType(), registered[0].dbm, registered[0].asu))
+            if (cell.registeredCells.isNotEmpty()) {
+                component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, cell.registeredCells[0].typeString, cell.registeredCells[0].dbm, cell.registeredCells[0].asu))
             } else
                 component.setVisibility(CELL_COMPONENT_CURRENT, GONE)
-            component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, d.cellCount))
+            component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, cell.totalCount))
         } else {
             cellInfo?.detach()
             cellInfo = null
