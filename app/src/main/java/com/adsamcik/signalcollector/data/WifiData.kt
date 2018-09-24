@@ -6,7 +6,7 @@ data class WifiData(
         /**
          * Time of collection of wifi data
          */
-        val wifiTime: Long,
+        val time: Long,
         /**
          * Array of collected wifi networks
          */
@@ -17,15 +17,15 @@ data class WifiData(
 
         other as WifiData
 
-        if (wifiTime != other.wifiTime) return false
+        if (time != other.time) return false
         if (!Arrays.equals(inRange, other.inRange)) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        var result = wifiTime.hashCode()
-        result = 31 * result + (inRange?.let { Arrays.hashCode(it) } ?: 0)
+        var result = time.hashCode()
+        result = 31 * result + Arrays.hashCode(inRange)
         return result
     }
 }
