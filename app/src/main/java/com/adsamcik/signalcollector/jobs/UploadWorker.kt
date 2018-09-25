@@ -37,7 +37,7 @@ import kotlin.math.roundToLong
 /**
  * JobService used to handle uploading to server
  */
-class UploadWorker : Worker() {
+class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
     override fun doWork(): Result {
         val scheduleSource = ActionSource.values()[inputData.getInt(KEY_SOURCE, 0)]
         if (scheduleSource == ActionSource.NONE)
@@ -130,7 +130,7 @@ class UploadWorker : Worker() {
     private fun preUpload(source: ActionSource): File? {
         val context = applicationContext
         val files = DataStore.getDataFiles(context, if (source == ActionSource.USER) Constants.MIN_USER_UPLOAD_FILE_SIZE else Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE)
-        if (files == null) {
+        if (files == null || files.isEmpty()) {
             Crashlytics.logException(Throwable("No files found. This should not happen. Upload initiated by " + source.name))
             DataStore.onUpload(context, -1)
             return null
@@ -315,7 +315,7 @@ class UploadWorker : Worker() {
             }
         }
 
-        private fun hasEnoughData(context: Context, source: ActionSource): Boolean = hasEnoughData(DataStore.sizeOfData(context), source)
+        private fun hasEnoughData(context: Context, source: ActionSource): Boolean = hasEnoughData(DataStore.sizeOfData(context), source) || true
 
         private fun hasEnoughData(dataSize: Long, source: ActionSource): Boolean =
                 when (source) {

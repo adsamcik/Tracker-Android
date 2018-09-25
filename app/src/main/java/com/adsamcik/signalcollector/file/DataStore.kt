@@ -6,6 +6,7 @@ import android.util.MalformedJsonException
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatuses
+import com.adsamcik.signalcollector.file.DataFile.Companion.SEPARATOR
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
@@ -31,9 +32,7 @@ object DataStore {
 
     const val RECENT_UPLOADS_FILE = "recentUploads"
     const val DATA_FILE = "dataStore"
-    const val DATA_CACHE_FILE = "dataCacheFile"
     const val PREF_DATA_FILE_INDEX = "saveFileID"
-    const val PREF_CACHE_FILE_INDEX = "saveCacheID"
     private const val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: (() -> Unit)? = null
@@ -167,6 +166,7 @@ object DataStore {
      */
     @Synchronized
     fun cleanup(context: Context) {
+        currentDataFile?.lock()
         val files = getDir(context).listFiles()
         Arrays.sort(files) { a: File, b: File -> a.name.compareTo(b.name) }
         val renamedFiles = ArrayList<Pair<Int, String>>()
@@ -185,12 +185,9 @@ object DataStore {
 
         for (item in renamedFiles) {
             val substr = item.second.substring(TMP_NAME.length)
-            val separatorIndex = substr.indexOf('-')
-            val name =
-                    if (separatorIndex == -1)
-                        DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(TMP_NAME.length)
-                    else
-                        DATA_FILE + item.first + DataFile.SEPARATOR + substr.substring(0, separatorIndex)
+            val separatorIndex = substr.indexOf(SEPARATOR)
+            val collections = Integer.parseInt(substr.substring(0, separatorIndex))
+            val name = DataFile.generateFileName(collections, item.first)
             if (!rename(context, item.second, name)) {
                 Crashlytics.logException(Throwable("Failed to rename $"))
             }
@@ -351,11 +348,17 @@ object DataStore {
     private fun updateCurrentData(context: Context) {
         //true or null
         if (currentDataFile?.isFull != false) {
-            val dataFile = DATA_FILE
-            val preference = PREF_DATA_FILE_INDEX
+            val index = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
 
-            val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
-            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template)
+            val files = getDir(context).listFiles { x -> x.name.startsWith("$DATA_FILE$index$SEPARATOR") }
+
+            val fileName: String
+            fileName = when {
+                files.size > 1 -> throw java.lang.Exception("Something is wrong, crashing. Found ${files.size} based on \"$DATA_FILE$index$SEPARATOR\"")
+                files.size == 1 -> files[0].name
+                else -> DataFile.generateFileName(0, index)
+            }
+            currentDataFile = DataFile(FileStore.dataFile(getDir(context), fileName), index)
         }
     }
 
@@ -363,14 +366,14 @@ object DataStore {
      * Saves rawData to file. File is determined automatically.
      *
      * @param rawData json array to be saved, without [ at the beginning
-     * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
+     * @return returns state value 2 - new file, saved successfully, 1 - error during saving, 0 - no new file, saved successfully
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
         if (dataLocked)
             return SaveStatus.FILE_LOCKED
 
         //true or null
-        if(currentDataFile?.isFull != false)
+        if (currentDataFile?.isFull != false)
             updateCurrentData(context)
 
         return saveData(context, currentDataFile, rawData)

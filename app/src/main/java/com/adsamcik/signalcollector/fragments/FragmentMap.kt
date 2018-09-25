@@ -134,7 +134,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
             val mapFragment = SupportMapFragment.newInstance()
             mapFragment.getMapAsync(this)
             fragmentManager!!.transaction {
-                replace(R.id.container_map, mapFragment as Fragment)
+                replace(R.id.container_map, mapFragment)
             }
             this.mapFragment = mapFragment
         } else

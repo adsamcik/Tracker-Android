@@ -251,7 +251,7 @@ class MainActivity : AppCompatActivity() {
             NavBarPosition.LEFT -> {
                 root.setPadding(navDim.x, 0, 0, 0)
             }
-            else -> root.setPadding(0, 0, 0, navDim.y)
+            else -> root.setPadding(0, 0, 0, 0)
         }
     }
 

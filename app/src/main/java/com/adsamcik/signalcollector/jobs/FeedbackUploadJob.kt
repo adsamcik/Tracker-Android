@@ -48,9 +48,10 @@ class FeedbackUploadJob : Worker() {
             return@runBlocking try {
                 val request = Network.requestPOST(applicationContext, Network.URL_FEEDBACK, builder.build()).build()
                 val result = Network.clientAuth(applicationContext, user.token).newCall(request).execute()
-                if (result.isSuccessful)
+                if (result.isSuccessful) {
+                    notify(R.string.notification_feedback_success, summary)
                     Result.SUCCESS
-                else
+                } else
                     Result.RETRY
             } catch (e: StreamResetException) {
                 Result.RETRY

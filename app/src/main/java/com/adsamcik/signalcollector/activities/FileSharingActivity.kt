@@ -29,7 +29,7 @@ class FileSharingActivity : DetailActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.DATA_CACHE_FILE) || name.startsWith(DataStore.TMP_NAME) }
+        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.TMP_NAME) }
         if (files.isEmpty()) {
             val tv = TextView(this)
             tv.setText(R.string.share_nothing_to_share)
@@ -52,7 +52,7 @@ class FileSharingActivity : DetailActivity() {
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
                         temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), null).close()
+                        DataFile(DataStore.file(this, fileNames[i]), i).close()
                     }
 
                 if (temp.size == 0)

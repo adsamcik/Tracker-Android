@@ -1,8 +1,10 @@
 package com.adsamcik.signalcollector.file
 
+import android.os.Build
 import android.util.MalformedJsonException
-import androidx.annotation.IntDef
+import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
+import com.adsamcik.signalcollector.file.DataStore.DATA_FILE
 import com.adsamcik.signalcollector.file.DataStore.PREF_DATA_FILE_INDEX
 import com.adsamcik.signalcollector.utility.Constants
 import com.crashlytics.android.Crashlytics
@@ -12,7 +14,7 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 
-class DataFile(file: File, private val fileNameTemplate: String?) {
+class DataFile(file: File, val index: Int) {
     var file: File = file
         private set
 
@@ -42,7 +44,7 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
      * @return True if is larger or equal than maximum DataFile size
      */
     val isFull: Boolean
-        @Synchronized get() = size() > Constants.MAX_DATA_FILE_SIZE
+        get() = size() > Constants.MAX_DATA_FILE_SIZE
 
     init {
         if (!file.exists() || file.length() == 0L) {
@@ -63,23 +65,17 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
         }
     }
 
-    @Synchronized
     private fun updateCollectionCount(collectionCount: Int) {
-        this.collectionCount += collectionCount
-        val newFile: File = if (fileNameTemplate != null)
-            File(file.parentFile, fileNameTemplate + SEPARATOR + this.collectionCount)
-        else
-            File(file.parentFile, getTemplate(file) + SEPARATOR + this.collectionCount)
+        synchronized(isWritable) {
+            this.collectionCount += collectionCount
+            val newFile = File(file.parentFile, generateFileName(this.collectionCount, index))
 
-        if (!file.renameTo(newFile))
-            Crashlytics.logException(Throwable("Failed to rename file"))
-        else
-            file = newFile
+            if (!file.renameTo(newFile))
+                Crashlytics.logException(Throwable("Failed to rename file"))
+            else
+                file = newFile
+        }
     }
-
-    @IntDef(STANDARD)
-    @Retention(AnnotationRetention.SOURCE)
-    annotation class FileType
 
     /**
      * Add json array data to file
@@ -88,15 +84,16 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
      * @param collectionCount Number of collections (items in array)
      * @return true if adding was success, false otherwise
      */
-    @Synchronized
     fun addData(jsonArray: String, collectionCount: Int): Boolean {
-        if (jsonArray[0] != '[')
-            throw IllegalArgumentException("Given string is not json array!")
-        return if (saveData(jsonArray)) {
-            updateCollectionCount(collectionCount)
-            true
-        } else
-            false
+        synchronized(isWritable) {
+            if (jsonArray[0] != '[')
+                throw IllegalArgumentException("Given string is not json array!")
+            return if (saveData(jsonArray)) {
+                updateCollectionCount(collectionCount)
+                true
+            } else
+                false
+        }
     }
 
     /**
@@ -105,39 +102,40 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
      * @param data RawData array
      * @return true if adding was success, false otherwise
      */
-    @Synchronized
     fun addData(data: Array<RawData>): Boolean {
-        if (!isWritable) {
-            try {
-                FileOutputStream(file, true).channel.truncate(file.length() - 2).close()
-            } catch (e: IOException) {
-                Crashlytics.logException(e)
-                return false
+        synchronized(isWritable) {
+            if (!isWritable) {
+                try {
+                    FileOutputStream(file, true).channel.truncate(file.length() - 2).close()
+                } catch (e: IOException) {
+                    Crashlytics.logException(e)
+                    return false
+                }
+
+                isWritable = true
             }
 
-            isWritable = true
+            return if (saveData(adapter.toJson(data))) {
+                updateCollectionCount(data.size)
+                true
+            } else
+                false
         }
-
-        return if (saveData(adapter.toJson(data))) {
-            updateCollectionCount(data.size)
-            true
-        } else
-            false
     }
 
-    @Synchronized
     private fun saveData(jsonArray: String): Boolean {
-        return try {
-            val status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty)
-            if (status)
-                empty = false
-            status
-        } catch (e: MalformedJsonException) {
-            //Should never happen, but w/e
-            Crashlytics.logException(e)
-            false
+        synchronized(isWritable) {
+            return try {
+                val status = FileStore.saveAppendableJsonArray(file, jsonArray, true, empty)
+                if (status)
+                    empty = false
+                status
+            } catch (e: MalformedJsonException) {
+                //Should never happen, but w/e
+                Crashlytics.logException(e)
+                false
+            }
         }
-
     }
 
     /**
@@ -146,18 +144,30 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
      *
      * @return True if close was successful
      */
-    @Synchronized
     fun close(): Boolean {
-        return try {
-            val lastChar = FileStore.loadLastAscii(file, 1)!!
-            isWritable = false
-            lastChar == "]" || FileStore.saveString(file, "]", true)
-        } catch (e: FileNotFoundException) {
-            Crashlytics.logException(e)
-            isWritable = true
-            false
+        synchronized(isWritable) {
+            return try {
+                val lastChar = FileStore.loadLastAscii(file, 1)!!
+                isWritable = false
+                lastChar == "]" || FileStore.saveString(file, "]", true)
+            } catch (e: FileNotFoundException) {
+                Crashlytics.logException(e)
+                isWritable = true
+                false
+            }
         }
+    }
 
+    fun lock() {
+        synchronized(isWritable) {
+            isWritable = false
+        }
+    }
+
+    fun unlock() {
+        synchronized(isWritable) {
+            isWritable = true
+        }
     }
 
     /**
@@ -168,8 +178,7 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
     fun size(): Long = file.length()
 
     companion object {
-        const val STANDARD = 0
-        const val SEPARATOR = " "
+        const val SEPARATOR = "-"
 
         /**
          * Returns number of collection in given file
@@ -180,26 +189,15 @@ class DataFile(file: File, private val fileNameTemplate: String?) {
         fun getCollectionCount(file: File): Int {
             val fileName = file.name
             val indexOf = fileName.indexOf(SEPARATOR) + SEPARATOR.length
+            val length = fileName.indexOf(SEPARATOR, indexOf)
             return if (indexOf > 2)
-                Integer.parseInt(fileName.substring(indexOf))
+                Integer.parseInt(fileName.substring(indexOf, length))
             else
                 0
         }
 
-        /**
-         * Returns file's template
-         * File's template is common part shared by all files of the same type
-         *
-         * @param file File
-         * @return File template
-         */
-        private fun getTemplate(file: File): String {
-            val fileName = file.name
-            val indexOf = fileName.indexOf(SEPARATOR)
-            return if (indexOf > 2)
-                fileName.substring(0, indexOf)
-            else
-                fileName
+        fun generateFileName(collectionCount: Int, index: Int): String {
+            return "$DATA_FILE$index$SEPARATOR$collectionCount${SEPARATOR}API${Build.VERSION.SDK_INT}${SEPARATOR}V${BuildConfig.VERSION_CODE}"
         }
     }
 }
