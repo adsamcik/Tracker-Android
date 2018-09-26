@@ -14,6 +14,7 @@ import com.adsamcik.signalcollector.file.FileStore
 import com.adsamcik.signalcollector.network.Jwt
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
+import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
@@ -315,7 +316,7 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
             }
         }
 
-        private fun hasEnoughData(context: Context, source: ActionSource): Boolean = hasEnoughData(DataStore.sizeOfData(context), source) || true
+        private fun hasEnoughData(context: Context, source: ActionSource): Boolean = hasEnoughData(DataStore.sizeOfData(context), source) || useMock
 
         private fun hasEnoughData(dataSize: Long, source: ActionSource): Boolean =
                 when (source) {

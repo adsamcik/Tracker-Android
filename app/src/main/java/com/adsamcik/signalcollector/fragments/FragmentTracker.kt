@@ -243,8 +243,6 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
                 return@post
             }
 
-            Network.cloudStatus = CloudStatuses.SYNC_AVAILABLE
-
             when (Network.cloudStatus) {
                 CloudStatuses.NO_SYNC_REQUIRED, CloudStatuses.UNKNOWN -> {
                     button_upload.setOnClickListener(null)
