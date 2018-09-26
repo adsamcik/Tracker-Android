@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import com.adsamcik.signalcollector.activities.LaunchActivity
+import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWakerService
@@ -23,8 +24,9 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             val sp = Preferences.getPref(context)
             val editor = sp.edit()
 
-            if (sp.getInt(Preferences.LAST_VERSION, 0) < 207) {
-                DataStore.setCollections(context, 0)
+            if (sp.getInt(Preferences.LAST_VERSION, 0) < 271) {
+                DataStore.clearAll(context)
+                CacheStore.clearAll(context)
             }
 
             var currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1)
