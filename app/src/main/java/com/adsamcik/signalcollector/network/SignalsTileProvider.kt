@@ -9,7 +9,7 @@ import java.io.IOException
 
 class SignalsTileProvider(context: Context, userToken: String, private val maxZoom: Int) : TileProvider {
 
-    private val client = Retrofit.Builder().client(Network.clientAuth(context, userToken)).build().create(NetworkInterface::class.java)
+    private val client = Retrofit.Builder().client(Network.clientAuth(context, userToken)).baseUrl(Network.URL_BASE).build().create(NetworkInterface::class.java)
 
     private var type: String? = null
     private var personal: Boolean = false
