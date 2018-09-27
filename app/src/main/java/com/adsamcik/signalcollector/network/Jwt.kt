@@ -11,6 +11,7 @@ import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import kotlin.coroutines.experimental.Continuation
 import kotlin.coroutines.experimental.suspendCoroutine
 
 object Jwt {
@@ -47,7 +48,6 @@ object Jwt {
 
     @Synchronized
     suspend fun requestToken(context: Context, userToken: String): JwtData? = suspendCoroutine {
-
         if (hasToken) {
             if (System.currentTimeMillis() - lastRefresh < Constants.MINUTE_IN_MILLISECONDS) {
                 it.resume(JwtData(getTokenLocal(context)!!))
@@ -70,20 +70,28 @@ object Jwt {
         val call = networkInterface.authenticate(userToken)
         call.enqueue(object : retrofit2.Callback<JwtData> {
             override fun onFailure(call: retrofit2.Call<JwtData>?, t: Throwable?) {
-                lastRefresh = System.currentTimeMillis()
-                hasToken = false
-                it.resume(null)
+                onTokenFailure(it)
             }
 
             override fun onResponse(call: retrofit2.Call<JwtData>?, response: retrofit2.Response<JwtData>) {
-                val data = response.body()
-                if (data != null)
-                    Preferences.getPref(context).edit { putString(tokenPreference, data.token) }
-                lastRefresh = System.currentTimeMillis()
-                hasToken = true
-                it.resume(data)
+                if (response.isSuccessful) {
+                    val data = response.body()
+                    if (data != null)
+                        Preferences.getPref(context).edit { putString(tokenPreference, data.token) }
+                    lastRefresh = System.currentTimeMillis()
+                    hasToken = true
+                    it.resume(data)
+                } else {
+                    onTokenFailure(it)
+                }
             }
 
         })
+    }
+
+    private fun onTokenFailure(cont: Continuation<JwtData?>) {
+        lastRefresh = System.currentTimeMillis()
+        hasToken = false
+        cont.resume(null)
     }
 }
