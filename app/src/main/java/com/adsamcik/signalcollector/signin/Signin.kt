@@ -25,7 +25,6 @@ object Signin {
     /**
      * Provides instance object for the current user. If user is not signed in, null is returned.
      */
-    //todo Rework to LiveData so changes are properly reflected in the UI on each user sign-in or sign-out.
     val mUser = MutableLiveData<User>()
 
     val user: LiveData<User>
@@ -48,7 +47,7 @@ object Signin {
 
         this.mUser.postValue(user)
         updateStatus(status)
-        callOnSigninCallbacks()
+        callOnSigninCallbacks(user)
 
         if (status == SigninStatus.SIGNED_NO_DATA) {
             listenForServerData(user!!)
@@ -69,7 +68,7 @@ object Signin {
             statusLock.lock()
             status = SigninStatus.SIGNED
             updateStatus(status)
-            callOnSigninCallbacks()
+            callOnSigninCallbacks(user)
             statusLock.unlock()
         }
     }
@@ -84,12 +83,11 @@ object Signin {
      */
     fun onSignInFailed() {
         updateStatus(SigninStatus.SIGNIN_FAILED)
-        callOnSigninCallbacks()
+        callOnSigninCallbacks(null)
     }
 
     @Synchronized
-    private fun callOnSigninCallbacks() {
-        val user = mUser.value
+    private fun callOnSigninCallbacks(user: User?) {
         for (c in onSignedCallbackList)
             c.invoke(user)
         onSignedCallbackList.clear()
