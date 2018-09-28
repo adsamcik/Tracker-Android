@@ -58,10 +58,10 @@ class TrackerService : LifecycleService() {
     private var wifiReceiver: WifiReceiver? = null
     private var notificationManager: NotificationManager? = null
 
-    private var powerManager: PowerManager? = null
-    private var wakeLock: PowerManager.WakeLock? = null
-    private var locationManager: LocationManager? = null
-    private var telephonyManager: TelephonyManager? = null
+    private lateinit var powerManager: PowerManager
+    private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var locationManager: LocationManager
+    private lateinit var telephonyManager: TelephonyManager
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
 
@@ -101,7 +101,7 @@ class TrackerService : LifecycleService() {
             return
         }
 
-        wakeLock!!.acquire(10 * 60 * 1000L /*10 minutes*/)
+        wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/)
         val d = RawData(System.currentTimeMillis())
 
         if (wifiManager != null) {
@@ -128,8 +128,8 @@ class TrackerService : LifecycleService() {
             wifiManager!!.startScan()
         }
 
-        if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
-            d.addCell(telephonyManager!!)
+        if (!Assist.isAirplaneModeEnabled(this)) {
+            d.addCell(telephonyManager)
         }
 
         val activityInfo = ActivityService.lastActivity
@@ -150,10 +150,10 @@ class TrackerService : LifecycleService() {
         if (data.size > 5)
             saveData()
 
-        if (isBackgroundActivated && powerManager!!.isPowerSaveMode)
+        if (isBackgroundActivated && powerManager.isPowerSaveMode)
             stopSelf()
 
-        wakeLock!!.release()
+        wakeLock.release()
     }
 
 
@@ -292,7 +292,7 @@ class TrackerService : LifecycleService() {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager!!.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
         //Enable location update
         locationListener = object : LocationListener {
@@ -317,7 +317,7 @@ class TrackerService : LifecycleService() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             minUpdateDelayInSeconds = sp.getInt(resources.getString(R.string.settings_tracking_min_time_key), resources.getInteger(R.integer.settings_tracking_min_time_default))
             minDistanceInMeters = sp.getInt(resources.getString(R.string.settings_tracking_min_distance_key), resources.getInteger(R.integer.settings_tracking_min_distance_default)).toFloat()
-            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, minUpdateDelayInSeconds.toLong() * Constants.SECOND_IN_MILLISECONDS, minDistanceInMeters, locationListener)
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, minUpdateDelayInSeconds.toLong() * Constants.SECOND_IN_MILLISECONDS, minDistanceInMeters, locationListener)
         } else {
             Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
             stopSelf()
@@ -397,7 +397,7 @@ class TrackerService : LifecycleService() {
         ActivityService.removeActivityRequest(this, javaClass)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager!!.removeUpdates(locationListener)
+            locationManager.removeUpdates(locationListener)
 
         if (wifiReceiver != null)
             unregisterReceiver(wifiReceiver)
@@ -407,7 +407,7 @@ class TrackerService : LifecycleService() {
         DataStore.cleanup(this)
 
         if (wasWifiEnabled) {
-            if (!powerManager!!.isInteractive)
+            if (!powerManager.isInteractive)
                 wifiManager!!.isWifiEnabled = false
         }
 
