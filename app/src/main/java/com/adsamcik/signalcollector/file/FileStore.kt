@@ -227,11 +227,20 @@ object FileStore {
         return delete(file)
     }
 
-    fun clearFolder(file: File): Boolean {
+    fun clearDirectory(file: File): Boolean {
         if (file.isDirectory) {
             file.listFiles()
-                    .filterNot { delete(it) }
-                    .forEach { _ -> return false }
+                    .filterNot { delete(it) }.isEmpty()
+        } else
+            return false
+        return true
+    }
+
+    fun clearDirectory(file: File, predicate: (File) -> Boolean): Boolean {
+        if (file.isDirectory) {
+            file.listFiles().filterNot {
+                !predicate(it) || delete(it)
+            }.isEmpty()
         } else
             return false
         return true

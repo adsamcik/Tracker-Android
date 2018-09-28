@@ -195,15 +195,15 @@
     <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
     <string name="shortcut_start_tracking">Spustit záznam</string>
     <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
-    <string name="channel_track_name">Záznamový kanál</string>
-    <string name="channel_track_description">Kanál obsahující notifikace k záznamům dat</string>
-    <string name="channel_upload_name">Nahrávací kanál</string>
-    <string name="channel_upload_description">Kanál obsahující notifikace k nahrávání dat</string>
-    <string name="channel_other_name">Kanál pro ostatní</string>
+    <string name="channel_track_name">Sběr dat</string>
+    <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat</string>
+    <string name="channel_upload_name">Nahrávání</string>
+    <string name="channel_upload_description">Kanál obsahující notifikace spojené s nahráváním dat</string>
+    <string name="channel_other_name">Ostatní</string>
     <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu</string>
-    <string name="channel_challenges_name">Kanál pro herní výzvy</string>
-    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s výzvami</string>
-    <string name="channel_activity_watcher_name">Kanál sledovače aktivity</string>
+    <string name="channel_challenges_name">Herní výzvy</string>
+    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s herními výzvami</string>
+    <string name="channel_activity_watcher_name">Sledovač aktivity</string>
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat</string>
     <string name="notification_challenge_unknown_description">Vaše verze Signals je pravděpodobně neaktuální.</string>
     <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>
@@ -222,9 +222,6 @@
     <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
     <string name="export_share_button">Sdílet (Export)</string>
     <string name="dev_notification_dummy">Ahoj světe!</string>
-    <string name="settings_cleared_all_cache_files">Veškeré cache soubory byly odstraněny</string>
-    <string name="settings_cleared_all_data_files">Veškeré data byly odstraněny</string>
-    <string name="settings_cleared_all_upload_reports">Veškeré souhrny nahraných dat byly smazány</string>
     <string name="settings_activity_debug_title">Nástroje pro ladění aktivity</string>
     <string name="description_my_location">Tlačítko pro aktuální polohu</string>
     <string name="description_map_search">Tlačítko pro vyhledávání</string>
@@ -292,4 +289,17 @@
 
     <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
     <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
+    <string name="settings_delete_uploaded_data_title">Smazat nahraná data</string>
+    <string name="settings_delete_uploaded_data_summary">Pokud vypnuto, nahraná data budou zkomprimována a uložena do specialní složky</string>
+    <string name="settings_export_export_title">Jako hrubá data</string>
+    <string name="settings_export_export_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
+    <string name="settings_export_gpx_title">Jako GPX soubor</string>
+    <string name="settings_export_kml_title">Jako KML soubor</string>
+    <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
+    <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>
+    <string name="alert_confirm">Jste si jisti, že chcete %1$s?</string>
+    <string name="settings_delete_stored_data_summary">Smazat nasbíraná data, která již byla nahrána, ale ponechána lokálně pro budoucí využití</string>
+    <string name="settings_delete_stored_data_title">Smazat archivní data</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_clear_preferences_title">Smazat preference</string>
 </resources>

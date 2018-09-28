@@ -40,6 +40,6 @@ object CacheStore {
     fun exists(context: Context, fileName: String): Boolean = file(context, fileName).exists()
 
     fun clearAll(context: Context) {
-        FileStore.clearFolder(context.cacheDir)
+        FileStore.clearDirectory(context.cacheDir)
     }
 }

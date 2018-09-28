@@ -10,10 +10,14 @@ import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.BottomSheetMenu
 import com.adsamcik.signalcollector.exports.IExport
+import com.adsamcik.signalcollector.exports.file.IReadableFile
+import com.adsamcik.signalcollector.exports.file.ReadableArchivedFile
+import com.adsamcik.signalcollector.exports.file.ReadableFile
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.uitools.ColorView
 import java.io.File
-import java.util.*
+import java.util.zip.ZipFile
 
 /**
  * Activity that allows user to share his collected data to other apps that support zip files
@@ -22,9 +26,29 @@ class FileSharingActivity : DetailActivity() {
     private var shareableDir: File? = null
     private lateinit var root: ViewGroup
 
+    private val files = ArrayList<IReadableFile>()
+
+
+    private fun addAllFiles() {
+        val temp = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.TMP_NAME) }
+        files.addAll(temp.map { ReadableFile(it) })
+        val storedFiles = LongTermStore.listFiles(this)
+
+        storedFiles.forEach {
+            val zipFile = ZipFile(it)
+            val entryEnumeration = zipFile.entries()
+
+            while (entryEnumeration.hasMoreElements()) {
+                files.add(ReadableArchivedFile(zipFile, entryEnumeration.nextElement()))
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val files = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.TMP_NAME) }
+
+        addAllFiles()
+
         if (files.isEmpty()) {
             val tv = TextView(this)
             tv.setText(R.string.share_nothing_to_share)
@@ -32,8 +56,8 @@ class FileSharingActivity : DetailActivity() {
             root = createLinearContentParent(true)
             root.addView(tv)
         } else {
-            val fileNames = files.map { file -> file.name }
 
+            val fileNames = files.map { it.name }
             root = createLinearContentParent(false)
             val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as androidx.coordinatorlayout.widget.CoordinatorLayout
             val listView = layout.findViewById<ListView>(R.id.share_list_view)
@@ -43,14 +67,11 @@ class FileSharingActivity : DetailActivity() {
 
             val shareOnClickListener = View.OnClickListener { _ ->
                 val sba = listView.checkedItemPositions
-                val temp = ArrayList<File>()
-                for (i in fileNames.indices)
-                    if (sba.get(i)) {
-                        val file = DataStore.file(this, fileNames[i])
-                        temp.add(file)
-                    }
 
-                if (temp.size == 0)
+                val selectedFiles = files.filterIndexed { i, _ -> sba[i] }
+
+
+                if (selectedFiles.isEmpty())
                     Toast.makeText(this, R.string.share_nothing_to_share, Toast.LENGTH_SHORT).show()
                 else {
                     val shareableDir = File(DataStore.getDir(this), SHAREABLE_DIR_NAME)
@@ -58,7 +79,7 @@ class FileSharingActivity : DetailActivity() {
                         this.shareableDir = shareableDir
                         val exporterType = intent.extras!![EXPORTER_KEY] as Class<*>
                         val exporter = exporterType.newInstance() as IExport
-                        val result = exporter.export(temp, shareableDir)
+                        val result = exporter.export(selectedFiles, shareableDir)
 
                         if (result.isSuccessfull) {
                             val fileUri = FileProvider.getUriForFile(

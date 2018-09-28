@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_cleared_all_cache_files">Removed all cache files</string>
-    <string name="settings_cleared_all_data_files">Removed all data files</string>
-    <string name="settings_cleared_all_upload_reports">Removed all upload reports</string>
-
     <string name="alert_confirm_generic">Are you sure?</string>
+    <string name="alert_confirm">Are you sure you want to %1$s?</string>
 
     <string name="internet_connection_required">Internet connection required</string>
 
@@ -24,6 +21,7 @@
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>
+    <string name="settings_data_title">Data</string>
     <string name="settings_export_title">Export</string>
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
@@ -195,6 +193,17 @@
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
 
+
+    <!-- DATA -->
+    <string name="settings_delete_uploaded_data_title">Delete uploaded data</string>
+    <string name="settings_delete_uploaded_data_summary">If disabled, uploaded data will be compressed and put into special folder</string>
+    <string name="settings_delete_uploaded_data_key" translatable="false">deleteUploadedData</string>
+    <string name="settings_delete_uploaded_data_default" translatable="false">true</string>
+
+    <string name="settings_delete_stored_data_title">Delete archived data</string>
+    <string name="settings_delete_stored_data_summary">Delete tracked data that have already been uploaded but kept for future use</string>
+    <string name="settings_delete_stored_data_key" translatable="false">deleteStoredData</string>
+
     <!-- EXPORT -->
 
     <string name="settings_export_export_title">As raw data</string>
@@ -234,14 +243,17 @@
     <string name="settings_hello_world_title">Hello world!</string>
     <string name="settings_hello_world_key" translatable="false">helloWorld</string>
 
-    <string name="settings_clear_data_title">Clear tracked data</string>
+    <string name="settings_clear_data_title">Remove persistent files</string>
     <string name="settings_clear_data_key" translatable="false">clearData</string>
 
     <string name="settings_clear_reports_title">Clear upload reports</string>
     <string name="settings_clear_reports_key" translatable="false">clearUploadReports</string>
 
-    <string name="settings_clear_cache_title">Clear cache</string>
+    <string name="settings_clear_cache_title">Remove cache files</string>
     <string name="settings_clear_cache_key" translatable="false">clearCache</string>
+
+    <string name="settings_clear_preferences_title">Clear preferences</string>
+    <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
 
     <!-- OTHER -->
     <string name="settings_notifications_title">Notifications</string>

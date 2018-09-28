@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.fragments.FragmentPrivacyDialog
 import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
@@ -103,6 +104,14 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, { Assist.privacyPolicyEnableUpload(this@SettingsActivity) })
                     false
                 }
+            }
+        }
+    }
+
+    private fun initializeData(caller: PreferenceFragmentCompat) {
+        setOnClickListener(R.string.settings_delete_stored_data_key) { pref ->
+            createClearDialog(pref.title) {
+                LongTermStore.clearData(it)
             }
         }
     }
@@ -204,9 +213,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         Toast.makeText(this, string, Toast.LENGTH_SHORT).show()
     }
 
-    private fun setOnClickListener(@StringRes key: Int, listener: () -> Unit) {
+    private fun setOnClickListener(@StringRes key: Int, listener: (Preference) -> Unit) {
         fragment.findPreference(key).setOnPreferenceClickListener {
-            listener.invoke()
+            listener.invoke(it)
             false
         }
     }
@@ -232,14 +241,14 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
     }
 
-    private fun createClearDialog(clearFunction: (Context) -> Unit, @StringRes snackBarString: Int) {
+    private fun createClearDialog(action: CharSequence, clearFunction: (Context) -> Unit) {
         val alertDialogBuilder = AlertDialog.Builder(this)
         alertDialogBuilder
                 .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
                     clearFunction.invoke(this)
                 }
                 .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
-                .setMessage(resources.getText(R.string.alert_confirm_generic))
+                .setMessage(resources.getString(R.string.alert_confirm, action.toString().toLowerCase()))
 
         alertDialogBuilder.show()
     }
@@ -281,19 +290,19 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<StatusActivity> { }
         }
 
-        caller.findPreference(R.string.settings_clear_cache_key).setOnPreferenceClickListener { _ ->
-            createClearDialog({ CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files)
+        caller.findPreference(R.string.settings_clear_cache_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) { CacheStore.clearAll(it) }
             false
         }
-        caller.findPreference(R.string.settings_clear_data_key).setOnPreferenceClickListener { _ ->
-            createClearDialog({ DataStore.clearAll(it) }, R.string.settings_cleared_all_data_files)
+        caller.findPreference(R.string.settings_clear_data_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) { DataStore.clearAll(it) }
             false
         }
-        caller.findPreference(R.string.settings_clear_reports_key).setOnPreferenceClickListener { _ ->
-            createClearDialog({ _ ->
+        caller.findPreference(R.string.settings_clear_reports_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) { _ ->
                 DataStore.delete(this, DataStore.RECENT_UPLOADS_FILE)
                 Preferences.getPref(this).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
-            }, R.string.settings_cleared_all_upload_reports)
+            }
             false
         }
 
@@ -325,6 +334,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                     .setWhen(System.currentTimeMillis())
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(Notifications.uniqueNotificationId(), notiBuilder.build())
+            false
+        }
+
+        caller.findPreference(R.string.settings_clear_preferences_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) {
+                Preferences.getPref(it).edit {
+                    clear()
+                }
+            }
+
             false
         }
 
@@ -435,6 +454,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
             r.getString(R.string.settings_upload_title) -> initializeUpload(caller)
             r.getString(R.string.settings_export_title) -> initializeExport(caller)
+            r.getString(R.string.settings_data_title) -> initializeData(caller)
         }
     }
 

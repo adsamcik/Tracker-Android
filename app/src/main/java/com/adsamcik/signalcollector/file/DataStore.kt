@@ -308,12 +308,21 @@ object DataStore {
 
     fun clearAll(context: Context) {
         currentDataFile = null
-        FileStore.clearFolder(getDir(context))
+        FileStore.clearDirectory(getDir(context))
         Preferences.getPref(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
         approxSize = 0
         collectionsOnDevice = 0
 
         onDataChanged(context)
+    }
+
+    fun clear(context: Context, predicate: (File) -> Boolean) {
+        FileStore.clearDirectory(getDir(context), predicate)
+
+        recountData(context)
+
+        if(currentDataFile?.file?.exists() != true)
+            currentDataFile = null
     }
 
     /**

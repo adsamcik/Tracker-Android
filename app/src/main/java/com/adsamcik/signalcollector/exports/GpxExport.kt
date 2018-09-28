@@ -5,6 +5,7 @@ import android.os.Build
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.TimeLocation
+import com.adsamcik.signalcollector.exports.file.IReadableFile
 import com.squareup.moshi.Moshi
 import java.io.File
 import java.io.FileOutputStream
@@ -24,11 +25,11 @@ class GpxExport : IExport {
         }
     }
 
-    override fun export(files: ArrayList<File>, destinationDirectory: File): ExportResult {
+    override fun export(files: List<IReadableFile>, destinationDirectory: File): ExportResult {
         val moshi = Moshi.Builder().build().adapter<Array<RawData>>(Array<RawData>::class.java)
         files.forEach {
             //todo deserialize from stream
-            var json = it.readText()
+            var json = it.read()
             if (!json.endsWith(']'))
                 json += ']'
 

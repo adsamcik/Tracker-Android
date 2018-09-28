@@ -11,6 +11,7 @@ import com.adsamcik.signalcollector.extensions.getInt
 import com.adsamcik.signalcollector.file.Compress
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.FileStore
+import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.network.Jwt
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
@@ -159,8 +160,13 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
             DataStore.onUpload(context, -1)
         }
 
-        if (!FileStore.delete(tempZipFile))
-            Crashlytics.logException(IOException("Upload zip file was not deleted"))
+        val prefDefault = context.getString(R.string.settings_delete_uploaded_data_default)!!.toBoolean()
+        val pref = context.getString(R.string.settings_delete_uploaded_data_key)
+        if(Preferences.getPref(context).getBoolean(pref, prefDefault)) {
+            if (!FileStore.delete(tempZipFile))
+                Crashlytics.logException(IOException("Upload zip file was not deleted"))
+        } else
+            LongTermStore.moveToLongTermStorage(context, tempZipFile)
 
         if (result == Result.SUCCESS) {
             var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)

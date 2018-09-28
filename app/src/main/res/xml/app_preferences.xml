@@ -63,7 +63,8 @@
                 app:icon="@drawable/ic_outline_access_time_24px"
                 app:items="@array/settings_tracking_min_time_values"
                 app:stringFormat="%1$d s"/>
-
+        </androidx.preference.PreferenceCategory>
+        <androidx.preference.PreferenceCategory>
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_location_enabled_default"
                 android:key="@string/settings_location_enabled_key"
@@ -84,7 +85,6 @@
                 android:title="@string/settings_cell_enabled_title"
                 app:icon="@drawable/ic_outline_network_cell_24px"/>
         </androidx.preference.PreferenceCategory>
-
 
     </androidx.preference.PreferenceScreen>
 
@@ -115,8 +115,8 @@
                 android:key="@string/settings_auto_upload_at_key"
                 android:title="@string/settings_auto_upload_at_title"
                 app:items="@array/settings_auto_upload_at_MB"/>
-
         </androidx.preference.PreferenceCategory>
+
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
@@ -157,20 +157,38 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
-        android:title="@string/settings_export_title"
-        app:icon="@drawable/ic_outline_share_24px">
-        <Preference
-            android:key="@string/settings_export_export_key"
-            android:summary="@string/settings_export_export_summary"
-            android:title="@string/settings_export_export_title"/>
-        <Preference
-            android:key="@string/settings_export_gpx_key"
-            android:summary="@string/settings_export_gpx_summary"
-            android:title="@string/settings_export_gpx_title"/>
-        <Preference
-            android:key="@string/settings_export_kml_key"
-            android:summary="@string/settings_export_kml_summary"
-            android:title="@string/settings_export_kml_title"/>
+        android:title="@string/settings_data_title"
+        app:icon="@drawable/ic_outline_folder_24px">
+        <androidx.preference.PreferenceScreen
+            android:title="@string/settings_export_title"
+            app:icon="@drawable/ic_outline_share_24px">
+            <Preference
+                android:key="@string/settings_export_export_key"
+                android:summary="@string/settings_export_export_summary"
+                android:title="@string/settings_export_export_title"/>
+            <Preference
+                android:key="@string/settings_export_gpx_key"
+                android:summary="@string/settings_export_gpx_summary"
+                android:title="@string/settings_export_gpx_title"/>
+            <Preference
+                android:key="@string/settings_export_kml_key"
+                android:summary="@string/settings_export_kml_summary"
+                android:title="@string/settings_export_kml_title"/>
+        </androidx.preference.PreferenceScreen>
+        <androidx.preference.PreferenceCategory>
+            <androidx.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_delete_uploaded_data_default"
+                android:key="@string/settings_delete_uploaded_data_key"
+                android:summary="@string/settings_delete_uploaded_data_summary"
+                android:title="@string/settings_delete_uploaded_data_title"/>
+
+            <Preference
+                android:key="@string/settings_delete_stored_data_key"
+                android:summary="@string/settings_delete_stored_data_summary"
+                android:title="@string/settings_delete_stored_data_title"/>
+        </androidx.preference.PreferenceCategory>
+
+
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
@@ -192,6 +210,7 @@
         <Preference
             android:key="@string/settings_browse_files_key"
             android:title="@string/settings_browse_files_title"/>
+
         <Preference
             android:key="@string/settings_browse_cache_key"
             android:title="@string/settings_browse_cache_title"/>
@@ -211,6 +230,10 @@
         <Preference
             android:key="@string/settings_clear_cache_key"
             android:title="@string/settings_clear_cache_title"/>
+
+        <Preference
+            android:key="@string/settings_clear_preferences_key"
+            android:title="@string/settings_clear_preferences_title"/>
     </androidx.preference.PreferenceScreen>
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_notifications_title">
@@ -232,7 +255,7 @@
             android:summary="@string/settings_feedback_summary"
             android:title="@string/settings_feedback_title"
             app:icon="@drawable/ic_outline_feedback_24px"/>
-        
+
         <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/show_tips_key"
