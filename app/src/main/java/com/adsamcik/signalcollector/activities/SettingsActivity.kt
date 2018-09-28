@@ -15,6 +15,9 @@ import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
+import com.adsamcik.signalcollector.exports.GpxExport
+import com.adsamcik.signalcollector.exports.KmlExport
+import com.adsamcik.signalcollector.exports.RawExport
 import com.adsamcik.signalcollector.extensions.findDirectPreferenceByTitle
 import com.adsamcik.signalcollector.extensions.findPreference
 import com.adsamcik.signalcollector.extensions.startActivity
@@ -104,6 +107,26 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
     }
 
+    private fun initializeExport(caller: PreferenceFragmentCompat) {
+        setOnClickListener(R.string.settings_export_export_key) {
+            startActivity<FileSharingActivity> {
+                putExtra(FileSharingActivity.EXPORTER_KEY, RawExport::class.java)
+            }
+        }
+
+        setOnClickListener(R.string.settings_export_gpx_key) {
+            startActivity<FileSharingActivity> {
+                putExtra(FileSharingActivity.EXPORTER_KEY, GpxExport::class.java)
+            }
+        }
+
+        setOnClickListener(R.string.settings_export_kml_key) {
+            startActivity<FileSharingActivity> {
+                putExtra(FileSharingActivity.EXPORTER_KEY, KmlExport::class.java)
+            }
+        }
+    }
+
     private fun initializeRoot(caller: PreferenceFragmentCompat) {
         if (Signin.isSignedIn)
             setOnClickListener(R.string.settings_feedback_key) {
@@ -114,10 +137,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         setOnClickListener(R.string.settings_account_key) {
             startActivity<UserActivity> { }
-        }
-
-        setOnClickListener(R.string.settings_export_key) {
-            startActivity<FileSharingActivity> {}
         }
 
         setOnClickListener(R.string.settings_licenses_key) {
@@ -279,15 +298,15 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
 
         caller.findPreference(R.string.settings_browse_files_key).setOnPreferenceClickListener { _ ->
-            createFileAlertDialog(filesDir, { file ->
+            createFileAlertDialog(filesDir) { file ->
                 val name = file.name
                 !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
-            })
+            }
             false
         }
 
         caller.findPreference(R.string.settings_browse_cache_key).setOnPreferenceClickListener { _ ->
-            createFileAlertDialog(cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory })
+            createFileAlertDialog(cacheDir) { file -> !file.name.startsWith("com.") && !file.isDirectory }
             false
         }
 
@@ -415,6 +434,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             r.getString(R.string.settings_style_title) -> initializeStyle(caller)
             r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
             r.getString(R.string.settings_upload_title) -> initializeUpload(caller)
+            r.getString(R.string.settings_export_title) -> initializeExport(caller)
         }
     }
 

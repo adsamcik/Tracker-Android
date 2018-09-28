@@ -24,6 +24,7 @@
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>
+    <string name="settings_export_title">Export</string>
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
@@ -194,6 +195,20 @@
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
 
+    <!-- EXPORT -->
+
+    <string name="settings_export_export_title">As raw data</string>
+    <string name="settings_export_export_key" translatable="false">rawExport</string>
+    <string name="settings_export_export_summary">Export your tracked data to an app of your choice</string>
+
+    <string name="settings_export_gpx_title">As GPX file</string>
+    <string name="settings_export_gpx_key" translatable="false">gpxExport</string>
+    <string name="settings_export_gpx_summary">Export your tracked location to GPX file</string>
+
+    <string name="settings_export_kml_title">As KML file</string>
+    <string name="settings_export_kml_key" translatable="false">kmlExport</string>
+    <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
+
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
     <string name="settings_debug_available">You now have access to developer options</string>
@@ -241,10 +256,6 @@
     <string name="settings_privacy_policy_agreement_summary">You must agree to the privacy policy prior to uploading files.</string>
 
     <string name="settings_privacy_policy_key" translatable="false">privacyPolicy</string>
-
-    <string name="settings_export_title">Share tracked data</string>
-    <string name="settings_export_key" translatable="false">shareButton</string>
-    <string name="settings_export_summary">Share/Export your tracked data to app of your choice</string>
 
     <string name="settings_feedback_title">Send feedback about the app</string>
     <string name="settings_feedback_key" translatable="false">feedbackButton</string>

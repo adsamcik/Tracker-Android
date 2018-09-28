@@ -157,6 +157,23 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
+        android:title="@string/settings_export_title"
+        app:icon="@drawable/ic_outline_share_24px">
+        <Preference
+            android:key="@string/settings_export_export_key"
+            android:summary="@string/settings_export_export_summary"
+            android:title="@string/settings_export_export_title"/>
+        <Preference
+            android:key="@string/settings_export_gpx_key"
+            android:summary="@string/settings_export_gpx_summary"
+            android:title="@string/settings_export_gpx_title"/>
+        <Preference
+            android:key="@string/settings_export_kml_key"
+            android:summary="@string/settings_export_kml_summary"
+            android:title="@string/settings_export_kml_title"/>
+    </androidx.preference.PreferenceScreen>
+
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_debug_title"
         app:icon="@drawable/ic_outline_developer_mode_24px">
 
@@ -215,13 +232,7 @@
             android:summary="@string/settings_feedback_summary"
             android:title="@string/settings_feedback_title"
             app:icon="@drawable/ic_outline_feedback_24px"/>
-
-        <Preference
-            android:key="@string/settings_export_key"
-            android:summary="@string/settings_export_summary"
-            android:title="@string/settings_export_title"
-            app:icon="@drawable/ic_outline_share_24px"/>
-
+        
         <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/show_tips_key"

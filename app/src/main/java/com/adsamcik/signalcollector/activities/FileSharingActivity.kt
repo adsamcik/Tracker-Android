@@ -9,15 +9,10 @@ import android.widget.*
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.BottomSheetMenu
-import com.adsamcik.signalcollector.file.Compress
-import com.adsamcik.signalcollector.file.DataFile
+import com.adsamcik.signalcollector.exports.IExport
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.uitools.ColorView
-import com.adsamcik.signalcollector.utility.SnackMaker
-import com.crashlytics.android.Crashlytics
 import java.io.File
-import java.io.FileNotFoundException
-import java.io.IOException
 import java.util.*
 
 /**
@@ -46,59 +41,43 @@ class FileSharingActivity : DetailActivity() {
             listView.adapter = adapter
             listView.choiceMode = AbsListView.CHOICE_MODE_MULTIPLE
 
-            val shareOnClickListener = View.OnClickListener { v ->
+            val shareOnClickListener = View.OnClickListener { _ ->
                 val sba = listView.checkedItemPositions
-                val temp = ArrayList<String>()
+                val temp = ArrayList<File>()
                 for (i in fileNames.indices)
                     if (sba.get(i)) {
-                        temp.add(fileNames[i])
-                        DataFile(DataStore.file(this, fileNames[i]), i).close()
+                        val file = DataStore.file(this, fileNames[i])
+                        temp.add(file)
                     }
 
                 if (temp.size == 0)
                     Toast.makeText(this, R.string.share_nothing_to_share, Toast.LENGTH_SHORT).show()
                 else {
-                    val compress: Compress
-                    try {
-                        compress = Compress(DataStore.file(this, System.currentTimeMillis().toString()))
-                    } catch (e: FileNotFoundException) {
-                        Crashlytics.logException(e)
-                        SnackMaker(v).showSnackbar(R.string.error_general)
-                        return@OnClickListener
-                    }
+                    val shareableDir = File(DataStore.getDir(this), SHAREABLE_DIR_NAME)
+                    if (shareableDir.exists() || shareableDir.mkdir()) {
+                        this.shareableDir = shareableDir
+                        val exporterType = intent.extras!![EXPORTER_KEY] as Class<*>
+                        val exporter = exporterType.newInstance() as IExport
+                        val result = exporter.export(temp, shareableDir)
 
-                    for (fileName in temp)
-                        if (!compress.add(DataStore.file(this, fileName))) {
-                            SnackMaker(v).showSnackbar(R.string.error_general)
-                            return@OnClickListener
-                        }
-
-                    val c: File
-                    try {
-                        c = compress.finish()
-                    } catch (e: IOException) {
-                        Crashlytics.logException(e)
-                        return@OnClickListener
-                    }
-
-                    val target = File(c.parent + File.separatorChar + SHAREABLE_DIR_NAME + File.separatorChar + c.name + ".zip")
-                    shareableDir = File(c.parent + File.separatorChar + SHAREABLE_DIR_NAME)
-                    if (shareableDir!!.exists() || shareableDir!!.mkdir()) {
-                        if (c.renameTo(target)) {
+                        if (result.isSuccessfull) {
                             val fileUri = FileProvider.getUriForFile(
                                     this@FileSharingActivity,
                                     "com.adsamcik.signalcollector.fileprovider",
-                                    target)
+                                    result.file!!)
                             val shareIntent = Intent()
                             shareIntent.action = Intent.ACTION_SEND
                             shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
-                            shareIntent.type = "application/zip"
+                            shareIntent.type = result.mime
                             startActivityForResult(Intent.createChooser(shareIntent, resources.getText(R.string.export_share_button)), SHARE_RESULT)
-                        }
-                    }
 
-                    target.deleteOnExit()
-                    shareableDir!!.deleteOnExit()
+                            result.file.deleteOnExit()
+                        } else {
+                            Toast.makeText(this, R.string.error_general, Toast.LENGTH_SHORT).show()
+                        }
+
+                        shareableDir.deleteOnExit()
+                    }
                 }
             }
 
@@ -138,5 +117,6 @@ class FileSharingActivity : DetailActivity() {
     companion object {
         private const val SHARE_RESULT = 1
         private const val SHAREABLE_DIR_NAME = "shareable"
+        const val EXPORTER_KEY = "exporter"
     }
 }
