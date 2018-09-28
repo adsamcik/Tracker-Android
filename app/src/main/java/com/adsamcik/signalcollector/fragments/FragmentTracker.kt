@@ -178,13 +178,10 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
     private fun mock() {
         val rawData = RawData(System.currentTimeMillis())
+        rawData.location = Location(15.0, 15.0, 123.0, 6f)
         rawData.activity = ResolvedActivities.ON_FOOT
         rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
-        rawData.accuracy = 6f
         rawData.cell = CellData(arrayOf(CellInfo("MOCK", 2, 0, "123", "456", -30, 90, 0)), 8)
-        rawData.latitude = 15.0
-        rawData.longitude = 15.0
-        rawData.altitude = 123.0
         updateData(rawData)
     }
 
@@ -315,14 +312,17 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
         textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(d.time)))
 
-        if (d.accuracy != null) {
+        val location = d.location
+        if (location != null) {
             accuracy.visibility = VISIBLE
-            accuracy.text = getString(R.string.info_accuracy, d.accuracy!!.toInt())
-        } else
-            accuracy.visibility = GONE
+            accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.toInt())
 
-        altitude.text = getString(R.string.info_altitude, d.altitude!!.toInt())
-        altitude.visibility = VISIBLE
+            altitude.text = getString(R.string.info_altitude, location.altitude.toInt())
+            altitude.visibility = VISIBLE
+        } else {
+            accuracy.visibility = GONE
+            altitude.visibility = GONE
+        }
 
         when {
             d.wifi != null -> {

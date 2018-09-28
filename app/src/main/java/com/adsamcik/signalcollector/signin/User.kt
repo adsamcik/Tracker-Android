@@ -85,11 +85,7 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
         networkPreferences.renewMap = true
         networkPreferences.renewPersonalMap = false
 
-        val networkInfo = NetworkInfo()
-
-        networkInfo.feedbackAccess = false
-        networkInfo.mapAccessUntil = System.currentTimeMillis() + DAY_IN_MILLISECONDS
-        networkInfo.personalMapAccessUntil = 0
+        val networkInfo = NetworkInfo(System.currentTimeMillis() + DAY_IN_MILLISECONDS, Long.MIN_VALUE, false, true)
 
         setData((Math.random() * 64546).toLong(), networkInfo, networkPreferences)
     }
@@ -111,27 +107,27 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
 /**
  * Class that holds information about user's basic information.
  */
-class NetworkInfo {
-    /**
-     * When does user's map access expire.
-     */
-    var mapAccessUntil: Long = 0
+data class NetworkInfo(
+        /**
+         * When does user's map access expire.
+         */
+        var mapAccessUntil: Long,
 
-    /**
-     * When does user's personal map access expire.
-     */
-    var personalMapAccessUntil: Long = 0
+        /**
+         * When does user's personal map access expire.
+         */
+        var personalMapAccessUntil: Long,
 
-    /**
-     * Can the user upload feedback.
-     */
-    var feedbackAccess: Boolean = false
+        /**
+         * Can the user upload feedback.
+         */
+        var feedbackAccess: Boolean,
 
-    /**
-     * Upload access is currently unused on the mobile device, because synchronization needs to be tested first.
-     * todo add this to the uploader so restriction on upload is applied sooner.
-     */
-    var uploadAccess: Boolean = false
+        /**
+         * Upload access is currently unused on the mobile device, because synchronization needs to be tested first.
+         * todo add this to the uploader so restriction on upload is applied sooner.
+         */
+        var uploadAccess: Boolean) {
 
 
     /**
@@ -148,15 +144,12 @@ class NetworkInfo {
 /**
  * Class that holds information about network preferences.
  */
-class NetworkPreferences {
-    var renewMap: Boolean = false
-    var renewPersonalMap: Boolean = false
-}
+data class NetworkPreferences(var renewMap: Boolean = false,
+                              var renewPersonalMap: Boolean = false)
 
-internal class UserJson {
-    var wirelessPoints: Long? = null
-    var networkInfo: NetworkInfo? = null
-    var networkPreferences: NetworkPreferences? = null
+internal data class UserJson(var wirelessPoints: Long? = null,
+                             var networkInfo: NetworkInfo? = null,
+                             var networkPreferences: NetworkPreferences? = null) {
 
     fun isValid() = wirelessPoints != null && networkInfo != null && networkPreferences != null
 }

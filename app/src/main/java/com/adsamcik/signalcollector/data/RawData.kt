@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.data
 
 import android.annotation.SuppressLint
-import android.location.Location
 import android.net.wifi.ScanResult
 import android.os.Build
 import android.telephony.*
@@ -20,27 +19,12 @@ data class RawData(
         /**
          * Time of collection in milliseconds since midnight, January 1, 1970 UTC (UNIX time)
          */
-        var time: Long = 0,
+        val time: Long = 0,
 
         /**
-         * Longitude
+         * Current location
          */
-        var longitude: Double? = null,
-
-        /**
-         * Latitude
-         */
-        var latitude: Double? = null,
-
-        /**
-         * Altitude
-         */
-        var altitude: Double? = null,
-
-        /**
-         * Accuracy in meters
-         */
-        var accuracy: Float? = null,
+        var location: Location? = null,
 
         /**
          * Current resolved activity
@@ -65,11 +49,8 @@ data class RawData(
      * @param location location
      * @return this
      */
-    fun setLocation(location: Location): RawData {
-        this.longitude = location.longitude
-        this.latitude = location.latitude
-        this.altitude = location.altitude
-        this.accuracy = location.accuracy
+    fun setLocation(location: android.location.Location): RawData {
+        this.location = Location(location)
         return this
     }
 

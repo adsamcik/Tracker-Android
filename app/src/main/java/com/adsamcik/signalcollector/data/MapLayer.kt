@@ -17,7 +17,7 @@ data class MapLayer(var name: String,
                     /**
                      * Contains information for the legend
                      */
-                    var values: ArrayList<ValueColor>? = null) {
+                    var values: Array<ValueColor>? = null) {
 
     companion object {
 
@@ -39,6 +39,33 @@ data class MapLayer(var name: String,
                 MapLayer("Cell", 30.0, 30.0, -30.0, -30.0)
         )
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as MapLayer
+
+        if (name != other.name) return false
+        if (top != other.top) return false
+        if (right != other.right) return false
+        if (bottom != other.bottom) return false
+        if (left != other.left) return false
+        if (!Arrays.equals(values, other.values)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = name.hashCode()
+        result = 31 * result + top.hashCode()
+        result = 31 * result + right.hashCode()
+        result = 31 * result + bottom.hashCode()
+        result = 31 * result + left.hashCode()
+        result = 31 * result + (values?.let { Arrays.hashCode(it) } ?: 0)
+        return result
+    }
 }
 
-class ValueColor(val name: String, val color: Int)
+@JsonClass(generateAdapter = true)
+data class ValueColor(val name: String, val color: Int)
