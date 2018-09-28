@@ -43,6 +43,23 @@
 	public <methods>;
 }
 
+-keep public class com.adsamcik.signalcollector.signin.NetworkInfo {
+	public private <fields>;
+	public <methods>;
+}
+
+
+-keep public class com.adsamcik.signalcollector.signin.NetworkPreferences {
+	public private <fields>;
+	public <methods>;
+}
+
+-keep public class com.adsamcik.signalcollector.signin.UserJson {
+	public private <fields>;
+	public <methods>;
+}
+
+
 -keep class kotlin.Metadata { *; }
 
 # Crashlytics
