@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.jobs
+package com.adsamcik.signalcollector.workers
 
 import android.app.NotificationManager
 import android.content.Context
