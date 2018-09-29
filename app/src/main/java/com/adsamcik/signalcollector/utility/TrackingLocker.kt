@@ -12,7 +12,7 @@ import androidx.work.Worker
 import com.adsamcik.signalcollector.extensions.alarmManager
 import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
-import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.services.TrackerService
 import javax.annotation.concurrent.ThreadSafe
 
@@ -114,7 +114,7 @@ object TrackingLocker {
      */
     private fun pokeWakerService(context: Context) {
         //Desired state is checked from other sources because it might not be ready yet in LiveData
-        ActivityWakerService.poke(context, ActivityWakerService.getServicePreference(context) && !isLockedRightNow())
+        ActivityWatcherService.poke(context, ActivityWatcherService.getServicePreference(context) && !isLockedRightNow())
     }
 
     /**
@@ -146,7 +146,7 @@ object TrackingLocker {
             synchronized(lockedUntilRecharge) {
                 lockedUntil = System.currentTimeMillis() + lockTimeInMillis
 
-                ActivityWakerService.pokeWithCheck(context)
+                ActivityWatcherService.pokeWithCheck(context)
 
                 if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
                     context.stopService<TrackerService>()
@@ -166,7 +166,7 @@ object TrackingLocker {
             context.alarmManager.cancel(getIntent(context))
             setTimeLock(context, 0)
 
-            ActivityWakerService.pokeWithCheck(context)
+            ActivityWatcherService.pokeWithCheck(context)
         }
     }
 
@@ -177,7 +177,7 @@ object TrackingLocker {
         synchronized(lockedUntil) {
             if (lockedUntil < System.currentTimeMillis()) {
                 isLocked.postValue(false)
-                ActivityWakerService.pokeWithCheck(context)
+                ActivityWatcherService.pokeWithCheck(context)
             }
         }
     }

@@ -371,7 +371,7 @@ class TrackerService : LifecycleService() {
         else
             ActivityService.requestActivity(this, javaClass, minUpdateDelayInSeconds)
 
-        ActivityWakerService.poke(this, false)
+        ActivityWatcherService.poke(this, false)
 
         if (isBackgroundActivated) {
             TrackingLocker.isLocked.observe(this) {
@@ -393,7 +393,7 @@ class TrackerService : LifecycleService() {
         service = null
         isServiceRunning.value = false
 
-        ActivityWakerService.pokeWithCheck(this)
+        ActivityWatcherService.pokeWithCheck(this)
         ActivityService.removeActivityRequest(this, javaClass)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)

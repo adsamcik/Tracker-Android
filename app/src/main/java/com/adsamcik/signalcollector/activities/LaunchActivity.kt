@@ -5,7 +5,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.notifications.NotificationChannels
-import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.adsamcik.signalcollector.utility.TrackingLocker
 
@@ -30,7 +30,7 @@ class LaunchActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
 
-        ActivityWakerService.pokeWithCheck(this)
+        ActivityWatcherService.pokeWithCheck(this)
 
         TrackingLocker.initializeFromPersistence(this)
 

@@ -29,7 +29,7 @@ import com.adsamcik.signalcollector.fragments.FragmentPrivacyDialog
 import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.utility.Assist
@@ -75,13 +75,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             } else
                 ActivityService.removeActivityRequest(this, LaunchActivity::class.java)
 
-            ActivityWakerService.pokeWithCheck(this@SettingsActivity, newValue)
+            ActivityWatcherService.pokeWithCheck(this@SettingsActivity, newValue)
             return@OnPreferenceChangeListener true
         }
 
         caller.findPreference(R.string.settings_activity_freq_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             ActivityService.requestActivity(this, LaunchActivity::class.java, newValue as Int)
-            ActivityWakerService.pokeWithCheck(this)
+            ActivityWatcherService.pokeWithCheck(this)
             return@OnPreferenceChangeListener true
         }
 

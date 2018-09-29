@@ -144,7 +144,7 @@
             android:name=".jobs.FeedbackUploadJob"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service android:name=".services.ActivityWakerService"/>
+        <service android:name=".services.ActivityWatcherService"/>
         <service
             android:name=".utility.TrackingLocker$DisableTillRechargeWorker"
             android:exported="true"
