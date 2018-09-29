@@ -31,7 +31,7 @@ import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.jobs.UploadWorker
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS

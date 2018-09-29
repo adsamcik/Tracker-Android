@@ -12,7 +12,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.work.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.jobs.FeedbackUploadJob
+import com.adsamcik.signalcollector.workers.FeedbackUploadJob
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker

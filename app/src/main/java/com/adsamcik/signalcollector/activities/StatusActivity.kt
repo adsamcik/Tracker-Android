@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.jobs.UploadWorker
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.adsamcik.signalcollector.utility.TrackingLocker
 
 /**

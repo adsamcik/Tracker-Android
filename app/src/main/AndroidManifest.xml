@@ -137,11 +137,11 @@
             </intent-filter>
         </service>
         <service
-            android:name=".jobs.UploadWorker"
+            android:name=".workers.UploadWorker"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service
-            android:name=".jobs.FeedbackUploadJob"
+            android:name=".workers.FeedbackUploadJob"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWatcherService"/>
