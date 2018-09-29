@@ -153,7 +153,7 @@ class UserActivity : DetailActivity() {
                                 user,
                                 user.networkPreferences::renewMap,
                                 user.networkInfo::mapAccessUntil,
-                                prices.PRICE_30DAY_MAP.toLong(),
+                                prices.price30DayMap.toLong(),
                                 textview_map_access_time)
                 )
             }
@@ -163,7 +163,7 @@ class UserActivity : DetailActivity() {
             textview_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo.mapAccessUntil)))
         else
             textview_map_access_time.visibility = View.GONE
-        textview_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
+        textview_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.price30DayMap))
 
         switch_renew_personal_map.text = getString(R.string.user_renew_personal_map)
         switch_renew_personal_map.isChecked = user.networkPreferences.renewPersonalMap
@@ -187,7 +187,7 @@ class UserActivity : DetailActivity() {
                                 user,
                                 user.networkPreferences::renewPersonalMap,
                                 user.networkInfo::personalMapAccessUntil,
-                                prices.PRICE_30DAY_PERSONAL_MAP.toLong(),
+                                prices.price30DayPersonalMap.toLong(),
                                 textview_personal_map_access_time)
                 )
             }
@@ -197,7 +197,7 @@ class UserActivity : DetailActivity() {
             textview_personal_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo.personalMapAccessUntil)))
         else
             textview_personal_map_access_time.visibility = View.GONE
-        textview_personal_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
+        textview_personal_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.price30DayPersonalMap))
 
         layout_signed_in.findViewById<View>(R.id.layout_server_settings).visibility = View.VISIBLE
     }

@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.Types
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
@@ -419,7 +418,7 @@ object DataStore {
         if (oldestUpload != -1L) {
             val days = Assist.getAgeInDays(oldestUpload).toLong()
             if (days > 30) {
-                val adapter = moshi.adapter<ArrayList<UploadStats>>(Types.newParameterizedType(ArrayList::class.java, UploadStats::class.java))
+                val adapter = moshi.adapter<ArrayList<UploadStats>>(ArrayList::class.java)
                 val data = FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))
                 val stats = adapter.fromJson(data!!) ?: return
                 var i = 0
@@ -431,7 +430,7 @@ object DataStore {
                         i++
                 }
 
-                if (stats.size > 0)
+                if (stats.isNotEmpty())
                     sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0].time).apply()
                 else
                     sp.edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
