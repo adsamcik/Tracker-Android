@@ -98,8 +98,8 @@ class GoogleSignInSignalsClient : ISignInClient {
         //}
 
         NetworkLoader.requestSigned(Network.URL_USER_INFO, user.token, 10, context, Preferences.PREF_USER_DATA, UserData::class.java) { state, value ->
-            if (state.dataAvailable) {
-                user.setData(value!!)
+            if (state.dataAvailable && value != null) {
+                user.setData(value)
             }
         }
 
