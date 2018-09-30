@@ -136,19 +136,7 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
-        <service
-            android:name=".workers.UploadWorker"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service
-            android:name=".workers.FeedbackUploadJob"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
         <service android:name=".services.ActivityWatcherService"/>
-        <service
-            android:name=".utility.TrackingLocker$DisableTillRechargeWorker"
-            android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
