@@ -81,7 +81,7 @@ class FileSharingActivity : DetailActivity() {
                         val exporter = exporterType.newInstance() as IExport
                         val result = exporter.export(selectedFiles, shareableDir)
 
-                        if (result.isSuccessfull) {
+                        if (result.isSuccessful) {
                             val fileUri = FileProvider.getUriForFile(
                                     this@FileSharingActivity,
                                     "com.adsamcik.signalcollector.fileprovider",

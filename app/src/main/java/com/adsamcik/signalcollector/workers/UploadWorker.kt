@@ -20,10 +20,8 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Constants.HOUR_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Constants.MIN_BACKGROUND_UPLOAD_FILE_LIMIT_SIZE
 import com.adsamcik.signalcollector.utility.Constants.MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE
-import com.adsamcik.signalcollector.utility.DeviceId
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import com.squareup.moshi.Moshi
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.MediaType
 import okhttp3.RequestBody
@@ -95,10 +93,6 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
         }
 
         val userID = Signin.getUserID(context) ?: return Result.FAILURE
-
-        val adapter = Moshi.Builder().build().adapter(DeviceId::class.java)
-        val deviceId = DeviceId.thisDevice(userID)
-        val deviceIdJson = adapter.toJson(deviceId)
 
         val formBody = Network.deviceRequestBodyBuilder()
                 .addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
