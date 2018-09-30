@@ -4,7 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:animateLayoutChanges="true">
 
     <LinearLayout
         android:id="@+id/top_panel"
@@ -23,8 +24,8 @@
             android:layout_height="48dp"
             android:layout_weight="1"
             android:gravity="center_vertical"
-            android:paddingEnd="@dimen/edge_margin"
             android:paddingStart="@dimen/edge_margin"
+            android:paddingEnd="@dimen/edge_margin"
             android:textColor="@color/text_primary"
             tools:text="06:00:00"/>
 
@@ -34,8 +35,8 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_upload"
-            app:srcCompat="@drawable/ic_cloud_upload_24dp"
-            android:tint="@color/text_primary"/>
+            android:tint="@color/text_primary"
+            app:srcCompat="@drawable/ic_cloud_upload_24dp"/>
 
         <ImageButton
             android:id="@+id/button_tracking_lock"
@@ -43,8 +44,8 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_lock"
-            app:srcCompat="@drawable/ic_lock_black_24dp"
-            android:tint="@color/text_primary"/>
+            android:tint="@color/text_primary"
+            app:srcCompat="@drawable/ic_lock_black_24dp"/>
 
         <ImageButton
             android:id="@+id/button_tracking"
@@ -52,8 +53,8 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_start"
-            app:srcCompat="@drawable/ic_play_circle_filled_black_24dp"
-            android:tint="@color/text_primary"/>
+            android:tint="@color/text_primary"
+            app:srcCompat="@drawable/ic_play_circle_filled_black_24dp"/>
 
         <ImageButton
             android:id="@+id/button_settings"
@@ -62,17 +63,17 @@
             android:layout_marginEnd="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_settings"
-            app:srcCompat="@drawable/ic_settings_black_24dp"
-            android:tint="@color/text_primary"/>
+            android:tint="@color/text_primary"
+            app:srcCompat="@drawable/ic_settings_black_24dp"/>
     </LinearLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bar_info_top"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/edge_margin"
         android:layout_marginTop="90dp"
-        android:paddingLeft="@dimen/edge_margin"
-        android:paddingRight="@dimen/edge_margin"
+        android:layout_marginEnd="@dimen/edge_margin"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -83,19 +84,19 @@
             android:layout_height="48dp"
             android:contentDescription="@string/description_storage"
             android:padding="4dp"
-            app:srcCompat="@drawable/ic_storage_black_24dp"
             android:tint="@android:color/white"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/ic_storage_black_24dp"/>
 
         <androidx.appcompat.widget.AppCompatTextView
             android:id="@+id/data_size"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
-            android:paddingEnd="8dp"
             android:paddingStart="8dp"
             android:paddingTop="4dp"
+            android:paddingEnd="8dp"
             android:singleLine="true"
             app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
             app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
@@ -108,9 +109,9 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
-            android:paddingBottom="4dp"
-            android:paddingEnd="8dp"
             android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
             android:singleLine="true"
             app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
             app:layout_constraintStart_toEndOf="@id/image_storage"
@@ -123,10 +124,10 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:padding="4dp"
-            app:srcCompat="@drawable/ic_help_white_24dp"
             android:tint="@android:color/white"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/ic_help_white_24dp"
             tools:ignore="ContentDescription"/>
 
         <androidx.appcompat.widget.AppCompatTextView
@@ -134,9 +135,9 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
-            android:paddingEnd="8dp"
             android:paddingStart="8dp"
             android:paddingTop="4dp"
+            android:paddingEnd="8dp"
             android:singleLine="true"
             android:textAlignment="textEnd"
             app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
@@ -150,9 +151,9 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
-            android:paddingBottom="4dp"
-            android:paddingEnd="8dp"
             android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
             android:singleLine="true"
             android:textAlignment="textEnd"
             app:layout_constraintEnd_toStartOf="@id/icon_activity"
@@ -179,6 +180,73 @@
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/bar_info_top_extended"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:paddingTop="@dimen/edge_margin"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@id/bar_info_top"
+        app:layout_constraintStart_toStartOf="@id/bar_info_top"
+        app:layout_constraintTop_toBottomOf="@id/bar_info_top"
+        tools:visibility="visible">
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/longitude"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="marquee"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
+            android:singleLine="true"
+            android:text="50° 8' 18.61&quot; longitude"
+            android:textAlignment="textEnd"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@id/guideline_info_extended_vertical"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="50° 8' 18.61&quot; longitude"/>
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/latitude"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="marquee"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
+            android:singleLine="true"
+            android:textAlignment="textEnd"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@id/longitude"
+            app:layout_constraintTop_toBottomOf="@id/longitude"
+            tools:text="50° 8' 18.61&quot; latitude"/>
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/archived_data"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="marquee"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
+            android:singleLine="true"
+            app:layout_constraintEnd_toEndOf="@id/guideline_info_extended_vertical"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="588 KB Archived"/>
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideline_info_extended_vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_percent="0.5"/>
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
     <ScrollView
         android:id="@+id/include"
         android:layout_width="0dp"
@@ -187,7 +255,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bar_info_top">
+        app:layout_constraintTop_toBottomOf="@id/bar_info_top_extended">
 
         <com.google.android.flexbox.FlexboxLayout
             xmlns:android="http://schemas.android.com/apk/res/android"
@@ -196,13 +264,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:animateLayoutChanges="true"
-            android:clipToPadding="false"
             android:clipChildren="false"
+            android:clipToPadding="false"
             android:filterTouchesWhenObscured="true"
-            android:paddingBottom="@dimen/edge_margin"
             android:paddingLeft="@dimen/edge_margin"
-            android:paddingRight="@dimen/edge_margin"
             android:paddingTop="24dp"
+            android:paddingRight="@dimen/edge_margin"
+            android:paddingBottom="@dimen/edge_margin"
             app:alignItems="flex_start"
             app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
             app:dividerDrawableVertical="@drawable/flexbox_spacing"

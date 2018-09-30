@@ -25,7 +25,7 @@ import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.workers.UploadWorker
+import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
@@ -34,6 +34,7 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.experimental.CoroutineStart
@@ -98,6 +99,29 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         TrackerService.rawDataEcho.observe(this) {
             if (it != null && it.time > 0) {
                 updateData(it)
+            }
+        }
+
+        bar_info_top.setOnClickListener {
+            bar_info_top_extended.visibility = if (bar_info_top_extended.visibility == VISIBLE) GONE else VISIBLE
+
+            if (bar_info_top_extended.visibility == VISIBLE) {
+                colorManager.watchView(ColorView(bar_info_top_extended, 0, true, false, true))
+                val rawData = TrackerService.rawDataEcho.value
+                val location = rawData?.location
+                if (rawData != null && location != null) {
+                    longitude.text = getString(R.string.main_longitude, Assist.coordinateToString(location.longitude))
+                    latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
+                    longitude.visibility = VISIBLE
+                    latitude.visibility = VISIBLE
+                } else {
+                    longitude.visibility = GONE
+                    latitude.visibility = GONE
+                }
+
+                archived_data.text = getString(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
+            } else {
+                colorManager.stopWatchingView(bar_info_top_extended)
             }
         }
     }
