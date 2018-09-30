@@ -281,7 +281,8 @@ object DataStore {
     /**
      * Clears all data files
      */
-    fun clearAllData(context: Context) {
+    fun deleteTrackedData(context: Context) {
+        lockData()
         currentDataFile = null
         val sp = Preferences.getPref(context)
         sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
@@ -303,6 +304,7 @@ object DataStore {
                 "settings"
         )
         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle)
+        unlockData()
     }
 
     fun clearAll(context: Context) {
@@ -320,7 +322,7 @@ object DataStore {
 
         recountData(context)
 
-        if(currentDataFile?.file?.exists() != true)
+        if (currentDataFile?.file?.exists() != true)
             currentDataFile = null
     }
 
@@ -418,16 +420,17 @@ object DataStore {
         if (oldestUpload != -1L) {
             val days = Assist.getAgeInDays(oldestUpload).toLong()
             if (days > 30) {
-                val adapter = moshi.adapter<ArrayList<UploadStats>>(ArrayList::class.java)
+                val adapter = moshi.adapter<List<UploadStats>>(List::class.java)
                 val data = FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))
-                val stats = adapter.fromJson(data!!) ?: return
-                var i = 0
-                while (i < stats.size) {
-                    val stat = stats[i]
+                        ?: return
+
+                val stats = adapter.fromJson(data)?.toMutableList() ?: return
+                val it = stats.iterator()
+
+                while (it.hasNext()) {
+                    val stat = it.next()
                     if (Assist.getAgeInDays(stat.time) > 30)
-                        stats.removeAt(i)
-                    else
-                        i++
+                        it.remove()
                 }
 
                 if (stats.isNotEmpty())
