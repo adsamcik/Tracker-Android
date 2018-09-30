@@ -28,7 +28,7 @@
 
     <!--- TRACKING -->
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
-    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to charger</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
     <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
 
