@@ -7,6 +7,9 @@ data class ReadableArchivedFile(val zipFile: ZipFile, val entry: ZipEntry) : IRe
     override val name: String
         get() = "${zipFile.name}/${entry.name}"
 
+    override val time: Long
+        get() = entry.time
+
     override fun read(): String {
         val stream = zipFile.getInputStream(entry)
         return stream.bufferedReader().readText()

@@ -30,8 +30,6 @@ class FileSharingActivity : DetailActivity() {
 
 
     private fun addAllFiles() {
-        val temp = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.TMP_NAME) }
-        files.addAll(temp.map { ReadableFile(it) })
         val storedFiles = LongTermStore.listFiles(this)
 
         storedFiles.forEach {
@@ -42,6 +40,11 @@ class FileSharingActivity : DetailActivity() {
                 files.add(ReadableArchivedFile(zipFile, entryEnumeration.nextElement()))
             }
         }
+
+        val temp = DataStore.getDir(this).listFiles { _, name -> name.startsWith(DataStore.DATA_FILE) || name.startsWith(DataStore.TMP_NAME) }
+        files.addAll(temp.map { ReadableFile(it) })
+
+        files.sortBy { it.time }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +59,6 @@ class FileSharingActivity : DetailActivity() {
             root = createLinearContentParent(true)
             root.addView(tv)
         } else {
-
             val fileNames = files.map { it.name }
             root = createLinearContentParent(false)
             val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as androidx.coordinatorlayout.widget.CoordinatorLayout

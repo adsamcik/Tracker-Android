@@ -5,4 +5,6 @@ interface IReadableFile {
     fun read(): String
 
     val name: String
+
+    val time: Long
 }
