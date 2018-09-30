@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.file
 
 import android.content.Context
 import java.io.File
+import java.util.zip.ZipFile
 
 object LongTermStore {
     private const val DIRECTORY_NAME = "LongtermStorage"
@@ -28,4 +29,21 @@ object LongTermStore {
     fun listFiles(context: Context): Array<out File> = getDir(context).listFiles()
 
     fun clearData(context: Context) = FileStore.clearDirectory(getDir(context))
+
+    fun sizeOfStoredFiles(context: Context): Long {
+        val files = listFiles(context)
+        var size = 0L
+        files.forEach {
+            if (it.extension == "zip") {
+                val zipFile = ZipFile(it)
+                val iterator = zipFile.entries()
+                while (iterator.hasMoreElements()) {
+                    val entry = iterator.nextElement()
+                    size += entry.size
+                }
+            }
+        }
+
+        return size
+    }
 }
