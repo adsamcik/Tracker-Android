@@ -181,11 +181,17 @@
                 android:key="@string/settings_delete_uploaded_data_key"
                 android:summary="@string/settings_delete_uploaded_data_summary"
                 android:title="@string/settings_delete_uploaded_data_title"/>
+        </androidx.preference.PreferenceCategory>
 
+        <androidx.preference.PreferenceCategory>
             <Preference
                 android:key="@string/settings_delete_stored_data_key"
                 android:summary="@string/settings_delete_stored_data_summary"
                 android:title="@string/settings_delete_stored_data_title"/>
+            <Preference
+                android:key="@string/settings_delete_tracked_data_key"
+                android:summary="@string/settings_delete_tracked_data_summary"
+                android:title="@string/settings_delete_tracked_data_title"/>
         </androidx.preference.PreferenceCategory>
 
 
@@ -195,45 +201,61 @@
         android:title="@string/settings_debug_title"
         app:icon="@drawable/ic_outline_developer_mode_24px">
 
-        <androidx.preference.SwitchPreferenceCompat
-            android:key="@string/settings_debug_key"
-            android:title="@string/settings_debug_enabled"/>
+        <androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_activity_status_key"
-            android:title="@string/settings_activity_status_title"/>
+            <androidx.preference.SwitchPreferenceCompat
+                android:key="@string/settings_debug_key"
+                android:title="@string/settings_debug_enabled"/>
+        </androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_activity_debug_key"
-            android:title="@string/settings_activity_debug_title"/>
+        <androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_browse_files_key"
-            android:title="@string/settings_browse_files_title"/>
+            <Preference
+                android:key="@string/settings_activity_status_key"
+                android:title="@string/settings_activity_status_title"/>
 
-        <Preference
-            android:key="@string/settings_browse_cache_key"
-            android:title="@string/settings_browse_cache_title"/>
+            <Preference
+                android:key="@string/settings_activity_debug_key"
+                android:title="@string/settings_activity_debug_title"/>
 
-        <Preference
-            android:key="@string/settings_hello_world_key"
-            android:title="@string/settings_hello_world_title"/>
+            <Preference
+                android:key="@string/settings_hello_world_key"
+                android:title="@string/settings_hello_world_title"/>
+        </androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_clear_data_key"
-            android:title="@string/settings_clear_data_title"/>
+        <androidx.preference.PreferenceCategory>
+            <Preference
+                android:key="@string/settings_browse_files_key"
+                android:title="@string/settings_browse_files_title"/>
 
-        <Preference
-            android:key="@string/settings_clear_reports_key"
-            android:title="@string/settings_clear_reports_title"/>
+            <Preference
+                android:key="@string/settings_browse_archived_data_key"
+                android:title="@string/settings_browse_archived_data_title"/>
 
-        <Preference
-            android:key="@string/settings_clear_cache_key"
-            android:title="@string/settings_clear_cache_title"/>
+            <Preference
+                android:key="@string/settings_browse_cache_key"
+                android:title="@string/settings_browse_cache_title"/>
 
-        <Preference
-            android:key="@string/settings_clear_preferences_key"
-            android:title="@string/settings_clear_preferences_title"/>
+        </androidx.preference.PreferenceCategory>
+
+        <androidx.preference.PreferenceCategory>
+
+            <Preference
+                android:key="@string/settings_clear_data_key"
+                android:title="@string/settings_clear_data_title"/>
+
+            <Preference
+                android:key="@string/settings_clear_reports_key"
+                android:title="@string/settings_clear_reports_title"/>
+
+            <Preference
+                android:key="@string/settings_clear_cache_key"
+                android:title="@string/settings_clear_cache_title"/>
+
+            <Preference
+                android:key="@string/settings_clear_preferences_key"
+                android:title="@string/settings_clear_preferences_title"/>
+        </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_notifications_title">

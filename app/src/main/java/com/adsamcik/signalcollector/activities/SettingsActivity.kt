@@ -114,6 +114,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 LongTermStore.clearData(it)
             }
         }
+
+        setOnClickListener(R.string.settings_delete_tracked_data_key) { pref ->
+            createClearDialog(pref.title) {
+                DataStore.deleteTrackedData(it)
+            }
+        }
     }
 
     private fun initializeExport(caller: PreferenceFragmentCompat) {
@@ -309,10 +315,25 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         caller.findPreference(R.string.settings_browse_files_key).setOnPreferenceClickListener { _ ->
             createFileAlertDialog(filesDir) { file ->
                 val name = file.name
-                !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
+                !file.isDirectory &&
+                        !name.startsWith("DATA") &&
+                        !name.startsWith("firebase") &&
+                        !name.startsWith("com.") &&
+                        !name.startsWith("event_store") &&
+                        !name.startsWith("_m_t") &&
+                        name != ".Fabric" &&
+                        name != "ZoomTables.data"
             }
             false
         }
+
+        caller.findPreference(R.string.settings_browse_archived_data_key).setOnPreferenceClickListener { _ ->
+            createFileAlertDialog(LongTermStore.getDir(this)) { _ ->
+                true
+            }
+            false
+        }
+
 
         caller.findPreference(R.string.settings_browse_cache_key).setOnPreferenceClickListener { _ ->
             createFileAlertDialog(cacheDir) { file -> !file.name.startsWith("com.") && !file.isDirectory }
