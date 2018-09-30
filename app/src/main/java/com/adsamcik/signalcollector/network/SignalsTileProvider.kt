@@ -11,7 +11,7 @@ class SignalsTileProvider(context: Context, userToken: String, private val maxZo
 
     private val client = Retrofit.Builder().client(Network.clientAuth(context, userToken)).baseUrl(Network.URL_BASE).build().create(NetworkInterface::class.java)
 
-    private var type: String? = null
+    private lateinit var type: String
     private var personal: Boolean = false
 
     fun setType(type: String) {
@@ -36,11 +36,10 @@ class SignalsTileProvider(context: Context, userToken: String, private val maxZo
 
 
         val call =
-                if (personal) {
+                if (personal)
                     client.personalMapTile(z, x, y)
-                } else {
-                    client.mapTile(z, x, y, type!!)
-                }
+                else
+                    client.mapTile(z, x, y, type)
 
         try {
             val r = call.execute()
