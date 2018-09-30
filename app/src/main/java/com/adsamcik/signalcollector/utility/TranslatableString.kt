@@ -2,13 +2,11 @@ package com.adsamcik.signalcollector.utility
 
 import android.content.Context
 import com.crashlytics.android.Crashlytics
-import com.vimeo.stag.UseStag
 
 /**
  * Class for future improvements in localized communication with server.
  * Currently unused.
  */
-@UseStag
 class TranslatableString {
     //Stag
     var defaultString: String? = null

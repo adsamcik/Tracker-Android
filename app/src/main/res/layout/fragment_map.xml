@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                                             xmlns:app="http://schemas.android.com/apk/res-auto"
-                                             xmlns:tools="http://schemas.android.com/tools"
-                                             android:id="@+id/container_map"
-                                             android:layout_width="match_parent"
-                                             android:layout_height="match_parent"
-                                             android:animateLayoutChanges="true"
-                                             android:focusable="true"
-                                             android:focusableInTouchMode="true">
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                                   xmlns:app="http://schemas.android.com/apk/res-auto"
+                                                   xmlns:tools="http://schemas.android.com/tools"
+                                                   android:id="@+id/container_map"
+                                                   android:layout_width="match_parent"
+                                                   android:layout_height="match_parent"
+                                                   android:animateLayoutChanges="true"
+                                                   android:focusable="true"
+                                                   android:focusableInTouchMode="true">
 
     <FrameLayout
         android:id="@+id/map_menu_parent"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginBottom="64dp"
-        android:layout_marginEnd="@dimen/edge_margin"
         android:layout_marginStart="@dimen/edge_margin"
         android:layout_marginTop="39dp"
+        android:layout_marginEnd="@dimen/edge_margin"
+        android:layout_marginBottom="64dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:gravity="bottom"
@@ -61,7 +61,7 @@
             android:id="@+id/layout_map_controls"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:background="@color/cardview_light_background"
+            android:background="@color/color_primary"
             android:elevation="8dp"
             android:orientation="horizontal">
 
@@ -73,34 +73,36 @@
                 android:background="@android:color/transparent"
                 android:hint="@string/map_search"
                 android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
                 android:inputType="text|textNoSuggestions"
-                android:paddingBottom="8dp"
-                android:paddingEnd="56dp"
                 android:paddingStart="@dimen/edge_margin"
                 android:paddingTop="8dp"
+                android:paddingEnd="56dp"
+                android:paddingBottom="8dp"
                 android:textColor="?android:textColorPrimary"
                 android:textColorHint="?android:textColorSecondary"
-                android:textSize="16sp"
-                android:importantForAutofill="no"/>
+                android:textSize="16sp"/>
 
             <ImageButton
                 android:id="@+id/button_map_my_location"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                app:srcCompat="@drawable/ic_gps_fixed_black_24dp"
+                android:contentDescription="@string/description_my_location"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent"/>
+                app:layout_constraintTop_toTopOf="parent"
+                app:srcCompat="@drawable/ic_gps_fixed_black_24dp"/>
 
             <ImageButton
                 android:id="@+id/button_map_search"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                app:srcCompat="@drawable/ic_search_black_24dp"
+                android:contentDescription="@string/description_map_search"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent"/>
+                app:layout_constraintTop_toTopOf="parent"
+                app:srcCompat="@drawable/ic_search_black_24dp"/>
         </LinearLayout>
     </LinearLayout>
 
-</android.support.constraint.ConstraintLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

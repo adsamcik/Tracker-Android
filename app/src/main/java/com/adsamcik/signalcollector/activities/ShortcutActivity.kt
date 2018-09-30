@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
-import android.support.annotation.RequiresApi
-import android.support.v7.app.AppCompatActivity
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.extensions.startForegroundService
 import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.services.TrackerService

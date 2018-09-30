@@ -4,9 +4,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.support.annotation.StringRes
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
+import androidx.annotation.StringRes
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
@@ -69,7 +69,7 @@ class MessageListenerService : FirebaseMessagingService() {
                         return
                     }
 
-                    ChallengeManager.getChallenges(this, false, { source, challenges ->
+                    ChallengeManager.getChallenges(this, false) { source, challenges ->
                         if (source.success && challenges != null) {
                             for (challenge in challenges) {
                                 if (challenge.type == challengeType) {
@@ -85,7 +85,7 @@ class MessageListenerService : FirebaseMessagingService() {
                             //todo It should generate texts every time when loaded to properly handle localization changes
                             ChallengeManager.saveChallenges(this, challenges)
                         }
-                    })
+                    }
                 }
 
             }
@@ -161,22 +161,22 @@ class MessageListenerService : FirebaseMessagingService() {
             var newCell = 0
             var uploadSize: Long = 0
             if (data.containsKey(WIFI))
-                wifi = Integer.parseInt(data[WIFI])
+                wifi = Integer.parseInt(data[WIFI]!!)
             if (data.containsKey(NEW_WIFI))
-                newWifi = Integer.parseInt(data[NEW_WIFI])
+                newWifi = Integer.parseInt(data[NEW_WIFI]!!)
             if (data.containsKey(CELL))
-                cell = Integer.parseInt(data[CELL])
+                cell = Integer.parseInt(data[CELL]!!)
             if (data.containsKey(NEW_CELL))
-                newCell = Integer.parseInt(data[NEW_CELL])
+                newCell = Integer.parseInt(data[NEW_CELL]!!)
             if (data.containsKey(COLLECTIONS))
-                collections = Integer.parseInt(data[COLLECTIONS])
+                collections = Integer.parseInt(data[COLLECTIONS]!!)
             if (data.containsKey(NEW_LOCATIONS))
-                newLocations = Integer.parseInt(data[NEW_LOCATIONS])
+                newLocations = Integer.parseInt(data[NEW_LOCATIONS]!!)
             if (data.containsKey(UPLOAD_SIZE))
-                uploadSize = java.lang.Long.parseLong(data[UPLOAD_SIZE])
+                uploadSize = java.lang.Long.parseLong(data[UPLOAD_SIZE]!!)
 
             val us = UploadStats(time, wifi, newWifi, cell, newCell, collections, newLocations, uploadSize)
-            DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, true)
+            DataStore.saveAppendableJsonArray(context, DataStore.RECENT_UPLOADS_FILE, us, UploadStats::class.java, true)
 
             Preferences.checkStatsDay(context)
             val sp = Preferences.getPref(context)

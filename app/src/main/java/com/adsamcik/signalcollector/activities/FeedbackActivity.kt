@@ -1,27 +1,28 @@
 package com.adsamcik.signalcollector.activities
 
-import android.app.job.JobInfo
-import android.app.job.JobInfo.NETWORK_TYPE_ANY
-import android.content.ComponentName
 import android.content.res.ColorStateList
 import android.graphics.Paint
 import android.os.Bundle
 import android.os.PersistableBundle
-import android.support.design.widget.TextInputLayout
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.work.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.extensions.jobScheduler
-import com.adsamcik.signalcollector.jobs.FeedbackUploadJob
+import com.adsamcik.signalcollector.workers.FeedbackUploadWorker
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
+
+
 
 /**
  * FeedbackActivity that provides users with ability to send feedback
@@ -36,7 +37,7 @@ class FeedbackActivity : DetailActivity() {
     /**
      * TextWatcher that watches text for changes to remove errors that are associated with them
      */
-    internal class FeedbackTextWatcher private constructor(private val textLayout: TextInputLayout, private val minLength: Int = 0) : TextWatcher {
+    internal class FeedbackTextWatcher private constructor(private val textLayout: com.google.android.material.textfield.TextInputLayout, private val minLength: Int = 0) : TextWatcher {
         override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {
 
         }
@@ -53,7 +54,7 @@ class FeedbackActivity : DetailActivity() {
         }
 
         companion object {
-            fun setError(textLayout: TextInputLayout, errorText: String, minLength: Int = 0) {
+            fun setError(textLayout: com.google.android.material.textfield.TextInputLayout, errorText: String, minLength: Int = 0) {
                 textLayout.error = errorText
                 textLayout.editText!!.addTextChangedListener(FeedbackTextWatcher(textLayout, minLength))
             }
@@ -64,10 +65,10 @@ class FeedbackActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         setTitle(R.string.feedback_title)
         val activity = this
-        launch {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             val user = Signin.getUserAsync(activity)
             if (user != null) {
-                launch(UI) {
+                launch(Dispatchers.Main) {
                     val parent = createLinearScrollableContentParent(true)
                     val groupRoot = layoutInflater.inflate(R.layout.layout_feedback, parent) as ViewGroup
 
@@ -88,8 +89,8 @@ class FeedbackActivity : DetailActivity() {
                             return@setOnClickListener
                         }
 
-                        val summaryTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_summary_wrap)
-                        val descriptionTextLayout = parent.findViewById<TextInputLayout>(R.id.feedback_description_wrap)
+                        val summaryTextLayout = parent.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.feedback_summary_wrap)
+                        val descriptionTextLayout = parent.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.feedback_description_wrap)
 
                         val summaryText = summaryTextLayout.editText!!
 
@@ -117,24 +118,32 @@ class FeedbackActivity : DetailActivity() {
 
 
                                 val pb = PersistableBundle(3)
-                                pb.putString(FeedbackUploadJob.SUMMARY, summary)
-                                pb.putString(FeedbackUploadJob.DESCRIPTION, description)
-                                pb.putInt(FeedbackUploadJob.TYPE, currentType!!.ordinal)
+                                pb.putString(FeedbackUploadWorker.SUMMARY, summary)
+                                pb.putString(FeedbackUploadWorker.DESCRIPTION, description)
+                                pb.putInt(FeedbackUploadWorker.TYPE, currentType!!.ordinal)
 
-                                val jobInfo = JobInfo.Builder(jobId++, ComponentName(this@FeedbackActivity, FeedbackUploadJob::class.java))
-                                        .setRequiredNetworkType(NETWORK_TYPE_ANY)
-                                        .setPersisted(true)
-                                        .setExtras(pb)
+                                val data = Data.Builder()
+                                        .putString(FeedbackUploadWorker.SUMMARY, summary)
+                                        .putString(FeedbackUploadWorker.DESCRIPTION, description)
+                                        .putInt(FeedbackUploadWorker.TYPE, currentType!!.ordinal)
                                         .build()
 
-                                this@FeedbackActivity.jobScheduler.schedule(jobInfo)
+                                val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+                                val uploadWork = OneTimeWorkRequestBuilder<FeedbackUploadWorker>()
+                                        .setInputData(data)
+                                        .addTag(FeedbackUploadWorker.TAG)
+                                        .setConstraints(constraints)
+                                        .build()
+                                WorkManager.getInstance().enqueue(uploadWork)
+
                                 finish()
                             }
                         }
                     }
                 }
             }
-        }
+        })
     }
 
     override fun onDestroy() {

@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
 import android.os.Bundle
-import android.support.v4.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.MapFilterableAdapter
@@ -26,7 +26,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
     override fun onStart() {
         super.onStart()
-        val adapter = MapFilterableAdapter(context!!, R.layout.spinner_item, { it.name })
+        val adapter = MapFilterableAdapter(context!!, R.layout.spinner_item) { it.name }
 
         if (useMock) {
             adapter.addAll(arrayListOf(MapLayer("WiFi"),
@@ -52,11 +52,11 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
         (list.adapter as MapFilterableAdapter).filter(filterRule)
     }
 
-    override fun onEnter(activity: Activity) {
+    override fun onEnter(activity: FragmentActivity) {
 
     }
 
-    override fun onLeave(activity: Activity) {
+    override fun onLeave(activity: FragmentActivity) {
 
     }
 

@@ -2,8 +2,7 @@ package com.adsamcik.signalcollector.file
 
 import android.util.MalformedJsonException
 import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
-import com.google.gson.JsonSyntaxException
+import com.squareup.moshi.Moshi
 import java.io.*
 import java.security.InvalidParameterException
 
@@ -140,12 +139,13 @@ object FileStore {
      */
     fun <T> loadLastFromAppendableJsonArray(file: File, tClass: Class<T>): T? {
         val str = loadString(file) ?: return null
+        val adapter = Moshi.Builder().build().adapter(tClass)
         (str.length - 1 downTo 0)
                 .filter { str[it] == '{' }
                 .forEach {
                     return try {
-                        Gson().fromJson(str.substring(it), tClass)
-                    } catch (e: JsonSyntaxException) {
+                        adapter.fromJson(str.substring(it))
+                    } catch (e: IOException) {
                         Crashlytics.logException(e)
                         null
                     }
@@ -222,16 +222,25 @@ object FileStore {
         if (file.isDirectory) {
             file.listFiles()
                     .filterNot { recursiveDelete(it) }
-                    .forEach { return false }
+                    .forEach { _ -> return false }
         }
         return delete(file)
     }
 
-    fun clearFolder(file: File): Boolean {
+    fun clearDirectory(file: File): Boolean {
         if (file.isDirectory) {
             file.listFiles()
-                    .filterNot { delete(it) }
-                    .forEach { return false }
+                    .filterNot { delete(it) }.isEmpty()
+        } else
+            return false
+        return true
+    }
+
+    fun clearDirectory(file: File, predicate: (File) -> Boolean): Boolean {
+        if (file.isDirectory) {
+            file.listFiles().filterNot {
+                !predicate(it) || delete(it)
+            }.isEmpty()
         } else
             return false
         return true

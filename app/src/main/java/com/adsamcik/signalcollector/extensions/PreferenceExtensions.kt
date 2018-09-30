@@ -2,13 +2,13 @@ package com.adsamcik.signalcollector.extensions
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.support.annotation.ColorInt
-import android.support.annotation.ColorRes
-import android.support.annotation.StringRes
-import android.support.v4.content.ContextCompat
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceFragmentCompat
-import android.support.v7.preference.PreferenceGroup
+import androidx.annotation.ColorInt
+import androidx.annotation.ColorRes
+import androidx.annotation.StringRes
+import androidx.core.content.ContextCompat
+import androidx.preference.Preference
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceGroup
 
 /**
  * Finds a {@link Preference} based on its title.
@@ -35,7 +35,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  *
  * @param title The title of the preference to retrieve.
  * @return The {@link Preference} with the key, or null.
- * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
     @Suppress("UNCHECKED_CAST")
@@ -47,7 +47,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
  *
  * @param titleId Title resource id of the preference
  * @return The {@link Preference} with the key, or null.
- * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
     @Suppress("UNCHECKED_CAST")
@@ -59,7 +59,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes tit
  *
  * @param titleId Title resource id of the preference
  * @return The {@link Preference} with the key, or null.
- * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+ * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference {
     @Suppress("UNCHECKED_CAST")
@@ -96,7 +96,7 @@ fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes d
  */
 fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
     val resources = context.resources
-    return getString(resources.getString(key), resources.getString(defaultResource))
+    return getString(resources.getString(key), resources.getString(defaultResource))!!
 }
 
 /**

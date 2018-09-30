@@ -2,14 +2,12 @@ package com.adsamcik.signalcollector.components
 
 import android.content.Context
 import android.content.res.TypedArray
-import android.support.annotation.IntegerRes
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
 import android.widget.TextView
-import androidx.core.view.setPadding
+import androidx.annotation.IntegerRes
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.slider.implementations.IntValueSlider
 
 /**
@@ -35,7 +33,7 @@ class IntValueSliderPreference : Preference {
         val attributes = context.obtainStyledAttributes(attrs, R.styleable.IntValueSliderPreference)
         mValuesResource = attributes.getResourceId(R.styleable.IntValueSliderPreference_items, 0)
         if (attributes.hasValue(R.styleable.IntValueSliderPreference_stringFormat))
-            mTextViewString = attributes.getString(R.styleable.IntValueSliderPreference_stringFormat)
+            mTextViewString = attributes.getString(R.styleable.IntValueSliderPreference_stringFormat)!!
 
         attributes.recycle()
     }
@@ -52,10 +50,10 @@ class IntValueSliderPreference : Preference {
     }
 
     override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
-        return a.getString(index).toInt()
+        return a.getString(index)!!.toInt()
     }
 
-    override fun onSetInitialValue(restorePersistedValue: Boolean, defaultValue: Any?) {
+    override fun onSetInitialValue(defaultValue: Any?) {
         if (defaultValue != null)
             mInitialValue = defaultValue as Int
     }
@@ -66,7 +64,7 @@ class IntValueSliderPreference : Preference {
         val textView = holder.findViewById(R.id.slider_value) as TextView
 
         slider.setItems(context.resources.getIntArray(mValuesResource!!).toTypedArray())
-        slider.setPadding(8.dpAsPx)
+        //slider.setPadding(8.dpAsPx)
         slider.setTextView(textView) { String.format(mTextViewString, it) }
 
         slider.setPreferences(sharedPreferences, key, mInitialValue)

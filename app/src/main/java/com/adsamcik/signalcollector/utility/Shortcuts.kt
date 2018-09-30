@@ -5,8 +5,8 @@ import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
-import android.support.annotation.DrawableRes
-import android.support.annotation.RequiresApi
+import androidx.annotation.DrawableRes
+import androidx.annotation.RequiresApi
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.ShortcutActivity
 import com.adsamcik.signalcollector.extensions.shortcutManager

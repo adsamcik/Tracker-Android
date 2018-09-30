@@ -4,9 +4,9 @@ import android.os.Build
 
 /**
  * Returns true if mocking should be used.
- * Todo: replace with Mockito in the future or some similiar framework
+ * Todo: replace with Mockito in the future or some similar framework
  */
-val useMock: Boolean = isEmulator || isTestMode
+val useMock: Boolean = (isEmulator || isTestMode) && false
 
 /**
  * Returns true if app was launched during a test.

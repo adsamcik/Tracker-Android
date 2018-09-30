@@ -1,9 +1,9 @@
 package com.adsamcik.signalcollector.data
 
-import com.vimeo.stag.UseStag
+import com.squareup.moshi.JsonClass
 
 /**
  * Object that contains data about specific statistic
  */
-@UseStag
+@JsonClass(generateAdapter = true)
 data class Stat(val name: String, val type: String, val showPosition: Boolean, val data: List<StatData>)

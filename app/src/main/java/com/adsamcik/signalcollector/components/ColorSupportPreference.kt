@@ -1,13 +1,13 @@
 package com.adsamcik.signalcollector.components
 
-import android.support.v7.app.AppCompatActivity
 import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Color
-import android.support.annotation.ColorInt
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
+import androidx.annotation.ColorInt
+import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
 import com.jaredrummler.android.colorpicker.*
 
 /**
@@ -92,7 +92,7 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
 
         if (showDialog) {
             val activity = getActivity()
-            (activity.fragmentManager.findFragmentByTag(getFragmentTag()) as ColorPickerDialog?)?.setColorPickerDialogListener(this)
+            (activity.supportFragmentManager.findFragmentByTag(getFragmentTag()) as ColorPickerDialog?)?.setColorPickerDialogListener(this)
         }
     }
 
@@ -102,8 +102,8 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
         preview.color = color
     }
 
-    override fun onSetInitialValue(restorePersistedValue: Boolean, defaultValue: Any?) {
-        if (restorePersistedValue) {
+    override fun onSetInitialValue(defaultValue: Any?) {
+        if (isPersistent) {
             color = getPersistedInt(-0x1000000)
         } else {
             color = defaultValue as Int

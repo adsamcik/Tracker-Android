@@ -1,9 +1,9 @@
 package com.adsamcik.signalcollector.utility
 
 
-import android.support.test.InstrumentationRegistry
+import androidx.test.InstrumentationRegistry
 import com.adsamcik.signalcollector.R
-import com.google.gson.Gson
+import com.squareup.moshi.Moshi
 import org.junit.Assert
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,7 +12,7 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class TranslatableStringTest {
     private val appContext = InstrumentationRegistry.getTargetContext()!!
-    private val gson = Gson()
+    private val jsonAdapter = Moshi.Builder().build().adapter(TranslatableString::class.java)
     private val identifier = "activity_idle"
     private val identifierInt = R.string.activity_idle
     private val defaultString = "Default string"
@@ -20,7 +20,7 @@ class TranslatableStringTest {
     @Test
     fun loadFromJson() {
         val json = "{\"defaultString\":\"$defaultString\",\"identifier\":$identifier}"
-        Assert.assertEquals(appContext.getString(identifierInt), gson.fromJson(json, TranslatableString::class.java).getString(appContext))
+        Assert.assertEquals(appContext.getString(identifierInt), jsonAdapter.fromJson(json)!!.getString(appContext))
     }
 
     @Test

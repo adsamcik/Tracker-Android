@@ -1,18 +1,17 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
 import android.content.Context
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
-import android.support.v4.graphics.ColorUtils
-import android.support.v4.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.Challenge
@@ -26,13 +25,16 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.android.synthetic.main.fragment_activities.*
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 import kotlin.math.roundToInt
 
 class FragmentActivities : Fragment(), IOnDemandView {
     private lateinit var listViewChallenges: ListView
-    private lateinit var refreshLayout: SwipeRefreshLayout
+    private lateinit var refreshLayout: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
     private lateinit var colorManager: ColorManager
 
@@ -44,7 +46,7 @@ class FragmentActivities : Fragment(), IOnDemandView {
         refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
         refreshLayout.setColorSchemeResources(R.color.color_primary)
         refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
-        refreshLayout.setOnRefreshListener({ this.updateData() })
+        refreshLayout.setOnRefreshListener { this.updateData() }
 
         updateData()
 
@@ -66,28 +68,28 @@ class FragmentActivities : Fragment(), IOnDemandView {
                     Challenge(Challenge.ChallengeType.Crowded, "Hello world!", arrayOf("50"), 1f, ChallengeDifficulties.EASY))
 
             challenges.forEach { it.generateTexts(context) }
-            launch(UI) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                 (listViewChallenges.adapter as ChallengesAdapter).updateData(challenges)
                 refreshLayout.isRefreshing = false
-            }
+            })
         } else {
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
-                if (!source.success)
-                    SnackMaker(activities_root).showSnackbar(R.string.error_connection_failed)
-                else {
-                    launch(UI) {
+                launch(Dispatchers.Main) {
+                    if (!source.success)
+                        SnackMaker(activities_root).showSnackbar(R.string.error_connection_failed)
+                    else {
                         (listViewChallenges.adapter as ChallengesAdapter).updateData(challenges!!)
                     }
+                    refreshLayout.isRefreshing = false
                 }
-                launch(UI) { refreshLayout.isRefreshing = false }
-            }
+            })
         }
     }
 
-    override fun onEnter(activity: Activity) {}
+    override fun onEnter(activity: FragmentActivity) {}
 
-    override fun onLeave(activity: Activity) {}
+    override fun onLeave(activity: FragmentActivity) {}
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 

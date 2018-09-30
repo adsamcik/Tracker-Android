@@ -6,13 +6,11 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
-import android.support.design.widget.CoordinatorLayout
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
-import android.support.v7.app.AppCompatActivity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ActionSource
@@ -27,7 +25,7 @@ import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentMap
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.fragments.FragmentTracker
-import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityService
@@ -41,6 +39,9 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Tips
 import com.google.android.gms.location.LocationServices
 import kotlinx.android.synthetic.main.activity_ui.*
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch
 
 
@@ -56,7 +57,7 @@ class MainActivity : AppCompatActivity() {
 
     private var mapFragment: FragmentMap? = null
 
-    private lateinit var trackerFragment: Fragment
+    private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,7 +77,7 @@ class MainActivity : AppCompatActivity() {
         initializeColorElements()
 
         if (Network.cloudStatus == CloudStatuses.UNKNOWN) {
-            val scheduleSource = UploadJobService.getUploadScheduled(this)
+            val scheduleSource = UploadWorker.getUploadScheduled(this)
             when (scheduleSource) {
                 ActionSource.NONE ->
                     Network.cloudStatus =
@@ -98,11 +99,11 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         root.post {
-            Tips.showTips(this, Tips.HOME_TIPS, {
-                launch {
+            Tips.showTips(this, Tips.HOME_TIPS) {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                     Assist.privacyPolicyEnableUpload(this@MainActivity)
-                }
-            })
+                })
+            }
         }
     }
 
@@ -196,7 +197,7 @@ class MainActivity : AppCompatActivity() {
 
         button_map.addPayload(mapPayload)
 
-        val params = root.layoutParams as CoordinatorLayout.LayoutParams
+        val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
         params.behavior = BottomBarBehavior(button_map)
         root.requestLayout()
     }

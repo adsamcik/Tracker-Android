@@ -4,15 +4,15 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.TypedArray
 import android.graphics.Color
-import android.support.annotation.DrawableRes
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.DrawableRes
 import androidx.core.view.setMargins
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
 
@@ -116,10 +116,10 @@ class ImageSwitchPreference : Preference {
     }
 
     override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
-        return a.getString(index).toInt()
+        return a.getString(index)!!.toInt()
     }
 
-    override fun onSetInitialValue(restorePersistedValue: Boolean, defaultValue: Any?) {
+    override fun onSetInitialValue(defaultValue: Any?) {
         if (defaultValue != null)
             mInitialValue = defaultValue as Int
     }

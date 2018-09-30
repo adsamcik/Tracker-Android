@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="channel_track_id" translatable="false">tracking_channel_id</string>
-    <string name="channel_track_name">Tracking channel</string>
-    <string name="channel_track_description">Channel containing tracking notifications</string>
+    <string name="channel_track_name">Tracking</string>
+    <string name="channel_track_description">Notifications related to tracking.</string>
 
     <string name="channel_upload_id" translatable="false">upload_channel_id</string>
-    <string name="channel_upload_name">Upload channel</string>
-    <string name="channel_upload_description">Channel containing upload notifications</string>
+    <string name="channel_upload_name">Upload</string>
+    <string name="channel_upload_description">Notifications related to upload reports.</string>
 
     <string name="channel_other_id" translatable="false">other_channel_id</string>
-    <string name="channel_other_name">Other channel</string>
-    <string name="channel_other_description">Channel containing various notifications</string>
+    <string name="channel_other_name">Other</string>
+    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
 
     <string name="channel_challenges_id" translatable="false">challenge_channel_id</string>
-    <string name="channel_challenges_name">Challenge channel id channel</string>
-    <string name="channel_challenges_description">Channel containing challenge reports and notifications</string>
+    <string name="channel_challenges_name">Challenge</string>
+    <string name="channel_challenges_description">Notifications related to challenges.</string>
 
     <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
-    <string name="channel_activity_watcher_name">Activity watcher channel</string>
-    <string name="channel_activity_watcher_description">Channel used for activity watching so you can easily hide activity watcher foreground service notification if desired.</string>
+    <string name="channel_activity_watcher_name">Activity Watcher</string>
+    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
 </resources>

@@ -1,12 +1,9 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat.getDrawable
 import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.Surface
@@ -14,21 +11,21 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat.getDrawable
 import androidx.core.content.edit
 import androidx.core.view.children
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.SettingsActivity
 import com.adsamcik.signalcollector.activities.UserActivity
 import com.adsamcik.signalcollector.components.InfoComponent
-import com.adsamcik.signalcollector.data.CellData
-import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.data.WifiData
+import com.adsamcik.signalcollector.data.*
 import com.adsamcik.signalcollector.enums.ActionSource
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.jobs.UploadJobService
+import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
 import com.adsamcik.signalcollector.signin.Signin
@@ -37,13 +34,17 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.android.synthetic.main.fragment_tracker.*
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 import java.util.*
 
-class FragmentTracker : Fragment() {
+class FragmentTracker : androidx.fragment.app.Fragment() {
     private lateinit var colorManager: ColorManager
 
     private var wifiInfo: InfoComponent? = null
@@ -90,6 +91,7 @@ class FragmentTracker : Fragment() {
         }
 
         initializeColorElements()
+        updateExtendedInfoBar()
 
         TrackerService.isServiceRunning.observe(this) {
             updateTrackerButton(it)
@@ -99,6 +101,20 @@ class FragmentTracker : Fragment() {
             if (it != null && it.time > 0) {
                 updateData(it)
             }
+        }
+
+        bar_info_top.setOnClickListener {
+            bar_info_top_extended.visibility = if (bar_info_top_extended.visibility == VISIBLE) GONE else VISIBLE
+            updateExtendedInfoBar()
+        }
+    }
+
+    private fun updateExtendedInfoBar() {
+        if (bar_info_top_extended.visibility == VISIBLE) {
+            colorManager.watchView(ColorView(bar_info_top_extended, 0, true, false, true))
+            initializeExtendedInfo()
+        } else {
+            colorManager.stopWatchingView(bar_info_top_extended)
         }
     }
 
@@ -129,8 +145,8 @@ class FragmentTracker : Fragment() {
                 updateUploadButton()
         }
 
-        DataStore.setOnDataChanged { launch(UI) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
-        DataStore.setOnUploadProgress { launch(UI) { updateUploadButton() } }
+        DataStore.setOnDataChanged { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) }) }
+        DataStore.setOnUploadProgress { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { updateUploadButton() }) }
 
         if (useMock)
             mock()
@@ -141,7 +157,7 @@ class FragmentTracker : Fragment() {
      *
      * @param enable ensures intended action
      */
-    private fun toggleCollecting(activity: Activity, enable: Boolean) {
+    private fun toggleCollecting(activity: FragmentActivity, enable: Boolean) {
         if (TrackerService.isServiceRunning.value == enable)
             return
 
@@ -172,21 +188,16 @@ class FragmentTracker : Fragment() {
                 activity.stopService<TrackerService>()
             }
         } else if (Build.VERSION.SDK_INT >= 23) {
-            activity.requestPermissions(requiredPermissions, 0)
+            activity.requestPermissions(requiredPermissions!!, 0)
         }
     }
 
     private fun mock() {
         val rawData = RawData(System.currentTimeMillis())
+        rawData.location = Location(15.0, 15.0, 123.0, 6f)
         rawData.activity = ResolvedActivities.ON_FOOT
-        rawData.wifi = arrayOf(WifiData(), WifiData(), WifiData())
-        rawData.accuracy = 6f
-        rawData.cellCount = 8
-        rawData.registeredCells = arrayOf(CellData("MOCK", 2, 0, 123, 456, -30, 90, 0))
-        rawData.latitude = 15.0
-        rawData.longitude = 15.0
-        rawData.altitude = 123.0
-        rawData.wifiTime = System.currentTimeMillis()
+        rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
+        rawData.cell = CellData(arrayOf(CellInfo("MOCK", 2, 0, "123", "456", -30, 90, 0)), 8)
         updateData(rawData)
     }
 
@@ -202,14 +213,14 @@ class FragmentTracker : Fragment() {
     private fun setUploadButtonClickable() {
         button_upload.setOnClickListener { _ ->
             val activity = activity!!
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 if (Assist.privacyPolicy(activity)) {
-                    val success = UploadJobService.requestUpload(activity, ActionSource.USER)
+                    val success = UploadWorker.requestUpload(activity, ActionSource.USER)
                     FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (success)
                         updateUploadButton()
                 }
-            }
+            })
         }
     }
 
@@ -305,7 +316,36 @@ class FragmentTracker : Fragment() {
         return component
     }
 
-    private fun updateData(d: RawData) {
+    private fun initializeExtendedInfo() {
+        val rawData = TrackerService.rawDataEcho.value
+        if (rawData != null) {
+            updateExtendedInfo(rawData)
+        } else {
+            longitude.visibility = GONE
+            latitude.visibility = GONE
+        }
+        archived_data.text = getString(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
+    }
+
+    private fun updateExtendedInfo(rawData: RawData) {
+        val location = rawData.location
+        if (location != null) {
+            longitude.text = getString(R.string.main_longitude, Assist.coordinateToString(location.longitude))
+            latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
+
+            if (longitude.visibility == GONE) {
+                colorManager.notifyChangeOn(bar_info_top_extended)
+
+                longitude.visibility = VISIBLE
+                latitude.visibility = VISIBLE
+            }
+        } else {
+            longitude.visibility = GONE
+            latitude.visibility = GONE
+        }
+    }
+
+    private fun updateData(rawData: RawData) {
         val context = context!!
         val res = context.resources
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
@@ -315,25 +355,28 @@ class FragmentTracker : Fragment() {
             updateUploadButton()
         }
 
-        textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(d.time)))
+        textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(rawData.time)))
 
-        if (d.accuracy != null) {
+        val location = rawData.location
+        if (location != null) {
             accuracy.visibility = VISIBLE
-            accuracy.text = getString(R.string.info_accuracy, d.accuracy!!.toInt())
-        } else
-            accuracy.visibility = GONE
+            accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.toInt())
 
-        altitude.text = getString(R.string.info_altitude, d.altitude!!.toInt())
-        altitude.visibility = VISIBLE
+            altitude.text = getString(R.string.info_altitude, location.altitude.toInt())
+            altitude.visibility = VISIBLE
+        } else {
+            accuracy.visibility = GONE
+            altitude.visibility = GONE
+        }
 
         when {
-            d.wifi != null -> {
+            rawData.wifi != null -> {
                 val component = initializeWifiInfo()
-                component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, d.wifi!!.size))
+                component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, rawData.wifi!!.inRange.size))
                 component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
-                lastWifiTime = d.time
+                lastWifiTime = rawData.time
             }
-            lastWifiTime - d.time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
+            lastWifiTime - rawData.time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
                 wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
             else -> {
                 wifiInfo?.detach()
@@ -341,22 +384,22 @@ class FragmentTracker : Fragment() {
             }
         }
 
-        if (d.cellCount != null) {
+        val cell = rawData.cell
+        if (cell != null) {
             val component = initializeCellInfo()
-            val registered = d.registeredCells
-            if (registered != null && registered.isNotEmpty()) {
-                component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, registered[0].getType(), registered[0].dbm, registered[0].asu))
+            if (cell.registeredCells.isNotEmpty()) {
+                component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, cell.registeredCells[0].typeString, cell.registeredCells[0].dbm, cell.registeredCells[0].asu))
             } else
                 component.setVisibility(CELL_COMPONENT_CURRENT, GONE)
-            component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, d.cellCount))
+            component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, cell.totalCount))
         } else {
             cellInfo?.detach()
             cellInfo = null
         }
 
-        when (d.activity) {
+        when (rawData.activity) {
             ResolvedActivities.STILL -> {
-                icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
+                icon_activity.setImageResource(R.drawable.ic_outline_still_24px)
                 icon_activity.contentDescription = getString(R.string.activity_idle)
                 icon_activity.visibility = VISIBLE
             }
@@ -376,6 +419,10 @@ class FragmentTracker : Fragment() {
                 icon_activity.visibility = VISIBLE
             }
             else -> icon_activity.visibility = GONE
+        }
+
+        if (bar_info_top_extended.visibility == VISIBLE) {
+            updateExtendedInfo(rawData)
         }
     }
 

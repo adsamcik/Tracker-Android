@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.data
 
-import com.vimeo.stag.UseStag
+import com.squareup.moshi.JsonClass
 import java.util.*
 
 /**
@@ -8,16 +8,16 @@ import java.util.*
  * Does not use [com.adsamcik.signalcollector.utility.CoordinateBounds] because Stag does not support this level of customization for TypeAdapters and custom type adapter is not a priority right now.
  */
 //todo Update to use CoordinateBounds
-@UseStag
-data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right: Double = MAX_LONGITUDE, var bottom: Double = MIN_LATITUDE, var left: Double = MIN_LONGITUDE) {
-    /**
-     * Contains information for the legend
-     */
-    var values: ArrayList<ValueColor>? = null
-
-    inner class ValueColor(val name: String, val color: Int)
-
-    constructor() : this("")
+@JsonClass(generateAdapter = true)
+data class MapLayer(var name: String,
+                    var top: Double = MAX_LATITUDE,
+                    var right: Double = MAX_LONGITUDE,
+                    var bottom: Double = MIN_LATITUDE,
+                    var left: Double = MIN_LONGITUDE,
+                    /**
+                     * Contains information for the legend
+                     */
+                    var values: Array<ValueColor>? = null) {
 
     companion object {
 
@@ -25,12 +25,6 @@ data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right:
         const val MAX_LATITUDE = 90.0
         const val MIN_LONGITUDE = -180.0
         const val MAX_LONGITUDE = 180.0
-
-        /**
-         * Converts array of MapLayers to string
-         */
-        fun toStringArray(layerArray: Array<MapLayer>): Array<String> = Array(layerArray.size) { layerArray[it].name }
-
         /**
          * Checks if MapLayer is in given array
          */
@@ -45,4 +39,33 @@ data class MapLayer(var name: String, var top: Double = MAX_LATITUDE, var right:
                 MapLayer("Cell", 30.0, 30.0, -30.0, -30.0)
         )
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as MapLayer
+
+        if (name != other.name) return false
+        if (top != other.top) return false
+        if (right != other.right) return false
+        if (bottom != other.bottom) return false
+        if (left != other.left) return false
+        if (!Arrays.equals(values, other.values)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = name.hashCode()
+        result = 31 * result + top.hashCode()
+        result = 31 * result + right.hashCode()
+        result = 31 * result + bottom.hashCode()
+        result = 31 * result + left.hashCode()
+        result = 31 * result + (values?.let { Arrays.hashCode(it) } ?: 0)
+        return result
+    }
 }
+
+@JsonClass(generateAdapter = true)
+data class ValueColor(val name: String, val color: Int)

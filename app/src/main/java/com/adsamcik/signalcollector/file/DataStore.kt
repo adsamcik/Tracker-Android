@@ -2,22 +2,23 @@ package com.adsamcik.signalcollector.file
 
 import android.content.Context
 import android.os.Bundle
+import android.util.MalformedJsonException
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.enums.CloudStatuses
+import com.adsamcik.signalcollector.file.DataFile.Companion.SEPARATOR
 import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.FirebaseAssist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import com.google.gson.stream.MalformedJsonException
+import com.squareup.moshi.Moshi
 import java.io.File
 import java.util.*
+import kotlin.collections.ArrayList
+
 
 /**
  * Utility class for storing data files
@@ -30,9 +31,7 @@ object DataStore {
 
     const val RECENT_UPLOADS_FILE = "recentUploads"
     const val DATA_FILE = "dataStore"
-    const val DATA_CACHE_FILE = "dataCacheFile"
     const val PREF_DATA_FILE_INDEX = "saveFileID"
-    const val PREF_CACHE_FILE_INDEX = "saveCacheID"
     private const val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: (() -> Unit)? = null
@@ -48,6 +47,8 @@ object DataStore {
 
     @Volatile
     private var dataLocked = false
+
+    private var moshi = Moshi.Builder().build()
 
     var currentDataFile: DataFile? = null
         private set
@@ -123,7 +124,7 @@ object DataStore {
      * @param lastFileSizeThreshold Include last datafile if it exceeds this size
      * @return array of datafile names
      */
-    fun getDataFiles(context: Context, @android.support.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
+    fun getDataFiles(context: Context, @androidx.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
         val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
         return if (list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
             list.dropLast(1).toTypedArray()
@@ -164,6 +165,7 @@ object DataStore {
      */
     @Synchronized
     fun cleanup(context: Context) {
+        currentDataFile?.lock()
         val files = getDir(context).listFiles()
         Arrays.sort(files) { a: File, b: File -> a.name.compareTo(b.name) }
         val renamedFiles = ArrayList<Pair<Int, String>>()
@@ -182,12 +184,9 @@ object DataStore {
 
         for (item in renamedFiles) {
             val substr = item.second.substring(TMP_NAME.length)
-            val separatorIndex = substr.indexOf('-')
-            val name =
-                    if (separatorIndex == -1)
-                        DATA_FILE + item.first + DataFile.SEPARATOR + item.second.substring(TMP_NAME.length)
-                    else
-                        DATA_FILE + item.first + DataFile.SEPARATOR + substr.substring(0, separatorIndex)
+            val separatorIndex = substr.indexOf(SEPARATOR)
+            val collections = Integer.parseInt(substr.substring(0, separatorIndex))
+            val name = DataFile.generateFileName(collections, item.first)
             if (!rename(context, item.second, name)) {
                 Crashlytics.logException(Throwable("Failed to rename $"))
             }
@@ -282,7 +281,8 @@ object DataStore {
     /**
      * Clears all data files
      */
-    fun clearAllData(context: Context) {
+    fun deleteTrackedData(context: Context) {
+        lockData()
         currentDataFile = null
         val sp = Preferences.getPref(context)
         sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
@@ -304,11 +304,12 @@ object DataStore {
                 "settings"
         )
         FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle)
+        unlockData()
     }
 
     fun clearAll(context: Context) {
         currentDataFile = null
-        FileStore.clearFolder(getDir(context))
+        FileStore.clearDirectory(getDir(context))
         Preferences.getPref(context).edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
         approxSize = 0
         collectionsOnDevice = 0
@@ -316,61 +317,58 @@ object DataStore {
         onDataChanged(context)
     }
 
+    fun clear(context: Context, predicate: (File) -> Boolean) {
+        FileStore.clearDirectory(getDir(context), predicate)
+
+        recountData(context)
+
+        if (currentDataFile?.file?.exists() != true)
+            currentDataFile = null
+    }
+
     /**
      * Recursively deletes all files in a directory
      *
      * @param file File or directory
-     * @return True if successfull
+     * @return True if successful
      */
     fun recursiveDelete(file: File): Boolean {
         if (file.isDirectory) {
             file.listFiles()
                     .filterNot { recursiveDelete(it) }
-                    .forEach { return false }
+                    .forEach { _ -> return false }
         }
         return file.delete()
     }
 
     enum class SaveStatus {
+        FILE_LOCKED,
         SAVE_FAILED,
         SAVE_SUCCESS,
         SAVE_SUCCESS_FILE_DONE
     }
 
     fun getCurrentDataFile(context: Context): DataFile? {
-        if (currentDataFile == null) {
-            val userID = Signin.getUserID(context)
-            updateCurrentData(context, if (userID == null) DataFile.CACHE else DataFile.STANDARD, userID)
-        }
+        if (currentDataFile == null)
+            updateCurrentData(context)
         return currentDataFile
     }
 
     @Synchronized
-    private fun updateCurrentData(context: Context, @DataFile.FileType type: Int, userID: String?) {
-        val dataFile: String
-        val preference: String
+    private fun updateCurrentData(context: Context) {
+        //true or null
+        if (currentDataFile?.isFull != false) {
+            val index = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
 
-        if (type == DataFile.STANDARD && userID == null)
-            throw RuntimeException("Type should be cache")
+            val files = getDir(context).listFiles { x -> x.name.startsWith("$DATA_FILE$index$SEPARATOR") }
 
-        when (type) {
-            DataFile.CACHE -> {
-                dataFile = DATA_CACHE_FILE
-                preference = PREF_CACHE_FILE_INDEX
+            val fileName: String
+            fileName = when {
+                files.size > 1 -> throw java.lang.Exception("Something is wrong, crashing. Found ${files.size} based on \"$DATA_FILE$index$SEPARATOR\"")
+                files.size == 1 -> files[0].name
+                else -> DataFile.generateFileName(0, index)
             }
-            DataFile.STANDARD -> {
-                dataFile = DATA_FILE
-                preference = PREF_DATA_FILE_INDEX
-            }
-            else -> {
-                Crashlytics.logException(Throwable("Unknown type $type"))
-                return
-            }
-        }
-
-        if (currentDataFile?.type != type || currentDataFile!!.isFull) {
-            val template = dataFile + Preferences.getPref(context).getInt(preference, 0)
-            currentDataFile = DataFile(FileStore.dataFile(getDir(context), template), template, userID, type, context)
+            currentDataFile = DataFile(FileStore.dataFile(getDir(context), fileName), index)
         }
     }
 
@@ -378,78 +376,22 @@ object DataStore {
      * Saves rawData to file. File is determined automatically.
      *
      * @param rawData json array to be saved, without [ at the beginning
-     * @return returns state value 2 - new file, saved succesfully, 1 - error during saving, 0 - no new file, saved successfully
+     * @return returns state value 2 - new file, saved successfully, 1 - error during saving, 0 - no new file, saved successfully
      */
     fun saveData(context: Context, rawData: Array<RawData>): SaveStatus {
-        val userID = Signin.getUserID(context)
-        if (dataLocked || userID == null)
-            updateCurrentData(context, DataFile.CACHE, userID)
-        else
-            updateCurrentData(context, DataFile.STANDARD, userID)
+        if (dataLocked)
+            return SaveStatus.FILE_LOCKED
+
+        //true or null
+        if (currentDataFile?.isFull != false)
+            updateCurrentData(context)
+
         return saveData(context, currentDataFile, rawData)
-    }
-
-    @Synchronized
-    private fun writeTempData(context: Context) {
-        val userId = Signin.getUserID(context)
-        if (currentDataFile!!.type != DataFile.STANDARD || userId == null)
-            return
-
-        val files = getDir(context).listFiles { _, s -> s.startsWith(DATA_CACHE_FILE) }
-        if (files.isNotEmpty()) {
-            var newFileCount = files.size
-            var i = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
-
-            if (files[0].length() + currentDataFile!!.size() <= 1.25 * Constants.MAX_DATA_FILE_SIZE) {
-                val tempFileName = files[0].name
-                val indexOf = tempFileName.indexOf(" - ")
-                var collectionCount = 0
-                if (indexOf > 0) {
-                    collectionCount = Integer.parseInt(tempFileName.substring(indexOf + 3))
-                }
-
-                val data = FileStore.loadString(files[0])!!
-                if (!currentDataFile!!.addData(data, collectionCount))
-                    return
-
-                newFileCount--
-                i++
-                if (currentDataFile!!.isFull)
-                    currentDataFile!!.close()
-            } else {
-                currentDataFile!!.close()
-            }
-
-            if (files.size > 1) {
-                val currentDataIndex = Preferences.getPref(context).getInt(PREF_DATA_FILE_INDEX, 0)
-                Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, i + newFileCount).putInt(PREF_CACHE_FILE_INDEX, 0).apply()
-                var dataFile: DataFile
-                while (i < files.size) {
-                    val data = FileStore.loadString(files[0])!!
-                    val nameTemplate = DATA_FILE + (currentDataIndex + i)
-                    dataFile = DataFile(FileStore.dataFile(getDir(context), nameTemplate), nameTemplate, userId, DataFile.STANDARD, context)
-                    if (!dataFile.addData(data, DataFile.getCollectionCount(files[0])))
-                        throw RuntimeException()
-
-                    if (i < files.size - 1)
-                        dataFile.close()
-                    i++
-                }
-            }
-
-            files
-                    .filterNot { FileStore.delete(it) }
-                    .forEach { Crashlytics.logException(RuntimeException("Failed to delete " + it.name)) }
-        }
     }
 
     @Synchronized
     private fun saveData(context: Context, file: DataFile?, rawData: Array<RawData>): SaveStatus {
         val prevSize = file!!.size()
-
-        if (file.type == DataFile.STANDARD)
-            writeTempData(context)
-
         if (file.addData(rawData)) {
             val currentSize = file.size()
             val editor = Preferences.getPref(context).edit()
@@ -458,6 +400,7 @@ object DataStore {
             if (currentSize > Constants.MAX_DATA_FILE_SIZE) {
                 file.close()
                 editor.putInt(file.preference, Preferences.getPref(context).getInt(file.preference, 0) + 1).apply()
+                updateCurrentData(context)
                 return SaveStatus.SAVE_SUCCESS_FILE_DONE
             }
 
@@ -477,26 +420,26 @@ object DataStore {
         if (oldestUpload != -1L) {
             val days = Assist.getAgeInDays(oldestUpload).toLong()
             if (days > 30) {
-                val gson = Gson()
-                val stats = gson.fromJson<ArrayList<UploadStats?>>(FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE)), object : TypeToken<List<UploadStats>>() {
+                val adapter = moshi.adapter<List<UploadStats>>(List::class.java)
+                val data = FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))
+                        ?: return
 
-                }.type) ?: return
-                var i = 0
-                while (i < stats.size) {
-                    val stat = stats[i]
-                    if (stat == null || Assist.getAgeInDays(stat.time) > 30)
-                        stats.removeAt(i)
-                    else
-                        i++
+                val stats = adapter.fromJson(data)?.toMutableList() ?: return
+                val it = stats.iterator()
+
+                while (it.hasNext()) {
+                    val stat = it.next()
+                    if (Assist.getAgeInDays(stat.time) > 30)
+                        it.remove()
                 }
 
-                if (stats.size > 0)
-                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0]!!.time).apply()
+                if (stats.isNotEmpty())
+                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0].time).apply()
                 else
                     sp.edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
 
                 try {
-                    FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), gson.toJson(stats), false)
+                    FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), adapter.toJson(stats), false)
                 } catch (e: Exception) {
                     Crashlytics.logException(e)
                 }
@@ -508,8 +451,8 @@ object DataStore {
     fun saveString(context: Context, fileName: String, data: String, append: Boolean): Boolean =
             FileStore.saveString(file(context, fileName), data, append)
 
-    fun <T> saveAppendableJsonArray(context: Context, fileName: String, data: T, append: Boolean): Boolean =
-            saveAppendableJsonArray(context, fileName, Gson().toJson(data), append)
+    fun <T> saveAppendableJsonArray(context: Context, fileName: String, data: T, tClass: Class<T>, append: Boolean): Boolean =
+            saveAppendableJsonArray(context, fileName, moshi.adapter(tClass).toJson(data), append)
 
     fun saveAppendableJsonArray(context: Context, fileName: String, data: String, append: Boolean): Boolean {
         return try {

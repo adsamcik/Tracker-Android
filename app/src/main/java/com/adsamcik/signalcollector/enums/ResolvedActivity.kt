@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.enums
 
-import android.support.annotation.IntDef
+import androidx.annotation.IntDef
 import com.adsamcik.signalcollector.enums.ResolvedActivities.ResolvedActivity
 
 /**

@@ -2,12 +2,12 @@ package com.adsamcik.signalcollector.utility
 
 import android.graphics.Color
 import android.graphics.PointF
-import android.support.annotation.StringDef
-import android.support.v4.graphics.ColorUtils
-import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
+import androidx.annotation.StringDef
 import androidx.core.content.edit
+import androidx.core.graphics.ColorUtils
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
@@ -47,7 +47,7 @@ object Tips {
      * @param activity Activity used to display tips
      * @param key Key which selects proper tips
      */
-    fun showTips(activity: AppCompatActivity, @TipKey key: String, onDoneListener: (() -> Unit)?) {
+    fun showTips(activity: FragmentActivity, @TipKey key: String, onDoneListener: (() -> Unit)?) {
         val preferences = Preferences.getPref(activity)
         val tipsPreferenceKey = activity.getString(R.string.show_tips_key)
         if (preferences.getBoolean(tipsPreferenceKey, true) && !preferences.getBoolean(getTipsPreferenceKey(key), false)) {
@@ -62,7 +62,7 @@ object Tips {
     /**
      * Shows home tips to the user
      */
-    private fun showHomeTips(activity: AppCompatActivity, onDoneListener: (() -> Unit)?) {
+    private fun showHomeTips(activity: FragmentActivity, onDoneListener: (() -> Unit)?) {
         activity.run {
             val resources = resources
             val buttonData = SimpleTarget.ButtonData(resources.getString(R.string.next_part)) { _, spotlight ->
@@ -138,7 +138,7 @@ object Tips {
     /**
      * Shows map tips to the user
      */
-    private fun showMapTips(activity: AppCompatActivity, onDoneListener: (() -> Unit)?) {
+    private fun showMapTips(activity: FragmentActivity, onDoneListener: (() -> Unit)?) {
         activity.run {
             val buttonData = SimpleTarget.ButtonData(getString(R.string.next_part)) { _, spotlight ->
                 spotlight.next()

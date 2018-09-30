@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.activities
 
 import android.os.Bundle
-import android.support.annotation.RawRes
+import androidx.annotation.RawRes
 import android.view.ViewGroup
 import android.widget.Button
 import com.adsamcik.signalcollector.R

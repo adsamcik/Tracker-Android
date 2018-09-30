@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.adapters
 
 import android.content.Context
-import android.support.annotation.LayoutRes
+import androidx.annotation.LayoutRes
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 

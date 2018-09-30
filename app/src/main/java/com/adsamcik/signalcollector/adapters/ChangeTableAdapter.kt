@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.adapters
 
 import android.content.Context
-import android.support.annotation.StyleRes
+import androidx.annotation.StyleRes
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.signalcollector.interfaces.IViewChange

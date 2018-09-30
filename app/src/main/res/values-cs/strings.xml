@@ -8,7 +8,7 @@
     <string name="settings_tracking_title">Sběr dat</string>
     <string name="settings_upload_title">Nahrávání dat</string>
     <string name="settings_style_title">Vzhled</string>
-    <string name="settings_debug_title">Debug</string>
+    <string name="settings_debug_title">Vývojářské nástroje</string>
     <string name="settings_other_title">Ostatní</string>
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
     <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
@@ -24,12 +24,12 @@
     <string name="settings_color_evening_title">Barva večer</string>
     <string name="settings_color_morning_title">Barva ráno</string>
     <string name="settings_color_night_title">Barva v noci</string>
-    <string name="settings_debug_already_available">Již máte přístup k debugu</string>
-    <string name="settings_debug_available">Nyní máte přístup k debug sekci</string>
+    <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
+    <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>
     <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
         <item quantity="other">Zbývá %d stisknutí pro přístup k vývojářským nástrojům</item>
     </plurals>
-    <string name="settings_debug_enabled">Debug povolen</string>
+    <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
     <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
     <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
     <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
@@ -40,7 +40,6 @@
     <string name="settings_clear_data_title">Smazat nasbíraná data</string>
     <string name="settings_clear_reports_title">Smazat souhrny nahrání</string>
     <string name="settings_export_title">Sdílet nasbíraná data</string>
-    <string name="settings_export_summary">Sdílet/Exportovat nasbíraná data do aplikace dle vaší volby</string>
     <string name="settings_feedback_title">Zašlete zpětnou vazbu o aplikaci</string>
     <string name="settings_feedback_summary">Můžete zaslat cennou zpětnou vazbu o aplikaci.</string>
     <string name="settings_hello_world_title">Vítej světe!</string>
@@ -108,11 +107,12 @@
     <string name="notification_stop">Zastavit</string>
     <string name="notification_tracker_active_ticker">Sběr dat je aktivní</string>
     <string name="notification_activity">aktivita %s</string>
-    <plurals name="notification_cell">
-        <item quantity="one">1 mobilní vysílač</item>
-        <item quantity="few">%d mobilní vysílače</item>
-        <item quantity="other">%d mobilních vysílačů</item>
+    <plurals name="notification_cell_count">
+        <item quantity="one">1 mobilní vysílač v dosahu</item>
+        <item quantity="few">%d mobilní vysílače v dosahu</item>
+        <item quantity="other">%d mobilních vysílačů v dosahu</item>
     </plurals>
+    <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
     <string name="notification_nothing_found">Nic nenalezeno</string>
     <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
     <string name="notification_feedback_success">Zpětná vazba úspěšně odeslána</string>
@@ -194,15 +194,15 @@
     <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
     <string name="shortcut_start_tracking">Spustit záznam</string>
     <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
-    <string name="channel_track_name">Záznamový kanál</string>
-    <string name="channel_track_description">Kanál obsahující notifikace k záznamům dat</string>
-    <string name="channel_upload_name">Nahrávací kanál</string>
-    <string name="channel_upload_description">Kanál obsahující notifikace k nahrávání dat</string>
-    <string name="channel_other_name">Kanál pro ostatní</string>
+    <string name="channel_track_name">Sběr dat</string>
+    <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat</string>
+    <string name="channel_upload_name">Nahrávání</string>
+    <string name="channel_upload_description">Kanál obsahující notifikace spojené s nahráváním dat</string>
+    <string name="channel_other_name">Ostatní</string>
     <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu</string>
-    <string name="channel_challenges_name">Kanál pro herní výzvy</string>
-    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s výzvami</string>
-    <string name="channel_activity_watcher_name">Kanál sledovače aktivity</string>
+    <string name="channel_challenges_name">Herní výzvy</string>
+    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s herními výzvami</string>
+    <string name="channel_activity_watcher_name">Sledovač aktivity</string>
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat</string>
     <string name="notification_challenge_unknown_description">Vaše verze Signals je pravděpodobně neaktuální.</string>
     <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>
@@ -221,9 +221,6 @@
     <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
     <string name="export_share_button">Sdílet (Export)</string>
     <string name="dev_notification_dummy">Ahoj světe!</string>
-    <string name="settings_cleared_all_cache_files">Veškeré cache soubory byly odstraněny</string>
-    <string name="settings_cleared_all_data_files">Veškeré data byly odstraněny</string>
-    <string name="settings_cleared_all_upload_reports">Veškeré souhrny nahraných dat byly smazány</string>
     <string name="settings_activity_debug_title">Nástroje pro ladění aktivity</string>
     <string name="description_my_location">Tlačítko pro aktuální polohu</string>
     <string name="description_map_search">Tlačítko pro vyhledávání</string>
@@ -287,4 +284,27 @@
         <item quantity="few">%d mobilní sítě</item>
         <item quantity="other">%d mobilních sítí</item>
     </plurals>
+
+
+    <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
+    <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
+    <string name="settings_delete_uploaded_data_title">Smazat nahraná data</string>
+    <string name="settings_delete_uploaded_data_summary">Pokud vypnuto, nahraná data budou zkomprimována a uložena do specialní složky</string>
+    <string name="settings_export_export_title">Jako hrubá data</string>
+    <string name="settings_export_export_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
+    <string name="settings_export_gpx_title">Jako GPX soubor</string>
+    <string name="settings_export_kml_title">Jako KML soubor</string>
+    <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
+    <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>
+    <string name="alert_confirm">Jste si jisti, že chcete %1$s?</string>
+    <string name="settings_delete_stored_data_summary">Smazat nasbíraná data, která již byla nahrána, ale ponechána lokálně pro budoucí využití</string>
+    <string name="settings_delete_stored_data_title">Smazat archivní data</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_clear_preferences_title">Smazat preference</string>
+    <string name="main_archived_data">%1$s archivováno</string>
+    <string name="main_latitude">%1$s zeměpisné šířky</string>
+    <string name="main_longitude">%1$s zeměpisné délky</string>
+    <string name="settings_browse_archived_data_title">Procházet archivovaná data</string>
+    <string name="settings_delete_tracked_data_summary">Smazat nasbíraná data, která zatím nebyla nahrána</string>
+    <string name="settings_delete_tracked_data_title">Smazat nasbíraná data</string>
 </resources>

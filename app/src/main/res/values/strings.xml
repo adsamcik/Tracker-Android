@@ -9,6 +9,10 @@
         <item quantity="other">%d collections</item>
     </plurals>
 
+    <string name="main_latitude">%1$s latitude</string>
+    <string name="main_longitude">%1$s longitude</string>
+    <string name="main_archived_data">%1$s archived</string>
+
     <string name="main_last_update">%1$s</string>
     <string name="main_wifi_updated">found %1$d m before collection</string>
     <string name="main_wifi_count">%1$d in range</string>

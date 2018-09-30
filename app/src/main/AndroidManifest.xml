@@ -15,6 +15,8 @@
     <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+
 
     <application
         android:allowBackup="false"
@@ -25,12 +27,17 @@
         android:theme="@style/AppThemeLight"
         tools:ignore="GoogleAppIndexingWarning"
         tools:replace="android:allowBackup">
+
+        <uses-library
+            android:name="org.apache.http.legacy"
+            android:required="false"/>
+
         <meta-data
             android:name="android.max_aspect"
             android:value="2.1"/>
 
         <provider
-            android:name="android.support.v4.content.FileProvider"
+            android:name="androidx.core.content.FileProvider"
             android:authorities="com.adsamcik.signalcollector.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
@@ -129,19 +136,7 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
-        <service
-            android:name=".jobs.UploadJobService"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service
-            android:name=".jobs.FeedbackUploadJob"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
-        <service android:name=".services.ActivityWakerService"/>
-        <service
-            android:name=".utility.TrackingLocker$DisableTillRechargeJobService"
-            android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <service android:name=".services.ActivityWatcherService"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"

@@ -27,11 +27,11 @@ object NetworkLoader {
      * @param <T>                 Value type
     </T> */
     fun <T> request(url: String, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
-        requestString(Network.client(context, null),
-                Request.Builder().url(url).build(),
+        requestString(Network.clientAuth(context),
+                Network.requestGET(url),
                 updateTimeInMinutes,
                 context,
-                preferenceString, { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) })
+                preferenceString) { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) }
     }
 
     /**
@@ -47,11 +47,11 @@ object NetworkLoader {
     </T> */
     fun <T> requestSigned(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>, callback: (Source, T?) -> Unit) {
         if (userToken != null)
-            requestString(Network.client(context, userToken),
-                    Request.Builder().url(url).build(),
+            requestString(Network.clientAuth(context, userToken),
+                    Network.requestGET(context, url),
                     updateTimeInMinutes,
                     context,
-                    preferenceString, { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) })
+                    preferenceString) { src, value -> callback.invoke(src, Parser.tryFromJson(value, tClass)) }
         else
             callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
     }
@@ -71,11 +71,11 @@ object NetworkLoader {
             if (useMock)
                 cont.resume(Pair(Source.NO_DATA, null))
             else
-                requestString(Network.client(context, userToken),
-                        Request.Builder().url(url).build(),
+                requestString(Network.clientAuth(context, userToken),
+                        Network.requestGET(context, url),
                         updateTimeInMinutes,
                         context,
-                        preferenceString, { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) })
+                        preferenceString) { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) }
         } else
             cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
     }
@@ -90,9 +90,9 @@ object NetworkLoader {
      */
     suspend fun requestStringSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String): Pair<Source, String?> = suspendCoroutine { cont ->
         if (userToken != null)
-            requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, { source, string ->
+            requestString(Network.clientAuth(context, userToken), Network.requestGET(context, url), updateTimeInMinutes, context, preferenceString) { source, string ->
                 cont.resume(Pair(source, string))
-            })
+            }
         else
             cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
     }
@@ -108,7 +108,7 @@ object NetworkLoader {
      */
     fun requestStringSigned(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, callback: (Source, String?) -> Unit) {
         if (userToken != null)
-            requestString(Network.client(context, userToken), Request.Builder().url(url).build(), updateTimeInMinutes, context, preferenceString, callback)
+            requestString(Network.clientAuth(context, userToken), Network.requestGET(context, url), updateTimeInMinutes, context, preferenceString, callback)
         else
             callback.invoke(Source.NO_DATA_FAILED_SIGNIN, null)
     }

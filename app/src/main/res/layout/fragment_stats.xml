@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.v4.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                                              android:id="@+id/swiperefresh_stats"
-                                              android:layout_width="match_parent"
-                                              android:layout_height="match_parent">
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                                       android:id="@+id/swiperefresh_stats"
+                                                       android:layout_width="match_parent"
+                                                       android:layout_height="match_parent">
 
     <ListView
         android:id="@+id/listview_stats"
@@ -15,4 +15,4 @@
         android:paddingBottom="@dimen/navbar_height_new_padding"
         android:paddingTop="@dimen/status_bar_height"
         android:verticalScrollbarPosition="left"/>
-</android.support.v4.widget.SwipeRefreshLayout>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

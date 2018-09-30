@@ -5,9 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import com.adsamcik.signalcollector.activities.LaunchActivity
+import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.TrackingLocker
 import com.crashlytics.android.Crashlytics
@@ -23,8 +24,9 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             val sp = Preferences.getPref(context)
             val editor = sp.edit()
 
-            if (sp.getInt(Preferences.LAST_VERSION, 0) < 207) {
-                DataStore.setCollections(context, 0)
+            if (sp.getInt(Preferences.LAST_VERSION, 0) < 277) {
+                DataStore.clearAll(context)
+                CacheStore.clearAll(context)
             }
 
             var currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1)
@@ -42,7 +44,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             editor.apply()
 
             TrackingLocker.initializeFromPersistence(context)
-            ActivityWakerService.pokeWithCheck(context)
+            ActivityWatcherService.pokeWithCheck(context)
             ActivityService.requestAutoTracking(context, LaunchActivity::class.java)
         }
     }

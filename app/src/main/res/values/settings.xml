@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_cleared_all_cache_files">Removed all cache files</string>
-    <string name="settings_cleared_all_data_files">Removed all data files</string>
-    <string name="settings_cleared_all_upload_reports">Removed all upload reports</string>
-
     <string name="alert_confirm_generic">Are you sure?</string>
+    <string name="alert_confirm">Are you sure you want to %1$s?</string>
 
     <string name="internet_connection_required">Internet connection required</string>
 
@@ -24,12 +21,14 @@
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>
-    <string name="settings_debug_title">Debug</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_export_title">Export</string>
+    <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
     <!--- TRACKING -->
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
-    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to charger</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
     <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
 
@@ -82,6 +81,40 @@
         <item>240</item>
         <item>300</item>
         <item>600</item>
+    </integer-array>
+
+    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
+    <string name="settings_tracking_min_distance_key" translatable="false">minTrackingDistance</string>
+    <integer name="settings_tracking_min_distance_default">10</integer>
+
+    <integer-array name="settings_tracking_min_distance_values">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>40</item>
+        <item>50</item>
+        <item>80</item>
+        <item>100</item>
+    </integer-array>
+
+    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
+    <string name="settings_tracking_min_time_key" translatable="false">minTrackingTimeDifference</string>
+    <integer name="settings_tracking_min_time_default">2</integer>
+
+    <integer-array name="settings_tracking_min_time_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>7</item>
+        <item>10</item>
+        <item>20</item>
+        <item>40</item>
+        <item>60</item>
     </integer-array>
 
     <!--- UPLOAD -->
@@ -160,14 +193,43 @@
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
 
+
+    <!-- DATA -->
+    <string name="settings_delete_uploaded_data_title">Delete uploaded data</string>
+    <string name="settings_delete_uploaded_data_summary">If disabled, uploaded data will be compressed and put into special folder</string>
+    <string name="settings_delete_uploaded_data_key" translatable="false">deleteUploadedData</string>
+    <string name="settings_delete_uploaded_data_default" translatable="false">true</string>
+
+    <string name="settings_delete_stored_data_title">Delete archived data</string>
+    <string name="settings_delete_stored_data_summary">Delete tracked data that have already been uploaded but kept for future use</string>
+    <string name="settings_delete_stored_data_key" translatable="false">deleteStoredData</string>
+
+    <string name="settings_delete_tracked_data_title">Delete tracked data</string>
+    <string name="settings_delete_tracked_data_summary">Delete tracked data that has not yet been uploaded</string>
+    <string name="settings_delete_tracked_data_key" translatable="false">deleteTrackedData</string>
+
+    <!-- EXPORT -->
+
+    <string name="settings_export_export_title">As raw data</string>
+    <string name="settings_export_export_key" translatable="false">rawExport</string>
+    <string name="settings_export_export_summary">Export your tracked data to an app of your choice</string>
+
+    <string name="settings_export_gpx_title">As GPX file</string>
+    <string name="settings_export_gpx_key" translatable="false">gpxExport</string>
+    <string name="settings_export_gpx_summary">Export your tracked location to GPX file</string>
+
+    <string name="settings_export_kml_title">As KML file</string>
+    <string name="settings_export_kml_key" translatable="false">kmlExport</string>
+    <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
+
     <!-- DEBUG -->
-    <string name="settings_debug_already_available">You already have access to debug</string>
-    <string name="settings_debug_available">You now have access to debug section</string>
-    <string name="settings_debug_enabled">Debug enabled</string>
+    <string name="settings_debug_already_available">You already have access to developer options</string>
+    <string name="settings_debug_available">You now have access to developer options</string>
+    <string name="settings_debug_enabled">Dev options enabled</string>
     <string name="settings_debug_key" translatable="false">showDevSettings</string>
     <plurals name="settings_debug_available_in">
-        <item quantity="one">%d tap left to enable debug section</item>
-        <item quantity="other">%d taps left to enable debug section</item>
+        <item quantity="one">%d tap left to enable developer options</item>
+        <item quantity="other">%d taps left to enable developer options</item>
     </plurals>
 
     <string name="settings_browse_files_title">Browse files</string>
@@ -175,6 +237,9 @@
 
     <string name="settings_browse_cache_title">Browse cache</string>
     <string name="settings_browse_cache_key" translatable="false">browseCache</string>
+
+    <string name="settings_browse_archived_data_title">Browse archived data</string>
+    <string name="settings_browse_archived_data_key" translatable="false">browseArchivedData</string>
 
     <string name="settings_activity_debug_title">Activity recognition logger</string>
     <string name="settings_activity_debug_key" translatable="false">activityLogger</string>
@@ -185,14 +250,17 @@
     <string name="settings_hello_world_title">Hello world!</string>
     <string name="settings_hello_world_key" translatable="false">helloWorld</string>
 
-    <string name="settings_clear_data_title">Clear tracked data</string>
+    <string name="settings_clear_data_title">Remove persistent files</string>
     <string name="settings_clear_data_key" translatable="false">clearData</string>
 
-    <string name="settings_clear_reports_title">Clear upload reports</string>
+    <string name="settings_clear_reports_title">Remove upload reports</string>
     <string name="settings_clear_reports_key" translatable="false">clearUploadReports</string>
 
-    <string name="settings_clear_cache_title">Clear cache</string>
+    <string name="settings_clear_cache_title">Remove cache files</string>
     <string name="settings_clear_cache_key" translatable="false">clearCache</string>
+
+    <string name="settings_clear_preferences_title">Clear preferences</string>
+    <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
 
     <!-- OTHER -->
     <string name="settings_notifications_title">Notifications</string>
@@ -207,10 +275,6 @@
     <string name="settings_privacy_policy_agreement_summary">You must agree to the privacy policy prior to uploading files.</string>
 
     <string name="settings_privacy_policy_key" translatable="false">privacyPolicy</string>
-
-    <string name="settings_export_title">Share tracked data</string>
-    <string name="settings_export_key" translatable="false">shareButton</string>
-    <string name="settings_export_summary">Share/Export your tracked data to app of your choice</string>
 
     <string name="settings_feedback_title">Send feedback about the app</string>
     <string name="settings_feedback_key" translatable="false">feedbackButton</string>

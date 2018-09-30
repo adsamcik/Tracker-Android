@@ -1,4 +1,4 @@
-<android.support.v7.preference.PreferenceScreen
+<androidx.preference.PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     key="root"
@@ -7,11 +7,13 @@
 
     <Preference
         android:key="@string/settings_account_key"
-        android:title="@string/settings_account_title"/>
+        android:title="@string/settings_account_title"
+        app:icon="@drawable/ic_outline_account_circle_24px"/>
 
-    <android.support.v7.preference.PreferenceScreen
-        android:title="@string/settings_tracking_title">
-        <android.support.v7.preference.PreferenceCategory
+    <androidx.preference.PreferenceScreen
+        android:title="@string/settings_tracking_title"
+        app:icon="@drawable/ic_outline_perm_scan_wifi_24px">
+        <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
 
             <com.adsamcik.signalcollector.components.ImageSwitchPreference
@@ -21,11 +23,12 @@
                 app:foregroundStateColors="@color/image_switch_colors"
                 app:titles="@array/tracking_options_titles"/>
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_activity_watcher_default"
                 android:key="@string/settings_activity_watcher_key"
                 android:summary="@string/settings_activity_watcher_summary"
-                android:title="@string/settings_activity_watcher_title"/>
+                android:title="@string/settings_activity_watcher_title"
+                app:icon="@drawable/ic_outline_remove_red_eye_24px"/>
 
             <com.adsamcik.signalcollector.components.IntValueSliderPreference
                 android:defaultValue="@string/settings_activity_freq_default"
@@ -35,43 +38,61 @@
                 app:items="@array/activity_watching_interval"
                 app:stringFormat="%1$d s"/>
 
-            <android.support.v7.preference.SwitchPreferenceCompat
+            <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_disabled_recharge_default"
                 android:key="@string/settings_disabled_recharge_key"
                 android:summary="@string/settings_disabled_recharge_summary"
                 android:thumbTint="@color/negative_switch_color"
                 android:thumbTintMode="src_in"
                 android:title="@string/settings_disabled_recharge_title"/>
-        </android.support.v7.preference.PreferenceCategory>
+        </androidx.preference.PreferenceCategory>
 
-        <android.support.v7.preference.PreferenceCategory
-            android:title="@string/settings_tracking_enable_category">
+        <androidx.preference.PreferenceCategory>
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@integer/settings_tracking_min_distance_default"
+                android:key="@string/settings_tracking_min_distance_key"
+                android:title="@string/settings_tracking_min_distance_title"
+                app:icon="@drawable/ic_outline_directions_run_24px"
+                app:items="@array/settings_tracking_min_distance_values"
+                app:stringFormat="%1$d m"/>
 
-            <android.support.v7.preference.CheckBoxPreference
+            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+                android:defaultValue="@integer/settings_tracking_min_time_default"
+                android:key="@string/settings_tracking_min_time_key"
+                android:title="@string/settings_tracking_min_time_title"
+                app:icon="@drawable/ic_outline_access_time_24px"
+                app:items="@array/settings_tracking_min_time_values"
+                app:stringFormat="%1$d s"/>
+        </androidx.preference.PreferenceCategory>
+        <androidx.preference.PreferenceCategory>
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_location_enabled_default"
                 android:key="@string/settings_location_enabled_key"
-                android:title="@string/settings_location_enabled_title"/>
+                android:title="@string/settings_location_enabled_title"
+                app:icon="@drawable/ic_outline_location_on_24px"/>
 
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_wifi_enabled_default"
                 android:key="@string/settings_wifi_enabled_key"
-                android:title="@string/settings_wifi_enabled_title"/>
+                android:title="@string/settings_wifi_enabled_title"
+                app:icon="@drawable/ic_outline_network_wifi_24px"/>
 
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_cell_enabled_default"
                 android:key="@string/settings_cell_enabled_key"
-                android:title="@string/settings_cell_enabled_title"/>
-        </android.support.v7.preference.PreferenceCategory>
+                android:title="@string/settings_cell_enabled_title"
+                app:icon="@drawable/ic_outline_network_cell_24px"/>
+        </androidx.preference.PreferenceCategory>
 
+    </androidx.preference.PreferenceScreen>
 
-    </android.support.v7.preference.PreferenceScreen>
+    <androidx.preference.PreferenceScreen
+        android:title="@string/settings_upload_title"
+        app:icon="@drawable/ic_outline_cloud_upload_24px">
 
-    <android.support.v7.preference.PreferenceScreen
-        android:title="@string/settings_upload_title">
-
-        <android.support.v7.preference.PreferenceCategory
+        <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_upload_category">
 
             <com.adsamcik.signalcollector.components.ImageSwitchPreference
@@ -81,10 +102,10 @@
                 app:foregroundStateColors="@color/image_switch_colors"
                 app:titles="@array/auto_upload_options_titles"/>
 
-            <android.support.v7.preference.CheckBoxPreference
+            <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_smart_upload_default"
-                android:key="@string/settings_smart_upload_key"
                 android:disableDependentsState="true"
+                android:key="@string/settings_smart_upload_key"
                 android:summary="@string/settings_smart_upload_summary"
                 android:title="@string/settings_smart_upload_title"/>
 
@@ -94,12 +115,13 @@
                 android:key="@string/settings_auto_upload_at_key"
                 android:title="@string/settings_auto_upload_at_title"
                 app:items="@array/settings_auto_upload_at_MB"/>
+        </androidx.preference.PreferenceCategory>
 
-        </android.support.v7.preference.PreferenceCategory>
-    </android.support.v7.preference.PreferenceScreen>
+    </androidx.preference.PreferenceScreen>
 
-    <android.support.v7.preference.PreferenceScreen
-        android:title="@string/settings_style_title">
+    <androidx.preference.PreferenceScreen
+        android:title="@string/settings_style_title"
+        app:icon="@drawable/ic_outline_style_24px">
         <ListPreference
             android:defaultValue="@string/settings_style_mode_default"
             android:entries="@array/settings_style_mode_names"
@@ -132,81 +154,140 @@
             android:key="@string/settings_color_default_key"
             android:title="@string/settings_color_default_title"/>
 
-    </android.support.v7.preference.PreferenceScreen>
+    </androidx.preference.PreferenceScreen>
 
-    <android.support.v7.preference.PreferenceScreen
-        android:title="@string/settings_debug_title">
+    <androidx.preference.PreferenceScreen
+        android:title="@string/settings_data_title"
+        app:icon="@drawable/ic_outline_folder_24px">
+        <androidx.preference.PreferenceScreen
+            android:title="@string/settings_export_title"
+            app:icon="@drawable/ic_outline_share_24px">
+            <Preference
+                android:key="@string/settings_export_export_key"
+                android:summary="@string/settings_export_export_summary"
+                android:title="@string/settings_export_export_title"/>
+            <Preference
+                android:key="@string/settings_export_gpx_key"
+                android:summary="@string/settings_export_gpx_summary"
+                android:title="@string/settings_export_gpx_title"/>
+            <Preference
+                android:key="@string/settings_export_kml_key"
+                android:summary="@string/settings_export_kml_summary"
+                android:title="@string/settings_export_kml_title"/>
+        </androidx.preference.PreferenceScreen>
+        <androidx.preference.PreferenceCategory>
+            <androidx.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_delete_uploaded_data_default"
+                android:key="@string/settings_delete_uploaded_data_key"
+                android:summary="@string/settings_delete_uploaded_data_summary"
+                android:title="@string/settings_delete_uploaded_data_title"/>
+        </androidx.preference.PreferenceCategory>
 
-        <android.support.v7.preference.SwitchPreferenceCompat
-            android:key="@string/settings_debug_key"
-            android:title="@string/settings_debug_enabled"/>
+        <androidx.preference.PreferenceCategory>
+            <Preference
+                android:key="@string/settings_delete_stored_data_key"
+                android:summary="@string/settings_delete_stored_data_summary"
+                android:title="@string/settings_delete_stored_data_title"/>
+            <Preference
+                android:key="@string/settings_delete_tracked_data_key"
+                android:summary="@string/settings_delete_tracked_data_summary"
+                android:title="@string/settings_delete_tracked_data_title"/>
+        </androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_activity_status_key"
-            android:title="@string/settings_activity_status_title"/>
 
-        <Preference
-            android:key="@string/settings_activity_debug_key"
-            android:title="@string/settings_activity_debug_title"/>
+    </androidx.preference.PreferenceScreen>
 
-        <Preference
-            android:key="@string/settings_browse_files_key"
-            android:title="@string/settings_browse_files_title"/>
-        <Preference
-            android:key="@string/settings_browse_cache_key"
-            android:title="@string/settings_browse_cache_title"/>
+    <androidx.preference.PreferenceScreen
+        android:title="@string/settings_debug_title"
+        app:icon="@drawable/ic_outline_developer_mode_24px">
 
-        <Preference
-            android:key="@string/settings_hello_world_key"
-            android:title="@string/settings_hello_world_title"/>
+        <androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_clear_data_key"
-            android:title="@string/settings_clear_data_title"/>
+            <androidx.preference.SwitchPreferenceCompat
+                android:key="@string/settings_debug_key"
+                android:title="@string/settings_debug_enabled"/>
+        </androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_clear_reports_key"
-            android:title="@string/settings_clear_reports_title"/>
+        <androidx.preference.PreferenceCategory>
 
-        <Preference
-            android:key="@string/settings_clear_cache_key"
-            android:title="@string/settings_clear_cache_title"/>
-    </android.support.v7.preference.PreferenceScreen>
-    <android.support.v7.preference.PreferenceCategory
+            <Preference
+                android:key="@string/settings_activity_status_key"
+                android:title="@string/settings_activity_status_title"/>
+
+            <Preference
+                android:key="@string/settings_activity_debug_key"
+                android:title="@string/settings_activity_debug_title"/>
+
+            <Preference
+                android:key="@string/settings_hello_world_key"
+                android:title="@string/settings_hello_world_title"/>
+        </androidx.preference.PreferenceCategory>
+
+        <androidx.preference.PreferenceCategory>
+            <Preference
+                android:key="@string/settings_browse_files_key"
+                android:title="@string/settings_browse_files_title"/>
+
+            <Preference
+                android:key="@string/settings_browse_archived_data_key"
+                android:title="@string/settings_browse_archived_data_title"/>
+
+            <Preference
+                android:key="@string/settings_browse_cache_key"
+                android:title="@string/settings_browse_cache_title"/>
+
+        </androidx.preference.PreferenceCategory>
+
+        <androidx.preference.PreferenceCategory>
+
+            <Preference
+                android:key="@string/settings_clear_data_key"
+                android:title="@string/settings_clear_data_title"/>
+
+            <Preference
+                android:key="@string/settings_clear_reports_key"
+                android:title="@string/settings_clear_reports_title"/>
+
+            <Preference
+                android:key="@string/settings_clear_cache_key"
+                android:title="@string/settings_clear_cache_title"/>
+
+            <Preference
+                android:key="@string/settings_clear_preferences_key"
+                android:title="@string/settings_clear_preferences_title"/>
+        </androidx.preference.PreferenceCategory>
+    </androidx.preference.PreferenceScreen>
+    <androidx.preference.PreferenceCategory
         android:title="@string/settings_notifications_title">
 
-        <android.support.v7.preference.CheckBoxPreference
+        <androidx.preference.CheckBoxPreference
             android:defaultValue="@string/settings_allow_upload_notification_default"
             android:key="@string/settings_allow_upload_notification_key"
             android:summary="@string/settings_allow_upload_notification_summary"
             android:title="@string/settings_allow_upload_notification_title"/>
 
-    </android.support.v7.preference.PreferenceCategory>
+    </androidx.preference.PreferenceCategory>
 
 
-    <android.support.v7.preference.PreferenceCategory
+    <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">
 
         <Preference
             android:key="@string/settings_feedback_key"
             android:summary="@string/settings_feedback_summary"
-            android:title="@string/settings_feedback_title"/>
+            android:title="@string/settings_feedback_title"
+            app:icon="@drawable/ic_outline_feedback_24px"/>
 
-        <Preference
-            android:key="@string/settings_export_key"
-            android:summary="@string/settings_export_summary"
-            android:title="@string/settings_export_title"/>
-
-        <android.support.v7.preference.CheckBoxPreference
+        <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/show_tips_key"
             android:title="@string/show_tips_title"/>
 
-        <android.support.v7.preference.CheckBoxPreference
+        <androidx.preference.CheckBoxPreference
             android:defaultValue="false"
             android:key="@string/settings_privacy_policy_agreement_key"
-            android:title="@string/settings_privacy_policy_agreement_title"
-            android:summary="@string/settings_privacy_policy_agreement_summary"/>
+            android:summary="@string/settings_privacy_policy_agreement_summary"
+            android:title="@string/settings_privacy_policy_agreement_title"/>
 
         <Preference
             android:key="@string/settings_privacy_policy_key"
@@ -219,6 +300,6 @@
         <Preference
             android:key="@string/settings_app_version_key"/>
 
-    </android.support.v7.preference.PreferenceCategory>
+    </androidx.preference.PreferenceCategory>
 
-</android.support.v7.preference.PreferenceScreen>
+</androidx.preference.PreferenceScreen>

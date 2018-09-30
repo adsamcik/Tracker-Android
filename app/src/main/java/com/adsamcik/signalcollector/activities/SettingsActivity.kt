@@ -1,37 +1,44 @@
 package com.adsamcik.signalcollector.activities
 
-import android.support.v7.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.support.annotation.StringRes
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
-import android.support.v7.preference.*
 import android.widget.Toast
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AlertDialog
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
+import com.adsamcik.signalcollector.exports.GpxExport
+import com.adsamcik.signalcollector.exports.KmlExport
+import com.adsamcik.signalcollector.exports.RawExport
 import com.adsamcik.signalcollector.extensions.findDirectPreferenceByTitle
 import com.adsamcik.signalcollector.extensions.findPreference
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
+import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.fragments.FragmentPrivacyDialog
 import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
-import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Tips
 import com.adsamcik.signalcollector.utility.TrackingLocker
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch
 import java.io.File
 import java.util.*
@@ -68,19 +75,19 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             } else
                 ActivityService.removeActivityRequest(this, LaunchActivity::class.java)
 
-            ActivityWakerService.pokeWithCheck(this@SettingsActivity, newValue)
+            ActivityWatcherService.pokeWithCheck(this@SettingsActivity, newValue)
             return@OnPreferenceChangeListener true
         }
 
         caller.findPreference(R.string.settings_activity_freq_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             ActivityService.requestActivity(this, LaunchActivity::class.java, newValue as Int)
-            ActivityWakerService.pokeWithCheck(this)
+            ActivityWatcherService.pokeWithCheck(this)
             return@OnPreferenceChangeListener true
         }
 
         caller.findPreference(R.string.settings_disabled_recharge_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
             if (newValue as Boolean) {
-                return@OnPreferenceChangeListener TrackingLocker.lockUntilRecharge(this)
+                TrackingLocker.lockUntilRecharge(this)
             } else
                 TrackingLocker.unlockRechargeLock(this)
 
@@ -94,9 +101,43 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 Assist.hasAgreedToPrivacyPolicy(this) -> true
                 newValue as Int <= 0 -> true
                 else -> {
-                    launch { Assist.privacyPolicyEnableUpload(this@SettingsActivity) }
+                    GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, { Assist.privacyPolicyEnableUpload(this@SettingsActivity) })
                     false
                 }
+            }
+        }
+    }
+
+    private fun initializeData(caller: PreferenceFragmentCompat) {
+        setOnClickListener(R.string.settings_delete_stored_data_key) { pref ->
+            createClearDialog(pref.title) {
+                LongTermStore.clearData(it)
+            }
+        }
+
+        setOnClickListener(R.string.settings_delete_tracked_data_key) { pref ->
+            createClearDialog(pref.title) {
+                DataStore.deleteTrackedData(it)
+            }
+        }
+    }
+
+    private fun initializeExport(caller: PreferenceFragmentCompat) {
+        setOnClickListener(R.string.settings_export_export_key) {
+            startActivity<FileSharingActivity> {
+                putExtra(FileSharingActivity.EXPORTER_KEY, RawExport::class.java)
+            }
+        }
+
+        setOnClickListener(R.string.settings_export_gpx_key) {
+            startActivity<FileSharingActivity> {
+                putExtra(FileSharingActivity.EXPORTER_KEY, GpxExport::class.java)
+            }
+        }
+
+        setOnClickListener(R.string.settings_export_kml_key) {
+            startActivity<FileSharingActivity> {
+                putExtra(FileSharingActivity.EXPORTER_KEY, KmlExport::class.java)
             }
         }
     }
@@ -111,10 +152,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
         setOnClickListener(R.string.settings_account_key) {
             startActivity<UserActivity> { }
-        }
-
-        setOnClickListener(R.string.settings_export_key) {
-            startActivity<FileSharingActivity> {}
         }
 
         setOnClickListener(R.string.settings_licenses_key) {
@@ -182,9 +219,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         Toast.makeText(this, string, Toast.LENGTH_SHORT).show()
     }
 
-    private fun setOnClickListener(@StringRes key: Int, listener: () -> Unit) {
+    private fun setOnClickListener(@StringRes key: Int, listener: (Preference) -> Unit) {
         fragment.findPreference(key).setOnPreferenceClickListener {
-            listener.invoke()
+            listener.invoke(it)
             false
         }
     }
@@ -210,14 +247,14 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
     }
 
-    private fun createClearDialog(clearFunction: (Context) -> Unit, @StringRes snackBarString: Int) {
+    private fun createClearDialog(action: CharSequence, clearFunction: (Context) -> Unit) {
         val alertDialogBuilder = AlertDialog.Builder(this)
         alertDialogBuilder
                 .setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
                     clearFunction.invoke(this)
                 }
                 .setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
-                .setMessage(resources.getText(R.string.alert_confirm_generic))
+                .setMessage(resources.getString(R.string.alert_confirm, action.toString().toLowerCase()))
 
         alertDialogBuilder.show()
     }
@@ -259,32 +296,47 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<StatusActivity> { }
         }
 
-        caller.findPreference(R.string.settings_clear_cache_key).setOnPreferenceClickListener { _ ->
-            createClearDialog({ CacheStore.clearAll(it) }, R.string.settings_cleared_all_cache_files)
+        caller.findPreference(R.string.settings_clear_cache_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) { CacheStore.clearAll(it) }
             false
         }
-        caller.findPreference(R.string.settings_clear_data_key).setOnPreferenceClickListener { _ ->
-            createClearDialog({ DataStore.clearAll(it) }, R.string.settings_cleared_all_data_files)
+        caller.findPreference(R.string.settings_clear_data_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) { DataStore.clearAll(it) }
             false
         }
-        caller.findPreference(R.string.settings_clear_reports_key).setOnPreferenceClickListener { _ ->
-            createClearDialog({ _ ->
+        caller.findPreference(R.string.settings_clear_reports_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) { _ ->
                 DataStore.delete(this, DataStore.RECENT_UPLOADS_FILE)
                 Preferences.getPref(this).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
-            }, R.string.settings_cleared_all_upload_reports)
+            }
             false
         }
 
         caller.findPreference(R.string.settings_browse_files_key).setOnPreferenceClickListener { _ ->
-            createFileAlertDialog(filesDir, { file ->
+            createFileAlertDialog(filesDir) { file ->
                 val name = file.name
-                !name.startsWith("DATA") && !name.startsWith("firebase") && !name.startsWith("com.") && !name.startsWith("event_store") && !name.startsWith("_m_t") && name != "ZoomTables.data"
-            })
+                !file.isDirectory &&
+                        !name.startsWith("DATA") &&
+                        !name.startsWith("firebase") &&
+                        !name.startsWith("com.") &&
+                        !name.startsWith("event_store") &&
+                        !name.startsWith("_m_t") &&
+                        name != ".Fabric" &&
+                        name != "ZoomTables.data"
+            }
             false
         }
 
+        caller.findPreference(R.string.settings_browse_archived_data_key).setOnPreferenceClickListener { _ ->
+            createFileAlertDialog(LongTermStore.getDir(this)) { _ ->
+                true
+            }
+            false
+        }
+
+
         caller.findPreference(R.string.settings_browse_cache_key).setOnPreferenceClickListener { _ ->
-            createFileAlertDialog(cacheDir, { file -> !file.name.startsWith("com.") && !file.isDirectory })
+            createFileAlertDialog(cacheDir) { file -> !file.name.startsWith("com.") && !file.isDirectory }
             false
         }
 
@@ -306,6 +358,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
+        caller.findPreference(R.string.settings_clear_preferences_key).setOnPreferenceClickListener { pref ->
+            createClearDialog(pref.title) {
+                Preferences.getPref(it).edit {
+                    clear()
+                }
+            }
+
+            false
+        }
+
     }
 
     private lateinit var styleChangeListener: SharedPreferences.OnSharedPreferenceChangeListener
@@ -323,7 +385,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         val dayKey = getString(R.string.settings_color_day_key)
         val day = caller.findPreference(dayKey) as ColorSupportPreference
 
-        val onStyleChange = android.support.v7.preference.Preference.OnPreferenceChangeListener { _, newValue ->
+        val onStyleChange = androidx.preference.Preference.OnPreferenceChangeListener { _, newValue ->
             val newValueInt = (newValue as String).toInt()
             night.isVisible = newValueInt >= 1
 
@@ -412,6 +474,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             r.getString(R.string.settings_style_title) -> initializeStyle(caller)
             r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
             r.getString(R.string.settings_upload_title) -> initializeUpload(caller)
+            r.getString(R.string.settings_export_title) -> initializeExport(caller)
+            r.getString(R.string.settings_data_title) -> initializeData(caller)
         }
     }
 

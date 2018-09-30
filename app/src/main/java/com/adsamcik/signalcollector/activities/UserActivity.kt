@@ -19,12 +19,9 @@ import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
 import kotlinx.android.synthetic.main.activity_user.*
-import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.android.Main
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MultipartBody
@@ -34,6 +31,7 @@ import java.text.DateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.reflect.KMutableProperty0
+
 
 /**
  * User Activity is activity that contains Signin and Server settings
@@ -56,7 +54,7 @@ class UserActivity : DetailActivity() {
         if (status == Signin.SigninStatus.SIGNED)
             user!!
 
-        launch(UI) {
+        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
             when (status) {
                 Signin.SigninStatus.SIGNED -> {
                     progressbar_user.visibility = View.GONE
@@ -76,14 +74,14 @@ class UserActivity : DetailActivity() {
                     button_sign_in.visibility = View.VISIBLE
                     layout_signed_in.visibility = View.GONE
                     button_sign_in.setOnClickListener { _ ->
-                        async {
+                        GlobalScope.launch {
                             val usr = Signin.signIn(this@UserActivity, false)
                             if (usr != null) {
                                 if (!usr.isServerDataAvailable) {
                                     onUserStateChange(Signin.SigninStatus.SIGNED_NO_DATA, user)
-                                    usr.addServerDataCallback({ value ->
+                                    usr.addServerDataCallback { value ->
                                         onUserStateChange(Signin.status, value)
-                                    })
+                                    }
                                 } else
                                     onUserStateChange(Signin.SigninStatus.SIGNED, user)
                             } else
@@ -98,7 +96,7 @@ class UserActivity : DetailActivity() {
                     layout_signed_in.visibility = View.GONE
                 }
             }
-        }
+        })
     }
 
     private fun resolveUserMenuOnLogin(u: User) {
@@ -107,18 +105,18 @@ class UserActivity : DetailActivity() {
             return
         }
 
-        async {
+        GlobalScope.launch {
             val user = Signin.getUserAsync(this@UserActivity)
             if (user != null) {
                 if (useMock) {
-                    launch(UI) {
+                    launch(Dispatchers.Main) {
                         initUserMenu(user, Prices.mock())
                     }
                 } else {
                     val priceRequestState = NetworkLoader.requestSignedAsync(Network.URL_USER_PRICES, user.token, Constants.DAY_IN_MINUTES, this@UserActivity, Preferences.PREF_USER_PRICES, Prices::class.java)
                     if (priceRequestState.first.success) {
                         val prices = priceRequestState.second!!
-                        launch(UI) {
+                        launch(Dispatchers.Main) {
                             initUserMenu(user, prices)
                         }
                     }
@@ -136,68 +134,70 @@ class UserActivity : DetailActivity() {
         textview_wireless_points.text = String.format(getString(R.string.user_have_wireless_points), Assist.formatNumber(user.wirelessPoints))
 
         switch_renew_map.text = getString(R.string.user_renew_map)
-        switch_renew_map.isChecked = user.networkPreferences!!.renewMap
+        switch_renew_map.isChecked = user.networkPreferences.renewMap
         switch_renew_map.setOnClickListener {
             switch_renew_map.isEnabled = false
             val isChecked = switch_renew_map.isChecked
 
             if (useMock) {
-                launch {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                     delay(1, TimeUnit.SECONDS)
-                    launch(UI) { switch_renew_map.isEnabled = true }
-                }
+                    launch(Dispatchers.Main) { switch_renew_map.isEnabled = true }
+                })
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_MAP_PREFERENCE, body)).enqueue(
+                val request = Network.requestPOST(this, Network.URL_USER_UPDATE_MAP_PREFERENCE, body).build()
+                Network.clientAuth(this).newCall(request).enqueue(
                         onChangeMapNetworkPreference(switch_renew_map,
                                 isChecked,
                                 user,
-                                user.networkPreferences!!::renewMap,
-                                user.networkInfo!!::mapAccessUntil,
-                                prices.PRICE_30DAY_MAP.toLong(),
+                                user.networkPreferences::renewMap,
+                                user.networkInfo::mapAccessUntil,
+                                prices.price30DayMap.toLong(),
                                 textview_map_access_time)
                 )
             }
         }
 
-        if (user.networkInfo!!.mapAccessUntil > System.currentTimeMillis())
-            textview_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo!!.mapAccessUntil)))
+        if (user.networkInfo.mapAccessUntil > System.currentTimeMillis())
+            textview_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo.mapAccessUntil)))
         else
             textview_map_access_time.visibility = View.GONE
-        textview_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_MAP))
+        textview_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.price30DayMap))
 
         switch_renew_personal_map.text = getString(R.string.user_renew_personal_map)
-        switch_renew_personal_map.isChecked = user.networkPreferences!!.renewPersonalMap
+        switch_renew_personal_map.isChecked = user.networkPreferences.renewPersonalMap
         switch_renew_personal_map.setOnClickListener {
             switch_renew_personal_map.isEnabled = false
 
             val isChecked = switch_renew_personal_map.isChecked
 
             if (useMock) {
-                launch {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                     delay(1, TimeUnit.SECONDS)
-                    launch(UI) { switch_renew_personal_map.isEnabled = true }
-                }
+                    launch(Dispatchers.Main) { switch_renew_personal_map.isEnabled = true }
+                })
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
-                Network.client(this@UserActivity, user.token).newCall(Network.requestPOST(Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body)).enqueue(
+                val request = Network.requestPOST(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body).build()
+                Network.clientAuth(this).newCall(request).enqueue(
                         //this could be done better but due to time constraint there is not enough time to properly rewrite it to kotlin
                         onChangeMapNetworkPreference(switch_renew_personal_map,
                                 isChecked,
                                 user,
-                                user.networkPreferences!!::renewPersonalMap,
-                                user.networkInfo!!::personalMapAccessUntil,
-                                prices.PRICE_30DAY_PERSONAL_MAP.toLong(),
+                                user.networkPreferences::renewPersonalMap,
+                                user.networkInfo::personalMapAccessUntil,
+                                prices.price30DayPersonalMap.toLong(),
                                 textview_personal_map_access_time)
                 )
             }
         }
 
-        if (user.networkInfo!!.personalMapAccessUntil > System.currentTimeMillis())
-            textview_personal_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo!!.personalMapAccessUntil)))
+        if (user.networkInfo.personalMapAccessUntil > System.currentTimeMillis())
+            textview_personal_map_access_time.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(user.networkInfo.personalMapAccessUntil)))
         else
             textview_personal_map_access_time.visibility = View.GONE
-        textview_personal_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.PRICE_30DAY_PERSONAL_MAP))
+        textview_personal_map_cost.text = String.format(getString(R.string.user_cost_per_month), Assist.formatNumber(prices.price30DayPersonalMap))
 
         layout_signed_in.findViewById<View>(R.id.layout_server_settings).visibility = View.VISIBLE
     }
@@ -213,10 +213,10 @@ class UserActivity : DetailActivity() {
                                              timeTextView: TextView): Callback {
         return object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                launch(UI) {
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                     compoundButton.isEnabled = true
                     compoundButton.isChecked = !desiredState
-                }
+                })
             }
 
             @Throws(IOException::class)
@@ -230,33 +230,33 @@ class UserActivity : DetailActivity() {
                             accessTime.set(rBody.string().toLong())
                             if (temp != accessTime.get()) {
                                 user.addWirelessPoints(-price)
-                                launch(UI) {
+                                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                                     textview_wireless_points.text = getString(R.string.user_have_wireless_points, Assist.formatNumber(user.wirelessPoints))
                                     timeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(accessTime.get())))
                                     timeTextView.visibility = View.VISIBLE
-                                }
+                                })
                             }
 
                         } else
                             Crashlytics.logException(Throwable("Body is null"))
                     }
-                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, Gson().toJson(user), false)
+                    CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, user.userDataJson, false)
                 } else {
-                    launch(UI) { compoundButton.isChecked = !desiredState }
+                    GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isChecked = !desiredState })
                     if (response.code() == 403)
                         SnackMaker(root).showSnackbar(R.string.user_not_enough_wp)
                 }
-                launch(UI) { compoundButton.isEnabled = true }
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isEnabled = true })
                 response.close()
             }
         }
     }
 
-    public override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent) {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode == Signin.RC_SIGN_IN) {
-            Signin.onSignResult(this, resultCode, data)
+            Signin.onSignResult(this, resultCode, data!!)
         }
     }
 }

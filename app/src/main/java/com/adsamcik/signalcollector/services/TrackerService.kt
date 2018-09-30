@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.arch.lifecycle.LifecycleService
-import android.arch.lifecycle.MutableLiveData
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -20,23 +18,25 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.enums.ActionSource
+import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.jobs.UploadJobService
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
-import com.adsamcik.signalcollector.utility.Constants.SECOND_IN_MILLISECONDS
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
+import com.squareup.moshi.Moshi
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.nio.charset.Charset
@@ -58,14 +58,15 @@ class TrackerService : LifecycleService() {
     private var wifiReceiver: WifiReceiver? = null
     private var notificationManager: NotificationManager? = null
 
-    private var powerManager: PowerManager? = null
-    private var wakeLock: PowerManager.WakeLock? = null
-    private var locationManager: LocationManager? = null
-    private var telephonyManager: TelephonyManager? = null
+    private lateinit var powerManager: PowerManager
+    private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var locationManager: LocationManager
+    private lateinit var telephonyManager: TelephonyManager
     private var subscriptionManager: SubscriptionManager? = null
     private var wifiManager: WifiManager? = null
-    private val gson = Gson()
 
+    private var minUpdateDelayInSeconds = -1
+    private var minDistanceInMeters = -1f
 
     /**
      * True if previous collection was mocked
@@ -77,6 +78,8 @@ class TrackerService : LifecycleService() {
      */
     private var prevLocation: Location? = null
 
+    private var jsonAdapter = Moshi.Builder().build().adapter(RawData::class.java)
+
     /**
      * Collects data from necessary places and sensors and creates new RawData instance
      */
@@ -86,7 +89,7 @@ class TrackerService : LifecycleService() {
             return
         } else if (prevMocked && prevLocation != null) {
             prevMocked = false
-            if (location.distanceTo(prevLocation) < MIN_DISTANCE_M)
+            if (location.distanceTo(prevLocation) < minDistanceInMeters)
                 return
         }
 
@@ -98,7 +101,7 @@ class TrackerService : LifecycleService() {
             return
         }
 
-        wakeLock!!.acquire(10 * 60 * 1000L /*10 minutes*/)
+        wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/)
         val d = RawData(System.currentTimeMillis())
 
         if (wifiManager != null) {
@@ -125,8 +128,8 @@ class TrackerService : LifecycleService() {
             wifiManager!!.startScan()
         }
 
-        if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
-            d.addCell(telephonyManager!!)
+        if (!Assist.isAirplaneModeEnabled(this)) {
+            d.addCell(telephonyManager)
         }
 
         val activityInfo = ActivityService.lastActivity
@@ -137,7 +140,7 @@ class TrackerService : LifecycleService() {
         data.add(d)
         rawDataEcho.postValue(d)
 
-        DataStore.incData(this, gson.toJson(d).toByteArray(Charset.defaultCharset()).size.toLong(), 1)
+        DataStore.incData(this, jsonAdapter.toJson(d).toByteArray(Charset.defaultCharset()).size.toLong(), 1)
 
         prevLocation = location
         prevLocation!!.time = d.time
@@ -147,10 +150,10 @@ class TrackerService : LifecycleService() {
         if (data.size > 5)
             saveData()
 
-        if (isBackgroundActivated && powerManager!!.isPowerSaveMode)
+        if (isBackgroundActivated && powerManager.isPowerSaveMode)
             stopSelf()
 
-        wakeLock!!.release()
+        wakeLock.release()
     }
 
 
@@ -171,10 +174,13 @@ class TrackerService : LifecycleService() {
         cellCount = sp.getInt(Preferences.PREF_STATS_CELL_FOUND, 0)
         locations = sp.getInt(Preferences.PREF_STATS_LOCATIONS_FOUND, 0)
         for (d in data) {
-            if (d.wifi != null)
-                wifiCount += d.wifi!!.size
-            if (d.cellCount != null)
-                cellCount += d.cellCount!!
+            val wifi = d.wifi
+            if (wifi != null)
+                wifiCount += wifi.inRange.size
+
+            val cell = d.cell
+            if (cell != null)
+                cellCount += cell.totalCount
         }
 
         val result = DataStore.saveData(this, data.toTypedArray())
@@ -193,7 +199,7 @@ class TrackerService : LifecycleService() {
             if (result === DataStore.SaveStatus.SAVE_SUCCESS_FILE_DONE &&
                     !Preferences.getPref(this).getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART) &&
                     DataStore.sizeOfData(this) >= Constants.U_MEGABYTE * Preferences.getPref(this).getInt(Preferences.PREF_AUTO_UPLOAD_AT_MB, Preferences.DEFAULT_AUTO_UPLOAD_AT_MB)) {
-                UploadJobService.requestUpload(this, ActionSource.BACKGROUND)
+                UploadWorker.requestUpload(this, ActionSource.BACKGROUND)
                 Crashlytics.log("Requested upload from tracking")
             }
         }
@@ -252,14 +258,16 @@ class TrackerService : LifecycleService() {
             sb.append(resources.getString(R.string.notification_activity,
                     ActivityInfo.getResolvedActivityName(this, d.activity!!))).append(", ")
 
-        if (d.wifi != null) {
-            sb.append(resources.getString(R.string.notification_wifi, d.wifi!!.size)).append(", ")
+        val wifi = d.wifi
+        if (wifi != null) {
+            sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(", ")
             isEmpty = false
         }
 
-        val cellCount = d.cellCount
-        if (cellCount != null) {
-            sb.append(resources.getQuantityString(R.plurals.notification_cell, cellCount, cellCount)).append(", ")
+        val cell = d.cell
+        if (cell != null && cell.registeredCells.isNotEmpty()) {
+            val mainCell = cell.registeredCells[0]
+            sb.append(resources.getString(R.string.notification_cell_current, mainCell.typeString, mainCell.dbm)).append(' ').append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount)).append(", ")
             isEmpty = false
         }
 
@@ -277,12 +285,13 @@ class TrackerService : LifecycleService() {
 
         service = WeakReference(this)
         val sp = Preferences.getPref(this)
+        val resources = resources
 
         //Get managers
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager!!.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
         //Enable location update
         locationListener = object : LocationListener {
@@ -304,9 +313,11 @@ class TrackerService : LifecycleService() {
             }
         }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_TIME_MILLIS, MIN_DISTANCE_M, locationListener)
-        else {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            minUpdateDelayInSeconds = sp.getInt(resources.getString(R.string.settings_tracking_min_time_key), resources.getInteger(R.integer.settings_tracking_min_time_default))
+            minDistanceInMeters = sp.getInt(resources.getString(R.string.settings_tracking_min_distance_key), resources.getInteger(R.integer.settings_tracking_min_distance_default)).toFloat()
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, minUpdateDelayInSeconds.toLong() * Constants.SECOND_IN_MILLISECONDS, minDistanceInMeters, locationListener)
+        } else {
             Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
             stopSelf()
             return
@@ -314,7 +325,7 @@ class TrackerService : LifecycleService() {
 
         //Wifi tracking setup
         if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
-            wifiManager = this.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            wifiManager = getSystemServiceTyped(Context.WIFI_SERVICE)
             assert(wifiManager != null)
             wasWifiEnabled = !(wifiManager!!.isScanAlwaysAvailable || wifiManager!!.isWifiEnabled)
             if (wasWifiEnabled)
@@ -327,9 +338,9 @@ class TrackerService : LifecycleService() {
 
         //Cell tracking setup
         if (sp.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, true)) {
-            telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            telephonyManager = getSystemServiceTyped(Context.TELEPHONY_SERVICE)
             subscriptionManager = if (Build.VERSION.SDK_INT >= 22)
-                SubscriptionManager.from(this)
+                getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
             else
                 null
         }
@@ -345,7 +356,7 @@ class TrackerService : LifecycleService() {
                     Shortcuts.ShortcutType.STOP_COLLECTION)
         }
 
-        UploadJobService.cancelUploadSchedule(this)
+        UploadWorker.cancelUploadSchedule(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -357,9 +368,9 @@ class TrackerService : LifecycleService() {
         if (isBackgroundActivated)
             ActivityService.requestAutoTracking(this, javaClass)
         else
-            ActivityService.requestActivity(this, javaClass, UPDATE_TIME_SEC)
+            ActivityService.requestActivity(this, javaClass, minUpdateDelayInSeconds)
 
-        ActivityWakerService.poke(this, false)
+        ActivityWatcherService.poke(this, false)
 
         if (isBackgroundActivated) {
             TrackingLocker.isLocked.observe(this) {
@@ -381,11 +392,11 @@ class TrackerService : LifecycleService() {
         service = null
         isServiceRunning.value = false
 
-        ActivityWakerService.pokeWithCheck(this)
+        ActivityWatcherService.pokeWithCheck(this)
         ActivityService.removeActivityRequest(this, javaClass)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager!!.removeUpdates(locationListener)
+            locationManager.removeUpdates(locationListener)
 
         if (wifiReceiver != null)
             unregisterReceiver(wifiReceiver)
@@ -395,7 +406,7 @@ class TrackerService : LifecycleService() {
         DataStore.cleanup(this)
 
         if (wasWifiEnabled) {
-            if (!powerManager!!.isInteractive)
+            if (!powerManager.isInteractive)
                 wifiManager!!.isWifiEnabled = false
         }
 
@@ -411,7 +422,7 @@ class TrackerService : LifecycleService() {
         }
 
         if (sp.getBoolean(Preferences.PREF_AUTO_UPLOAD_SMART, Preferences.DEFAULT_AUTO_UPLOAD_SMART))
-            UploadJobService.requestUploadSchedule(this)
+            UploadWorker.requestUploadSchedule(this)
     }
 
     private inner class WifiReceiver : BroadcastReceiver() {
@@ -427,11 +438,7 @@ class TrackerService : LifecycleService() {
         private const val TAG = "SignalsTracker"
         private const val NOTIFICATION_ID_SERVICE = -7643
 
-        private const val MIN_DISTANCE_M = 5f
         private const val UPDATE_MAX_DISTANCE_TO_WIFI = 40
-
-        private const val UPDATE_TIME_SEC = 2
-        private const val UPDATE_TIME_MILLIS = UPDATE_TIME_SEC * SECOND_IN_MILLISECONDS
 
         private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
 

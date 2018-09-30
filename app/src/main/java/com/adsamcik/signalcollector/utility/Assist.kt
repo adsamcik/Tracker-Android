@@ -11,13 +11,13 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.support.v4.app.FragmentActivity
-import android.support.v4.content.ContextCompat
-import android.support.v4.content.res.ResourcesCompat
-import android.support.v7.app.AppCompatActivity
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.connectivityManager
@@ -155,7 +155,7 @@ object Assist {
      *
      * @return True if user has agreed to privacy policy
      */
-    suspend fun privacyPolicyEnableUpload(activity: AppCompatActivity): Boolean = privacyPolicy(activity) {
+    suspend fun privacyPolicyEnableUpload(activity: FragmentActivity): Boolean = privacyPolicy(activity) {
         putInt(FragmentPrivacyDialog.BUNDLE_ADDITIONAL_TEXT, R.string.privacy_policy_agreement_autoup_description)
         putBoolean(FragmentPrivacyDialog.BUNDLE_SET_AUTOUP_IF_TRUE, true)
     }
@@ -194,7 +194,7 @@ object Assist {
      */
     fun hasNetwork(context: Context): Boolean {
         val activeNetwork = context.connectivityManager.activeNetworkInfo
-        return activeNetwork != null && activeNetwork.isConnectedOrConnecting
+        return activeNetwork != null && activeNetwork.isConnected
     }
 
     /**

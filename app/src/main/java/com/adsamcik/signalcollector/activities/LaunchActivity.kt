@@ -2,16 +2,14 @@ package com.adsamcik.signalcollector.activities
 
 import android.os.Build
 import android.os.Bundle
-import android.support.v7.app.AppCompatActivity
-import android.util.Log
-import com.adsamcik.signalcollector.BuildConfig
+import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.notifications.NotificationChannels
-import com.adsamcik.signalcollector.services.ActivityWakerService
+import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.utility.Shortcuts
 import com.adsamcik.signalcollector.utility.TrackingLocker
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.iid.FirebaseInstanceId
+
+
 
 
 /**
@@ -23,11 +21,6 @@ class LaunchActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (BuildConfig.DEBUG) {
-            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
-            val token = FirebaseInstanceId.getInstance().token
-            Log.d("Signals", token ?: "null token")
-        }
 
         startActivity<MainActivity> { }
 
@@ -37,7 +30,7 @@ class LaunchActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 26)
             NotificationChannels.prepareChannels(this)
 
-        ActivityWakerService.pokeWithCheck(this)
+        ActivityWatcherService.pokeWithCheck(this)
 
         TrackingLocker.initializeFromPersistence(this)
 

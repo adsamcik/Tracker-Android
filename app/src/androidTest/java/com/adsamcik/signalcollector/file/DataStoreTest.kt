@@ -1,14 +1,14 @@
 package com.adsamcik.signalcollector.file
 
 import android.os.Build
-import android.support.test.InstrumentationRegistry
-import android.support.test.runner.AndroidJUnit4
 import android.util.Log
+import androidx.test.InstrumentationRegistry
+import androidx.test.runner.AndroidJUnit4
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
-import com.google.gson.Gson
+import com.squareup.moshi.Moshi
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DataStoreTest {
-    private val gson = Gson()
+    private val moshi = Moshi.Builder().build()
     private val appContext = InstrumentationRegistry.getTargetContext()
 
     @Before
@@ -47,6 +47,6 @@ class DataStoreTest {
         assertEquals(DataStore.PREF_DATA_FILE_INDEX, DataStore.currentDataFile!!.preference)
         val loadedData = DataStore.loadAppendableJsonArray(appContext, DataStore.currentDataFile!!.file.name)
         val firstComma = loadedData!!.indexOf(',')
-        assertEquals(fileHeader + gson.toJson(rawData), loadedData.substring(firstComma + 1))
+        assertEquals(fileHeader + moshi.adapter(Array<RawData>::class.java).toJson(rawData), loadedData.substring(firstComma + 1))
     }
 }

@@ -1,12 +1,16 @@
 package com.adsamcik.signalcollector.services
 
+import androidx.core.content.edit
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
-import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.iid.FirebaseInstanceIdService
+import com.adsamcik.signalcollector.utility.Preferences
+import com.google.firebase.messaging.FirebaseMessagingService
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
 import kotlinx.coroutines.experimental.launch
 
-class InstanceIDListenerService : FirebaseInstanceIdService() {
+class InstanceIDListenerService : FirebaseMessagingService() {
 
     /**
      * Called if InstanceID token is updated. This may occur if the security of
@@ -14,14 +18,16 @@ class InstanceIDListenerService : FirebaseInstanceIdService() {
      * when the InstanceID token is initially generated, so this is where
      * you retrieve the token.
      */
-    override fun onTokenRefresh() {
-        val refreshedToken = FirebaseInstanceId.getInstance().token!!
+    override fun onNewToken(token: String) {
         val context = this
-        launch {
+        Preferences.getPref(context).edit {
+            putBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)
+        }
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
             val user = Signin.getUserAsync(context)
             if (user != null)
-                Network.register(context, user.token, refreshedToken)
-        }
+                Network.register(context, user.token, token)
+        })
     }
 
 }

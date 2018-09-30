@@ -4,17 +4,14 @@ import android.content.Context
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
+import retrofit2.Retrofit
 import java.io.IOException
-import java.util.*
 
 class SignalsTileProvider(context: Context, userToken: String, private val maxZoom: Int) : TileProvider {
 
-    private val client: OkHttpClient = Network.client(context, userToken)
+    private val client = Retrofit.Builder().client(Network.clientAuth(context, userToken)).baseUrl(Network.URL_BASE).build().create(NetworkInterface::class.java)
 
-    private var type: String? = null
+    private lateinit var type: String
     private var personal: Boolean = false
 
     fun setType(type: String) {
@@ -38,22 +35,19 @@ class SignalsTileProvider(context: Context, userToken: String, private val maxZo
             return null
 
 
-        val url = if (personal) String.format(Locale.ENGLISH, Network.URL_PERSONAL_TILES, z, x, y) else String.format(Locale.ENGLISH, Network.URL_TILES, z, x, y, type)
-        val c = client.newCall(Request.Builder().url(url).build())
-        var r: Response? = null
+        val call =
+                if (personal)
+                    client.personalMapTile(z, x, y)
+                else
+                    client.mapTile(z, x, y, type)
 
         try {
-            r = c.execute()
+            val r = call.execute()
             if (r.isSuccessful) {
-                val body = r!!.body()
-                if (body != null)
-                    return body.bytes()
+                return r.body()
             }
         } catch (e: IOException) {
             Crashlytics.logException(e)
-        } finally {
-            if (r != null)
-                r.close()
         }
         return null
     }

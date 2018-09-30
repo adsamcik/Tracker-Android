@@ -3,12 +3,12 @@ package com.adsamcik.signalcollector.network
 import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.enums.CloudStatuses
+import com.adsamcik.signalcollector.extensions.addBearer
+import com.adsamcik.signalcollector.extensions.hasAuthorizationToken
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import com.franmontiel.persistentcookiejar.PersistentCookieJar
-import com.franmontiel.persistentcookiejar.cache.SetCookieCache
-import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor
+import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.*
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit
  */
 object Network {
     private const val TAG = "SignalsNetwork"
+    const val URL_BASE = Server.URL_WEB
+    const val URL_AUTHENTICATE = Server.URL_AUTHENTICATE
     const val URL_DATA_UPLOAD = Server.URL_DATA_UPLOAD
     const val URL_TILES = Server.URL_TILES
     const val URL_PERSONAL_TILES = Server.URL_PERSONAL_TILES
@@ -38,8 +40,6 @@ object Network {
     @CloudStatuses.CloudStatus
     var cloudStatus = CloudStatuses.UNKNOWN
 
-    private var cookieJar: PersistentCookieJar? = null
-
     private val spec: ConnectionSpec
         get() = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
                 .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
@@ -49,40 +49,51 @@ object Network {
                         CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA)
                 .build()
 
-    private fun getCookieJar(context: Context): CookieJar {
-        if (cookieJar == null)
-            cookieJar = PersistentCookieJar(SetCookieCache(), SharedPrefsCookiePersistor(context))
-        return cookieJar!!
-    }
+    var client: OkHttpClient? = null
+    var userToken: String? = null
+    var triedAuth: Boolean = false
 
-    fun clearCookieJar(context: Context) {
-        if (cookieJar == null)
-            getCookieJar(context)
-        cookieJar!!.clear()
-    }
 
     /**
      * Class prepares [OkHttpClient]
      * If userToken is provided class also handles signin cookies and authentication header
      */
-    fun client(context: Context, userToken: String?): OkHttpClient {
-        return if (userToken == null) client().build()
-        else
-            client()
-                    .cookieJar(getCookieJar(context))
-                    .authenticator({ _, response ->
-                        if (response.request().header("userToken") != null)
-                            return@authenticator null
-                        else {
-                            response.request().newBuilder().header("userToken", userToken).build()
-                        }
-                    })
+    @Synchronized
+    fun clientAuth(context: Context, userToken: String? = null): OkHttpClient {
+        if (Network.userToken != userToken || client == null) {
+            client = client()
+                    .authenticator { _, response -> authenticate(context, response) }
                     .build()
+            this.userToken = userToken
+            triedAuth = false
+        }
+        return client!!
+    }
+
+    private fun authenticate(context: Context, response: Response): Request? {
+        val tokenRejected = response.request().header("Authorization") != null
+        var tokenCoroutine: String? = null
+        runBlocking {
+            tokenCoroutine = if (tokenRejected) {
+                if (userToken == null)
+                    Jwt.refreshToken(context)?.token
+                else
+                    Jwt.refreshToken(context, userToken!!)?.token
+            } else
+                Jwt.getToken(context)
+        }
+        val request = response.request()
+        val token = tokenCoroutine
+        return if (token != null && !request.hasAuthorizationToken(token)) {
+            triedAuth = true
+            request.newBuilder().removeHeader("Authorization").addBearer(token).build()
+        } else
+            null
     }
 
     private fun client(): OkHttpClient.Builder {
         return OkHttpClient.Builder()
-                .connectionSpecs(listOf(spec))
+                .connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT))
                 .writeTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .connectTimeout(60, TimeUnit.SECONDS)
@@ -91,29 +102,38 @@ object Network {
     /**
      * Builds simple GET request to given [url]
      */
-    fun requestGET(url: String): Request = Request.Builder().url(url).build()
+    fun requestGET(url: String): Request = Request.Builder()
+            .url(url)
+            .build()
+
+    /**
+     * Builds simple GET request to given [url]
+     */
+    fun requestGET(context: Context, url: String): Request = Request.Builder()
+            .addBearer(Jwt.getTokenLocal(context))
+            .url(url)
+            .build()
 
     /**
      * Builds basic POST request to given [url] with given [body]
      *
+     * @param context Context required for getting bearer
      * @param url URL for which request will be created
      * @param body Body that will be put into the created request
      * @return Request
      */
-    fun requestPOST(url: String, body: RequestBody): Request =
-            Request.Builder().url(url).post(body).build()
+    fun requestPOST(context: Context, url: String, body: RequestBody?): Request.Builder = Request
+            .Builder()
+            .url(url)
+            .addBearer(Jwt.getTokenLocal(context))
+            .post(body ?: emptyRequestBody())
 
-    /**
-     * Generates authentication body
-     * This is mainly used for device registration
-     */
-    fun generateAuthBody(userToken: String): MultipartBody.Builder {
-        return MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("userToken", userToken)
-                .addFormDataPart("manufacturer", Build.MANUFACTURER)
-                .addFormDataPart("model", Build.MODEL)
-    }
+    fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())!!
+
+    fun deviceRequestBodyBuilder(): MultipartBody.Builder = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("manufacturer", Build.MANUFACTURER)
+            .addFormDataPart("model", Build.MODEL)
 
     /**
      * Registers device on the server
@@ -125,11 +145,11 @@ object Network {
     }
 
     private fun register(context: Context, userToken: String, valueName: String, value: String, preferencesName: String, url: String) {
-        val formBody = generateAuthBody(userToken)
+        val formBody = deviceRequestBodyBuilder()
                 .addFormDataPart(valueName, value)
                 .build()
-        val request = requestPOST(url, formBody)
-        client(context, userToken).newCall(request).enqueue(object : Callback {
+        val request = requestPOST(context, url, formBody).build()
+        clientAuth(context, userToken).newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Crashlytics.log("Register $preferencesName")
                 Crashlytics.logException(e)
@@ -137,7 +157,9 @@ object Network {
 
             @Throws(IOException::class)
             override fun onResponse(call: Call, response: Response) {
-                Preferences.getPref(context).edit().putBoolean(preferencesName, true).apply()
+                if (response.isSuccessful) {
+                    Preferences.getPref(context).edit().putBoolean(preferencesName, true).apply()
+                }
                 response.close()
             }
         })

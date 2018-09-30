@@ -1,9 +1,8 @@
 package com.adsamcik.signalcollector.signin
 
-import android.support.annotation.RestrictTo
+import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.google.gson.*
-import java.lang.reflect.Type
+import com.squareup.moshi.Moshi
 import java.util.*
 
 /**
@@ -11,25 +10,25 @@ import java.util.*
  * It has two states, the first is signed-in with basic info available.
  * The second is when all data from server are available.
  */
-class User(@Transient val id: String, @Transient val token: String) {
-    /**
-     * Number of Wireless Points the user owns.
-     * It might not reflect the actual amount, because server does not instantly update this amount on the client.
-     */
-    var wirelessPoints: Long = 0
-        private set
+class User(@Transient val id: String = "", @Transient val token: String = "") {
+    private var userData: UserData? = null
 
-    /**
-     * Server information about availability of services etc.
-     */
-    var networkInfo: NetworkInfo? = null
-        private set
+    var wirelessPoints: Long
+        get() {
+            return if (userData == null)
+                0
+            else
+                userData!!.wirelessPoints
+        }
+        set(value) {
+            userData!!.wirelessPoints = value
+        }
 
-    /**
-     * Server preferences.
-     */
-    var networkPreferences: NetworkPreferences? = null
-        private set
+    val networkPreferences: NetworkPreferences
+        get() = userData!!.networkPreferences
+
+    val networkInfo: NetworkInfo
+        get() = userData!!.networkInfo
 
     private var callbackList: MutableList<(User) -> Unit>? = null
 
@@ -37,25 +36,32 @@ class User(@Transient val id: String, @Transient val token: String) {
      * Returns true if server data are available
      */
     val isServerDataAvailable: Boolean
-        get() = networkInfo != null && networkPreferences != null
+        get() = userData != null
+
+
+    val userDataJson: String
+        get() {
+            val moshi = Moshi.Builder().build()
+            val jsonAdapter = moshi.adapter(UserData::class.java)
+            return jsonAdapter.toJson(userData)
+        }
 
     /**
      * Add wireless points to the user.
      * This method helps with offsetting some synchronisation issues.
      */
     fun addWirelessPoints(value: Long) {
-        wirelessPoints += value
+        userData!!.wirelessPoints += value
     }
 
-    /**
-     * This method should be called when server data are available.
-     * It automatically fills in the data from the server to this instance.
-     *
-     * @param json Serialized JSON with server data
-     */
-    fun deserializeServerData(json: String) {
-        val gson = GsonBuilder().registerTypeAdapter(User::class.java, ServerUserDeserializer(this)).create()
-        gson.fromJson(json, User::class.java)
+    fun setData(userData: UserData) {
+        this.userData = userData
+
+        if (callbackList != null) {
+            for (cb in callbackList!!)
+                cb.invoke(this)
+            callbackList = null
+        }
     }
 
     /**
@@ -64,16 +70,8 @@ class User(@Transient val id: String, @Transient val token: String) {
      * It is internal, because it needs to be exposed to inner class.
      */
     @RestrictTo(RestrictTo.Scope.SUBCLASSES)
-    internal fun setServerData(wirelessPoints: Long, networkInfo: NetworkInfo, networkPreferences: NetworkPreferences) {
-        this.wirelessPoints = wirelessPoints
-        this.networkInfo = networkInfo
-        this.networkPreferences = networkPreferences
-
-        if (callbackList != null) {
-            for (cb in callbackList!!)
-                cb.invoke(this)
-            callbackList = null
-        }
+    internal fun setData(wirelessPoints: Long, networkInfo: NetworkInfo, networkPreferences: NetworkPreferences) {
+        setData(UserData(wirelessPoints, networkInfo, networkPreferences))
     }
 
     /**
@@ -87,13 +85,9 @@ class User(@Transient val id: String, @Transient val token: String) {
         networkPreferences.renewMap = true
         networkPreferences.renewPersonalMap = false
 
-        val networkInfo = NetworkInfo()
+        val networkInfo = NetworkInfo(System.currentTimeMillis() + DAY_IN_MILLISECONDS, Long.MIN_VALUE, false, true)
 
-        networkInfo.feedbackAccess = false
-        networkInfo.mapAccessUntil = System.currentTimeMillis() + DAY_IN_MILLISECONDS
-        networkInfo.personalMapAccessUntil = 0
-
-        setServerData((Math.random() * 64546).toLong(), networkInfo, networkPreferences)
+        setData((Math.random() * 64546).toLong(), networkInfo, networkPreferences)
     }
 
     /**
@@ -108,63 +102,54 @@ class User(@Transient val id: String, @Transient val token: String) {
             callbackList!!.add(callback)
         }
     }
+}
 
-    /**
-     * Class that holds information about user's basic information.
-     */
-    inner class NetworkInfo {
+/**
+ * Class that holds information about user's basic information.
+ */
+data class NetworkInfo(
         /**
          * When does user's map access expire.
          */
-        var mapAccessUntil: Long = 0
+        var mapAccessUntil: Long,
 
         /**
          * When does user's personal map access expire.
          */
-        var personalMapAccessUntil: Long = 0
+        var personalMapAccessUntil: Long,
 
         /**
          * Can the user upload feedback.
          */
-        var feedbackAccess: Boolean = false
+        var feedbackAccess: Boolean,
 
         /**
          * Upload access is currently unused on the mobile device, because synchronization needs to be tested first.
          * todo add this to the uploader so restriction on upload is applied sooner.
          */
-        var uploadAccess: Boolean = false
+        var uploadAccess: Boolean) {
 
-
-        /**
-         * Returns true if user has access to the map.
-         */
-        fun hasMapAccess(): Boolean = System.currentTimeMillis() < mapAccessUntil
-
-        /**
-         * Returns true if user has access to the personal map.
-         */
-        fun hasPersonalMapAccess(): Boolean = System.currentTimeMillis() < personalMapAccessUntil
-    }
 
     /**
-     * Class that holds information about network preferences.
+     * Returns true if user has access to the map.
      */
-    inner class NetworkPreferences {
-        var renewMap: Boolean = false
-        var renewPersonalMap: Boolean = false
-    }
+    fun hasMapAccess(): Boolean = System.currentTimeMillis() < mapAccessUntil
 
-    private inner class ServerUserDeserializer constructor(private val user: User) : JsonDeserializer<User> {
+    /**
+     * Returns true if user has access to the personal map.
+     */
+    fun hasPersonalMapAccess(): Boolean = System.currentTimeMillis() < personalMapAccessUntil
+}
 
-        @Throws(JsonParseException::class)
-        override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): User {
-            val `object` = json.asJsonObject
-            val wirelessPoints = `object`.get("wirelessPoints").asLong
-            val networkInfo = context.deserialize<User.NetworkInfo>(`object`.get("networkInfo"), User.NetworkInfo::class.java)
-            val networkPreferences = context.deserialize<User.NetworkPreferences>(`object`.get("networkPreferences"), User.NetworkPreferences::class.java)
-            user.setServerData(wirelessPoints, networkInfo, networkPreferences)
-            return user
-        }
-    }
+/**
+ * Class that holds information about network preferences.
+ */
+data class NetworkPreferences(var renewMap: Boolean = false,
+                              var renewPersonalMap: Boolean = false)
 
+internal data class UserJson(var wirelessPoints: Long? = null,
+                             var networkInfo: NetworkInfo? = null,
+                             var networkPreferences: NetworkPreferences? = null) {
+
+    fun isValid() = wirelessPoints != null && networkInfo != null && networkPreferences != null
 }

@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.extensions
 
 import android.app.Activity
+import android.app.AlarmManager
 import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
@@ -8,14 +9,17 @@ import android.content.pm.ShortcutManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
-import android.support.annotation.RequiresApi
-import android.support.v4.app.Fragment
-import android.support.v4.content.ContextCompat
 import android.telephony.TelephonyManager
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentTransaction
 
 /**
  * Starts new activity for result
@@ -40,7 +44,7 @@ inline fun <reified T : Any> Activity.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Fragment.startActivity(
+inline fun <reified T : Any> androidx.fragment.app.Fragment.startActivity(
         options: Bundle? = null,
         noinline init: Intent.() -> Unit = {}) {
     context!!.startActivity<T>(options, init)
@@ -114,23 +118,31 @@ inline fun <reified T : Any> Context.stopService() {
 inline fun <reified T : Any> Context.newIntent(): Intent =
         Intent(this, T::class.java)
 
+fun Context.appVersion(): Long {
+    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+    return if (Build.VERSION.SDK_INT >= 28)
+        packageInfo.longVersionCode
+    else
+        packageInfo.versionCode.toLong()
+}
+
 /**
- * Creates new transaction for a [android.support.v4.app.FragmentManager].
+ * Creates new transaction for a [FragmentManager].
  * Transaction is committed using commit.
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
-inline fun android.support.v4.app.FragmentManager.transaction(func: android.support.v4.app.FragmentTransaction.() -> android.support.v4.app.FragmentTransaction) {
+inline fun FragmentManager.transaction(func: FragmentTransaction.() -> FragmentTransaction) {
     beginTransaction().func().commit()
 }
 
 /**
- * Creates new transaction for a [android.support.v4.app.FragmentManager].
+ * Creates new transaction for a [FragmentManager].
  * Transaction is committed using commitAllowingStateLoss.
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
-inline fun android.support.v4.app.FragmentManager.transactionStateLoss(func: android.support.v4.app.FragmentTransaction.() -> android.support.v4.app.FragmentTransaction) {
+inline fun FragmentManager.transactionStateLoss(func: FragmentTransaction.() -> FragmentTransaction) {
     beginTransaction().func().commitAllowingStateLoss()
 }
 
@@ -173,7 +185,7 @@ inline val Context.powerManager get() = getSystemServiceTyped<PowerManager>(Cont
 /**
  * Shortcut to get [JobScheduler]. This property does not cache the service.
  */
-inline val Context.jobScheduler get() = getSystemServiceTyped<JobScheduler>(Context.JOB_SCHEDULER_SERVICE)
+inline val Context.alarmManager get() = getSystemServiceTyped<AlarmManager>(Context.ALARM_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.

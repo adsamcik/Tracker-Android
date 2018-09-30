@@ -3,13 +3,16 @@ package com.adsamcik.signalcollector.adapters
 
 import android.content.Context
 import android.os.Looper
-import android.support.annotation.LayoutRes
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.TextView
-import kotlinx.coroutines.experimental.android.UI
+import androidx.annotation.LayoutRes
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 
 /**
@@ -78,9 +81,9 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         mRawCollection!!.add(item)
         if (filter(item, filterObject)) {
             mDisplayCollection.add(item)
-            launch(UI) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                 notifyDataSetChanged()
-            }
+            })
         }
     }
 
@@ -101,9 +104,9 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         }
 
         if (anyPassed)
-            launch(UI) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                 notifyDataSetChanged()
-            }
+            })
     }
 
     /**

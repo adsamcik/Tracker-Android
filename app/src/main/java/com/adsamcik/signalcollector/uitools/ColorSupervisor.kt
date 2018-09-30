@@ -3,9 +3,9 @@ package com.adsamcik.signalcollector.uitools
 import android.content.Context
 import android.graphics.Color
 import android.location.Location
-import android.support.annotation.ColorInt
-import android.support.v4.content.ContextCompat
-import android.support.v4.graphics.ColorUtils
+import androidx.annotation.ColorInt
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R

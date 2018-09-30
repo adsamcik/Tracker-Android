@@ -2,11 +2,10 @@ package com.adsamcik.signalcollector.utility
 
 import android.os.Handler
 import android.os.Looper
-import android.support.annotation.IntDef
-import android.support.annotation.StringRes
-import android.support.design.widget.Snackbar
 import android.util.Pair
 import android.view.View
+import androidx.annotation.IntDef
+import androidx.annotation.StringRes
 import java.util.concurrent.LinkedBlockingQueue
 
 /**
@@ -15,13 +14,13 @@ import java.util.concurrent.LinkedBlockingQueue
  */
 class SnackMaker(view: View) {
     @Retention(AnnotationRetention.SOURCE)
-    @IntDef(Snackbar.LENGTH_INDEFINITE, Snackbar.LENGTH_LONG, Snackbar.LENGTH_SHORT)
+    @IntDef(com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE, com.google.android.material.snackbar.Snackbar.LENGTH_LONG, com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
     annotation class SnackDuration
 
     private val view: View? = view
 
     private val queue = LinkedBlockingQueue<Pair<String, Int>>()
-    private var current: Snackbar? = null
+    private var current: com.google.android.material.snackbar.Snackbar? = null
     private var handler: Handler? = null
 
     /**
@@ -30,7 +29,7 @@ class SnackMaker(view: View) {
      * @param message Message
      * @param duration Duration that has to be one of [SnackDuration] values
      */
-    fun showSnackbar(message: String, @SnackDuration duration: Int = Snackbar.LENGTH_LONG) {
+    fun showSnackbar(message: String, @SnackDuration duration: Int = com.google.android.material.snackbar.Snackbar.LENGTH_LONG) {
         if (queue.isEmpty()) {
             queue.add(Pair(message, duration))
             next()
@@ -44,7 +43,7 @@ class SnackMaker(view: View) {
      * @param message Message resource
      * @param duration Duration that has to be one of [SnackDuration] values
      */
-    fun showSnackbar(@StringRes message: Int, @SnackDuration duration: Int = Snackbar.LENGTH_LONG) {
+    fun showSnackbar(@StringRes message: Int, @SnackDuration duration: Int = com.google.android.material.snackbar.Snackbar.LENGTH_LONG) {
         showSnackbar(view!!.context.getString(message), duration)
     }
 
@@ -56,8 +55,8 @@ class SnackMaker(view: View) {
      * @param action Action string resource
      * @param onClickListener On action click listener
      */
-    fun showSnackbar(@StringRes message: Int, @StringRes action: Int, onClickListener: View.OnClickListener, @SnackDuration duration: Int = Snackbar.LENGTH_LONG) {
-        Snackbar.make(view!!, message, duration).setAction(action, onClickListener).show()
+    fun showSnackbar(@StringRes message: Int, @StringRes action: Int, onClickListener: View.OnClickListener, @SnackDuration duration: Int = com.google.android.material.snackbar.Snackbar.LENGTH_LONG) {
+        com.google.android.material.snackbar.Snackbar.make(view!!, message, duration).setAction(action, onClickListener).show()
     }
 
     private fun interrupt() {
@@ -74,7 +73,7 @@ class SnackMaker(view: View) {
             if (view == null)
                 interrupt()
             else {
-                current = Snackbar.make(view, queue.peek().first, queue.peek().second)
+                current = com.google.android.material.snackbar.Snackbar.make(view, queue.peek().first, queue.peek().second)
 
                 current!!.show()
                 if (handler == null) {
@@ -82,7 +81,7 @@ class SnackMaker(view: View) {
                         Looper.prepare()
                     handler = Handler()
                 }
-                handler!!.postDelayed({ this.next() }, (if (queue.peek().second == Snackbar.LENGTH_LONG) 3500 else 2000).toLong())
+                handler!!.postDelayed({ this.next() }, (if (queue.peek().second == com.google.android.material.snackbar.Snackbar.LENGTH_LONG) 3500 else 2000).toLong())
             }
         }
     }

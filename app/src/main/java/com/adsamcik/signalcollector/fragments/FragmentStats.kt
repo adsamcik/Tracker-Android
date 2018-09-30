@@ -1,15 +1,15 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.widget.SwipeRefreshLayout
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.UploadReportsActivity
@@ -34,7 +34,10 @@ import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
 import kotlinx.android.synthetic.main.activity_ui.*
-import kotlinx.coroutines.experimental.android.UI
+import kotlinx.coroutines.experimental.CoroutineStart
+import kotlinx.coroutines.experimental.Dispatchers
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.android.Main
 import kotlinx.coroutines.experimental.launch
 
 class FragmentStats : Fragment(), IOnDemandView {
@@ -64,7 +67,7 @@ class FragmentStats : Fragment(), IOnDemandView {
         //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
         swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
-        swipeRefreshLayout.setOnRefreshListener({ this.updateStats() })
+        swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
         swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
         swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 
@@ -125,45 +128,58 @@ class FragmentStats : Fragment(), IOnDemandView {
             generateMockData()
         } else {
             refreshingCount = 2
-            NetworkLoader.request(Network.URL_GENERAL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_GENERAL_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehaviors.FirstLast) })
-            NetworkLoader.request(Network.URL_STATS, if (isRefresh) 0 else DAY_IN_MINUTES, context!!, Preferences.PREF_STATS, Array<Stat>::class.java, { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) })
+            NetworkLoader.request(Network.URL_GENERAL_STATS,
+                    if (isRefresh) 0 else DAY_IN_MINUTES,
+                    context!!,
+                    Preferences.PREF_GENERAL_STATS,
+                    Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.FirstLast) }
+            NetworkLoader.request(Network.URL_STATS,
+                    if (isRefresh) 0 else DAY_IN_MINUTES,
+                    context!!,
+                    Preferences.PREF_STATS,
+                    Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) }
         }
         if (!useMock) {
-            launch {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
                 val user = Signin.getUserAsync(activity)
                 if (user != null) {
                     refreshingCount++
-                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java, { state, value ->
+                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java) { state, value ->
                         if (value != null && value.size == 1 && value[0].name.isEmpty())
                             value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
                         handleResponse(activity, state, value, AppendBehaviors.First)
-                    })
+                    }
                 }
-            }
+            })
         }
 
         if (refreshingCount > 0) {
-            launch(UI) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
                 swipeRefreshLayout.isRefreshing = true
-            }
+            })
         }
     }
 
     private fun handleResponse(context: Context, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+        refreshingCount--
+        swipeRefreshLayout.post {
+            if (refreshingCount == 0)
+                swipeRefreshLayout.isRefreshing = false
+        }
+
         if (!state.success) {
             if (root == null)
                 return
 
             SnackMaker(root).showSnackbar(state.toString(context))
         }
-        refreshingCount--
-        if (state.dataAvailable)
-            launch(UI) {
-                addStatsTable(value!!, appendBehavior)
+
+        if (value != null) {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+                addStatsTable(value, appendBehavior)
                 adapter!!.sort()
-                if (refreshingCount == 0)
-                    swipeRefreshLayout.isRefreshing = false
-            }
+            })
+        }
     }
 
     private fun generateMockData() {
@@ -206,11 +222,11 @@ class FragmentStats : Fragment(), IOnDemandView {
     }
 
 
-    override fun onEnter(activity: Activity) {
+    override fun onEnter(activity: FragmentActivity) {
 
     }
 
-    override fun onLeave(activity: Activity) {
+    override fun onLeave(activity: FragmentActivity) {
     }
 
 

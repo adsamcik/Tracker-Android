@@ -45,7 +45,7 @@
     </LinearLayout>
 
 
-    <android.support.design.widget.TextInputLayout
+    <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/feedback_summary_wrap"
         style="@style/InputLayoutMaterial"
         android:layout_width="match_parent"
@@ -55,16 +55,16 @@
         app:counterOverflowTextAppearance="@style/ErrorTextAppearance"
         app:hintAnimationEnabled="true">
 
-        <android.support.design.widget.TextInputEditText
+        <com.google.android.material.textfield.TextInputEditText
             style="@style/InputLayoutEditText"
             android:hint="@string/feedback_summary"
             android:lines="10"
             android:maxLines="4"
             android:minLines="2"/>
-    </android.support.design.widget.TextInputLayout>
+    </com.google.android.material.textfield.TextInputLayout>
 
 
-    <android.support.design.widget.TextInputLayout
+    <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/feedback_description_wrap"
         style="@style/InputLayoutMaterial"
         android:layout_width="match_parent"
@@ -82,7 +82,7 @@
             android:minLines="4"
             android:importantForAutofill="no"/>
 
-    </android.support.design.widget.TextInputLayout>
+    </com.google.android.material.textfield.TextInputLayout>
 
 
     <RelativeLayout

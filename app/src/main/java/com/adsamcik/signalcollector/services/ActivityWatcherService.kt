@@ -3,11 +3,11 @@ package com.adsamcik.signalcollector.services
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.arch.lifecycle.LifecycleService
 import android.content.Context
 import android.content.Intent
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivities
@@ -18,7 +18,7 @@ import com.adsamcik.signalcollector.utility.TrackingLocker
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
-class ActivityWakerService : LifecycleService() {
+class ActivityWatcherService : LifecycleService() {
     private var notificationManager: NotificationManager? = null
     private var thread: Thread? = null
 
@@ -69,7 +69,7 @@ class ActivityWakerService : LifecycleService() {
 
     private fun updateNotification(): Notification {
         val intent = Intent(this, LaunchActivity::class.java)
-        val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
+        val builder = NotificationCompat.Builder(this, getString(R.string.channel_activity_watcher_id))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
                 .setWhen(System.currentTimeMillis())  // the time stamp
@@ -92,7 +92,7 @@ class ActivityWakerService : LifecycleService() {
     companion object {
         private const val NOTIFICATION_ID = -568465
 
-        private var instance: ActivityWakerService? = null
+        private var instance: ActivityWatcherService? = null
 
         /**
          * Returns preference whether this service should run
@@ -101,7 +101,7 @@ class ActivityWakerService : LifecycleService() {
                 Preferences.getPref(context).getBoolean(Preferences.PREF_ACTIVITY_WATCHER_ENABLED, Preferences.DEFAULT_ACTIVITY_WATCHER_ENABLED)
 
         /**
-         * Checks if current [ActivityWakerService] state is the one it should be in right now.
+         * Checks if current [ActivityWatcherService] state is the one it should be in right now.
          *
          * @param context context
          */
@@ -132,7 +132,7 @@ class ActivityWakerService : LifecycleService() {
         fun poke(context: Context, desiredState: Boolean) {
             if (desiredState) {
                 if (instance == null)
-                    ContextCompat.startForegroundService(context, Intent(context, ActivityWakerService::class.java))
+                    ContextCompat.startForegroundService(context, Intent(context, ActivityWatcherService::class.java))
             } else if (instance != null) {
                 instance!!.stopSelf()
             }
