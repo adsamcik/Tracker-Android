@@ -91,6 +91,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         }
 
         initializeColorElements()
+        updateExtendedInfoBar()
 
         TrackerService.isServiceRunning.observe(this) {
             updateTrackerButton(it)
@@ -104,25 +105,16 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
         bar_info_top.setOnClickListener {
             bar_info_top_extended.visibility = if (bar_info_top_extended.visibility == VISIBLE) GONE else VISIBLE
+            updateExtendedInfoBar()
+        }
+    }
 
-            if (bar_info_top_extended.visibility == VISIBLE) {
-                colorManager.watchView(ColorView(bar_info_top_extended, 0, true, false, true))
-                val rawData = TrackerService.rawDataEcho.value
-                val location = rawData?.location
-                if (rawData != null && location != null) {
-                    longitude.text = getString(R.string.main_longitude, Assist.coordinateToString(location.longitude))
-                    latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
-                    longitude.visibility = VISIBLE
-                    latitude.visibility = VISIBLE
-                } else {
-                    longitude.visibility = GONE
-                    latitude.visibility = GONE
-                }
-
-                archived_data.text = getString(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
-            } else {
-                colorManager.stopWatchingView(bar_info_top_extended)
-            }
+    private fun updateExtendedInfoBar() {
+        if (bar_info_top_extended.visibility == VISIBLE) {
+            colorManager.watchView(ColorView(bar_info_top_extended, 0, true, false, true))
+            initializeExtendedInfo()
+        } else {
+            colorManager.stopWatchingView(bar_info_top_extended)
         }
     }
 
@@ -324,7 +316,36 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         return component
     }
 
-    private fun updateData(d: RawData) {
+    private fun initializeExtendedInfo() {
+        val rawData = TrackerService.rawDataEcho.value
+        if (rawData != null) {
+            updateExtendedInfo(rawData)
+        } else {
+            longitude.visibility = GONE
+            latitude.visibility = GONE
+        }
+        archived_data.text = getString(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
+    }
+
+    private fun updateExtendedInfo(rawData: RawData) {
+        val location = rawData.location
+        if (location != null) {
+            longitude.text = getString(R.string.main_longitude, Assist.coordinateToString(location.longitude))
+            latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
+
+            if (longitude.visibility == GONE) {
+                colorManager.notifyChangeOn(bar_info_top_extended)
+
+                longitude.visibility = VISIBLE
+                latitude.visibility = VISIBLE
+            }
+        } else {
+            longitude.visibility = GONE
+            latitude.visibility = GONE
+        }
+    }
+
+    private fun updateData(rawData: RawData) {
         val context = context!!
         val res = context.resources
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
@@ -334,9 +355,9 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
             updateUploadButton()
         }
 
-        textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(d.time)))
+        textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(rawData.time)))
 
-        val location = d.location
+        val location = rawData.location
         if (location != null) {
             accuracy.visibility = VISIBLE
             accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.toInt())
@@ -349,13 +370,13 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         }
 
         when {
-            d.wifi != null -> {
+            rawData.wifi != null -> {
                 val component = initializeWifiInfo()
-                component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, d.wifi!!.inRange.size))
+                component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, rawData.wifi!!.inRange.size))
                 component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
-                lastWifiTime = d.time
+                lastWifiTime = rawData.time
             }
-            lastWifiTime - d.time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
+            lastWifiTime - rawData.time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
                 wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
             else -> {
                 wifiInfo?.detach()
@@ -363,7 +384,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
             }
         }
 
-        val cell = d.cell
+        val cell = rawData.cell
         if (cell != null) {
             val component = initializeCellInfo()
             if (cell.registeredCells.isNotEmpty()) {
@@ -376,7 +397,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
             cellInfo = null
         }
 
-        when (d.activity) {
+        when (rawData.activity) {
             ResolvedActivities.STILL -> {
                 icon_activity.setImageResource(R.drawable.ic_accessibility_white_24dp)
                 icon_activity.contentDescription = getString(R.string.activity_idle)
@@ -398,6 +419,10 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
                 icon_activity.visibility = VISIBLE
             }
             else -> icon_activity.visibility = GONE
+        }
+
+        if (bar_info_top_extended.visibility == VISIBLE) {
+            updateExtendedInfo(rawData)
         }
     }
 
