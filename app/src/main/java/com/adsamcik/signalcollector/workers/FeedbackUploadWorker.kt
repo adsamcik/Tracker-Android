@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.workers
 
 import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.work.Worker
@@ -14,7 +13,6 @@ import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.signin.Signin
 import com.crashlytics.android.Crashlytics
 import kotlinx.coroutines.experimental.runBlocking
-import okhttp3.MultipartBody
 import okhttp3.internal.http2.StreamResetException
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -38,10 +36,7 @@ class FeedbackUploadWorker(context: Context, workerParams: WorkerParameters) : W
             if (summary == null || type < 0)
                 return@runBlocking Result.FAILURE
 
-            val builder = MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart("manufacturer", Build.MANUFACTURER)
-                    .addFormDataPart("model", Build.MODEL)
+            val builder = Network.deviceRequestBodyBuilder()
                     .addFormDataPart("summary", summary)
                     .addFormDataPart("type", type.toString())
             builder.addFormDataPart("description", description ?: "")

@@ -59,9 +59,9 @@ class ActivityRecognitionActivity : DetailActivity() {
         }
 
         val items = Parser.parseTSVFromFile(this, FILE) ?: ArrayList()
-        adapter = StringFilterableAdapter(this, R.layout.spinner_item, { item ->
+        adapter = StringFilterableAdapter(this, R.layout.spinner_item) { item ->
             item.joinToString(delim)
-        })
+        }
         adapter.addAll(items)
 
         findViewById<View>(R.id.dev_activity_recognition_filter).setOnClickListener { f ->

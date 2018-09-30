@@ -399,7 +399,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
         when (rawData.activity) {
             ResolvedActivities.STILL -> {
-                icon_activity.setImageResource(R.drawable.ic_outline_still_24px.xml)
+                icon_activity.setImageResource(R.drawable.ic_outline_still_24px)
                 icon_activity.contentDescription = getString(R.string.activity_idle)
                 icon_activity.visibility = VISIBLE
             }

@@ -168,6 +168,7 @@ object Preferences {
             return statDays
         val jsonAdapter = Moshi.Builder().build().adapter(StatDay::class.java)
         set
+                .asSequence()
                 .map { jsonAdapter.fromJson(it)!! }
                 .filterTo(statDays) { age <= 0 || it.age(age) < MAX_DAY_DIFF_STATS }
         return statDays

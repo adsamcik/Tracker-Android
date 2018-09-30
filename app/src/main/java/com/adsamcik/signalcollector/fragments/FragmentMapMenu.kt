@@ -26,7 +26,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
     override fun onStart() {
         super.onStart()
-        val adapter = MapFilterableAdapter(context!!, R.layout.spinner_item, { it.name })
+        val adapter = MapFilterableAdapter(context!!, R.layout.spinner_item) { it.name }
 
         if (useMock) {
             adapter.addAll(arrayListOf(MapLayer("WiFi"),

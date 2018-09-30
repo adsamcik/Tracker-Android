@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.workers
 
 import android.content.Context
-import android.os.Build
 import androidx.core.content.edit
 import androidx.work.*
 import com.adsamcik.signalcollector.R
@@ -27,7 +26,6 @@ import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.MediaType
-import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import java.io.File
 import java.io.IOException
@@ -99,13 +97,10 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
         val userID = Signin.getUserID(context) ?: return Result.FAILURE
 
         val adapter = Moshi.Builder().build().adapter(DeviceId::class.java)
-        val deviceId = DeviceId(Build.MANUFACTURER, Build.MODEL, userID)
+        val deviceId = DeviceId.thisDevice(userID)
         val deviceIdJson = adapter.toJson(deviceId)
 
-        val formBody = MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("deviceID", deviceIdJson)
-                .addFormDataPart("API", Build.VERSION.SDK_INT.toString())
+        val formBody = Network.deviceRequestBodyBuilder()
                 .addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
                 .build()
 
@@ -162,7 +157,7 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
 
         val prefDefault = context.getString(R.string.settings_delete_uploaded_data_default)!!.toBoolean()
         val pref = context.getString(R.string.settings_delete_uploaded_data_key)
-        if(Preferences.getPref(context).getBoolean(pref, prefDefault)) {
+        if (Preferences.getPref(context).getBoolean(pref, prefDefault)) {
             if (!FileStore.delete(tempZipFile))
                 Crashlytics.logException(IOException("Upload zip file was not deleted"))
         } else

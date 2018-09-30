@@ -61,7 +61,7 @@
             android:id="@+id/layout_map_controls"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:background="@color/cardview_light_background"
+            android:background="@color/color_primary"
             android:elevation="8dp"
             android:orientation="horizontal">
 
@@ -88,6 +88,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/description_my_location"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:srcCompat="@drawable/ic_gps_fixed_black_24dp"/>
@@ -97,6 +98,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/description_map_search"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:srcCompat="@drawable/ic_search_black_24dp"/>

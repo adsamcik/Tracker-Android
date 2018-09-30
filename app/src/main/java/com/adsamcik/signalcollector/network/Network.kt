@@ -130,6 +130,11 @@ object Network {
 
     fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())!!
 
+    fun deviceRequestBodyBuilder(): MultipartBody.Builder = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("manufacturer", Build.MANUFACTURER)
+            .addFormDataPart("model", Build.MODEL)
+
     /**
      * Registers device on the server
      * This provides server with user id and cloud message token
@@ -140,10 +145,7 @@ object Network {
     }
 
     private fun register(context: Context, userToken: String, valueName: String, value: String, preferencesName: String, url: String) {
-        val formBody = MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("manufacturer", Build.MANUFACTURER)
-                .addFormDataPart("model", Build.MODEL)
+        val formBody = deviceRequestBodyBuilder()
                 .addFormDataPart(valueName, value)
                 .build()
         val request = requestPOST(context, url, formBody).build()
