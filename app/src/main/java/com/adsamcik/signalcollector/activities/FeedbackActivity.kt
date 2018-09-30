@@ -12,7 +12,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.work.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.workers.FeedbackUploadJob
+import com.adsamcik.signalcollector.workers.FeedbackUploadWorker
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
@@ -118,21 +118,21 @@ class FeedbackActivity : DetailActivity() {
 
 
                                 val pb = PersistableBundle(3)
-                                pb.putString(FeedbackUploadJob.SUMMARY, summary)
-                                pb.putString(FeedbackUploadJob.DESCRIPTION, description)
-                                pb.putInt(FeedbackUploadJob.TYPE, currentType!!.ordinal)
+                                pb.putString(FeedbackUploadWorker.SUMMARY, summary)
+                                pb.putString(FeedbackUploadWorker.DESCRIPTION, description)
+                                pb.putInt(FeedbackUploadWorker.TYPE, currentType!!.ordinal)
 
                                 val data = Data.Builder()
-                                        .putString(FeedbackUploadJob.SUMMARY, summary)
-                                        .putString(FeedbackUploadJob.DESCRIPTION, description)
-                                        .putInt(FeedbackUploadJob.TYPE, currentType!!.ordinal)
+                                        .putString(FeedbackUploadWorker.SUMMARY, summary)
+                                        .putString(FeedbackUploadWorker.DESCRIPTION, description)
+                                        .putInt(FeedbackUploadWorker.TYPE, currentType!!.ordinal)
                                         .build()
 
                                 val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-                                val uploadWork = OneTimeWorkRequestBuilder<FeedbackUploadJob>()
+                                val uploadWork = OneTimeWorkRequestBuilder<FeedbackUploadWorker>()
                                         .setInputData(data)
-                                        .addTag(FeedbackUploadJob.TAG)
+                                        .addTag(FeedbackUploadWorker.TAG)
                                         .setConstraints(constraints)
                                         .build()
                                 WorkManager.getInstance().enqueue(uploadWork)

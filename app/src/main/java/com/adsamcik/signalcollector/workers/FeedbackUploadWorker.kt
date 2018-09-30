@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.work.Worker
+import androidx.work.WorkerParameters
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.R.string.channel_other_id
 import com.adsamcik.signalcollector.network.Network
@@ -21,7 +22,7 @@ import java.net.SocketTimeoutException
 /**
  * JobService for JobScheduler which should be triggered when network is available to upload feedback
  */
-class FeedbackUploadJob : Worker() {
+class FeedbackUploadWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
     override fun doWork(): Result {
         val summary = inputData.getString(SUMMARY)
 
