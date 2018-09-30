@@ -16,6 +16,8 @@ import android.os.Bundle
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
+import android.view.View.GONE
+import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
@@ -27,10 +29,7 @@ import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.enums.NavBarPosition
-import com.adsamcik.signalcollector.extensions.dpAsPx
-import com.adsamcik.signalcollector.extensions.marginBottom
-import com.adsamcik.signalcollector.extensions.transaction
-import com.adsamcik.signalcollector.extensions.transactionStateLoss
+import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.network.NetworkLoader
 import com.adsamcik.signalcollector.network.SignalsTileProvider
@@ -356,6 +355,15 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         userCenter = null
         val context = context ?: return
 
+        val locationManager: LocationManager
+        if (this.locationManager == null) {
+            locationManager = context.locationManager
+            this.locationManager = locationManager
+        } else
+            locationManager = this.locationManager!!
+
+        val locationListener = locationListener!!
+
         colorManager!!.addListener { luminance, _ ->
             if (luminance >= -32) {
                 if (isMapLight.get())
@@ -381,20 +389,21 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         initializeLocationListener(context)
 
+        map.setOnMapClickListener {
+            map_ui_parent.visibility = if(map_ui_parent.visibility == VISIBLE) GONE else VISIBLE
+        }
+
         map.setOnCameraIdleListener(this)
 
         map.setMaxZoomPreference(MAX_ZOOM.toFloat())
         if (checkLocationPermission(context, false)) {
-            locationListener!!.followMyPosition = true
-
-            val locationManager = locationManager
-                    ?: context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            locationListener.followMyPosition = true
 
             val l = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
             if (l != null) {
                 val cp = CameraPosition.builder().target(LatLng(l.latitude, l.longitude)).zoom(16f).build()
                 map.moveCamera(CameraUpdateFactory.newCameraPosition(cp))
-                locationListener!!.setUserPosition(cp.target)
+                locationListener.setUserPosition(cp.target)
                 drawUserPosition(cp.target, l.accuracy)
             }
 
@@ -410,11 +419,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         uiSettings.isIndoorLevelPickerEnabled = false
         uiSettings.isCompassEnabled = false
 
-        locationListener!!.registerMap(map)
+        locationListener.registerMap(map)
 
-        if (locationManager == null)
-            locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        locationManager!!.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
+        locationManager.requestLocationUpdates(1, 5f, Criteria(), locationListener, Looper.myLooper())
 
         initializeKeyboardDetection()
 
@@ -586,7 +593,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
         private var button: ImageButton? = null
 
-        private val cameraChangeListener: GoogleMap.OnCameraMoveStartedListener = GoogleMap.OnCameraMoveStartedListener { i ->
+        private val cameraMoveStartListener = GoogleMap.OnCameraMoveStartedListener { i ->
             if (followMyPosition && i == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
                 stopUsingUserPosition(true)
         }
@@ -608,7 +615,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
          * Registers map to the [UpdateLocationListener]. Initializing camera position and registering camera listeners.
          */
         fun registerMap(map: GoogleMap) {
-            map.setOnCameraMoveStartedListener(cameraChangeListener)
+            map.setOnCameraMoveStartedListener(cameraMoveStartListener)
             val cameraPosition = map.cameraPosition
             targetPosition = cameraPosition.target ?: LatLng(0.0, 0.0)
             targetTilt = cameraPosition.tilt
