@@ -5,10 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.edit
-import androidx.work.Constraints
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.Worker
+import androidx.work.*
 import com.adsamcik.signalcollector.extensions.alarmManager
 import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
@@ -59,10 +56,8 @@ object TrackingLocker {
     val isChargeLocked get() = lockedUntilRecharge
 
     private fun isLockedRightNow(): Boolean {
-        synchronized(lockedUntil) {
-            synchronized(lockedUntilRecharge) {
-                return isTimeLocked || isChargeLocked
-            }
+        synchronized(this) {
+            return isTimeLocked || isChargeLocked
         }
     }
 
@@ -73,11 +68,8 @@ object TrackingLocker {
      */
     fun initializeFromPersistence(context: Context) {
         val preferences = Preferences.getPref(context)
-        synchronized(lockedUntil) {
+        synchronized(this) {
             lockedUntil = preferences.getLong(Preferences.PREF_STOP_UNTIL_TIME, 0)
-        }
-
-        synchronized(lockedUntilRecharge) {
             lockedUntilRecharge = preferences.getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false)
         }
 
@@ -85,34 +77,34 @@ object TrackingLocker {
     }
 
     private fun setRechargeLock(context: Context, lock: Boolean) {
-        synchronized(lockedUntilRecharge) {
+        synchronized(this) {
             Preferences.getPref(context).edit {
                 putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, lock)
             }
 
             lockedUntilRecharge = lock
 
-            pokeWakerService(context)
+            pokeWatcherService(context)
         }
     }
 
     private fun setTimeLock(context: Context, time: Long) {
-        synchronized(lockedUntil) {
+        synchronized(this) {
             Preferences.getPref(context).edit {
                 putLong(Preferences.PREF_STOP_UNTIL_TIME, time)
             }
 
             lockedUntil = time
 
-            pokeWakerService(context)
+            pokeWatcherService(context)
         }
     }
 
     /**
-     * This method ensures the waker is in proper state
+     * This method ensures the watcher is in proper state
      * It cannot be handled with observe because pokeWithCheck method requires context
      */
-    private fun pokeWakerService(context: Context) {
+    private fun pokeWatcherService(context: Context) {
         //Desired state is checked from other sources because it might not be ready yet in LiveData
         ActivityWatcherService.poke(context, ActivityWatcherService.getServicePreference(context) && !isLockedRightNow())
     }
@@ -121,7 +113,7 @@ object TrackingLocker {
      * Locks tracking until phone is connected to a charger
      */
     fun lockUntilRecharge(context: Context) {
-        synchronized(lockedUntilRecharge) {
+        synchronized(this) {
             val workManager = WorkManager.getInstance()
             val constraints = Constraints.Builder().setRequiresCharging(true).build()
             val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(constraints).addTag(JOB_DISABLE_TILL_RECHARGE_TAG).build()
@@ -142,18 +134,16 @@ object TrackingLocker {
      * Sets auto lockTimeLock with time passed in variable.
      */
     fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
-        synchronized(lockedUntil) {
-            synchronized(lockedUntilRecharge) {
-                lockedUntil = System.currentTimeMillis() + lockTimeInMillis
+        synchronized(this) {
+            lockedUntil = System.currentTimeMillis() + lockTimeInMillis
 
-                ActivityWatcherService.pokeWithCheck(context)
+            ActivityWatcherService.pokeWithCheck(context)
 
-                if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
-                    context.stopService<TrackerService>()
+            if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
+                context.stopService<TrackerService>()
 
-                context.alarmManager.set(AlarmManager.RTC_WAKEUP,
-                        lockedUntil, getIntent(context))
-            }
+            context.alarmManager.set(AlarmManager.RTC_WAKEUP,
+                    lockedUntil, getIntent(context))
         }
     }
 
@@ -162,7 +152,7 @@ object TrackingLocker {
      * Thread safe
      */
     fun unlockTimeLock(context: Context) {
-        synchronized(lockedUntil) {
+        synchronized(this) {
             context.alarmManager.cancel(getIntent(context))
             setTimeLock(context, 0)
 
@@ -174,7 +164,7 @@ object TrackingLocker {
      * Pokes the locks and tries if they are not supposed to be unlocked
      */
     fun poke(context: Context) {
-        synchronized(lockedUntil) {
+        synchronized(this) {
             if (lockedUntil < System.currentTimeMillis()) {
                 isLocked.postValue(false)
                 ActivityWatcherService.pokeWithCheck(context)
@@ -190,7 +180,7 @@ object TrackingLocker {
     /**
      * JobService used for job that waits until device is connected to a charger to remove recharge lockTimeLock
      */
-    class DisableTillRechargeWorker : Worker() {
+    class DisableTillRechargeWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
         override fun doWork(): Result {
             unlockRechargeLock(applicationContext)
             return Result.SUCCESS
