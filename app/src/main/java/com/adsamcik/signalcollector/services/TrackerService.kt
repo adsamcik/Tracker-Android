@@ -219,14 +219,14 @@ class TrackerService : LifecycleService() {
                 .setColor(ContextCompat.getColor(this, R.color.color_accent))
 
         val stopIntent = Intent(this, NotificationReceiver::class.java)
-        stopIntent.putExtra(NotificationReceiver.ACTION_STRING, if (isBackgroundActivated) 0 else 1)
+        stopIntent.putExtra(NotificationReceiver.ACTION_STRING, if (isBackgroundActivated) NotificationReceiver.LOCK_RECHARGE_ACTION else NotificationReceiver.STOP_TRACKING_ACTION)
         val stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
         if (isBackgroundActivated) {
             builder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop)
 
             val stopForMinutes = 60
             val stopForMinutesIntent = Intent(this, NotificationReceiver::class.java)
-            stopForMinutesIntent.putExtra(NotificationReceiver.ACTION_STRING, 0)
+            stopForMinutesIntent.putExtra(NotificationReceiver.ACTION_STRING, NotificationReceiver.STOP_MINUTES_EXTRA)
             stopForMinutesIntent.putExtra(NotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
             val stopForMinutesAction = PendingIntent.getBroadcast(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
             builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)

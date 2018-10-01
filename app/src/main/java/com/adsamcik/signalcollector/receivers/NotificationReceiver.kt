@@ -18,15 +18,15 @@ class NotificationReceiver : BroadcastReceiver() {
         val params = Bundle()
         params.putString(FirebaseAssist.PARAM_SOURCE, "notification")
         when (value) {
-            0 -> {
-                TrackingLocker.lockUntilRecharge(context)
-                FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, params)
-            }
-            1 -> {
+            STOP_TRACKING_ACTION -> {
                 FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_EVENT, params)
                 context.stopService(Intent(context, TrackerService::class.java))
             }
-            2 -> {
+            LOCK_RECHARGE_ACTION -> {
+                TrackingLocker.lockUntilRecharge(context)
+                FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, params)
+            }
+            LOCK_TIME_ACTION -> {
                 val minutes = intent.getIntExtra(STOP_MINUTES_EXTRA, -1)
                 if (minutes > 0)
                     TrackingLocker.lockTimeLock(context, Constants.MINUTE_IN_MILLISECONDS * minutes)
@@ -39,5 +39,9 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val TAG = "SignalsReceiver"
         const val ACTION_STRING = "action"
         const val STOP_MINUTES_EXTRA = "stopForMinutes"
+
+        const val STOP_TRACKING_ACTION = 0
+        const val LOCK_RECHARGE_ACTION = 1
+        const val LOCK_TIME_ACTION = 2
     }
 }
