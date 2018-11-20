@@ -43,10 +43,8 @@ import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.fragment_map.*
-import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.android.Main
+import kotlinx.coroutines.*
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -200,10 +198,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
                 val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
-                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                     activeOverlay?.remove()
                     activeOverlay = map!!.addTileOverlay(tileOverlayOptions)
-                })
+                }
             }
         } else
             this.type = type
@@ -371,13 +369,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
                 isMapLight.set(true)
 
-                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) })
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) }
             } else {
                 if (!isMapLight.get())
                     return@addListener
 
                 isMapLight.set(false)
-                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) })
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) }
             }
         }
 
@@ -434,8 +432,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
     private fun loadMapLayers() {
         val activity = activity!!
         if (useMock) {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
-                delay(1, TimeUnit.SECONDS)
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
+                delay(1000)
                 val user = Signin.getUserAsync(activity)
                 if (user != null) {
                     val mockArray = MapLayer.mockArray()
@@ -444,9 +442,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     mapLayers = mockArrayList
                     initializeMenuButton()
                 }
-            })
+            }
         } else {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
                 val user = Signin.getUserAsync(activity)
                 user?.addServerDataCallback {
                     val networkInfo = it.networkInfo
@@ -480,7 +478,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
                     }
 
                 }
-            })
+            }
         }
     }
 

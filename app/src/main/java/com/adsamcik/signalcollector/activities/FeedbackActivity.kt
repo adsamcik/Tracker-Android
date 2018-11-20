@@ -12,16 +12,14 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.work.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.workers.FeedbackUploadWorker
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.SnackMaker
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
-
+import com.adsamcik.signalcollector.workers.FeedbackUploadWorker
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 
 /**
@@ -65,7 +63,7 @@ class FeedbackActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         setTitle(R.string.feedback_title)
         val activity = this
-        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
             val user = Signin.getUserAsync(activity)
             if (user != null) {
                 launch(Dispatchers.Main) {
@@ -81,8 +79,8 @@ class FeedbackActivity : DetailActivity() {
                     for (i in 0 until feedbackLayout.childCount)
                         feedbackLayout.getChildAt(i).setOnClickListener { v -> updateType(v, FeedbackType.values()[feedbackLayout.indexOfChild(v)]) }
 
-                    groupRoot.findViewById<View>(R.id.feedback_cancel_button).setOnClickListener { _ -> finish() }
-                    groupRoot.findViewById<View>(R.id.feedback_send_button).setOnClickListener { _ ->
+                    groupRoot.findViewById<View>(R.id.feedback_cancel_button).setOnClickListener { finish() }
+                    groupRoot.findViewById<View>(R.id.feedback_send_button).setOnClickListener {
                         if (currentType == null) {
                             SnackMaker(parent).showSnackbar(R.string.feedback_error_type)
                             Assist.hideSoftKeyboard(activity, parent)
@@ -143,7 +141,7 @@ class FeedbackActivity : DetailActivity() {
                     }
                 }
             }
-        })
+        }
     }
 
     override fun onDestroy() {

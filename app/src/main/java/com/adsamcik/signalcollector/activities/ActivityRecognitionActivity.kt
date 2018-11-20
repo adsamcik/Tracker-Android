@@ -12,11 +12,10 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Parser
 import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.text.DateFormat.getDateTimeInstance
 import java.util.*
@@ -44,7 +43,7 @@ class ActivityRecognitionActivity : DetailActivity() {
         else
             start_stop_button.text = getString(R.string.start)
 
-        start_stop_button.setOnClickListener { _ ->
+        start_stop_button.setOnClickListener {
             val sp = Preferences.getPref(this)
             val setEnabled = !sp.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)
             val editor = sp.edit()
@@ -105,11 +104,11 @@ class ActivityRecognitionActivity : DetailActivity() {
                 if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / DAY_IN_MILLISECONDS > 0) {
                     preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply()
                     if (instance?.get() != null) {
-                        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+                        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                             val inst = instance?.get()
                             if (inst != null)
                                 inst.start_stop_button.text = inst.getString(R.string.start)
-                        })
+                        }
                     }
                 }
                 addLine(context, activity, action)

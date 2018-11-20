@@ -36,10 +36,10 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.Tips
 import com.adsamcik.signalcollector.utility.TrackingLocker
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
 
@@ -101,7 +101,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 Assist.hasAgreedToPrivacyPolicy(this) -> true
                 newValue as Int <= 0 -> true
                 else -> {
-                    GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, { Assist.privacyPolicyEnableUpload(this@SettingsActivity) })
+                    GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) { Assist.privacyPolicyEnableUpload(this@SettingsActivity) }
                     false
                 }
             }

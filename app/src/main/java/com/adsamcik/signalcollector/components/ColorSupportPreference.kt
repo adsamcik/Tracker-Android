@@ -83,7 +83,7 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
                     .create()
             dialog.setColorPickerDialogListener(this)
             val activity = getActivity()
-            dialog.show(activity.fragmentManager, getFragmentTag())
+            dialog.show(activity.supportFragmentManager, getFragmentTag())
         }
     }
 

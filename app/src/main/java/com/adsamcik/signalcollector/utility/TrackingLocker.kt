@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.AnyThread
 import androidx.core.content.edit
 import androidx.work.*
 import com.adsamcik.signalcollector.extensions.alarmManager
@@ -11,12 +12,11 @@ import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
 import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.services.TrackerService
-import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Singleton that takes care of tracking locks.
  */
-@ThreadSafe
+@AnyThread
 object TrackingLocker {
     /**
      * Id of the job that disables the recharge lock when device is connected to a charger

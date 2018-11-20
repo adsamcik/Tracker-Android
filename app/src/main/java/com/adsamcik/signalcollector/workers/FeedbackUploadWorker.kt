@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.signin.Signin
 import com.crashlytics.android.Crashlytics
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.runBlocking
 import okhttp3.internal.http2.StreamResetException
 import java.io.IOException
 import java.net.SocketTimeoutException

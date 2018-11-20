@@ -20,8 +20,7 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.signalcollector.utility.SnackMaker
 import com.crashlytics.android.Crashlytics
 import kotlinx.android.synthetic.main.activity_user.*
-import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.android.Main
+import kotlinx.coroutines.*
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MultipartBody
@@ -29,7 +28,6 @@ import okhttp3.Response
 import java.io.IOException
 import java.text.DateFormat
 import java.util.*
-import java.util.concurrent.TimeUnit
 import kotlin.reflect.KMutableProperty0
 
 
@@ -54,7 +52,7 @@ class UserActivity : DetailActivity() {
         if (status == Signin.SigninStatus.SIGNED)
             user!!
 
-        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
             when (status) {
                 Signin.SigninStatus.SIGNED -> {
                     progressbar_user.visibility = View.GONE
@@ -96,7 +94,7 @@ class UserActivity : DetailActivity() {
                     layout_signed_in.visibility = View.GONE
                 }
             }
-        })
+        }
     }
 
     private fun resolveUserMenuOnLogin(u: User) {
@@ -140,10 +138,10 @@ class UserActivity : DetailActivity() {
             val isChecked = switch_renew_map.isChecked
 
             if (useMock) {
-                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
-                    delay(1, TimeUnit.SECONDS)
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
+                    delay(1000)
                     launch(Dispatchers.Main) { switch_renew_map.isEnabled = true }
-                })
+                }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
                 val request = Network.requestPOST(this, Network.URL_USER_UPDATE_MAP_PREFERENCE, body).build()
@@ -173,10 +171,10 @@ class UserActivity : DetailActivity() {
             val isChecked = switch_renew_personal_map.isChecked
 
             if (useMock) {
-                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
-                    delay(1, TimeUnit.SECONDS)
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
+                    delay(1000)
                     launch(Dispatchers.Main) { switch_renew_personal_map.isEnabled = true }
-                })
+                }
             } else {
                 val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("value", isChecked.toString()).build()
                 val request = Network.requestPOST(this, Network.URL_USER_UPDATE_PERSONAL_MAP_PREFERENCE, body).build()
@@ -213,10 +211,10 @@ class UserActivity : DetailActivity() {
                                              timeTextView: TextView): Callback {
         return object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                     compoundButton.isEnabled = true
                     compoundButton.isChecked = !desiredState
-                })
+                }
             }
 
             @Throws(IOException::class)
@@ -230,11 +228,11 @@ class UserActivity : DetailActivity() {
                             accessTime.set(rBody.string().toLong())
                             if (temp != accessTime.get()) {
                                 user.addWirelessPoints(-price)
-                                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+                                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                                     textview_wireless_points.text = getString(R.string.user_have_wireless_points, Assist.formatNumber(user.wirelessPoints))
                                     timeTextView.text = String.format(getString(R.string.user_access_date), dateFormat.format(Date(accessTime.get())))
                                     timeTextView.visibility = View.VISIBLE
-                                })
+                                }
                             }
 
                         } else
@@ -242,11 +240,11 @@ class UserActivity : DetailActivity() {
                     }
                     CacheStore.saveString(this@UserActivity, Preferences.PREF_USER_DATA, user.userDataJson, false)
                 } else {
-                    GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isChecked = !desiredState })
+                    GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { compoundButton.isChecked = !desiredState }
                     if (response.code() == 403)
                         SnackMaker(root).showSnackbar(R.string.user_not_enough_wp)
                 }
-                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { compoundButton.isEnabled = true })
+                GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT){ compoundButton.isEnabled = true }
                 response.close()
             }
         }

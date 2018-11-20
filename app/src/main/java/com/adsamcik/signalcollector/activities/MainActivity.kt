@@ -25,7 +25,6 @@ import com.adsamcik.signalcollector.fragments.FragmentActivities
 import com.adsamcik.signalcollector.fragments.FragmentMap
 import com.adsamcik.signalcollector.fragments.FragmentStats
 import com.adsamcik.signalcollector.fragments.FragmentTracker
-import com.adsamcik.signalcollector.workers.UploadWorker
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.notifications.NotificationChannels
 import com.adsamcik.signalcollector.services.ActivityService
@@ -37,12 +36,13 @@ import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.BottomBarBehavior
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Tips
+import com.adsamcik.signalcollector.workers.UploadWorker
 import com.google.android.gms.location.LocationServices
 import kotlinx.android.synthetic.main.activity_ui.*
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 
 /**
@@ -100,9 +100,9 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         root.post {
             Tips.showTips(this, Tips.HOME_TIPS) {
-                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+                GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
                     Assist.privacyPolicyEnableUpload(this@MainActivity)
-                })
+                }
             }
         }
     }
@@ -301,7 +301,7 @@ class MainActivity : AppCompatActivity() {
                 if (it.isSuccessful) {
                     val loc = it.result
                     if (loc != null)
-                        ColorSupervisor.setLocation(it.result)
+                        ColorSupervisor.setLocation(loc)
                 }
             }
         } else if (Build.VERSION.SDK_INT >= 23)

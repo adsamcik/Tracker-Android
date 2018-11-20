@@ -9,11 +9,10 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.TextView
 import androidx.annotation.LayoutRes
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 /**
  * Abstract class that contains basic implementation to allow filtering.
@@ -81,9 +80,9 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         mRawCollection!!.add(item)
         if (filter(item, filterObject)) {
             mDisplayCollection.add(item)
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                 notifyDataSetChanged()
-            })
+            }
         }
     }
 
@@ -104,9 +103,9 @@ abstract class FilterableAdapter<T, F> : BaseAdapter {
         }
 
         if (anyPassed)
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                 notifyDataSetChanged()
-            })
+            }
     }
 
     /**

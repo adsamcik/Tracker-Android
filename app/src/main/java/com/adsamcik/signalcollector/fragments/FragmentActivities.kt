@@ -25,11 +25,10 @@ import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.ChallengeManager
 import com.adsamcik.signalcollector.utility.SnackMaker
 import kotlinx.android.synthetic.main.fragment_activities.*
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class FragmentActivities : Fragment(), IOnDemandView {
@@ -68,12 +67,12 @@ class FragmentActivities : Fragment(), IOnDemandView {
                     Challenge(Challenge.ChallengeType.Crowded, "Hello world!", arrayOf("50"), 1f, ChallengeDifficulties.EASY))
 
             challenges.forEach { it.generateTexts(context) }
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                 (listViewChallenges.adapter as ChallengesAdapter).updateData(challenges)
                 refreshLayout.isRefreshing = false
-            })
+            }
         } else {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
                 val (source, challenges) = ChallengeManager.getChallenges(activity, isRefresh)
                 launch(Dispatchers.Main) {
                     if (!source.success)
@@ -83,7 +82,7 @@ class FragmentActivities : Fragment(), IOnDemandView {
                     }
                     refreshLayout.isRefreshing = false
                 }
-            })
+            }
         }
     }
 

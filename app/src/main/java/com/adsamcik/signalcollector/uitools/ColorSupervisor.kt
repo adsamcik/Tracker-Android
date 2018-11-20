@@ -3,10 +3,11 @@ package com.adsamcik.signalcollector.uitools
 import android.content.Context
 import android.graphics.Color
 import android.location.Location
+import android.util.Log
+import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
-import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.getColor
@@ -18,14 +19,13 @@ import com.adsamcik.signalcollector.utility.SunSetRise
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
-import javax.annotation.concurrent.ThreadSafe
 import kotlin.collections.ArrayList
 
 /**
  * Class that handles globally calculation of current color
  * It needs to be updated with proper location to have accurate color transitions
  */
-@ThreadSafe
+@AnyThread
 object ColorSupervisor {
     //Lock order colorList, colorManagerLock, timer
 

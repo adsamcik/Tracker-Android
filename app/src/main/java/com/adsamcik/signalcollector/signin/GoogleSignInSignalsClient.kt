@@ -48,7 +48,7 @@ class GoogleSignInSignalsClient : ISignInClient {
 
         val onCompleteListener = OnCompleteListener<GoogleSignInAccount> { task ->
             try {
-                user = resolveUser(activity, task.getResult(ApiException::class.java))
+                user = resolveUser(activity, task.getResult(ApiException::class.java)!!)
                 userValueCallback.invoke(activity, user!!)
             } catch (e: ApiException) {
                 val signInIntent = client!!.signInIntent
@@ -63,7 +63,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         this.userValueCallback = userValueCallback
         val onCompleteListener = OnCompleteListener<GoogleSignInAccount> { task ->
             try {
-                user = resolveUser(context, task.getResult(ApiException::class.java))
+                user = resolveUser(context, task.getResult(ApiException::class.java)!!)
             } catch (e: ApiException) {
                 userValueCallback.invoke(context, null)
             }
@@ -91,7 +91,7 @@ class GoogleSignInSignalsClient : ISignInClient {
         //if (!sp.getBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)) {
         FirebaseInstanceId.getInstance().instanceId.continueWith {
             if (it.isSuccessful) {
-                val result = it.result
+                val result = it.result!!
                 Network.register(context, user.token, result.token)
             }
         }

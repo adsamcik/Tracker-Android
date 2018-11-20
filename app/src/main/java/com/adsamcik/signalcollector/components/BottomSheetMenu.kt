@@ -11,9 +11,8 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.*
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 /**
  * Implementation of https://material.io/guidelines/components/bottom-sheets.html
@@ -71,9 +70,9 @@ class BottomSheetMenu(root: CoordinatorLayout) {
      */
     fun showHide(delayInMS: Int) {
         bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
-        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
-            delay(delayInMS.toLong(), TimeUnit.MILLISECONDS)
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
+            delay(delayInMS.toLong())
             bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
-        })
+        }
     }
 }

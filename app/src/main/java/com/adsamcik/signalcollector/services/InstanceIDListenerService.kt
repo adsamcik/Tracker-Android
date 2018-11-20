@@ -5,10 +5,10 @@ import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.firebase.messaging.FirebaseMessagingService
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class InstanceIDListenerService : FirebaseMessagingService() {
 
@@ -23,11 +23,11 @@ class InstanceIDListenerService : FirebaseMessagingService() {
         Preferences.getPref(context).edit {
             putBoolean(Preferences.PREF_SENT_TOKEN_TO_SERVER, false)
         }
-        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
             val user = Signin.getUserAsync(context)
             if (user != null)
                 Network.register(context, user.token, token)
-        })
+        }
     }
 
 }

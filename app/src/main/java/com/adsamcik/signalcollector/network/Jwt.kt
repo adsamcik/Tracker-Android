@@ -5,14 +5,15 @@ import androidx.core.content.edit
 import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
-import kotlin.coroutines.experimental.Continuation
-import kotlin.coroutines.experimental.suspendCoroutine
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 object Jwt {
     const val tokenPreference = "jwtToken"
@@ -21,7 +22,7 @@ object Jwt {
     var hasToken = false
 
     suspend fun refreshToken(context: Context) = suspendCoroutine<JwtData?> {
-        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+        GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
             val user = Signin.getUserAsync(context)
 
             if (user == null) {
@@ -30,7 +31,7 @@ object Jwt {
             }
 
             it.resume(refreshToken(context, user.token))
-        })
+        }
     }
 
     @Synchronized

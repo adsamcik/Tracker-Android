@@ -37,11 +37,10 @@ import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.workers.UploadWorker
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.android.synthetic.main.fragment_tracker.*
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.util.*
 
 class FragmentTracker : androidx.fragment.app.Fragment() {
@@ -70,7 +69,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
         updateUploadButton()
 
-        button_tracking.setOnClickListener { _ ->
+        button_tracking.setOnClickListener {
             val activity = activity!!
             if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated) {
                 val lockedForMinutes = 30
@@ -145,8 +144,8 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
                 updateUploadButton()
         }
 
-        DataStore.setOnDataChanged { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) }) }
-        DataStore.setOnUploadProgress { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, { updateUploadButton() }) }
+        DataStore.setOnDataChanged { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
+        DataStore.setOnUploadProgress { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { updateUploadButton() } }
 
         if (useMock)
             mock()
@@ -167,7 +166,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
         if (requiredPermissions == null && view != null) {
             if (!TrackerService.isServiceRunning.value) {
                 if (!Assist.isGNSSEnabled(activity)) {
-                    SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener { _ ->
+                    SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener {
                         val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                         startActivity(locationOptionsIntent)
                     })
@@ -211,16 +210,16 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
     }
 
     private fun setUploadButtonClickable() {
-        button_upload.setOnClickListener { _ ->
+        button_upload.setOnClickListener {
             val activity = activity!!
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
                 if (Assist.privacyPolicy(activity)) {
                     val success = UploadWorker.requestUpload(activity, ActionSource.USER)
                     FirebaseAnalytics.getInstance(activity).logEvent(FirebaseAssist.MANUAL_UPLOAD_EVENT, Bundle())
                     if (success)
                         updateUploadButton()
                 }
-            })
+            }
         }
     }
 

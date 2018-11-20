@@ -9,8 +9,8 @@ import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.workers.UploadWorker
 import com.adsamcik.signalcollector.utility.TrackingLocker
+import com.adsamcik.signalcollector.workers.UploadWorker
 
 /**
  * Debug Activity used for displaying states of some parts of the app
@@ -21,9 +21,9 @@ class StatusActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         val layout = createScrollableContentParent(true, androidx.constraintlayout.widget.ConstraintLayout::class.java)
         val workManager = WorkManager.getInstance()
-        val uploadWorkStates = workManager.getStatusesByTag(UploadWorker.UPLOAD_TAG).value
-        val scheduleUploadWorkStates = workManager.getStatusesByTag(UploadWorker.UPLOAD_TAG).value
-        val waitForRechargeStates = workManager.getStatusesByTag(TrackingLocker.JOB_DISABLE_TILL_RECHARGE_TAG).value
+        val uploadWorkStates = workManager.getWorkInfosByTag(UploadWorker.UPLOAD_TAG).get()
+        val scheduleUploadWorkStates = workManager.getWorkInfosByTag(UploadWorker.UPLOAD_TAG).get()
+        val waitForRechargeStates = workManager.getWorkInfosByTag(TrackingLocker.JOB_DISABLE_TILL_RECHARGE_TAG).get()
 
         val hasUploadPending = uploadWorkStates != null && uploadWorkStates.size > 0
         val hasUploadScheduled = scheduleUploadWorkStates != null && scheduleUploadWorkStates.size > 0

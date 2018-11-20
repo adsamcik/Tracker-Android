@@ -8,7 +8,7 @@ import com.adsamcik.signalcollector.extensions.hasAuthorizationToken
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.runBlocking
 import okhttp3.*
 import java.io.IOException
 import java.util.concurrent.TimeUnit

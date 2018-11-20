@@ -14,11 +14,10 @@ import com.adsamcik.signalcollector.interfaces.IViewChange
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.backgroundColorFor
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.foregroundColorFor
 import com.adsamcik.signalcollector.uitools.ColorSupervisor.layerColor
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 //Cannot be annotated with ColorInt yet
 typealias ColorListener = (luminance: Byte, backgroundColor: Int) -> Unit
@@ -195,13 +194,13 @@ class ColorManager {
      * Internal update function which should be called only by ColorSupervisor
      */
     internal fun update() {
-        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
             synchronized(watchedViews) {
                 watchedViews.forEach {
                     updateInternal(it)
                 }
             }
-        })
+        }
 
         synchronized(colorChangeListeners) {
             colorChangeListeners.forEach { it.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(false)) }

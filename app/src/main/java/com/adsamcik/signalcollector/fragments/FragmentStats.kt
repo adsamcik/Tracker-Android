@@ -34,11 +34,10 @@ import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
 import kotlinx.android.synthetic.main.activity_ui.*
-import kotlinx.coroutines.experimental.CoroutineStart
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.android.Main
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class FragmentStats : Fragment(), IOnDemandView {
     private lateinit var fragmentView: View
@@ -140,7 +139,7 @@ class FragmentStats : Fragment(), IOnDemandView {
                     Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) }
         }
         if (!useMock) {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
                 val user = Signin.getUserAsync(activity)
                 if (user != null) {
                     refreshingCount++
@@ -150,13 +149,13 @@ class FragmentStats : Fragment(), IOnDemandView {
                         handleResponse(activity, state, value, AppendBehaviors.First)
                     }
                 }
-            })
+            }
         }
 
         if (refreshingCount > 0) {
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                 swipeRefreshLayout.isRefreshing = true
-            })
+            }
         }
     }
 
@@ -175,10 +174,10 @@ class FragmentStats : Fragment(), IOnDemandView {
         }
 
         if (value != null) {
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT, null, {
+            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
                 addStatsTable(value, appendBehavior)
                 adapter!!.sort()
-            })
+            }
         }
     }
 

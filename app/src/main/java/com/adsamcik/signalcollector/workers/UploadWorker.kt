@@ -22,7 +22,7 @@ import com.adsamcik.signalcollector.utility.Constants.MIN_BACKGROUND_UPLOAD_FILE
 import com.adsamcik.signalcollector.utility.Constants.MIN_MAX_DIFF_BGUP_FILE_LIMIT_SIZE
 import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType
 import okhttp3.RequestBody
 import java.io.File
@@ -276,7 +276,7 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
         }
 
         private fun hasUploadJob(): Boolean {
-            val list = WorkManager.getInstance().getStatusesByTag(UPLOAD_TAG).value
+            val list = WorkManager.getInstance().getWorkInfosByTag(UPLOAD_TAG).get()
             return list != null && list.size > 0
         }
 

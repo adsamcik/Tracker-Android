@@ -53,8 +53,6 @@ android {
     }
 }
 
-kotlin { experimental { coroutines 'enable' } }
-
 dokka {
     outputFormat = 'html'
     outputDirectory = "$buildDir/javadoc"
