@@ -67,7 +67,7 @@ class FileSharingActivity : DetailActivity() {
             listView.adapter = adapter
             listView.choiceMode = AbsListView.CHOICE_MODE_MULTIPLE
 
-            val shareOnClickListener = View.OnClickListener { _ ->
+            val shareOnClickListener = View.OnClickListener {
                 val sba = listView.checkedItemPositions
 
                 val selectedFiles = files.filterIndexed { i, _ -> sba[i] }
@@ -107,12 +107,12 @@ class FileSharingActivity : DetailActivity() {
             val bottomSheetMenu = BottomSheetMenu(layout)
             bottomSheetMenu.addItem(R.string.export_share_button, shareOnClickListener)
 
-            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener { _ ->
+            bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener {
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, true)
             })
 
-            bottomSheetMenu.addItem(R.string.deselect_all, View.OnClickListener { _ ->
+            bottomSheetMenu.addItem(R.string.deselect_all, View.OnClickListener {
                 for (i in fileNames.indices)
                     listView.setItemChecked(i, false)
             })

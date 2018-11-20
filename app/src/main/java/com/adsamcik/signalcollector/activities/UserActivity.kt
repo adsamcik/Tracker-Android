@@ -57,21 +57,21 @@ class UserActivity : DetailActivity() {
                 Signin.SigninStatus.SIGNED -> {
                     progressbar_user.visibility = View.GONE
                     layout_signed_in.visibility = View.VISIBLE
-                    layout_signed_in.findViewById<Button>(R.id.button_sign_out).setOnClickListener { _ -> Signin.signOut(this@UserActivity) }
+                    layout_signed_in.findViewById<Button>(R.id.button_sign_out).setOnClickListener { Signin.signOut(this@UserActivity) }
                     button_sign_in.visibility = View.GONE
                     resolveUserMenuOnLogin(user!!)
                 }
                 Signin.SigninStatus.SIGNED_NO_DATA -> {
                     progressbar_user.visibility = View.VISIBLE
                     layout_signed_in.visibility = View.VISIBLE
-                    layout_signed_in.findViewById<Button>(R.id.button_sign_out).setOnClickListener { _ -> Signin.signOut(this@UserActivity) }
+                    layout_signed_in.findViewById<Button>(R.id.button_sign_out).setOnClickListener { Signin.signOut(this@UserActivity) }
                     button_sign_in.visibility = View.GONE
                 }
                 Signin.SigninStatus.SIGNIN_FAILED, Signin.SigninStatus.SILENT_SIGNIN_FAILED, Signin.SigninStatus.NOT_SIGNED -> {
                     progressbar_user.visibility = View.GONE
                     button_sign_in.visibility = View.VISIBLE
                     layout_signed_in.visibility = View.GONE
-                    button_sign_in.setOnClickListener { _ ->
+                    button_sign_in.setOnClickListener {
                         GlobalScope.launch {
                             val usr = Signin.signIn(this@UserActivity, false)
                             if (usr != null) {

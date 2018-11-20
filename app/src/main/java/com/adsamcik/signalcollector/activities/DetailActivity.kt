@@ -23,7 +23,7 @@ abstract class DetailActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_content_detail)
-        back_button.setOnClickListener { _ -> onBackPressed() }
+        back_button.setOnClickListener { onBackPressed() }
 
         colorManager = ColorSupervisor.createColorManager(this)
         colorManager!!.watchView(ColorView(back_button.parent as View, 1, true, false))

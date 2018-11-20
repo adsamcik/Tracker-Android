@@ -75,7 +75,7 @@ class ActivityRecognitionActivity : DetailActivity() {
             usingFilter = !usingFilter
         }
 
-        findViewById<View>(R.id.dev_activity_recognition_clear).setOnClickListener { _ ->
+        findViewById<View>(R.id.dev_activity_recognition_clear).setOnClickListener {
             adapter.clear()
             DataStore.delete(this, FILE)
         }

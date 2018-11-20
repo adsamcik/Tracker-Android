@@ -222,7 +222,7 @@ object FileStore {
         if (file.isDirectory) {
             file.listFiles()
                     .filterNot { recursiveDelete(it) }
-                    .forEach { _ -> return false }
+                    .forEach { return false }
         }
         return delete(file)
     }

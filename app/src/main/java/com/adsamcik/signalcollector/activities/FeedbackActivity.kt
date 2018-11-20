@@ -80,7 +80,7 @@ class FeedbackActivity : DetailActivity() {
                         feedbackLayout.getChildAt(i).setOnClickListener { v -> updateType(v, FeedbackType.values()[feedbackLayout.indexOfChild(v)]) }
 
                     groupRoot.findViewById<View>(R.id.feedback_cancel_button).setOnClickListener { finish() }
-                    groupRoot.findViewById<View>(R.id.feedback_send_button).setOnClickListener {
+                    groupRoot.findViewById<View>(R.id.feedback_send_button).setOnClickListener { _ ->
                         if (currentType == null) {
                             SnackMaker(parent).showSnackbar(R.string.feedback_error_type)
                             Assist.hideSoftKeyboard(activity, parent)

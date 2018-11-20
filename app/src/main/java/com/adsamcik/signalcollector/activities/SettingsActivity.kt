@@ -174,7 +174,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
         }
 
         caller.findPreference(R.string.settings_privacy_policy_agreement_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-            if (newValue as Boolean == false) {
+            if (!(newValue as Boolean)) {
                 Preferences.getPref(this).edit {
                     putInt(getString(R.string.settings_uploading_network_key), getString(R.string.settings_uploading_network_default).toInt())
                 }
@@ -305,14 +305,14 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
         caller.findPreference(R.string.settings_clear_reports_key).setOnPreferenceClickListener { pref ->
-            createClearDialog(pref.title) { _ ->
+            createClearDialog(pref.title) {
                 DataStore.delete(this, DataStore.RECENT_UPLOADS_FILE)
                 Preferences.getPref(this).edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
             }
             false
         }
 
-        caller.findPreference(R.string.settings_browse_files_key).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_browse_files_key).setOnPreferenceClickListener {
             createFileAlertDialog(filesDir) { file ->
                 val name = file.name
                 !file.isDirectory &&
@@ -327,20 +327,20 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             false
         }
 
-        caller.findPreference(R.string.settings_browse_archived_data_key).setOnPreferenceClickListener { _ ->
-            createFileAlertDialog(LongTermStore.getDir(this)) { _ ->
+        caller.findPreference(R.string.settings_browse_archived_data_key).setOnPreferenceClickListener {
+            createFileAlertDialog(LongTermStore.getDir(this)) {
                 true
             }
             false
         }
 
 
-        caller.findPreference(R.string.settings_browse_cache_key).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_browse_cache_key).setOnPreferenceClickListener {
             createFileAlertDialog(cacheDir) { file -> !file.name.startsWith("com.") && !file.isDirectory }
             false
         }
 
-        caller.findPreference(R.string.settings_hello_world_key).setOnPreferenceClickListener { _ ->
+        caller.findPreference(R.string.settings_hello_world_key).setOnPreferenceClickListener {
             val helloWorld = getString(R.string.dev_notification_dummy)
             val color = ContextCompat.getColor(this, R.color.color_primary)
             val rng = Random(System.currentTimeMillis())

@@ -11,7 +11,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.startActivity
 import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.utility.Preferences
-import kotlin.coroutines.experimental.Continuation
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
 
 
 class FragmentPrivacyDialog : androidx.fragment.app.DialogFragment() {
@@ -41,7 +42,7 @@ class FragmentPrivacyDialog : androidx.fragment.app.DialogFragment() {
                 .setNeutralButton(R.string.privacy_policy_agreement_link, null)
                 .show()
 
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { _ ->
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             Preferences.getPref(context).edit {
                 putBoolean(getString(R.string.settings_privacy_policy_agreement_key), true)
 
@@ -53,7 +54,7 @@ class FragmentPrivacyDialog : androidx.fragment.app.DialogFragment() {
             dismiss()
         }
 
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { _ ->
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
             Preferences.getPref(context).edit {
                 remove(getString(R.string.settings_privacy_policy_agreement_key))
 
@@ -65,7 +66,7 @@ class FragmentPrivacyDialog : androidx.fragment.app.DialogFragment() {
             dismiss()
         }
 
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { _ ->
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
             showPrivacyPolicy(context)
         }
 

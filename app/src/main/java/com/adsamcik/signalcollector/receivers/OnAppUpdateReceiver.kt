@@ -38,6 +38,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 
             try {
                 val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                @Suppress("DEPRECATION")
                 val version = if(Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong()
                 editor.remove(Preferences.LAST_VERSION).putLong(Preferences.LAST_VERSION, version)
             } catch (e: PackageManager.NameNotFoundException) {

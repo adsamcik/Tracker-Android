@@ -336,7 +336,7 @@ object DataStore {
         if (file.isDirectory) {
             file.listFiles()
                     .filterNot { recursiveDelete(it) }
-                    .forEach { _ -> return false }
+                    .forEach { return false }
         }
         return file.delete()
     }

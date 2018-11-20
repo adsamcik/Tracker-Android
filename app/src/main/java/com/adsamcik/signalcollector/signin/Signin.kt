@@ -12,7 +12,8 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.auth.api.Auth
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.coroutines.experimental.suspendCoroutine
+import kotlin.coroutines.suspendCoroutine
+import kotlin.coroutines.resume
 
 /**
  * Singleton that manages user

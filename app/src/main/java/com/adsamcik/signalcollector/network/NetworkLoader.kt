@@ -12,7 +12,8 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import okhttp3.*
 import java.io.IOException
-import kotlin.coroutines.experimental.suspendCoroutine
+import kotlin.coroutines.suspendCoroutine
+import kotlin.coroutines.resume
 
 object NetworkLoader {
     /**

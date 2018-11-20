@@ -28,7 +28,7 @@ class LicenseActivity : DetailActivity() {
         val parent = createLinearScrollableContentParent(true)
 
         val gsonString = "Gson"
-        addButton(parent, gsonString).setOnClickListener { _ ->
+        addButton(parent, gsonString).setOnClickListener {
             val notice = Notice(gsonString, "https://github.com/google/gson", "Copyright 2008 Google Inc", ApacheSoftwareLicense20())
             LicensesDialog.Builder(this)
                     .setNotices(notice)
@@ -37,7 +37,7 @@ class LicenseActivity : DetailActivity() {
         }
 
         val okhttpString = "OkHttp"
-        addButton(parent, okhttpString).setOnClickListener { _ ->
+        addButton(parent, okhttpString).setOnClickListener {
             val notice = Notice(okhttpString, "https://github.com/square/okhttp", "Copyright 2016 Square, Inc.", ApacheSoftwareLicense20())
             LicensesDialog.Builder(this)
                     .setNotices(notice)
@@ -46,7 +46,7 @@ class LicenseActivity : DetailActivity() {
         }
 
         val licenseDialogString = "LicensesDialog"
-        addButton(parent, licenseDialogString).setOnClickListener { _ ->
+        addButton(parent, licenseDialogString).setOnClickListener {
             val notice = Notice(licenseDialogString, "https://github.com/PSDev/LicensesDialog", "Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20())
             LicensesDialog.Builder(this)
                     .setNotices(notice)
@@ -98,7 +98,7 @@ class LicenseActivity : DetailActivity() {
     }
 
     private fun addLicenseDialogListener(button: Button, license: LicenseObject) {
-        button.setOnClickListener { _ ->
+        button.setOnClickListener {
             val notice = resolveNotice(license)
             LicensesDialog.Builder(this)
                     .setNotices(notice)
