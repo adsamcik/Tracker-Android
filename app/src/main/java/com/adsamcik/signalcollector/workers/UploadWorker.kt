@@ -45,17 +45,17 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
 
         if (!hasEnoughData(context, scheduleSource)) {
             removePersistence()
-            return Result.FAILURE
+            return Result.failure()
         }
 
         if (isUploading.getAndSet(true)) {
             removePersistence()
-            return Result.FAILURE
+            return Result.failure()
         }
 
         DataStore.onUpload(context, 0)
 
-        val file = preUpload(scheduleSource) ?: return Result.FAILURE
+        val file = preUpload(scheduleSource) ?: return Result.failure()
 
         val result = upload(file)
 
@@ -89,10 +89,10 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
 
         if (token == null) {
             Crashlytics.logException(Throwable("Token is null"))
-            return Result.FAILURE
+            return Result.failure()
         }
 
-        val userID = Signin.getUserID(context) ?: return Result.FAILURE
+        val userID = Signin.getUserID(context) ?: return Result.failure()
 
         val formBody = Network.deviceRequestBodyBuilder()
                 .addFormDataPart("file", Network.generateVerificationString(userID, file.length()), RequestBody.create(MEDIA_TYPE_ZIP, file))
@@ -106,14 +106,15 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
             val isSuccessful = response.isSuccessful
             response.close()
             if (isSuccessful)
-                return Result.SUCCESS
+                return Result.success()
 
             if (code >= 400)
                 Crashlytics.logException(Throwable("Upload failed $code"))
-            return Result.RETRY
+            return Result.retry()
         } catch (e: IOException) {
             Crashlytics.logException(e)
-            return Result.RETRY
+            return Result.retry()
+
         }
 
     }
@@ -145,7 +146,7 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
         DataStore.cleanup(context)
         DataStore.unlockData()
 
-        if (result == Result.RETRY || result == Result.FAILURE) {
+        if (result == Result.retry() || result == Result.failure()) {
             DataStore.onUpload(context, -1)
         }
 
@@ -157,7 +158,7 @@ class UploadWorker(context: Context, workerParams: WorkerParameters) : Worker(co
         } else
             LongTermStore.moveToLongTermStorage(context, tempZipFile)
 
-        if (result == Result.SUCCESS) {
+        if (result == Result.success()) {
             var collectionCount = Preferences.getPref(context).getInt(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD, 0)
             if (collectionCount < collectionsToUpload) {
                 collectionCount = 0

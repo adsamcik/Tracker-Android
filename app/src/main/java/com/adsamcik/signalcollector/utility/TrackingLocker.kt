@@ -183,7 +183,7 @@ object TrackingLocker {
     class DisableTillRechargeWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
         override fun doWork(): Result {
             unlockRechargeLock(applicationContext)
-            return Result.SUCCESS
+            return Result.success()
         }
     }
 }

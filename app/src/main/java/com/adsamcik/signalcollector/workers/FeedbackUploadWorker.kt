@@ -28,13 +28,13 @@ class FeedbackUploadWorker(context: Context, workerParams: WorkerParameters) : W
             val user = Signin.getUserAsync(applicationContext)
             if (user?.token == null || user.token.isBlank()) {
                 notify(R.string.notification_feedback_user_not_signed, summary!!)
-                return@runBlocking Result.FAILURE
+                return@runBlocking Result.failure()
             }
             val type = inputData.getInt(TYPE, -1)
             val description = inputData.getString(DESCRIPTION)
 
             if (summary == null || type < 0)
-                return@runBlocking Result.FAILURE
+                return@runBlocking Result.failure()
 
             val builder = Network.deviceRequestBodyBuilder()
                     .addFormDataPart("summary", summary)
@@ -46,16 +46,16 @@ class FeedbackUploadWorker(context: Context, workerParams: WorkerParameters) : W
                 val result = Network.clientAuth(applicationContext, user.token).newCall(request).execute()
                 if (result.isSuccessful) {
                     notify(R.string.notification_feedback_success, summary)
-                    Result.SUCCESS
+                    Result.success()
                 } else
-                    Result.RETRY
+                    Result.retry()
             } catch (e: StreamResetException) {
-                Result.RETRY
+                Result.retry()
             } catch (e: SocketTimeoutException) {
-                Result.RETRY
+                Result.retry()
             } catch (e: IOException) {
                 Crashlytics.logException(e)
-                Result.RETRY
+                Result.retry()
             }
         }
     }

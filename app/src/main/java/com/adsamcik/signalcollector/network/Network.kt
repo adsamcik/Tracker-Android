@@ -128,7 +128,7 @@ object Network {
             .addBearer(Jwt.getTokenLocal(context))
             .post(body ?: emptyRequestBody())
 
-    fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())!!
+    fun emptyRequestBody() = RequestBody.create(null, byteArrayOf())
 
     fun deviceRequestBodyBuilder(): MultipartBody.Builder = MultipartBody.Builder()
             .setType(MultipartBody.FORM)

@@ -12,8 +12,8 @@ import com.adsamcik.signalcollector.utility.Preferences
 import com.crashlytics.android.Crashlytics
 import okhttp3.*
 import java.io.IOException
-import kotlin.coroutines.suspendCoroutine
 import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 object NetworkLoader {
     /**
@@ -70,7 +70,7 @@ object NetworkLoader {
     suspend fun <T> requestSignedAsync(url: String, userToken: String?, updateTimeInMinutes: Long, context: Context, preferenceString: String, tClass: Class<T>): Pair<Source, T?> = suspendCoroutine { cont ->
         if (userToken != null) {
             if (useMock)
-                cont.resume(Pair(Source.NO_DATA, null))
+                cont.resume(Pair<NetworkLoader.Source, T?>(Source.NO_DATA, null))
             else
                 requestString(Network.clientAuth(context, userToken),
                         Network.requestGET(context, url),
@@ -78,7 +78,7 @@ object NetworkLoader {
                         context,
                         preferenceString) { src, value -> cont.resume(Pair(src, Parser.tryFromJson(value, tClass))) }
         } else
-            cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
+            cont.resume(Pair<NetworkLoader.Source, T?>(Source.NO_DATA_FAILED_SIGNIN, null))
     }
 
     /**
@@ -95,7 +95,7 @@ object NetworkLoader {
                 cont.resume(Pair(source, string))
             }
         else
-            cont.resume(Pair(Source.NO_DATA_FAILED_SIGNIN, null))
+            cont.resume(Pair<NetworkLoader.Source, String?>(Source.NO_DATA_FAILED_SIGNIN, null))
     }
 
     /**
