@@ -54,7 +54,10 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
         userData!!.wirelessPoints += value
     }
 
-    fun setData(userData: UserData) {
+    fun setData(userData: UserData?) {
+        if(this.userData != null && userData == null)
+            throw RuntimeException("Cannot change user data to null from value")
+
         this.userData = userData
 
         if (callbackList != null) {
