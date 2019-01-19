@@ -25,7 +25,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             val sp = Preferences.getPref(context)
             val editor = sp.edit()
 
-            if (sp.getInt(Preferences.LAST_VERSION, 0) < 277) {
+            if (sp.getLong(Preferences.LAST_VERSION, 0) < 277) {
                 DataStore.clearAll(context)
                 CacheStore.clearAll(context)
             }
