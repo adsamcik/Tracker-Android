@@ -80,6 +80,7 @@ data class RawData(
         return this
     }
 
+    @Suppress("DEPRECATION")
     fun addCell(telephonyManager: TelephonyManager) {
 //Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
         @SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo
