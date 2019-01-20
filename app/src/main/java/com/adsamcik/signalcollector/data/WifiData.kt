@@ -1,7 +1,9 @@
 package com.adsamcik.signalcollector.data
 
+import com.squareup.moshi.JsonClass
 import java.util.*
 
+@JsonClass(generateAdapter = false)
 data class WifiData(
         /**
          * Time of collection of wifi data

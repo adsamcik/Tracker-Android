@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.network
 
+import com.squareup.moshi.JsonClass
 
+@JsonClass(generateAdapter = true)
 class Prices {
     var price30DayMap: Int = 0
     var price30DayPersonalMap: Int = 0

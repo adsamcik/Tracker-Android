@@ -28,38 +28,6 @@
 # Retain declared checked exceptions for use by a Proxy instance.
 -keepattributes Exceptions
 
--keep public class com.adsamcik.signalcollector.data.** {
-  public private <fields>;
-  public <methods>;
-}
-
--keep public class com.adsamcik.signalcollector.signin.User {
-	public private <fields>;
-	public <methods>;
-}
-
--keep public class com.adsamcik.signalcollector.signin.UserData {
-	public private <fields>;
-	public <methods>;
-}
-
--keep public class com.adsamcik.signalcollector.signin.NetworkInfo {
-	public private <fields>;
-	public <methods>;
-}
-
-
--keep public class com.adsamcik.signalcollector.signin.NetworkPreferences {
-	public private <fields>;
-	public <methods>;
-}
-
--keep public class com.adsamcik.signalcollector.signin.UserJson {
-	public private <fields>;
-	public <methods>;
-}
-
-
 -keep class kotlin.Metadata { *; }
 
 # Crashlytics
@@ -85,7 +53,7 @@
     @com.squareup.moshi.* <methods>;
 }
 
--keep @com.squareup.moshi.JsonQualifier interface *
+-keep @com.squareup.moshi.JsonQualifier interface * { *; }
 
 # Enum field names are used by the integrated EnumJsonAdapter.
 # Annotate enums with @JsonClass(generateAdapter = false) to use them with Moshi.
@@ -94,7 +62,7 @@
 }
 
 # The name of @JsonClass types is used to look up the generated adapter.
--keepnames @com.squareup.moshi.JsonClass class *
+-keepnames @com.squareup.moshi.JsonClass class * { *; }
 
 # Retain generated JsonAdapters if annotated type is retained.
 -if @com.squareup.moshi.JsonClass class *
@@ -102,3 +70,6 @@
     <init>(...);
     <fields>;
 }
+
+
+#-keep class com.adsamcik.signalcollector.signin.UserData { *; }

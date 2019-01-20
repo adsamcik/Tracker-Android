@@ -1,8 +1,9 @@
 package com.adsamcik.signalcollector.data
 
+import com.squareup.moshi.JsonClass
 import java.util.*
 
-
+@JsonClass(generateAdapter = false)
 data class CellData(
         /**
          * List of registered cells

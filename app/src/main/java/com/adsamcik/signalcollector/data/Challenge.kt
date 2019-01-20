@@ -3,11 +3,12 @@ package com.adsamcik.signalcollector.data
 import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ChallengeDifficulties
+import com.squareup.moshi.JsonClass
 
 /**
  * Challenge object that holds information about challenge including it's text localization
  */
-
+@JsonClass(generateAdapter = false)
 class Challenge {
     /**
      * Type of challenge
