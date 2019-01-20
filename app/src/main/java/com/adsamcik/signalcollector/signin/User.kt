@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.signin
 
 import androidx.annotation.RestrictTo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
+import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import java.util.*
 
@@ -110,6 +111,7 @@ class User(@Transient val id: String = "", @Transient val token: String = "") {
 /**
  * Class that holds information about user's basic information.
  */
+@JsonClass(generateAdapter = true)
 data class NetworkInfo(
         /**
          * When does user's map access expire.
@@ -147,12 +149,6 @@ data class NetworkInfo(
 /**
  * Class that holds information about network preferences.
  */
+@JsonClass(generateAdapter = true)
 data class NetworkPreferences(var renewMap: Boolean = false,
                               var renewPersonalMap: Boolean = false)
-
-internal data class UserJson(var wirelessPoints: Long? = null,
-                             var networkInfo: NetworkInfo? = null,
-                             var networkPreferences: NetworkPreferences? = null) {
-
-    fun isValid() = wirelessPoints != null && networkInfo != null && networkPreferences != null
-}
