@@ -89,37 +89,6 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
-        android:title="@string/settings_upload_title"
-        app:icon="@drawable/ic_outline_cloud_upload_24px">
-
-        <androidx.preference.PreferenceCategory
-            android:title="@string/settings_auto_upload_category">
-
-            <com.adsamcik.signalcollector.components.ImageSwitchPreference
-                android:defaultValue="@string/settings_uploading_network_default"
-                android:key="@string/settings_uploading_network_key"
-                app:drawables="@array/auto_upload_options_drawables"
-                app:foregroundStateColors="@color/image_switch_colors"
-                app:titles="@array/auto_upload_options_titles"/>
-
-            <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_smart_upload_default"
-                android:disableDependentsState="true"
-                android:key="@string/settings_smart_upload_key"
-                android:summary="@string/settings_smart_upload_summary"
-                android:title="@string/settings_smart_upload_title"/>
-
-            <com.adsamcik.signalcollector.components.IntValueSliderPreference
-                android:defaultValue="@string/settings_auto_upload_at_default"
-                android:dependency="@string/settings_smart_upload_key"
-                android:key="@string/settings_auto_upload_at_key"
-                android:title="@string/settings_auto_upload_at_title"
-                app:items="@array/settings_auto_upload_at_MB"/>
-        </androidx.preference.PreferenceCategory>
-
-    </androidx.preference.PreferenceScreen>
-
-    <androidx.preference.PreferenceScreen
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
         <ListPreference
@@ -175,13 +144,6 @@
                 android:summary="@string/settings_export_kml_summary"
                 android:title="@string/settings_export_kml_title"/>
         </androidx.preference.PreferenceScreen>
-        <androidx.preference.PreferenceCategory>
-            <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_delete_uploaded_data_default"
-                android:key="@string/settings_delete_uploaded_data_key"
-                android:summary="@string/settings_delete_uploaded_data_summary"
-                android:title="@string/settings_delete_uploaded_data_title"/>
-        </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>
             <Preference
@@ -229,10 +191,6 @@
                 android:title="@string/settings_browse_files_title"/>
 
             <Preference
-                android:key="@string/settings_browse_archived_data_key"
-                android:title="@string/settings_browse_archived_data_title"/>
-
-            <Preference
                 android:key="@string/settings_browse_cache_key"
                 android:title="@string/settings_browse_cache_title"/>
 
@@ -245,10 +203,6 @@
                 android:title="@string/settings_clear_data_title"/>
 
             <Preference
-                android:key="@string/settings_clear_reports_key"
-                android:title="@string/settings_clear_reports_title"/>
-
-            <Preference
                 android:key="@string/settings_clear_cache_key"
                 android:title="@string/settings_clear_cache_title"/>
 
@@ -257,41 +211,15 @@
                 android:title="@string/settings_clear_preferences_title"/>
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
-    <androidx.preference.PreferenceCategory
-        android:title="@string/settings_notifications_title">
-
-        <androidx.preference.CheckBoxPreference
-            android:defaultValue="@string/settings_allow_upload_notification_default"
-            android:key="@string/settings_allow_upload_notification_key"
-            android:summary="@string/settings_allow_upload_notification_summary"
-            android:title="@string/settings_allow_upload_notification_title"/>
-
-    </androidx.preference.PreferenceCategory>
 
 
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">
 
-        <Preference
-            android:key="@string/settings_feedback_key"
-            android:summary="@string/settings_feedback_summary"
-            android:title="@string/settings_feedback_title"
-            app:icon="@drawable/ic_outline_feedback_24px"/>
-
         <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/show_tips_key"
             android:title="@string/show_tips_title"/>
-
-        <androidx.preference.CheckBoxPreference
-            android:defaultValue="false"
-            android:key="@string/settings_privacy_policy_agreement_key"
-            android:summary="@string/settings_privacy_policy_agreement_summary"
-            android:title="@string/settings_privacy_policy_agreement_title"/>
-
-        <Preference
-            android:key="@string/settings_privacy_policy_key"
-            android:title="@string/privacy_policy_agreement_link"/>
 
         <Preference
             android:key="@string/settings_licenses_key"

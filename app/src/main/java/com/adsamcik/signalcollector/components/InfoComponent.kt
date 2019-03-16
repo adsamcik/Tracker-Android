@@ -95,7 +95,7 @@ class InfoComponent : FrameLayout {
      */
     internal fun setColorManager(colorManager: ColorManager) {
         this.colorManager = colorManager
-        colorManager.watchView(ColorView(this, 1, true, false, true))
+        colorManager.watchView(ColorView(this, 1, recursive = true, rootIsBackground = false, ignoreRoot = true))
     }
 
     private fun setTextViewTheme(textView: TextView, textSizeResource: Int, textColorResource: Int) {

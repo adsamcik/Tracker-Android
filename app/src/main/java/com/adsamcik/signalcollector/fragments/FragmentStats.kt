@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.fragments
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,28 +11,20 @@ import androidx.fragment.app.FragmentActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activities.UploadReportsActivity
 import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
-import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.adsamcik.signalcollector.utility.Preferences
-import com.adsamcik.signalcollector.utility.SnackMaker
 import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
-import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -77,7 +68,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
         this.fragmentView = fragmentView
 
-        colorManager.watchAdapterView(ColorView(listView, 1, true, true))
+        colorManager.watchAdapterView(ColorView(listView, 1, recursive = true, rootIsBackground = true))
 
         return fragmentView
     }
@@ -96,21 +87,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 
         val r = activity.resources
 
-        val us = if (useMock)
-            UploadReportsActivity.mockItem()
-        else
-            DataStore.loadLastFromAppendableJsonArray(activity, DataStore.RECENT_UPLOADS_FILE, UploadStats::class.java)
-
-
-        if (us != null && Assist.getAgeInDays(us.time) < 30) {
-            val lastUpload = UploadReportsActivity.generateTableForUploadStat(us, context!!, resources.getString(R.string.most_recent_upload), AppendBehaviors.FirstFirst)
-
-            lastUpload.addButton(getString(R.string.more_uploads), View.OnClickListener {
-                val intent = Intent(context, UploadReportsActivity::class.java)
-                startActivity(intent)
-            })
-            adapter!!.add(lastUpload)
-        }
 
         val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
         weeklyStats.title = r.getString(R.string.stats_weekly_title)
@@ -127,29 +103,7 @@ class FragmentStats : Fragment(), IOnDemandView {
             generateMockData()
         } else {
             refreshingCount = 2
-            NetworkLoader.request(Network.URL_GENERAL_STATS,
-                    if (isRefresh) 0 else DAY_IN_MINUTES,
-                    context!!,
-                    Preferences.PREF_GENERAL_STATS,
-                    Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.FirstLast) }
-            NetworkLoader.request(Network.URL_STATS,
-                    if (isRefresh) 0 else DAY_IN_MINUTES,
-                    context!!,
-                    Preferences.PREF_STATS,
-                    Array<Stat>::class.java) { state, value -> handleResponse(activity, state, value, AppendBehaviors.Any) }
-        }
-        if (!useMock) {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
-                val user = Signin.getUserAsync(activity)
-                if (user != null) {
-                    refreshingCount++
-                    NetworkLoader.requestSigned(Network.URL_USER_STATS, user.token, if (isRefresh) 0 else DAY_IN_MINUTES, appContext, Preferences.PREF_USER_STATS, Array<Stat>::class.java) { state, value ->
-                        if (value != null && value.size == 1 && value[0].name.isEmpty())
-                            value[0] = Stat(appContext.getString(R.string.your_stats), value[0].type, value[0].showPosition, value[0].data)
-                        handleResponse(activity, state, value, AppendBehaviors.First)
-                    }
-                }
-            }
+            //new stat loading
         }
 
         if (refreshingCount > 0) {
@@ -159,25 +113,16 @@ class FragmentStats : Fragment(), IOnDemandView {
         }
     }
 
-    private fun handleResponse(context: Context, state: NetworkLoader.Source, value: Array<Stat>?, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+    private fun handleResponse(context: Context, value: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
         refreshingCount--
         swipeRefreshLayout.post {
             if (refreshingCount == 0)
                 swipeRefreshLayout.isRefreshing = false
         }
 
-        if (!state.success) {
-            if (root == null)
-                return
-
-            SnackMaker(root).showSnackbar(state.toString(context))
-        }
-
-        if (value != null) {
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-                addStatsTable(value, appendBehavior)
-                adapter!!.sort()
-            }
+        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+            addStatsTable(value, appendBehavior)
+            adapter!!.sort()
         }
     }
 

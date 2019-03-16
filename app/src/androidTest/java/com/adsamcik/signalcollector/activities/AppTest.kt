@@ -8,7 +8,6 @@ import androidx.test.uiautomator.UiDevice
 import com.adsamcik.signalcollector.data.UploadStats
 import com.adsamcik.signalcollector.device
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.services.MessageListenerService
 import com.adsamcik.signalcollector.utility.Preferences
 import com.squareup.moshi.Moshi
 import org.junit.Assert

@@ -32,15 +32,6 @@
             tools:text="06:00:00"/>
 
         <ImageButton
-            android:id="@+id/button_upload"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/description_upload"
-            android:tint="@color/text_primary"
-            app:srcCompat="@drawable/ic_cloud_upload_24dp"/>
-
-        <ImageButton
             android:id="@+id/button_tracking_lock"
             android:layout_width="48dp"
             android:layout_height="48dp"

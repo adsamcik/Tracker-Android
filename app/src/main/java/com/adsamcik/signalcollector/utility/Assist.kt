@@ -9,7 +9,6 @@ import android.graphics.Point
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
-import android.os.Bundle
 import android.provider.Settings
 import android.view.Surface
 import android.view.View
@@ -17,21 +16,17 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
-import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.connectivityManager
 import com.adsamcik.signalcollector.extensions.inputMethodManager
 import com.adsamcik.signalcollector.extensions.locationManager
 import com.adsamcik.signalcollector.extensions.windowManager
-import com.adsamcik.signalcollector.fragments.FragmentPrivacyDialog
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat
 import java.util.*
-import kotlin.coroutines.suspendCoroutine
-import kotlin.coroutines.resume
 
 /**
  * All purpose utility singleton containing various utility functions
@@ -47,7 +42,7 @@ object Assist {
      */
     fun humanReadableByteCount(bytes: Long, si: Boolean): String {
         val unit = if (si) 1000 else 1024
-        if (bytes < unit) return bytes.toString() + " B"
+        if (bytes < unit) return "$bytes B"
         val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
         val pre = (if (si) "kMGTPE" else "KMGTPE")[exp - 1] + if (si) "" else "i"
         return String.format(Locale.getDefault(), "%.1f %sB", bytes / Math.pow(unit.toDouble(), exp.toDouble()), pre)
@@ -129,36 +124,6 @@ object Assist {
 
         }
         return null
-    }
-
-    /**
-     * Checks whether user has agreed to privacy policy
-     */
-    fun hasAgreedToPrivacyPolicy(context: Context) = Preferences.getPref(context).getBoolean(context.getString(R.string.settings_privacy_policy_agreement_key), false)
-
-
-    /**
-     * Shows privacy policy agreement dialog if it wasn't agreed already
-     *
-     * @return True if user has agreed to privacy policy
-     */
-    suspend fun privacyPolicy(activity: FragmentActivity, init: (Bundle.() -> Unit)? = null): Boolean = suspendCoroutine {
-        if (!hasAgreedToPrivacyPolicy(activity)) {
-            val privacyFragment = FragmentPrivacyDialog.newInstance(init)
-            privacyFragment.setContinuation(it)
-            privacyFragment.show(activity.supportFragmentManager, "privacy_dialog")
-        } else
-            it.resume(true)
-    }
-
-    /**
-     * Shows privacy policy agreement dialog with upload tailored text if it wasn't agreed already.
-     *
-     * @return True if user has agreed to privacy policy
-     */
-    suspend fun privacyPolicyEnableUpload(activity: FragmentActivity): Boolean = privacyPolicy(activity) {
-        putInt(FragmentPrivacyDialog.BUNDLE_ADDITIONAL_TEXT, R.string.privacy_policy_agreement_autoup_description)
-        putBoolean(FragmentPrivacyDialog.BUNDLE_SET_AUTOUP_IF_TRUE, true)
     }
 
     /**

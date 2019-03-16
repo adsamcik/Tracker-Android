@@ -30,15 +30,10 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.*
-import com.adsamcik.signalcollector.network.Network
-import com.adsamcik.signalcollector.network.NetworkLoader
-import com.adsamcik.signalcollector.network.SignalsTileProvider
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MINUTES
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
@@ -299,7 +294,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
         locationListener!!.setButton(button_map_my_location, context!!)
 
         colorManager!!.watchView(ColorView(map_menu_button, 2, false, false))
-        colorManager!!.watchView(ColorView(layout_map_controls, 3, true, false))
+        colorManager!!.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
     }
 
     /**
@@ -430,55 +425,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
      * Function that mocks or actually loads map layers from the server based on [useMock]
      */
     private fun loadMapLayers() {
+        //call initializeMenuButton
         val activity = activity!!
         if (useMock) {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
-                delay(1000)
-                val user = Signin.getUserAsync(activity)
-                if (user != null) {
-                    val mockArray = MapLayer.mockArray()
-                    val mockArrayList = ArrayList<MapLayer>(mockArray.size)
-                    mockArrayList.addAll(mockArray)
-                    mapLayers = mockArrayList
-                    initializeMenuButton()
-                }
-            }
+
         } else {
-            GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
-                val user = Signin.getUserAsync(activity)
-                user?.addServerDataCallback {
-                    val networkInfo = it.networkInfo
-                    if (networkInfo.hasMapAccess() || networkInfo.hasPersonalMapAccess()) {
-                        val list = ArrayList<MapLayer>()
-                        if (networkInfo.hasPersonalMapAccess())
-                            list.add(MapLayer(fActivity!!.getString(R.string.map_personal), MapLayer.MAX_LATITUDE, MapLayer.MAX_LONGITUDE, MapLayer.MIN_LATITUDE, MapLayer.MIN_LONGITUDE))
 
-                        if (networkInfo.hasMapAccess()) {
-                            tileProvider = SignalsTileProvider(context!!, user.token, MAX_ZOOM)
-                            runBlocking {
-                                val mapListRequest = NetworkLoader.requestSignedAsync(Network.URL_MAPS_AVAILABLE, user.token, DAY_IN_MINUTES, activity, Preferences.PREF_AVAILABLE_MAPS, Array<MapLayer>::class.java)
-                                if (mapListRequest.first.dataAvailable && mapListRequest.second!!.isNotEmpty()) {
-                                    val layerArray = mapListRequest.second!!
-                                    var savedOverlay = Preferences.getPref(activity).getString(Preferences.PREF_DEFAULT_MAP_OVERLAY, layerArray[0].name)!!
-                                    if (!MapLayer.contains(layerArray, savedOverlay)) {
-                                        savedOverlay = layerArray[0].name
-                                        Preferences.getPref(activity).edit().putString(Preferences.PREF_DEFAULT_MAP_OVERLAY, savedOverlay).apply()
-                                    }
-                                    val defaultOverlay = savedOverlay
-
-
-                                    changeMapOverlay(defaultOverlay)
-                                    list.addAll(layerArray)
-                                }
-                            }
-                        }
-
-                        mapLayers = list
-                        initializeMenuButton()
-                    }
-
-                }
-            }
         }
     }
 

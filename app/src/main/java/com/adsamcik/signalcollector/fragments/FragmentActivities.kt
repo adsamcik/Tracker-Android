@@ -52,7 +52,7 @@ class FragmentActivities : Fragment(), IOnDemandView {
         val context = context!!
         listViewChallenges.adapter = ChallengesAdapter(context, arrayOf())
         colorManager = ColorSupervisor.createColorManager(context)
-        colorManager.watchAdapterView(ColorView(listViewChallenges, 1, true, false))
+        colorManager.watchAdapterView(ColorView(listViewChallenges, 1, recursive = true, rootIsBackground = false))
 
         return rootView
     }

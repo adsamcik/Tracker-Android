@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity() {
         activityPayload.backgroundColor = Color.WHITE
         activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
         activityPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
-        activityPayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, true, true)) }
+        activityPayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
 
         button_activity.addPayload(activityPayload)
 
@@ -258,11 +258,11 @@ class MainActivity : AppCompatActivity() {
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(this)
 
-        colorManager.watchView(ColorView(root, 0, false, true, false))
+        colorManager.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
 
-        colorManager.watchView(ColorView(button_stats, 1, false, false, false, true))
-        colorManager.watchView(ColorView(button_map, 1, false, false, false, true))
-        colorManager.watchView(ColorView(button_activity, 1, false, false, false, true))
+        colorManager.watchView(ColorView(button_stats, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+        colorManager.watchView(ColorView(button_map, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+        colorManager.watchView(ColorView(button_activity, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
 
         ColorSupervisor.ensureUpdate()
     }

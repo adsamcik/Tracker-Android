@@ -5,9 +5,7 @@ buildscript {
     repositories {
         jcenter()
         google()
-        maven {
-            url 'https://maven.fabric.io/public'
-        }
+        maven { url 'https://maven.fabric.io/public' }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.3.2'
@@ -30,12 +28,9 @@ allprojects {
     repositories {
         jcenter()
         google()
-        maven {
-            url "https://jitpack.io"
-        }
-        maven {
-            url "https://dl.bintray.com/adsamcik/android-forks"
-        }
+        maven { url "https://jitpack.io" }
+        maven { url "https://dl.bintray.com/adsamcik/android-forks" }
+        maven { url "https://kotlin.bintray.com/kotlinx/" }
     }
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {

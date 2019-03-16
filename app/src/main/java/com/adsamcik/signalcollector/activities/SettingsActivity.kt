@@ -25,7 +25,6 @@ import com.adsamcik.signalcollector.extensions.transaction
 import com.adsamcik.signalcollector.file.CacheStore
 import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.file.LongTermStore
-import com.adsamcik.signalcollector.fragments.FragmentPrivacyDialog
 import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
 import com.adsamcik.signalcollector.services.ActivityService
@@ -92,19 +91,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 TrackingLocker.unlockRechargeLock(this)
 
             return@OnPreferenceChangeListener true
-        }
-    }
-
-    private fun initializeUpload(caller: PreferenceFragmentCompat) {
-        caller.findPreference(R.string.settings_uploading_network_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-            return@OnPreferenceChangeListener when {
-                Assist.hasAgreedToPrivacyPolicy(this) -> true
-                newValue as Int <= 0 -> true
-                else -> {
-                    GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) { Assist.privacyPolicyEnableUpload(this@SettingsActivity) }
-                    false
-                }
-            }
         }
     }
 

@@ -69,9 +69,6 @@
             android:windowSoftInputMode="adjustResize"
             tools:targetApi="n"/>
         <activity
-            android:name=".activities.UploadReportsActivity"
-            android:screenOrientation="portrait"/>
-        <activity
             android:name=".activities.DebugFileActivity"
             android:screenOrientation="portrait"/>
         <activity
@@ -99,7 +96,6 @@
         <activity
             android:name=".activities.SettingsActivity"
             android:parentActivityName=".activities.MainActivity"/>
-        <activity android:name=".activities.UserActivity"/>
 
         <receiver android:name=".receivers.BootReceiver">
             <intent-filter>
@@ -122,20 +118,6 @@
             android:name=".services.TrackerService"
             android:exported="false"/>
         <service android:name=".services.ActivityService"/>
-        <service
-            android:name=".services.InstanceIDListenerService"
-            tools:ignore="ExportedService">
-            <intent-filter>
-                <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
-            </intent-filter>
-        </service>
-        <service
-            android:name=".services.MessageListenerService"
-            tools:ignore="ExportedService">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
         <service android:name=".services.ActivityWatcherService"/>
 
         <meta-data

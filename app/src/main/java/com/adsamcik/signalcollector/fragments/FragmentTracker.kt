@@ -17,7 +17,6 @@ import androidx.core.view.children
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.SettingsActivity
-import com.adsamcik.signalcollector.activities.UserActivity
 import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.data.*
 import com.adsamcik.signalcollector.enums.ActionSource
@@ -110,7 +109,7 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
     private fun updateExtendedInfoBar() {
         if (bar_info_top_extended.visibility == VISIBLE) {
-            colorManager.watchView(ColorView(bar_info_top_extended, 0, true, false, true))
+            colorManager.watchView(ColorView(bar_info_top_extended, 0, recursive = true, rootIsBackground = false, ignoreRoot = true))
             initializeExtendedInfo()
         } else {
             colorManager.stopWatchingView(bar_info_top_extended)
@@ -202,8 +201,8 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
     private fun initializeColorElements() {
         colorManager = ColorSupervisor.createColorManager(context!!)
-        colorManager.watchView(ColorView(top_panel, 1, true, false))
-        colorManager.watchView(ColorView(bar_info_top, 1, true, false))
+        colorManager.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
+        colorManager.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
 
         cellInfo?.setColorManager(colorManager)
         wifiInfo?.setColorManager(colorManager)
