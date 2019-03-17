@@ -8,9 +8,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.extensions.dpAsPx
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.utility.TrackingLocker
-import com.adsamcik.signalcollector.workers.UploadWorker
 
 /**
  * Debug Activity used for displaying states of some parts of the app
@@ -21,22 +19,13 @@ class StatusActivity : DetailActivity() {
         super.onCreate(savedInstanceState)
         val layout = createScrollableContentParent(true, androidx.constraintlayout.widget.ConstraintLayout::class.java)
         val workManager = WorkManager.getInstance()
-        val uploadWorkStates = workManager.getWorkInfosByTag(UploadWorker.UPLOAD_TAG).get()
-        val scheduleUploadWorkStates = workManager.getWorkInfosByTag(UploadWorker.UPLOAD_TAG).get()
         val waitForRechargeStates = workManager.getWorkInfosByTag(TrackingLocker.JOB_DISABLE_TILL_RECHARGE_TAG).get()
 
-        val hasUploadPending = uploadWorkStates != null && uploadWorkStates.size > 0
-        val hasUploadScheduled = scheduleUploadWorkStates != null && scheduleUploadWorkStates.size > 0
         val isWaitingForRecharge = waitForRechargeStates != null && waitForRechargeStates.size > 0
 
-        var lastId = createPair("Is upload pending", hasUploadPending.toString(), layout, null)
-        lastId = createPair("Is upload scheduled", hasUploadScheduled.toString(), layout, lastId)
-        lastId = createPair("Upload schedule source", UploadWorker.getUploadScheduled(this).toString(), layout, lastId)
-        lastId = createPair("Is uploading", UploadWorker.isUploading.toString(), layout, lastId)
-        lastId = createPair("Is time locked", TrackingLocker.isTimeLocked.toString(), layout, lastId)
+        var lastId = createPair("Is time locked", TrackingLocker.isTimeLocked.toString(), layout, null)
         lastId = createPair("Is locked until recharge", TrackingLocker.isChargeLocked.toString(), layout, lastId)
-        lastId = createPair("Has active wait for recharge job", isWaitingForRecharge.toString(), layout, lastId)
-        createPair("Current DataFile", DataStore.currentDataFile?.file?.name.toString(), layout, lastId)
+        createPair("Has active wait for recharge job", isWaitingForRecharge.toString(), layout, lastId)
     }
 
     fun createPair(titleString: String, valueString: String, parent: ViewGroup, aboveId: Int?): Int {

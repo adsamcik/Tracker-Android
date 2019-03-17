@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
 import com.adsamcik.signalcollector.extensions.dpAsPx
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
@@ -49,8 +48,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 
         adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
-
-        Thread { DataStore.removeOldRecentUploads(activity) }.start()
 
         Preferences.checkStatsDay(activity)
 

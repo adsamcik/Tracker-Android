@@ -1,10 +1,7 @@
 package com.adsamcik.signalcollector.exports
 
 import android.annotation.SuppressLint
-import com.adsamcik.signalcollector.data.RawData
-import com.adsamcik.signalcollector.data.TimeLocation
-import com.adsamcik.signalcollector.exports.file.IReadableFile
-import com.squareup.moshi.Moshi
+import com.adsamcik.signalcollector.data.Location
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStreamWriter
@@ -12,41 +9,20 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class KmlExport : IExport {
-    val locations = ArrayList<TimeLocation>()
-
-    fun addLocations(rawData: Array<RawData>) {
-        locations.ensureCapacity(locations.size + rawData.size)
-        rawData.forEach {
-            if (it.location != null) {
-                locations.add(TimeLocation(it))
-            }
-        }
-    }
-
-    override fun export(files: List<IReadableFile>, destinationDirectory: File): ExportResult {
-        val moshi = Moshi.Builder().build().adapter<Array<RawData>>(Array<RawData>::class.java)
-        files.forEach {
-            //todo deserialize from stream
-            var json = it.read()
-            if (!json.endsWith(']'))
-                json += ']'
-
-            addLocations(moshi.fromJson(json)!!)
-        }
-
-        val targetFile = File(destinationDirectory, "Signals-Locations-${locations[0].time}.kml")
-        serialize(targetFile)
+    override fun export(locationData: List<Location>, destinationDirectory: File, desiredName: String): ExportResult {
+        val targetFile = File(destinationDirectory, "$desiredName.kml")
+        serialize(targetFile, locationData)
 
         return ExportResult(targetFile, "application/vnd.google-earth.kml+xml")
     }
 
 
-    fun serialize(file: File) {
+    fun serialize(file: File, locationData: List<Location>) {
         FileOutputStream(file, false).let { outputStream ->
             outputStream.channel.lock()
             OutputStreamWriter(outputStream).use { osw ->
                 writeBeginning(osw)
-                locations.forEach { writeLocation(osw, it) }
+                locationData.forEach { writeLocation(osw, it) }
                 writeEnding(osw)
             }
         }
@@ -59,9 +35,9 @@ class KmlExport : IExport {
         return format.format(date)
     }
 
-    private fun writeLocation(streamWriter: OutputStreamWriter, location: TimeLocation) {
+    private fun writeLocation(streamWriter: OutputStreamWriter, location: Location) {
         streamWriter.write("<Placemark><TimeStamp><when>${formatTime(location.time)}</when></TimeStamp>")
-        streamWriter.write("<Point><coordinates>${location.location.longitude},${location.location.latitude},${location.location.altitude}</coordinates></Point></Placemark>")
+        streamWriter.write("<Point><coordinates>${location.longitude},${location.latitude},${location.altitude}</coordinates></Point></Placemark>")
     }
 
     private fun writeBeginning(streamWriter: OutputStreamWriter) {

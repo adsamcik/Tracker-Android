@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.utility
 
 import android.content.Context
+import androidx.room.Ignore
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.google.android.gms.location.DetectedActivity
@@ -15,6 +16,7 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
     constructor(detectedActivity: DetectedActivity) : this(detectedActivity.type, detectedActivity.confidence)
 
     @ResolvedActivities.ResolvedActivity
+    @Ignore
     val resolvedActivity: Int
 
     init {

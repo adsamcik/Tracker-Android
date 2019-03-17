@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.exports
 
-import com.adsamcik.signalcollector.exports.file.IReadableFile
+import com.adsamcik.signalcollector.data.Location
 import java.io.File
 
 interface IExport {
-    fun export(files: List<IReadableFile>, destinationDirectory: File): ExportResult
+	fun export(locationData: List<Location>, destinationDirectory: File, desiredName: String): ExportResult
 }

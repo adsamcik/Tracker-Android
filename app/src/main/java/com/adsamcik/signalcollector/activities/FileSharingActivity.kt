@@ -10,11 +10,6 @@ import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.BottomSheetMenu
 import com.adsamcik.signalcollector.exports.IExport
-import com.adsamcik.signalcollector.exports.file.IReadableFile
-import com.adsamcik.signalcollector.exports.file.ReadableArchivedFile
-import com.adsamcik.signalcollector.exports.file.ReadableFile
-import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.file.LongTermStore
 import com.adsamcik.signalcollector.uitools.ColorView
 import java.io.File
 import java.util.zip.ZipFile
@@ -59,21 +54,21 @@ class FileSharingActivity : DetailActivity() {
             root = createLinearContentParent(true)
             root.addView(tv)
         } else {
-            val fileNames = files.map { it.name }
+            val itemNames = files.map { it.name }
             root = createLinearContentParent(false)
             val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as androidx.coordinatorlayout.widget.CoordinatorLayout
             val listView = layout.findViewById<ListView>(R.id.share_list_view)
-            val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, fileNames)
+            val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, itemNames)
             listView.adapter = adapter
             listView.choiceMode = AbsListView.CHOICE_MODE_MULTIPLE
 
             val shareOnClickListener = View.OnClickListener {
                 val sba = listView.checkedItemPositions
 
-                val selectedFiles = files.filterIndexed { i, _ -> sba[i] }
+                val selectedItems = files.filterIndexed { i, _ -> sba[i] }
 
 
-                if (selectedFiles.isEmpty())
+                if (selectedItems.isEmpty())
                     Toast.makeText(this, R.string.share_nothing_to_share, Toast.LENGTH_SHORT).show()
                 else {
                     val shareableDir = File(DataStore.getDir(this), SHAREABLE_DIR_NAME)
@@ -81,7 +76,7 @@ class FileSharingActivity : DetailActivity() {
                         this.shareableDir = shareableDir
                         val exporterType = intent.extras!![EXPORTER_KEY] as Class<*>
                         val exporter = exporterType.newInstance() as IExport
-                        val result = exporter.export(selectedFiles, shareableDir)
+                        val result = exporter.export(selectedItems, shareableDir)
 
                         if (result.isSuccessful) {
                             val fileUri = FileProvider.getUriForFile(
@@ -108,12 +103,12 @@ class FileSharingActivity : DetailActivity() {
             bottomSheetMenu.addItem(R.string.export_share_button, shareOnClickListener)
 
             bottomSheetMenu.addItem(R.string.select_all, View.OnClickListener {
-                for (i in fileNames.indices)
+                for (i in itemNames.indices)
                     listView.setItemChecked(i, true)
             })
 
             bottomSheetMenu.addItem(R.string.deselect_all, View.OnClickListener {
-                for (i in fileNames.indices)
+                for (i in itemNames.indices)
                     listView.setItemChecked(i, false)
             })
 

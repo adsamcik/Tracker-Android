@@ -1,13 +1,14 @@
 package com.adsamcik.signalcollector.data
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
+import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class Location(
-        @PrimaryKey
         val time: Long,
         @Json(name = "lat")
         @ColumnInfo(name = "lat")
@@ -25,3 +26,6 @@ data class Location(
     constructor(location: android.location.Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.accuracy)
     constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy)
 }
+
+@Entity(tableName = "location_data")
+data class DatabaseLocation(@PrimaryKey val id: Int, @Embedded val location: Location);

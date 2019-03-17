@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.MalformedJsonException
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.UploadStats
+import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.file.DataFile.Companion.SEPARATOR
 import com.adsamcik.signalcollector.network.Network
@@ -29,13 +30,9 @@ import kotlin.collections.ArrayList
 object DataStore {
     const val TAG = "SignalsDatastore"
 
-    const val RECENT_UPLOADS_FILE = "recentUploads"
-    const val DATA_FILE = "dataStore"
-    const val PREF_DATA_FILE_INDEX = "saveFileID"
     private const val PREF_COLLECTED_DATA_SIZE = "totalSize"
 
     private var onDataChanged: (() -> Unit)? = null
-    private var onUploadProgress: ((Int) -> Unit)? = null
 
     const val TMP_NAME = "5GeVPiYk6J"
 
@@ -45,44 +42,13 @@ object DataStore {
     @Volatile
     private var collectionsOnDevice = -1
 
-    @Volatile
-    private var dataLocked = false
-
-    private var moshi = Moshi.Builder().build()
-
-    var currentDataFile: DataFile? = null
-        private set
-
-    fun getDir(context: Context): File = context.filesDir
-
-    fun file(context: Context, fileName: String): File = FileStore.file(getDir(context), fileName)
+    private lateinit var database: AppDatabase
 
     /**
      * Call to invoke onDataChanged callback
      */
-    private fun onDataChanged(context: Context) {
-        if (Network.cloudStatus == CloudStatuses.NO_SYNC_REQUIRED && sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE)
-            Network.cloudStatus = CloudStatuses.SYNC_AVAILABLE
-        else if (Network.cloudStatus == CloudStatuses.SYNC_AVAILABLE && sizeOfData(context) < Constants.MIN_USER_UPLOAD_FILE_SIZE)
-            Network.cloudStatus = CloudStatuses.NO_SYNC_REQUIRED
-
+    private fun onDataChanged() {
         onDataChanged?.invoke()
-    }
-
-    /**
-     * Call to invoke onUploadProgress callback
-     *
-     * @param progress progress as int (0-100)
-     */
-    fun onUpload(context: Context, progress: Int) {
-        if (progress == 100)
-            Network.cloudStatus = if (sizeOfData(context) >= Constants.MIN_USER_UPLOAD_FILE_SIZE) CloudStatuses.SYNC_AVAILABLE else CloudStatuses.NO_SYNC_REQUIRED
-        else if (progress == -1 && sizeOfData(context) > 0)
-            Network.cloudStatus = CloudStatuses.SYNC_AVAILABLE
-        else
-            Network.cloudStatus = CloudStatuses.SYNC_IN_PROGRESS
-
-        onUploadProgress?.invoke(progress)
     }
 
     /**
@@ -92,108 +58,6 @@ object DataStore {
      */
     fun setOnDataChanged(callback: (() -> Unit)?) {
         onDataChanged = callback
-    }
-
-    /**
-     * Sets callback which is called on upload progress with percentage completed as integer (0-100)
-     *
-     * @param callback callback
-     */
-    fun setOnUploadProgress(callback: ((Int) -> Unit)?) {
-        onUploadProgress = callback
-    }
-
-    /**
-     * Locks datafile writes
-     */
-    fun lockData() {
-        dataLocked = true
-    }
-
-    /**
-     * Unlocks datafile writes
-     */
-    fun unlockData() {
-        dataLocked = false
-    }
-
-    /**
-     * Generates array of all data files
-     *
-     * @param context               context
-     * @param lastFileSizeThreshold Include last datafile if it exceeds this size
-     * @return array of datafile names
-     */
-    fun getDataFiles(context: Context, @androidx.annotation.IntRange(from = 0) lastFileSizeThreshold: Int): Array<File>? {
-        val list = getDir(context).listFiles { _, s -> s.startsWith(DATA_FILE) }
-        return if (list.isNotEmpty() && list.last().length() < lastFileSizeThreshold)
-            list.dropLast(1).toTypedArray()
-        else
-            list
-    }
-
-    /**
-     * Move file
-     *
-     * @param fileName    original file name
-     * @param newFileName new file name
-     * @return success
-     */
-    fun rename(context: Context, fileName: String, newFileName: String): Boolean =
-            FileStore.rename(file(context, fileName), newFileName)
-
-    /**
-     * Delete file
-     *
-     * @param fileName file name
-     */
-    fun delete(context: Context, fileName: String) {
-        if (!FileStore.delete(file(context, fileName)))
-            Crashlytics.logException(RuntimeException("Failed to delete $fileName"))
-    }
-
-    /**
-     * Checks if file exists
-     *
-     * @param fileName file name
-     * @return existence of file
-     */
-    fun exists(context: Context, fileName: String): Boolean = file(context, fileName).exists()
-
-    /**
-     * Handles any leftover files that could have been corrupted by some issue and reorders existing files
-     */
-    @Synchronized
-    fun cleanup(context: Context) {
-        currentDataFile?.lock()
-        val files = getDir(context).listFiles()
-        Arrays.sort(files) { a: File, b: File -> a.name.compareTo(b.name) }
-        val renamedFiles = ArrayList<Pair<Int, String>>()
-        val random = Random()
-        for (file in files) {
-            val name = file.name
-            if (name.startsWith(DATA_FILE)) {
-                val tempFileName = "$TMP_NAME${DataFile.getCollectionCount(file)}-${random.nextInt()}"
-                if (FileStore.rename(file, tempFileName))
-                    renamedFiles.add(Pair(renamedFiles.size, tempFileName))
-            } else if (name.startsWith(TMP_NAME))
-                renamedFiles.add(Pair(renamedFiles.size, name))
-            else if (name.length == 15 && name.startsWith("up"))
-                delete(context, name)
-        }
-
-        for (item in renamedFiles) {
-            val substr = item.second.substring(TMP_NAME.length)
-            val separatorIndex = substr.indexOf(SEPARATOR)
-            val collections = Integer.parseInt(substr.substring(0, separatorIndex))
-            val name = DataFile.generateFileName(collections, item.first)
-            if (!rename(context, item.second, name)) {
-                Crashlytics.logException(Throwable("Failed to rename $"))
-            }
-        }
-
-        Preferences.getPref(context).edit().putInt(PREF_DATA_FILE_INDEX, if (renamedFiles.size == 0) 0 else renamedFiles.size - 1).apply()
-        currentDataFile = null
     }
 
     /**
@@ -212,7 +76,7 @@ object DataStore {
 
         Preferences.getPref(context).edit().putLong(PREF_COLLECTED_DATA_SIZE, size).apply()
         if (onDataChanged != null && approxSize != size)
-            onDataChanged(context)
+            onDataChanged()
         approxSize = size
         return size
     }
@@ -282,29 +146,7 @@ object DataStore {
      * Clears all data files
      */
     fun deleteTrackedData(context: Context) {
-        lockData()
-        currentDataFile = null
-        val sp = Preferences.getPref(context)
-        sp.edit().remove(PREF_COLLECTED_DATA_SIZE).remove(PREF_DATA_FILE_INDEX).remove(Preferences.PREF_SCHEDULED_UPLOAD).remove(Preferences.PREF_COLLECTIONS_SINCE_LAST_UPLOAD).apply()
-        approxSize = 0
-        collectionsOnDevice = 0
-        val files = getDir(context).listFiles()
 
-        for (file in files) {
-            val name = file.name
-            if (name.startsWith(DATA_FILE))
-                if (!FileStore.delete(file))
-                    Crashlytics.logException(RuntimeException("Failed to delete " + file.name))
-        }
-        onDataChanged(context)
-
-        val bundle = Bundle()
-        bundle.putString(
-                FirebaseAssist.PARAM_SOURCE,
-                "settings"
-        )
-        FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.CLEARED_DATA_EVENT, bundle)
-        unlockData()
     }
 
     fun clearAll(context: Context) {
@@ -314,7 +156,7 @@ object DataStore {
         approxSize = 0
         collectionsOnDevice = 0
 
-        onDataChanged(context)
+        onDataChanged()
     }
 
     fun clear(context: Context, predicate: (File) -> Boolean) {
@@ -408,44 +250,6 @@ object DataStore {
             return SaveStatus.SAVE_SUCCESS
         }
         return SaveStatus.SAVE_FAILED
-    }
-
-    /**
-     * Removes all old recent uploads that are saved.
-     */
-    @Synchronized
-    fun removeOldRecentUploads(context: Context) {
-        val sp = Preferences.getPref(context)
-        val oldestUpload = sp.getLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, -1)
-        if (oldestUpload != -1L) {
-            val days = Assist.getAgeInDays(oldestUpload).toLong()
-            if (days > 30) {
-                val adapter = moshi.adapter<List<UploadStats>>(List::class.java)
-                val data = FileStore.loadAppendableJsonArray(file(context, RECENT_UPLOADS_FILE))
-                        ?: return
-
-                val stats = adapter.fromJson(data)?.toMutableList() ?: return
-                val it = stats.iterator()
-
-                while (it.hasNext()) {
-                    val stat = it.next()
-                    if (Assist.getAgeInDays(stat.time) > 30)
-                        it.remove()
-                }
-
-                if (stats.isNotEmpty())
-                    sp.edit().putLong(Preferences.PREF_OLDEST_RECENT_UPLOAD, stats[0].time).apply()
-                else
-                    sp.edit().remove(Preferences.PREF_OLDEST_RECENT_UPLOAD).apply()
-
-                try {
-                    FileStore.saveAppendableJsonArray(file(context, RECENT_UPLOADS_FILE), adapter.toJson(stats), false)
-                } catch (e: Exception) {
-                    Crashlytics.logException(e)
-                }
-
-            }
-        }
     }
 
     fun saveString(context: Context, fileName: String, data: String, append: Boolean): Boolean =

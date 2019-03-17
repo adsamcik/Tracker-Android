@@ -20,20 +20,15 @@ import com.adsamcik.signalcollector.activities.SettingsActivity
 import com.adsamcik.signalcollector.components.InfoComponent
 import com.adsamcik.signalcollector.data.*
 import com.adsamcik.signalcollector.enums.ActionSource
-import com.adsamcik.signalcollector.enums.CloudStatuses
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.file.DataStore
-import com.adsamcik.signalcollector.file.LongTermStore
-import com.adsamcik.signalcollector.network.Network
 import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.signin.Signin
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.signalcollector.workers.UploadWorker
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.CoroutineStart
@@ -119,8 +114,6 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
     override fun onStop() {
         ColorSupervisor.recycleColorManager(colorManager)
-        DataStore.setOnDataChanged(null)
-        DataStore.setOnUploadProgress(null)
         super.onStop()
     }
 
@@ -136,12 +129,6 @@ class FragmentTracker : androidx.fragment.app.Fragment() {
 
 
         setCollected(DataStore.sizeOfData(context), DataStore.collectionCount(context))
-
-        updateUploadButton()
-        Signin.signIn(context) {
-            if (it != null)
-                updateUploadButton()
-        }
 
         DataStore.setOnDataChanged { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { setCollected(DataStore.sizeOfData(activity!!), DataStore.collectionCount(activity!!)) } }
         DataStore.setOnUploadProgress { GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { updateUploadButton() } }
