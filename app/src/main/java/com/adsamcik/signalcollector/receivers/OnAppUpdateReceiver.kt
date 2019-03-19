@@ -7,8 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.edit
 import com.adsamcik.signalcollector.activities.LaunchActivity
-import com.adsamcik.signalcollector.file.CacheStore
-import com.adsamcik.signalcollector.file.DataStore
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWatcherService
 import com.adsamcik.signalcollector.utility.Preferences
@@ -32,7 +30,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
                 sp.edit { remove(Preferences.LAST_VERSION) }
             }
 
-            if (sp.getLong(Preferences.LAST_VERSION, 0) < 277) {
+            /*if (sp.getLong(Preferences.LAST_VERSION, 0) < 277) {
                 DataStore.clearAll(context)
                 CacheStore.clearAll(context)
             }
@@ -41,7 +39,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             if (currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile)) {
                 DataStore.getCurrentDataFile(context)!!.close()
                 editor.putInt(DataStore.PREF_DATA_FILE_INDEX, ++currentDataFile)
-            }
+            }*/
 
             try {
                 val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)

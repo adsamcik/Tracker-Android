@@ -1,14 +1,11 @@
 package com.adsamcik.signalcollector.utility
 
-import android.content.Context
 import android.util.Log
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.file.DataStore
 import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import java.io.IOException
-import java.io.InputStreamReader
 
 
 
@@ -43,36 +40,6 @@ object Parser {
             }
 
         }
-        return null
-    }
-
-    /**
-     * Tries to parse TSV file to an array of string arrays
-     *
-     * @param context Context used for file lookup
-     * @param fileName File's name
-     * @return Parsed array of string arrays
-     */
-    fun parseTSVFromFile(context: Context, fileName: String): ArrayList<Array<String>>? {
-        if (DataStore.exists(context, fileName)) {
-            val items = ArrayList<Array<String>>()
-            try {
-                context.openFileInput(fileName).use { fis ->
-                    val isr = InputStreamReader(fis)
-
-                    isr.forEachLine {
-                        val parsedLine = parseLine(it)
-                        if (parsedLine != null)
-                            items.add(parsedLine)
-                    }
-                    return items
-                }
-            } catch (e: IOException) {
-                Crashlytics.logException(e)
-            }
-
-        }
-
         return null
     }
 

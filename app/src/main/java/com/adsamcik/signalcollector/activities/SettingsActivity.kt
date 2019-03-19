@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.activities
 
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Toast
@@ -15,8 +14,6 @@ import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
-import com.adsamcik.signalcollector.exports.GpxExport
-import com.adsamcik.signalcollector.exports.KmlExport
 import com.adsamcik.signalcollector.extensions.findDirectPreferenceByTitle
 import com.adsamcik.signalcollector.extensions.findPreference
 import com.adsamcik.signalcollector.extensions.startActivity
@@ -86,13 +83,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
     }
 
     private fun initializeExport(caller: PreferenceFragmentCompat) {
-        setOnClickListener(R.string.settings_export_export_key) {
-            startActivity<FileSharingActivity> {
-                putExtra(FileSharingActivity.EXPORTER_KEY, RawExport::class.java)
-            }
-        }
 
-        setOnClickListener(R.string.settings_export_gpx_key) {
+	    throw NotImplementedError()
+        /*setOnClickListener(R.string.settings_export_gpx_key) {
             startActivity<FileSharingActivity> {
                 putExtra(FileSharingActivity.EXPORTER_KEY, GpxExport::class.java)
             }
@@ -102,7 +95,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
             startActivity<FileSharingActivity> {
                 putExtra(FileSharingActivity.EXPORTER_KEY, KmlExport::class.java)
             }
-        }
+        }*/
     }
 
     private fun initializeRoot(caller: PreferenceFragmentCompat) {
@@ -204,7 +197,9 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 .sortedBy { x -> x }
                 .toTypedArray()
 
-        val alertDialogBuilder = AlertDialog.Builder(this)
+        throw NotImplementedError()
+
+        /*val alertDialogBuilder = AlertDialog.Builder(this)
         alertDialogBuilder
                 .setTitle(getString(R.string.dev_browse_files))
                 .setItems(fileNames) { _, which ->
@@ -215,7 +210,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
                 }
                 .setNegativeButton(R.string.cancel) { _, _ -> }
 
-        alertDialogBuilder.show()
+        alertDialogBuilder.show()*/
     }
 
 

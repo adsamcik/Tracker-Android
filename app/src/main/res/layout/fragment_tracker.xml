@@ -94,7 +94,7 @@
             app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
             app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
             app:layout_constraintStart_toEndOf="@id/image_storage"
-            tools:text="588 KB"
+            tools:text="TBD"
             />
 
         <androidx.appcompat.widget.AppCompatTextView
