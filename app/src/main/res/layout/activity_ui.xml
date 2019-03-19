@@ -27,6 +27,7 @@
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
             android:translationX="-10dp"
+            android:visibility="gone"
             app:interpolator="Decelerate"
             app:layout_constraintBottom_toTopOf="@id/button_map"
             app:layout_constraintLeft_toLeftOf="parent"/>
@@ -41,6 +42,7 @@
             android:elevation="6dp"
             android:src="@drawable/ic_directions_walk_black_24dp"
             android:translationX="10dp"
+            android:visibility="gone"
             app:interpolator="Decelerate"
             app:layout_constraintBottom_toTopOf="@id/button_map"
             app:layout_constraintRight_toRightOf="parent"/>

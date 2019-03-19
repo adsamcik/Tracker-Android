@@ -20,7 +20,6 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -53,7 +52,7 @@ class TrackerService : LifecycleService() {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
 	private lateinit var locationManager: LocationManager
-	private lateinit var telephonyManager: TelephonyManager
+	private var telephonyManager: TelephonyManager? = null
 	private var subscriptionManager: SubscriptionManager? = null
 	private var wifiManager: WifiManager? = null
 
@@ -83,14 +82,6 @@ class TrackerService : LifecycleService() {
 				return
 		}
 
-		if (location.altitude > 5600) {
-			TrackingLocker.lockTimeLock(this, Constants.MINUTE_IN_MILLISECONDS * 45)
-			//todo add notification
-			if (!isBackgroundActivated)
-				stopSelf()
-			return
-		}
-
 		wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/)
 		val d = RawData(System.currentTimeMillis())
 
@@ -118,8 +109,8 @@ class TrackerService : LifecycleService() {
 			wifiManager!!.startScan()
 		}
 
-		if (!Assist.isAirplaneModeEnabled(this)) {
-			d.addCell(telephonyManager)
+		if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
+			d.addCell(telephonyManager!!)
 		}
 
 		val activityInfo = ActivityService.lastActivity
