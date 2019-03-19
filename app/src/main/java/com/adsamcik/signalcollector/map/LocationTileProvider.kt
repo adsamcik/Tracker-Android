@@ -38,7 +38,7 @@ class LocationTileProvider : TileProvider {
 		val leftY = toLat(y.toDouble(), z)
 
 		val rightX = toLon((x + 1).toDouble(), z)
-		val rightY = toLon((y + 1).toDouble(), z)
+		val rightY = toLat((y + 1).toDouble(), z)
 
 		val area = CoordinateBounds(leftY, rightX, rightY, leftX)
 

@@ -134,8 +134,6 @@ class TrackerService : LifecycleService() {
 
 		notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
 
-		Log.d("Tracker", location.toString())
-
 		saveData(d)
 
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
