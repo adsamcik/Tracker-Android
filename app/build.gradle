@@ -18,8 +18,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 28
-        versionCode 283
-        versionName "7.0α2 Offline"
+        versionCode 285
+        versionName "7.0α4 Offline"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         javaCompileOptions {
             annotationProcessorOptions {
@@ -79,9 +79,6 @@ dependencies {
     implementation "com.squareup.moshi:moshi:$moshi_version"
     kapt "com.squareup.moshi:moshi-kotlin-codegen:$moshi_version"
 
-    implementation "com.squareup.retrofit2:converter-moshi:2.5.0"
-    implementation 'com.squareup.retrofit2:retrofit:2.5.0'
-    implementation 'com.squareup.okhttp3:okhttp:3.13.1'
     implementation 'com.jaredrummler:colorpicker:1.1.0'
 
     implementation 'de.psdev.licensesdialog:licensesdialog:2.0.0'
@@ -89,28 +86,28 @@ dependencies {
 
     //Google dependencies
     implementation 'com.google.android:flexbox:1.1.0'
-    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.0-alpha3'
 
     def work_version = "1.0.0"
     implementation "android.arch.work:work-runtime-ktx:$work_version"
     androidTestImplementation "android.arch.work:work-testing:$work_version"
 
 
-    implementation 'com.google.android.material:material:1.0.0'
-    implementation 'androidx.fragment:fragment:1.0.0'
-    implementation 'androidx.appcompat:appcompat:1.0.2'
-    implementation 'androidx.core:core:1.0.1'
+    implementation 'com.google.android.material:material:1.1.0-alpha04'
+    implementation 'androidx.fragment:fragment:1.1.0-alpha05'
+    implementation 'androidx.appcompat:appcompat:1.1.0-alpha03'
+    implementation 'androidx.core:core:1.1.0-alpha05'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.preference:preference:1.0.0'
+    implementation 'androidx.preference:preference:1.1.0-alpha04'
 
     implementation "com.google.android.gms:play-services-maps:16.1.0"
     implementation "com.google.android.gms:play-services-location:16.0.0"
     implementation "com.google.firebase:firebase-core:16.0.8"
-    implementation 'com.crashlytics.sdk.android:crashlytics:2.9.8@aar', {
+    implementation 'com.crashlytics.sdk.android:crashlytics:2.9.9@aar', {
         transitive = true
     }
 
-    implementation "androidx.lifecycle:lifecycle-extensions:2.0.0"
+    implementation "androidx.lifecycle:lifecycle-extensions:2.1.0-alpha03"
 
 
     def room_version = "2.1.0-alpha05"
@@ -124,7 +121,7 @@ dependencies {
 
 
     //Annotation processors
-    kapt "androidx.lifecycle:lifecycle-compiler:2.0.0"
+    kapt "androidx.lifecycle:lifecycle-compiler:2.1.0-alpha03"
 
     //Test implementations
     androidTestImplementation 'androidx.test:runner:1.1.1'
@@ -135,7 +132,7 @@ dependencies {
     //Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.1.1"
-    implementation 'androidx.core:core-ktx:1.0.1'
+    implementation 'androidx.core:core-ktx:1.1.0-alpha05'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1', {
         exclude group: 'com.android.support', module: 'support-annotations'
     }
