@@ -39,7 +39,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
     @Suppress("UNCHECKED_CAST")
-    return findPreference(title) as T
+    return findPreference<T>(title)!!
 }
 
 /**
@@ -51,7 +51,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
     @Suppress("UNCHECKED_CAST")
-    return findPreference(getString(titleId)) as T
+    return findPreference<T>(getString(titleId))!!
 }
 
 /**
@@ -63,7 +63,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes tit
  */
 fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference {
     @Suppress("UNCHECKED_CAST")
-    return findPreference(getString(titleId))
+    return findPreference<Preference>(getString(titleId))!!
 }
 
 /**

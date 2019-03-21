@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.utility.ActivityInfo
 data class TimeActivity(val time: Long, @Embedded val activityInfo: ActivityInfo) {
 }
 
-@Entity(tableName = "activity", foreignKeys = [ForeignKey(entity = DatabaseLocation::class, parentColumns = ["id"], childColumns = ["location_id"])])
+@Entity(tableName = "activity_data", foreignKeys = [ForeignKey(entity = DatabaseLocation::class, parentColumns = ["id"], childColumns = ["location_id"])])
 data class DatabaseActivity(@PrimaryKey val id: Int, @ColumnInfo(name = "location_id") val locationId: Int, @Embedded val timeActivity: TimeActivity)
 
 @Entity(tableName = "debug_activity")

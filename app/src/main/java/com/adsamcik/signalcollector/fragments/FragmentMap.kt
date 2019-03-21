@@ -124,6 +124,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			keyboardManager.removeKeyboardListener(keyboardListener)
 			keyboardInitialized.set(false)
 		}
+
+		type = null
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -200,6 +202,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				this.type = type
 
 				tileProvider.colorProvider = LocationTileColorProvider(context!!)
+
+				//val tProvider = HeatMap
 
 				val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
@@ -303,7 +307,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		locationListener!!.setButton(button_map_my_location, context!!)
 
-		colorManager!!.watchView(ColorView(map_menu_button, 2, false, false))
+		colorManager!!.watchView(ColorView(map_menu_button, 2, recursive = false, rootIsBackground = false))
 		colorManager!!.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
 	}
 

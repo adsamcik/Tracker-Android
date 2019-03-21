@@ -12,14 +12,18 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
+import com.adsamcik.signalcollector.data.DatabaseLocation
+import com.adsamcik.signalcollector.data.LengthUnit
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
+import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.extensions.dpAsPx
-import com.adsamcik.signalcollector.test.useMock
+import com.adsamcik.signalcollector.extensions.format
 import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
@@ -30,153 +34,185 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 class FragmentStats : Fragment(), IOnDemandView {
-    private lateinit var fragmentView: View
+	private lateinit var fragmentView: View
 
-    private var adapter: TableAdapter? = null
+	private var adapter: TableAdapter? = null
 
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
+	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
-    private var refreshingCount = 0
+	private var refreshingCount = 0
 
-    private lateinit var colorManager: ColorManager
+	private lateinit var colorManager: ColorManager
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        val activity = activity!!
-        colorManager = ColorSupervisor.createColorManager(activity)
+	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+		val activity = activity!!
+		colorManager = ColorSupervisor.createColorManager(activity)
 
-        val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
-
-
-        adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
-
-        Preferences.checkStatsDay(activity)
-
-        //weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
-
-        swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
-        swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
-        swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
-        swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
-
-        val listView = fragmentView!!.findViewById<ListView>(R.id.listview_stats)
-        listView.setRecyclerListener { }
-        listView.adapter = adapter
-        updateStats()
-
-        this.fragmentView = fragmentView
-
-        colorManager.watchAdapterView(ColorView(listView, 1, recursive = true, rootIsBackground = true))
-
-        return fragmentView
-    }
-
-    override fun onDestroyView() {
-        ColorSupervisor.recycleColorManager(colorManager)
-        super.onDestroyView()
-    }
-
-    private fun updateStats() {
-        val activity = activity
-        val appContext = activity!!.applicationContext
-        val isRefresh = swipeRefreshLayout.isRefreshing
-
-        adapter!!.clear()
-
-        val r = activity.resources
+		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
 
-        val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
-        weeklyStats.title = r.getString(R.string.stats_weekly_title)
-        val weekStats = Preferences.countStats(activity)
-        weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), weekStats.minutes.toString())
-        weeklyStats.addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.uploaded, true))
-        weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), weekStats.locations.toString())
-        weeklyStats.addData(r.getString(R.string.stats_weekly_collected_wifi), weekStats.wifi.toString())
-        weeklyStats.addData(r.getString(R.string.stats_weekly_collected_cell), weekStats.cell.toString())
-        adapter!!.add(weeklyStats)
+		adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
+
+		Preferences.checkStatsDay(activity)
+
+		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
+
+		swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
+		swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
+		swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
+		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
+
+		val listView = fragmentView!!.findViewById<ListView>(R.id.listview_stats)
+		listView.setRecyclerListener { }
+		listView.adapter = adapter
+		updateStats()
+
+		this.fragmentView = fragmentView
+
+		colorManager.watchAdapterView(ColorView(listView, 1, recursive = true, rootIsBackground = true))
+
+		return fragmentView
+	}
+
+	override fun onDestroyView() {
+		ColorSupervisor.recycleColorManager(colorManager)
+		super.onDestroyView()
+	}
+
+	private fun updateStats() {
+		val activity = activity
+		val appContext = activity!!.applicationContext
+		val isRefresh = swipeRefreshLayout.isRefreshing
+
+		adapter!!.clear()
+
+		val r = activity.resources
 
 
-        if (useMock) {
-            generateMockData()
-        } else {
-            refreshingCount = 2
-            //new stat loading
-        }
-
-        if (refreshingCount > 0) {
-            GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-                swipeRefreshLayout.isRefreshing = true
-            }
-        }
-    }
-
-    private fun handleResponse(context: Context, value: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
-        refreshingCount--
-        swipeRefreshLayout.post {
-            if (refreshingCount == 0)
-                swipeRefreshLayout.isRefreshing = false
-        }
-
-        GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-            addStatsTable(value, appendBehavior)
-            adapter!!.sort()
-        }
-    }
-
-    private fun generateMockData() {
-        addStatsTable(generateMockStatList(), AppendBehaviors.Any)
-    }
-
-    private fun generateMockStatList(): Array<Stat> {
-        val list = ArrayList<Stat>()
-        for (i in 1..10) {
-            list.add(generateMockStat(i))
-        }
-        return list.toTypedArray()
-    }
-
-    private fun generateMockStat(index: Int) = Stat("Mock $index", "donut", false, generateStatData(index))
-
-    private fun generateStatData(index: Int): List<StatData> {
-        val list = ArrayList<StatData>()
-        for (i in 1..index) {
-            list.add(StatData("Title $i", i.toString()))
-        }
-        return list
-    }
-
-    /**
-     * Generates tables from list of stats
-     *
-     * @param stats stats
-     */
-    private fun addStatsTable(stats: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
-        for (s in stats) {
-            val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
-            table.title = s.name
-            s.data.indices
-                    .asSequence()
-                    .map { s.data[it] }
-                    .forEach { table.addData(it.id, it.value) }
-            adapter!!.add(table)
-        }
-    }
+		val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
+		weeklyStats.title = r.getString(R.string.stats_weekly_title)
+		val weekStats = Preferences.countStats(activity)
+		weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), weekStats.minutes.toString())
+		weeklyStats.addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.uploaded, true))
+		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), weekStats.locations.toString())
+		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_wifi), weekStats.wifi.toString())
+		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_cell), weekStats.cell.toString())
+		adapter!!.add(weeklyStats)
 
 
-    override fun onEnter(activity: FragmentActivity) {
+		/*if (useMock) {
+			generateMockData()
+		} else {*/
+		//refreshingCount = 2
+		//new stat loading
+		GlobalScope.launch {
+			val locations = AppDatabase.getAppDatabase(activity).locationDao().getAllSince(System.currentTimeMillis() - Constants.DAY_IN_MILLISECONDS * 30)
+			locations.groupBy { it.location.time / Constants.DAY_IN_MILLISECONDS }.forEach {
+				val distance = calculateDistance(it.value).format(2)
+				//todo add localization support
+				val stats = arrayOf(Stat(Assist.formatTime(activity, it.value.first().location.time), "", false, listOf(
+						StatData("distance", "$distance km"),
+						StatData("locations", Assist.formatNumber(it.value.size))
+				)))
+				GlobalScope.launch(Dispatchers.Main) {
+					addStatsTable(stats, AppendBehaviors.Any)
+					adapter!!.sort()
+				}
+			}
+		}
+		//}
 
-    }
+		if (refreshingCount > 0) {
+			GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+				swipeRefreshLayout.isRefreshing = true
+			}
+		}
+	}
 
-    override fun onLeave(activity: FragmentActivity) {
-    }
+	private fun calculateDistance(locations: List<DatabaseLocation>): Double {
+		var totalDistance = 0.0
+		val count = locations.size
+		var last = locations[0]
+		for (i in 1 until count) {
+			val current = locations[i]
+
+			if (current.location.time - last.location.time < Constants.MINUTE_IN_MILLISECONDS) {
+				totalDistance += last.location.distanceFlat(current.location, LengthUnit.Kilometer)
+			}
+
+			last = current
+		}
+
+		return totalDistance
+	}
+
+	private fun handleResponse(context: Context, value: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+		refreshingCount--
+		swipeRefreshLayout.post {
+			if (refreshingCount == 0)
+				swipeRefreshLayout.isRefreshing = false
+		}
+
+		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+			addStatsTable(value, appendBehavior)
+			adapter!!.sort()
+		}
+	}
+
+	private fun generateMockData() {
+		addStatsTable(generateMockStatList(), AppendBehaviors.Any)
+	}
+
+	private fun generateMockStatList(): Array<Stat> {
+		val list = ArrayList<Stat>()
+		for (i in 1..10) {
+			list.add(generateMockStat(i))
+		}
+		return list.toTypedArray()
+	}
+
+	private fun generateMockStat(index: Int) = Stat("Mock $index", "donut", false, generateStatData(index))
+
+	private fun generateStatData(index: Int): List<StatData> {
+		val list = ArrayList<StatData>()
+		for (i in 1..index) {
+			list.add(StatData("Title $i", i.toString()))
+		}
+		return list
+	}
+
+	/**
+	 * Generates tables from list of stats
+	 *
+	 * @param stats stats
+	 */
+	private fun addStatsTable(stats: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+		for (s in stats) {
+			val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
+			table.title = s.name
+			s.data.indices
+					.asSequence()
+					.map { s.data[it] }
+					.forEach { table.addData(it.id, it.value) }
+			adapter!!.add(table)
+		}
+	}
 
 
-    override fun onPermissionResponse(requestCode: Int, success: Boolean) {
+	override fun onEnter(activity: FragmentActivity) {
 
-    }
+	}
 
-    companion object {
-        private const val CARD_LIST_MARGIN = 16
-    }
+	override fun onLeave(activity: FragmentActivity) {
+	}
+
+
+	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
+
+	}
+
+	companion object {
+		private const val CARD_LIST_MARGIN = 16
+	}
 }
 

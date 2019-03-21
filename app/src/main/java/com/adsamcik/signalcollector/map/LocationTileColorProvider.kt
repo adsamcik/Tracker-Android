@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.map
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import com.adsamcik.signalcollector.data.Location
 import com.adsamcik.signalcollector.database.AppDatabase
@@ -16,26 +17,35 @@ class LocationTileColorProvider(context: Context) : MapTileColorProvider {
 		val bitmap = createBitmap()
 
 		val canvas = Canvas(bitmap)
-
-		val blockSize = 30
-
 		val tileCount = getTileCount(z)
 
-		allInside.forEach {
-			val latitude = it.location.latitude
-			val longitude = it.location.longitude
 
-			val gX = Location.toGoogleLat(latitude, tileCount)
-			val gY = Location.toGoogleLon(longitude, tileCount)
+		/*canvas.drawRect(0f, IMAGE_SIZE.toFloat(), IMAGE_SIZE.toFloat(), 0f, Paint().apply {
+			color = Color.BLACK
+		})
+
+		canvas.drawRect(1f, IMAGE_SIZE.toFloat() - 1f, IMAGE_SIZE.toFloat() - 1f, 1f, Paint().apply {
+			color = Color.BLACK.apply {
+				alpha = 1
+			}
+		})*/
+
+
+
+		allInside.forEach {
+			val location = it.location
+			val latitude = location.latitude
+			val longitude = location.longitude
+
+			val gX = Location.toGoogleLon(longitude, tileCount)
+			val gY = Location.toGoogleLat(latitude, tileCount)
 
 			val posX = ((gX - kotlin.math.floor(gX)) * (IMAGE_SIZE - 1)).toFloat()
 			val posY = ((gY - kotlin.math.floor(gY)) * (IMAGE_SIZE - 1)).toFloat()
 
-			val size = (blockSize / Location.countPixelSize(latitude, z)).toFloat()
-
-
+			val size = (location.horizontalAccuracy / Location.countPixelSize(latitude, z)).toFloat()
 			val paint = Paint().apply {
-				color = 0x0aFF0000
+				color = Color.argb(25, 255, 0, 0)
 			}
 
 			canvas.drawCircle(posX, posY, size, paint)

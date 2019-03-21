@@ -6,10 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.adsamcik.signalcollector.dao.ActivityDataDao
 import com.adsamcik.signalcollector.dao.LocationDataDao
+import com.adsamcik.signalcollector.data.DatabaseActivity
 import com.adsamcik.signalcollector.data.DatabaseLocation
 
 
-@Database(entities = [DatabaseLocation::class], version = 1)
+@Database(entities = [DatabaseLocation::class, DatabaseActivity::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationDao(): LocationDataDao
@@ -22,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
 		fun getAppDatabase(context: Context): AppDatabase {
 			if (instance_ == null) {
 				instance_ = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
+						.fallbackToDestructiveMigration()
 						.build()
 			}
 			return instance_ as AppDatabase

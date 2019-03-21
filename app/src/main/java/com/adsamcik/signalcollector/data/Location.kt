@@ -38,6 +38,52 @@ data class Location(
 
 	private fun latitudeAccuracy(meters: Int) = (METER_DEGREE_LATITUDE * meters).round(6);
 
+	/// <summary>
+	/// Calculates distance based on only latitude and longitude
+	/// </summary>
+	/// <param name="latlon">second location</param>
+	/// <param name="unit">unit type</param>
+	/// <returns></returns>
+	fun distanceFlat(location: Location, unit: LengthUnit): Double {
+		val lat1Rad = latitude.deg2rad()
+		val lat2Rad = location.latitude.deg2rad()
+		val latDistance = (location.latitude - latitude).deg2rad()
+		val lonDistance = (location.longitude - longitude).deg2rad()
+
+		val sinLatDistance = kotlin.math.sin(latDistance / 2)
+		val sinLonDistance = kotlin.math.sin(lonDistance / 2)
+
+		val a = sinLatDistance * sinLatDistance +
+				kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
+				sinLonDistance * sinLonDistance;
+		val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a));
+
+		var distance = Location.EARTH_CIRCUMFERENCE * c;
+
+
+		when (unit) {
+			LengthUnit.Meter -> {}
+			LengthUnit.Kilometer -> distance /= 1000
+			LengthUnit.Mile -> distance /= 1.609
+			LengthUnit.NauticalMile -> distance /= 1.852
+		}
+
+		return distance
+	}
+
+	/// <summary>
+	/// Calculates distance between two locations
+	/// </summary>
+	/// <param name="latlon">second location</param>
+	/// <param name="unit">unity type</param>
+	/// <returns></returns>
+	fun distance(location: Location, unit: LengthUnit): Double {
+		val flatDistance = distanceFlat(location, unit)
+
+		val altitudeDistance = location.altitude - altitude
+		return kotlin.math.sqrt(flatDistance * flatDistance + altitudeDistance * altitudeDistance)
+	}
+
 	fun roundTo(meters: Int): Location {
 		val accLatitude = latitudeAccuracy(meters)
 		val accLongitude = longitudeAccuracy(meters, latitude)
@@ -49,12 +95,12 @@ data class Location(
 		const val METER_DEGREE_LATITUDE = 360.0 / EARTH_CIRCUMFERENCE;
 
 		fun toGoogleLon(lon: Double, tileCount: Int): Double {
-			return tileCount * ((lon + 180) / 360)
+			return tileCount * ((lon + 180.0) / 360.0)
 		}
 
 		fun toGoogleLat(lat: Double, tileCount: Int): Double {
-			val latRad = kotlin.math.PI / 180 * lat
-			return tileCount * (1.0 - kotlin.math.log(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad), 10.0) / kotlin.math.PI) / 2
+			val latRad = lat.deg2rad()
+			return tileCount * (1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0
 		}
 
 		fun countPixelSize(latitude: Double, zoom: Int): Double {
@@ -67,4 +113,11 @@ data class Location(
 data class DatabaseLocation(@Embedded val location: Location) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Int = 0
+}
+
+enum class LengthUnit {
+	Meter,
+	Kilometer,
+	Mile,
+	NauticalMile
 }

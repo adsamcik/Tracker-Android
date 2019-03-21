@@ -299,10 +299,10 @@ class TrackerService : LifecycleService() {
 		}
 	}
 
-	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
 
-		isBackgroundActivated = intent == null || intent.getBooleanExtra("backTrack", false)
+		isBackgroundActivated = intent.getBooleanExtra("backTrack", false)
 		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
 
 		if (isBackgroundActivated)
