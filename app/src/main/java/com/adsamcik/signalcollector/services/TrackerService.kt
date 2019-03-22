@@ -9,14 +9,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
 import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.location.LocationProvider
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
-import android.os.Bundle
+import android.os.Looper
 import android.os.PowerManager
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
@@ -28,30 +28,29 @@ import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
+import com.adsamcik.signalcollector.data.TrackingSession
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.crashlytics.android.Crashlytics
+import com.google.android.gms.location.*
+import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.text.DecimalFormat
 
-class TrackerService : LifecycleService() {
+class TrackerService : LifecycleService(), SensorEventListener {
 	private var wifiScanTime: Long = 0
-	private var wasWifiEnabled = false
-	private var saveAttemptsFailed = 0
-	private var locationListener: LocationListener? = null
 	private var wifiScanData: Array<ScanResult>? = null
 	private var wifiReceiver: WifiReceiver? = null
 	private var notificationManager: NotificationManager? = null
 
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
-	private lateinit var locationManager: LocationManager
 	private var telephonyManager: TelephonyManager? = null
 	private var subscriptionManager: SubscriptionManager? = null
 	private var wifiManager: WifiManager? = null
@@ -69,28 +68,41 @@ class TrackerService : LifecycleService() {
 	 */
 	private var prevLocation: Location? = null
 
+	private lateinit var locationCallback: LocationCallback
+
+	private val session = TrackingSession(System.currentTimeMillis())
+
+	private var lastStepCount = -1
+
 	/**
 	 * Collects data from necessary places and sensors and creates new RawData instance
 	 */
 	private fun updateData(location: Location) {
+		val distance = location.distanceTo(prevLocation)
 		if (location.isFromMockProvider) {
 			prevMocked = true
 			return
 		} else if (prevMocked && prevLocation != null) {
 			prevMocked = false
-			if (location.distanceTo(prevLocation) < minDistanceInMeters)
+			if (distance < minDistanceInMeters)
 				return
 		}
 
-		wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/)
+		session.apply {
+			distanceInM += distance
+			collections++
+		}
+
+		wakeLock.acquire(10 * Constants.MINUTE_IN_MILLISECONDS)
 		val d = RawData(System.currentTimeMillis())
 
 		if (wifiManager != null) {
+			val prevLocation = prevLocation
 			if (prevLocation != null) {
 				if (wifiScanData != null) {
-					val timeDiff = (wifiScanTime - prevLocation!!.time).toDouble() / (d.time - prevLocation!!.time).toDouble()
+					val timeDiff = (wifiScanTime - prevLocation.time).toDouble() / (d.time - prevLocation.time).toDouble()
 					if (timeDiff >= 0) {
-						val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation!!, location, timeDiff))
+						val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff))
 						distanceToWifi = distTo.toInt()
 
 						if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
@@ -98,9 +110,9 @@ class TrackerService : LifecycleService() {
 					}
 					wifiScanData = null
 				} else {
-					val timeDiff = (wifiScanTime - prevLocation!!.time).toDouble() / (d.time - prevLocation!!.time).toDouble()
+					val timeDiff = (wifiScanTime - prevLocation.time).toDouble() / (d.time - prevLocation.time).toDouble()
 					if (timeDiff >= 0) {
-						val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation!!, location, timeDiff))
+						val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff))
 						distanceToWifi += distTo.toInt()
 					}
 				}
@@ -230,35 +242,42 @@ class TrackerService : LifecycleService() {
 		val resources = resources
 
 		//Get managers
-		locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
 		notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 		powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
-		//Enable location update
-		locationListener = object : LocationListener {
-			override fun onLocationChanged(location: Location) {
-				updateData(location)
-
-			}
-
-			override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {
-				if (status == LocationProvider.TEMPORARILY_UNAVAILABLE || status == LocationProvider.OUT_OF_SERVICE)
-					notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
-			}
-
-			override fun onProviderEnabled(provider: String) {}
-
-			override fun onProviderDisabled(provider: String) {
-				if (provider == LocationManager.GPS_PROVIDER)
-					stopSelf()
-			}
+		//Database initialization
+		GlobalScope.launch {
+			val sessionDao = AppDatabase.getAppDatabase(applicationContext).sessionDao()
+			sessionDao.insert(session)
 		}
 
+		//Enable location update
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 			minUpdateDelayInSeconds = sp.getInt(resources.getString(R.string.settings_tracking_min_time_key), resources.getInteger(R.integer.settings_tracking_min_time_default))
 			minDistanceInMeters = sp.getInt(resources.getString(R.string.settings_tracking_min_distance_key), resources.getInteger(R.integer.settings_tracking_min_distance_default)).toFloat()
-			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, minUpdateDelayInSeconds.toLong() * Constants.SECOND_IN_MILLISECONDS, minDistanceInMeters, locationListener)
+
+			val client = LocationServices.getFusedLocationProviderClient(this)
+			val request = LocationRequest.create().apply {
+				interval = minUpdateDelayInSeconds.toLong() * Constants.SECOND_IN_MILLISECONDS
+				fastestInterval = minUpdateDelayInSeconds.toLong()
+				smallestDisplacement = minDistanceInMeters
+				priority = PRIORITY_HIGH_ACCURACY
+			}
+
+			locationCallback = object : LocationCallback() {
+				override fun onLocationResult(result: LocationResult) {
+					updateData(result.lastLocation)
+				}
+
+				override fun onLocationAvailability(availability: LocationAvailability) {
+					if (!availability.isLocationAvailable)
+						notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
+				}
+
+			}
+
+			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
 		} else {
 			Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
 			stopSelf()
@@ -267,15 +286,12 @@ class TrackerService : LifecycleService() {
 
 		//Wifi tracking setup
 		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
-			wifiManager = getSystemServiceTyped(Context.WIFI_SERVICE)
-			assert(wifiManager != null)
-			wasWifiEnabled = !(wifiManager!!.isScanAlwaysAvailable || wifiManager!!.isWifiEnabled)
-			if (wasWifiEnabled)
-				wifiManager!!.isWifiEnabled = true
+			val wifiManager = getSystemServiceTyped<WifiManager>(Context.WIFI_SERVICE)
 
-			wifiManager!!.startScan()
+			wifiManager.startScan()
 			wifiReceiver = WifiReceiver()
 			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
+			this.wifiManager = wifiManager
 		}
 
 		//Cell tracking setup
@@ -305,19 +321,16 @@ class TrackerService : LifecycleService() {
 		isBackgroundActivated = intent.getBooleanExtra("backTrack", false)
 		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
 
-		if (isBackgroundActivated)
-			ActivityService.requestAutoTracking(this, javaClass)
-		else
-			ActivityService.requestActivity(this, javaClass, minUpdateDelayInSeconds)
-
-		ActivityWatcherService.poke(this, false)
-
 		if (isBackgroundActivated) {
+			ActivityService.requestAutoTracking(this, javaClass)
 			TrackingLocker.isLocked.observe(this) {
 				if (it)
 					stopSelf()
 			}
-		}
+		} else
+			ActivityService.requestActivity(this, javaClass, minUpdateDelayInSeconds)
+
+		ActivityWatcherService.poke(this, false)
 
 		isServiceRunning.value = true
 
@@ -335,16 +348,10 @@ class TrackerService : LifecycleService() {
 		ActivityWatcherService.pokeWithCheck(this)
 		ActivityService.removeActivityRequest(this, javaClass)
 
-		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-			locationManager.removeUpdates(locationListener)
+		LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(locationCallback)
 
 		if (wifiReceiver != null)
 			unregisterReceiver(wifiReceiver)
-
-		if (wasWifiEnabled) {
-			if (!powerManager.isInteractive)
-				wifiManager!!.isWifiEnabled = false
-		}
 
 		val sp = Preferences.getPref(this)
 		sp.edit {
@@ -355,6 +362,35 @@ class TrackerService : LifecycleService() {
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.initializeShortcuts(this)
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play_circle_filled_black_24dp, Shortcuts.ShortcutType.START_COLLECTION)
+		}
+
+
+		//Save data to database
+		session.end = System.currentTimeMillis()
+
+		GlobalScope.launch {
+			val sessionDao = AppDatabase.getAppDatabase(applicationContext).sessionDao()
+			sessionDao.update(session)
+		}
+	}
+
+	override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
+
+	}
+
+	override fun onSensorChanged(event: SensorEvent) {
+		val sensor = event.sensor
+		if (sensor.type == Sensor.TYPE_STEP_COUNTER) {
+			val stepCount = event.values.first().toInt()
+			if (lastStepCount >= 0) {
+				//in case sensor would overflow and reset to 0 at some point
+				if (lastStepCount > stepCount)
+					session.steps += stepCount
+				else
+					session.steps += stepCount - lastStepCount
+			}
+
+			lastStepCount = stepCount
 		}
 	}
 
