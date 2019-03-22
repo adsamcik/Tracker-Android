@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.deg2rad
 import com.adsamcik.signalcollector.extensions.round
+import com.adsamcik.signalcollector.utility.ActivityInfo
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlin.math.pow
@@ -28,7 +29,7 @@ data class Location(
 	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy)
 
 
-	fun toDatabase() = DatabaseLocation(this)
+	fun toDatabase(activityInfo: ActivityInfo) = DatabaseLocation(this, activityInfo)
 
 	private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE;
 

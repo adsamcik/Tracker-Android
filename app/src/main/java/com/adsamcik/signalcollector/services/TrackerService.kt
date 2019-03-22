@@ -15,10 +15,8 @@ import android.hardware.SensorEventListener
 import android.location.Location
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
-import android.os.Build
 import android.os.Looper
 import android.os.PowerManager
-import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -30,6 +28,8 @@ import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.data.RawData
 import com.adsamcik.signalcollector.data.TrackingSession
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
@@ -47,13 +47,14 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private var wifiScanTime: Long = 0
 	private var wifiScanData: Array<ScanResult>? = null
 	private var wifiReceiver: WifiReceiver? = null
-	private var notificationManager: NotificationManager? = null
 
+	private lateinit var notificationManager: NotificationManager
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
-	private var telephonyManager: TelephonyManager? = null
-	private var subscriptionManager: SubscriptionManager? = null
-	private var wifiManager: WifiManager? = null
+
+
+	private val telephonyManager: TelephonyManager by lazy { getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE) }
+	private val wifiManager: WifiManager by lazy { getSystemServiceTyped<WifiManager>(Context.WIFI_SERVICE) }
 
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1f
@@ -78,7 +79,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	 * Collects data from necessary places and sensors and creates new RawData instance
 	 */
 	private fun updateData(location: Location) {
-		val distance = location.distanceTo(prevLocation)
+		val distance = if (prevLocation == null) 0f else location.distanceTo(prevLocation)
 		if (location.isFromMockProvider) {
 			prevMocked = true
 			return
@@ -88,15 +89,17 @@ class TrackerService : LifecycleService(), SensorEventListener {
 				return
 		}
 
+		wakeLock.acquire(10 * Constants.MINUTE_IN_MILLISECONDS)
+
 		session.apply {
 			distanceInM += distance
 			collections++
 		}
 
-		wakeLock.acquire(10 * Constants.MINUTE_IN_MILLISECONDS)
+		val preferences = Preferences.getPref(this)
 		val d = RawData(System.currentTimeMillis())
 
-		if (wifiManager != null) {
+		if (preferences.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED)) {
 			val prevLocation = prevLocation
 			if (prevLocation != null) {
 				if (wifiScanData != null) {
@@ -118,24 +121,24 @@ class TrackerService : LifecycleService(), SensorEventListener {
 				}
 			}
 
-			wifiManager!!.startScan()
+			wifiManager.startScan()
 		}
 
-		if (telephonyManager != null && !Assist.isAirplaneModeEnabled(this)) {
-			d.addCell(telephonyManager!!)
+		if (preferences.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, Preferences.DEFAULT_TRACKING_CELL_ENABLED) && !Assist.isAirplaneModeEnabled(this)) {
+			d.addCell(telephonyManager)
 		}
 
 		val activityInfo = ActivityService.lastActivity
 
-		if (Preferences.getPref(this).getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
-			d.setLocation(location).setActivity(activityInfo.resolvedActivity)
+		if (preferences.getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
+			d.setLocation(location).setActivity(activityInfo)
 
 		rawDataEcho.postValue(d)
 
 		prevLocation = location
 		prevLocation!!.time = d.time
 
-		notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
+		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
 
 		saveData(d)
 
@@ -146,17 +149,28 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	}
 
 	private fun saveData(data: RawData) {
-		val appContext = applicationContext
-		val database = AppDatabase.getAppDatabase(appContext)
+		GlobalScope.launch {
+			val appContext = applicationContext
+			val database = AppDatabase.getAppDatabase(appContext)
 
-		val location = data.location
-		if (location != null) {
-			GlobalScope.launch {
-				database.locationDao().insert(location.toDatabase())
+			database.runInTransaction {
+				val location = data.location
+				var locationId: Long? = null
+				if (location != null)
+					locationId = database.locationDao().insert(location.toDatabase(data.activity!!))
+
+				val cell = data.cell
+				cell?.registeredCells?.forEach {
+					database.cellDao().insert(DatabaseCellData(locationId, it))
+				}
+
+				val wifi = data.wifi
+				if (wifi != null) {
+					val wifiDao = database.wifiDao()
+					wifi.inRange.forEach { wifiDao.insert(DatabaseWifiData(locationId, it)) }
+				}
 			}
 		}
-
-
 	}
 
 	/**
@@ -210,7 +224,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		if (d.activity != null)
 			sb.append(resources.getString(R.string.notification_activity,
-					ActivityInfo.getResolvedActivityName(this, d.activity!!))).append(", ")
+					d.activity!!.getResolvedActivityName(this))).append(", ")
 
 		val wifi = d.wifi
 		if (wifi != null) {
@@ -242,8 +256,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val resources = resources
 
 		//Get managers
-		notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-		powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+		notificationManager = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)
+		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
 		//Database initialization
@@ -272,7 +286,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 				override fun onLocationAvailability(availability: LocationAvailability) {
 					if (!availability.isLocationAvailable)
-						notificationManager!!.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
+						notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
 				}
 
 			}
@@ -285,23 +299,12 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		}
 
 		//Wifi tracking setup
-		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, true)) {
-			val wifiManager = getSystemServiceTyped<WifiManager>(Context.WIFI_SERVICE)
-
+		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED)) {
 			wifiManager.startScan()
 			wifiReceiver = WifiReceiver()
 			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
-			this.wifiManager = wifiManager
 		}
 
-		//Cell tracking setup
-		if (sp.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, true)) {
-			telephonyManager = getSystemServiceTyped(Context.TELEPHONY_SERVICE)
-			subscriptionManager = if (Build.VERSION.SDK_INT >= 22)
-				getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
-			else
-				null
-		}
 
 		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
@@ -397,7 +400,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private inner class WifiReceiver : BroadcastReceiver() {
 		override fun onReceive(context: Context, intent: Intent) {
 			wifiScanTime = System.currentTimeMillis()
-			val result = wifiManager!!.scanResults
+			val result = wifiManager.scanResults
 			wifiScanData = result.toTypedArray()
 		}
 	}

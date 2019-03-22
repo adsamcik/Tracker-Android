@@ -13,7 +13,7 @@ interface LocationDataDao {
 	fun getAll(): List<DatabaseLocation>
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
-	fun insert(locationData: DatabaseLocation)
+	fun insert(locationData: DatabaseLocation): Long
 
 	@Query("DELETE from location_data")
 	fun deleteAll()

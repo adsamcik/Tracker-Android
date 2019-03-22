@@ -29,6 +29,7 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.*
+import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -179,7 +180,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	private fun mock() {
 		val rawData = RawData(System.currentTimeMillis())
 		rawData.location = Location(rawData.time, 15.0, 15.0, 123.0, 6f)
-		rawData.activity = ResolvedActivities.ON_FOOT
+		rawData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
 		rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		rawData.cell = CellData(arrayOf(CellInfo("MOCK", 2, 0, "123", "456", -30, 90, 0)), 8)
 		updateData(rawData)
@@ -320,7 +321,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			cellInfo = null
 		}
 
-		when (rawData.activity) {
+		when (rawData.activity?.resolvedActivity) {
 			ResolvedActivities.STILL -> {
 				icon_activity.setImageResource(R.drawable.ic_outline_still_24px)
 				icon_activity.contentDescription = getString(R.string.activity_idle)
