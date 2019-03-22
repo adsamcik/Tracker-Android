@@ -1,11 +1,11 @@
-package com.adsamcik.signalcollector.dao
+package com.adsamcik.signalcollector.database.dao
 
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.adsamcik.signalcollector.data.DatabaseLocation
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 
 @Dao
 interface LocationDataDao {

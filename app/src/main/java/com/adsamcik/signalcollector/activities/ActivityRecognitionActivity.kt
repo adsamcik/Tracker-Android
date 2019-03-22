@@ -7,9 +7,9 @@ import android.widget.Button
 import android.widget.ListView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.StringFilterableAdapter
-import com.adsamcik.signalcollector.data.DatabaseDebugActivity
-import com.adsamcik.signalcollector.data.TimeActivity
 import com.adsamcik.signalcollector.database.DebugDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseDebugActivity
+import com.adsamcik.signalcollector.utility.ActivityInfo
 import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.utility.Preferences
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
@@ -64,8 +64,8 @@ class ActivityRecognitionActivity : DetailActivity() {
 		}
 		adapter.addAll(items.map {
 			val action = it.action ?: ""
-			val activityName = it.timeActivity.activityInfo.getResolvedActivityName(appContext)
-			arrayOf(it.timeActivity.time.toString(), activityName, action)
+			val activityName = it.activity.getResolvedActivityName(appContext)
+			arrayOf(it.time.toString(), activityName, action)
 		})
 
 		findViewById<View>(R.id.dev_activity_recognition_filter).setOnClickListener { f ->
@@ -101,7 +101,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 		 * @param activity Name of the activity
 		 * @param action Action that this activity resulted in
 		 */
-		fun addLineIfDebug(context: Context, timeActivity: TimeActivity, action: String?) {
+		fun addLineIfDebug(context: Context, time: Long, activity: ActivityInfo, action: String?) {
 			val preferences = Preferences.getPref(context)
 			if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
 				if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / DAY_IN_MILLISECONDS > 0) {
@@ -114,7 +114,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 						}
 					}
 				}
-				addLine(context, timeActivity, action)
+				addLine(context, time, activity, action)
 			}
 		}
 
@@ -124,15 +124,15 @@ class ActivityRecognitionActivity : DetailActivity() {
 		 * @param activity Name of the activity
 		 * @param action Action that this activity resulted in
 		 */
-		private fun addLine(context: Context, timeActivity: TimeActivity, action: String?) {
-			val time = getDateTimeInstance().format(System.currentTimeMillis())
+		private fun addLine(context: Context, time: Long, activity: ActivityInfo, action: String?) {
+			val timeString = getDateTimeInstance().format(time)
 			val dao = DebugDatabase.getAppDatabase(context).activityDebugDao()
-			dao.insert(DatabaseDebugActivity(0, timeActivity, action))
+			dao.insert(DatabaseDebugActivity(time, activity, action))
 			val inst = instance?.get()
 			inst?.runOnUiThread {
 				val adapter = inst.adapter
-				val activityName = timeActivity.activityInfo.getResolvedActivityName(context)
-				adapter.add(if (action == null) arrayOf(time, activityName) else arrayOf(time, activityName, action))
+				val activityName = activity.getResolvedActivityName(context)
+				adapter.add(if (action == null) arrayOf(timeString, activityName) else arrayOf(timeString, activityName, action))
 				if (inst.listView.lastVisiblePosition == adapter.count - 2)
 					inst.listView.smoothScrollToPosition(adapter.count - 1)
 			}

@@ -4,20 +4,16 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.adsamcik.signalcollector.dao.ActivityDataDao
-import com.adsamcik.signalcollector.dao.LocationDataDao
-import com.adsamcik.signalcollector.dao.SessionDataDao
-import com.adsamcik.signalcollector.data.DatabaseActivity
-import com.adsamcik.signalcollector.data.DatabaseLocation
+import com.adsamcik.signalcollector.database.dao.LocationDataDao
+import com.adsamcik.signalcollector.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.data.TrackingSession
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 
 
-@Database(entities = [DatabaseLocation::class, DatabaseActivity::class, TrackingSession::class], version = 2)
+@Database(entities = [DatabaseLocation::class,TrackingSession::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationDao(): LocationDataDao
-
-	abstract fun activityDao(): ActivityDataDao
 
 	abstract fun sessionDao(): SessionDataDao
 

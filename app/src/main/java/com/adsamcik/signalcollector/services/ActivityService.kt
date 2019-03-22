@@ -7,7 +7,6 @@ import android.content.Intent
 import android.os.PowerManager
 import android.util.SparseArray
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
-import com.adsamcik.signalcollector.data.TimeActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.powerManager
 import com.adsamcik.signalcollector.extensions.startForegroundService
@@ -34,13 +33,12 @@ class ActivityService : IntentService("ActivityService") {
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
 		ActivityService.lastActivity = detectedActivity
 		if (mBackgroundTracking && detectedActivity.confidence >= REQUIRED_CONFIDENCE) {
-			val timeActivity = TimeActivity(result.time, detectedActivity)
 			if (TrackerService.isServiceRunning.value) {
 				if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, detectedActivity.resolvedActivity)) {
 					stopService<TrackerService>()
-					ActivityRecognitionActivity.addLineIfDebug(this, timeActivity, "stopped tracking")
+					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "stopped tracking")
 				} else {
-					ActivityRecognitionActivity.addLineIfDebug(this, timeActivity, null)
+					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, null)
 				}
 			} else if (canBackgroundTrack(this, detectedActivity.resolvedActivity) &&
 					!TrackingLocker.isLocked.value &&
@@ -51,9 +49,9 @@ class ActivityService : IntentService("ActivityService") {
 					putExtra("backTrack", true)
 				}
 
-				ActivityRecognitionActivity.addLineIfDebug(this, timeActivity, "started tracking")
+				ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "started tracking")
 			} else {
-				ActivityRecognitionActivity.addLineIfDebug(this, timeActivity, null)
+				ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, null)
 			}
 		}
 

@@ -1,9 +1,7 @@
 package com.adsamcik.signalcollector.data
 
 import androidx.room.ColumnInfo
-import androidx.room.Embedded
-import androidx.room.Entity
-import androidx.room.PrimaryKey
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.deg2rad
 import com.adsamcik.signalcollector.extensions.round
 import com.squareup.moshi.Json
@@ -108,18 +106,6 @@ data class Location(
 			return EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
 		}
 	}
-}
-
-@Entity(tableName = "location_data")
-data class DatabaseLocation(@Embedded val location: Location) {
-	@PrimaryKey(autoGenerate = true)
-	var id: Int = 0
-
-	val latitude get() = location.latitude
-
-	val longitude get() = location.longitude
-
-	val altitude get() = location.altitude
 }
 
 enum class LengthUnit {

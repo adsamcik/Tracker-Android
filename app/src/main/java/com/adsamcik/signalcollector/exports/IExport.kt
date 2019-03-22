@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.exports
 
-import com.adsamcik.signalcollector.data.DatabaseLocation
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import java.io.File
 
 interface IExport {

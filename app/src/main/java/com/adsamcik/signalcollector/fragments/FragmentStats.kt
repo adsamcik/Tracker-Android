@@ -12,11 +12,11 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
-import com.adsamcik.signalcollector.data.DatabaseLocation
 import com.adsamcik.signalcollector.data.LengthUnit
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.dpAsPx
 import com.adsamcik.signalcollector.extensions.format
 import com.adsamcik.signalcollector.uitools.ColorManager

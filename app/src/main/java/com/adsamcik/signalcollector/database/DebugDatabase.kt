@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.adsamcik.signalcollector.dao.ActivityDebugDao
-import com.adsamcik.signalcollector.data.DatabaseDebugActivity
+import com.adsamcik.signalcollector.database.dao.ActivityDebugDao
+import com.adsamcik.signalcollector.database.data.DatabaseDebugActivity
 
 @Database(entities = [DatabaseDebugActivity::class], version = 1)
 abstract class DebugDatabase : RoomDatabase() {
