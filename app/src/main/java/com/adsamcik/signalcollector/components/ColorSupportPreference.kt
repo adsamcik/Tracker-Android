@@ -63,7 +63,7 @@ class ColorSupportPreference : Preference, ColorPickerDialogListener {
         a.recycle()
     }
 
-    private fun getActivity() = (context as android.view.ContextThemeWrapper).baseContext as AppCompatActivity
+    private fun getActivity() = context as AppCompatActivity
 
     override fun onClick() {
         super.onClick()

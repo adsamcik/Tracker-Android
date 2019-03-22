@@ -26,7 +26,7 @@ abstract class DetailActivity : AppCompatActivity() {
         back_button.setOnClickListener { onBackPressed() }
 
         colorManager = ColorSupervisor.createColorManager(this)
-        colorManager!!.watchView(ColorView(back_button.parent as View, 1, recursive = true, rootIsBackground = false))
+        colorManager!!.watchView(ColorView(back_button.parent as View, 1, recursive = true, rootIsBackground = true))
     }
 
     override fun onBackPressed() {

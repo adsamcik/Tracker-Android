@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.exports
 import android.annotation.SuppressLint
 import android.os.Build
 import com.adsamcik.signalcollector.BuildConfig
+import com.adsamcik.signalcollector.data.DatabaseLocation
 import com.adsamcik.signalcollector.data.Location
 import java.io.File
 import java.io.FileOutputStream
@@ -11,7 +12,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class GpxExport : IExport {
-	override fun export(locationData: List<Location>, destinationDirectory: File, desiredName: String): ExportResult {
+	override fun export(locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.gpx")
 		serialize(targetFile, locationData)
 
@@ -19,12 +20,12 @@ class GpxExport : IExport {
 	}
 
 
-	fun serialize(file: File, locationData: List<Location>) {
+	fun serialize(file: File, locationData: List<DatabaseLocation>) {
 		FileOutputStream(file, false).let { outputStream ->
 			outputStream.channel.lock()
 			OutputStreamWriter(outputStream).use { osw ->
 				writeBeginning(osw, locationData)
-				locationData.forEach { writeLocation(osw, it) }
+				locationData.forEach { writeLocation(osw, it.location) }
 				writeEnding(osw)
 			}
 		}
@@ -46,7 +47,7 @@ class GpxExport : IExport {
 				"</trkpt>\n")
 	}
 
-	private fun writeBeginning(streamWriter: OutputStreamWriter, locationData: List<Location>) {
+	private fun writeBeginning(streamWriter: OutputStreamWriter, locationData: List<DatabaseLocation>) {
 		val minLat = locationData.minBy { it.latitude }!!.latitude
 		val maxLat = locationData.maxBy { it.latitude }!!.latitude
 		val minLon = locationData.minBy { it.longitude }!!.longitude

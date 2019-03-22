@@ -62,7 +62,8 @@ data class Location(
 
 
 		when (unit) {
-			LengthUnit.Meter -> {}
+			LengthUnit.Meter -> {
+			}
 			LengthUnit.Kilometer -> distance /= 1000
 			LengthUnit.Mile -> distance /= 1.609
 			LengthUnit.NauticalMile -> distance /= 1.852
@@ -113,6 +114,12 @@ data class Location(
 data class DatabaseLocation(@Embedded val location: Location) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Int = 0
+
+	val latitude get() = location.latitude
+
+	val longitude get() = location.longitude
+
+	val altitude get() = location.altitude
 }
 
 enum class LengthUnit {

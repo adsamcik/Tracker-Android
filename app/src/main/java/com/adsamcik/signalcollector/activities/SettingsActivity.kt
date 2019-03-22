@@ -14,6 +14,8 @@ import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.components.ColorSupportPreference
+import com.adsamcik.signalcollector.exports.GpxExport
+import com.adsamcik.signalcollector.exports.KmlExport
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.fragments.FragmentSettings
 import com.adsamcik.signalcollector.notifications.Notifications
@@ -80,19 +82,17 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	}
 
 	private fun initializeExport(caller: PreferenceFragmentCompat) {
-
-		throw NotImplementedError()
-		/*setOnClickListener(R.string.settings_export_gpx_key) {
-			startActivity<FileSharingActivity> {
-				putExtra(FileSharingActivity.EXPORTER_KEY, GpxExport::class.java)
+		setOnClickListener(R.string.settings_export_gpx_key) {
+			startActivity<ExportActivity> {
+				putExtra(ExportActivity.EXPORTER_KEY, GpxExport::class.java)
 			}
 		}
 
 		setOnClickListener(R.string.settings_export_kml_key) {
-			startActivity<FileSharingActivity> {
-				putExtra(FileSharingActivity.EXPORTER_KEY, KmlExport::class.java)
+			startActivity<ExportActivity> {
+				putExtra(ExportActivity.EXPORTER_KEY, KmlExport::class.java)
 			}
-		}*/
+		}
 	}
 
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {
