@@ -31,11 +31,11 @@ data class Location(
 
 	fun toDatabase(activityInfo: ActivityInfo) = DatabaseLocation(this, activityInfo)
 
-	private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE;
+	private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
 
-	private fun longitudeAccuracy(meters: Int, latitude: Double) = meters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6);
+	private fun longitudeAccuracy(meters: Double, latitude: Double) = meters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
 
-	private fun latitudeAccuracy(meters: Int) = (METER_DEGREE_LATITUDE * meters).round(6);
+	private fun latitudeAccuracy(meters: Double) = (METER_DEGREE_LATITUDE * meters).round(6)
 
 	/// <summary>
 	/// Calculates distance based on only latitude and longitude
@@ -84,9 +84,11 @@ data class Location(
 		return kotlin.math.sqrt(flatDistance * flatDistance + altitudeDistance * altitudeDistance)
 	}
 
-	fun roundTo(meters: Int): Location {
-		val accLatitude = latitudeAccuracy(meters)
-		val accLongitude = longitudeAccuracy(meters, latitude)
+	fun roundTo(meters: Double): Location = roundTo(meters, meters)
+
+	fun roundTo(metersHorizontal: Double, metersVertical: Double): Location {
+		val accLatitude = latitudeAccuracy(metersVertical)
+		val accLongitude = longitudeAccuracy(metersHorizontal, latitude)
 		return Location(time, (latitude - latitude % accLatitude).round(6), (longitude - longitude % accLongitude.round(6)), altitude, horizontalAccuracy)
 	}
 

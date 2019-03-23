@@ -10,10 +10,8 @@ import com.adsamcik.signalcollector.data.Location.Companion.toGoogleLon
 import com.adsamcik.signalcollector.map.LocationTileProvider.Companion.IMAGE_SIZE
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 import java.io.ByteArrayOutputStream
-import kotlin.math.pow
 
 interface MapTileColorProvider {
-
 	fun createBitmap(): Bitmap {
 		return Bitmap.createBitmap(LocationTileProvider.IMAGE_SIZE, LocationTileProvider.IMAGE_SIZE, Bitmap.Config.ARGB_8888)
 	}
@@ -23,11 +21,6 @@ interface MapTileColorProvider {
 		bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
 		return stream.toByteArray()
 	}
-
-	fun getTileCount(zoom: Int): Int {
-		return 2.0.pow(zoom).toInt()
-	}
-
 
 	fun generateBaseRectangle(loc: Location, tileCount: Int, blockSize: Int, zoom: Int): Rect {
 		var x = toGoogleLon(loc.longitude, tileCount)
@@ -59,6 +52,8 @@ interface MapTileColorProvider {
 		return Rect(startX, startY, endX, endY)
 	}
 
+
+	fun getHeatmap(x: Int, y: Int, z:Int, area: CoordinateBounds): HeatmapTile
 
 	fun getColor(x: Int, y: Int, z: Int, area: CoordinateBounds): ByteArray
 }

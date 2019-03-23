@@ -7,9 +7,17 @@ import android.graphics.Paint
 import com.adsamcik.signalcollector.data.Location
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.map.LocationTileProvider.Companion.IMAGE_SIZE
+import com.adsamcik.signalcollector.map.MapFunctions.getTileCount
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 
 class LocationTileColorProvider(context: Context) : MapTileColorProvider {
+	override fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds): HeatmapTile {
+		val heatmap = HeatmapTile(z, area)
+		val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)
+		heatmap.initialize(allInside)
+		return heatmap
+	}
+
 	private val dao = AppDatabase.getAppDatabase(context).locationDao()
 
 	override fun getColor(x: Int, y: Int, z: Int, area: CoordinateBounds): ByteArray {
