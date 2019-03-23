@@ -30,9 +30,6 @@ android {
                 ]
             }
         }
-        externalNativeBuild {
-            version "3.10.2"
-        }
     }
     buildTypes {
         debug {
@@ -53,12 +50,6 @@ android {
     }
     lintOptions {
         checkReleaseBuilds false
-    }
-
-    externalNativeBuild {
-        cmake {
-            path file('CMakeLists.txt')
-        }
     }
 
 }
