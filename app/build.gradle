@@ -18,18 +18,9 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 28
-        versionCode 285
-        versionName "7.0α4 Offline"
+        versionCode 286
+        versionName "7.0α5 Offline"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = [
-                        stagAssumeHungarianNotation: 'false',
-                        stagGeneratedPackageName   : 'com.adsamcik.signalcollector.generated',
-                        stagDebug                  : 'false'
-                ]
-            }
-        }
         kotlinOptions {
             freeCompilerArgs = ["-Xuse-experimental=kotlin.ExperimentalUnsignedTypes"]
         }
