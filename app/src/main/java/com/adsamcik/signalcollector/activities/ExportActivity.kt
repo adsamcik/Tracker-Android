@@ -46,7 +46,7 @@ class ExportActivity : DetailActivity() {
 		exporter = exporterType.newInstance() as IExport
 
 		root = createLinearContentParent(false)
-		val layout = (layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1) as androidx.coordinatorlayout.widget.CoordinatorLayout
+		(layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1)
 
 		updateEditTextDate(edittext_from_date, from)
 		edittext_from_date.setOnClickListener {
