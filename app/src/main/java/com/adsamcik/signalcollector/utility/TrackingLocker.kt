@@ -7,6 +7,7 @@ import android.content.Intent
 import androidx.annotation.AnyThread
 import androidx.core.content.edit
 import androidx.work.*
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.extensions.alarmManager
 import com.adsamcik.signalcollector.extensions.stopService
 import com.adsamcik.signalcollector.receivers.TrackingUnlockReceiver
@@ -68,18 +69,28 @@ object TrackingLocker {
      */
     fun initializeFromPersistence(context: Context) {
         val preferences = Preferences.getPref(context)
+
+        val resources = context.resources
+
+	    val keyDisabledTime = resources.getString(R.string.settings_disabled_time_key)
+	    val defaultDisabledTime = resources.getString(R.string.settings_disabled_time_default).toLong()
+
+	    val keyDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_key)
+	    val defaultDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_default)!!.toBoolean()
+
         synchronized(this) {
-            lockedUntil = preferences.getLong(Preferences.PREF_STOP_UNTIL_TIME, 0)
-            lockedUntilRecharge = preferences.getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false)
+            lockedUntil = preferences.getLong(keyDisabledTime, defaultDisabledTime)
+            lockedUntilRecharge = preferences.getBoolean(keyDisabledRecharge, defaultDisabledRecharge)
         }
 
         isLocked.postValue(isLockedRightNow())
     }
 
     private fun setRechargeLock(context: Context, lock: Boolean) {
+	    val keyDisabledRecharge = context.getString(R.string.settings_disabled_recharge_key)
         synchronized(this) {
             Preferences.getPref(context).edit {
-                putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, lock)
+                putBoolean(keyDisabledRecharge, lock)
             }
 
             lockedUntilRecharge = lock
@@ -89,9 +100,10 @@ object TrackingLocker {
     }
 
     private fun setTimeLock(context: Context, time: Long) {
+	    val keyDisabledTime = context.getString(R.string.settings_disabled_time_key)
         synchronized(this) {
             Preferences.getPref(context).edit {
-                putLong(Preferences.PREF_STOP_UNTIL_TIME, time)
+                putLong(keyDisabledTime, time)
             }
 
             lockedUntil = time

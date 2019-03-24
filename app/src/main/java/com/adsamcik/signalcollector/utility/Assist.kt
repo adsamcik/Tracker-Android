@@ -205,9 +205,20 @@ object Assist {
 	 */
 	fun canTrack(context: Context): Boolean {
 		val preferences = Preferences.getPref(context)
-		return preferences.getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED) ||
-				preferences.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, Preferences.DEFAULT_TRACKING_CELL_ENABLED) ||
-				preferences.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED)
+
+		val resources = context.resources
+
+		val keyCellEnabled = resources.getString(R.string.settings_cell_enabled_key)
+		val keyLocationEnabled = resources.getString(R.string.settings_location_enabled_key)
+		val keyWifiEnabled = resources.getString(R.string.settings_wifi_enabled_key)
+
+		val defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default)!!.toBoolean()
+		val defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default)!!.toBoolean()
+		val defaultWifiEnabled = resources.getString(R.string.settings_wifi_enabled_default)!!.toBoolean()
+
+		return preferences.getBoolean(keyLocationEnabled, defaultLocationEnabled) ||
+				preferences.getBoolean(keyCellEnabled, defaultCellEnabled) ||
+				preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)
 	}
 
 	/**

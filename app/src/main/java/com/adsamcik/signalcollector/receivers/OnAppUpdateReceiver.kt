@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.edit
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.services.ActivityService
 import com.adsamcik.signalcollector.services.ActivityWatcherService
@@ -24,10 +25,11 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
             val sp = Preferences.getPref(context)
             val editor = sp.edit()
 
+            val keyLastVersion = context.getString(R.string.key_last_app_version)
             try {
-                sp.getLong(Preferences.LAST_VERSION, 0)
+                sp.getLong(keyLastVersion, 0)
             } catch(e: Exception) {
-                sp.edit { remove(Preferences.LAST_VERSION) }
+                sp.edit { remove(keyLastVersion) }
             }
 
             /*if (sp.getLong(Preferences.LAST_VERSION, 0) < 277) {
@@ -45,7 +47,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
                 val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                 @Suppress("DEPRECATION")
                 val version = if(Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong()
-                editor.putLong(Preferences.LAST_VERSION, version)
+                editor.putLong(keyLastVersion, version)
             } catch (e: PackageManager.NameNotFoundException) {
                 Crashlytics.logException(e)
             }

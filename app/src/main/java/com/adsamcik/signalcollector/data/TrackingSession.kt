@@ -15,4 +15,16 @@ data class TrackingSession(var start: Long,
 	var id: Long = 0
 
 	constructor(start: Long) : this(start, -1, 0, 0f, 0)
+
+	fun mergeWith(session: TrackingSession) {
+		if (session.start > start) {
+			end = session.end
+		} else {
+			start = session.start
+		}
+
+		collections += session.collections
+		distanceInM += session.distanceInM
+		steps += session.steps
+	}
 }

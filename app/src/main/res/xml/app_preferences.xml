@@ -171,8 +171,8 @@
                 android:title="@string/settings_activity_status_title"/>
 
             <Preference
-                android:key="@string/settings_activity_debug_key"
-                android:title="@string/settings_activity_debug_title"/>
+                android:key="@string/settings_debug_activity_key"
+                android:title="@string/settings_debug_activity_title"/>
 
             <Preference
                 android:key="@string/settings_hello_world_key"

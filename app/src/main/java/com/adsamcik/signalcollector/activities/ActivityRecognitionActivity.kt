@@ -34,23 +34,28 @@ class ActivityRecognitionActivity : DetailActivity() {
 		super.onCreate(savedInstanceState)
 		layoutInflater.inflate(R.layout.layout_activity_recognition, createLinearContentParent(false))
 
-		setTitle(R.string.settings_activity_debug_title)
+		setTitle(R.string.settings_debug_activity_title)
 
 		listView = dev_activity_list_view
 
-		if (Preferences.getPref(this).getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false))
+
+		val resources = resources
+		val keyDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)
+		val defaultDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)!!.toBoolean()
+
+		if (Preferences.getPref(this).getBoolean(keyDevActivityTracking, defaultDevActivityTracking))
 			start_stop_button.text = getString(R.string.stop)
 		else
 			start_stop_button.text = getString(R.string.start)
 
 		start_stop_button.setOnClickListener {
 			val sp = Preferences.getPref(this)
-			val setEnabled = !sp.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)
+			val setEnabled = !sp.getBoolean(keyDevActivityTracking, defaultDevActivityTracking)
 			val editor = sp.edit()
-			editor.putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, setEnabled)
+			editor.putBoolean(keyDevActivityTracking, setEnabled)
 			if (setEnabled) {
 				start_stop_button.text = getString(R.string.stop)
-				editor.putLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, System.currentTimeMillis())
+				editor.putLong(keyDevActivityTracking, System.currentTimeMillis())
 			} else
 				start_stop_button.text = getString(R.string.start)
 
@@ -103,9 +108,16 @@ class ActivityRecognitionActivity : DetailActivity() {
 		 */
 		fun addLineIfDebug(context: Context, time: Long, activity: ActivityInfo, action: String?) {
 			val preferences = Preferences.getPref(context)
-			if (preferences.getBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false)) {
-				if ((System.currentTimeMillis() - preferences.getLong(Preferences.PREF_DEV_ACTIVITY_TRACKING_STARTED, 0)) / DAY_IN_MILLISECONDS > 0) {
-					preferences.edit().putBoolean(Preferences.PREF_DEV_ACTIVITY_TRACKING_ENABLED, false).apply()
+			val resources = context.resources
+			val keyDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)
+			val defaultDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)!!.toBoolean()
+
+			if (preferences.getBoolean(keyDevActivityTracking, defaultDevActivityTracking)) {
+
+				val keyStartTime = resources.getString(R.string.settings_activity_debug_tracking_start_time_key)
+
+				if ((System.currentTimeMillis() - preferences.getLong(keyStartTime, 0)) / DAY_IN_MILLISECONDS > 0) {
+					preferences.edit().putBoolean(keyDevActivityTracking, false).apply()
 					if (instance?.get() != null) {
 						GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 							val inst = instance?.get()

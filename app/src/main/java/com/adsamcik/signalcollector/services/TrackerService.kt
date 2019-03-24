@@ -22,7 +22,6 @@ import android.os.PowerManager
 import android.telephony.TelephonyManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.R
@@ -35,7 +34,6 @@ import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.extensions.getSystemServiceTyped
 import com.adsamcik.signalcollector.receivers.NotificationReceiver
 import com.adsamcik.signalcollector.utility.*
-import com.adsamcik.signalcollector.utility.Constants.MINUTE_IN_MILLISECONDS
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
@@ -77,6 +75,16 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 	private var lastStepCount = -1
 
+	private lateinit var keyWifiEnabled: String
+	private var defaultWifiEnabled: Boolean = false
+
+	private lateinit var keyCellEnabled: String
+	private var defaultCellEnabled: Boolean = false
+
+	private lateinit var keyLocationEnabled: String
+	private var defaultLocationEnabled: Boolean = false
+
+
 	/**
 	 * Collects data from necessary places and sensors and creates new RawData instance
 	 */
@@ -101,7 +109,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val preferences = Preferences.getPref(this)
 		val d = RawData(System.currentTimeMillis())
 
-		if (preferences.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED)) {
+		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
 			val prevLocation = prevLocation
 			if (prevLocation != null) {
 				if (wifiScanData != null) {
@@ -126,13 +134,13 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			wifiManager.startScan()
 		}
 
-		if (preferences.getBoolean(Preferences.PREF_TRACKING_CELL_ENABLED, Preferences.DEFAULT_TRACKING_CELL_ENABLED) && !Assist.isAirplaneModeEnabled(this)) {
+		if (preferences.getBoolean(keyCellEnabled, defaultCellEnabled) && !Assist.isAirplaneModeEnabled(this)) {
 			d.addCell(telephonyManager)
 		}
 
 		val activityInfo = ActivityService.lastActivity
 
-		if (preferences.getBoolean(Preferences.PREF_TRACKING_LOCATION_ENABLED, Preferences.DEFAULT_TRACKING_LOCATION_ENABLED))
+		if (preferences.getBoolean(keyLocationEnabled, defaultLocationEnabled))
 			d.setLocation(location).setActivity(activityInfo)
 
 		rawDataEcho.postValue(d)
@@ -263,6 +271,15 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		val packageManager = packageManager
 
+		//Initialize keys and defaults
+		keyCellEnabled = resources.getString(R.string.settings_cell_enabled_key)
+		keyLocationEnabled = resources.getString(R.string.settings_location_enabled_key)
+		keyWifiEnabled = resources.getString(R.string.settings_wifi_enabled_key)
+
+		defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default)!!.toBoolean()
+		defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default)!!.toBoolean()
+		defaultWifiEnabled = resources.getString(R.string.settings_wifi_enabled_default)!!.toBoolean()
+
 		//Get managers
 		notificationManager = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
@@ -307,7 +324,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		}
 
 		//Wifi tracking setup
-		if (sp.getBoolean(Preferences.PREF_TRACKING_WIFI_ENABLED, Preferences.DEFAULT_TRACKING_WIFI_ENABLED)) {
+		if (sp.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
 			wifiManager.startScan()
 			wifiReceiver = WifiReceiver()
 			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
@@ -370,12 +387,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		if (wifiReceiver != null)
 			unregisterReceiver(wifiReceiver)
 
-		val sp = Preferences.getPref(this)
-		sp.edit {
-			putInt(Preferences.PREF_STATS_MINUTES,
-					sp.getInt(Preferences.PREF_STATS_MINUTES, 0) + ((System.currentTimeMillis() - TRACKING_ACTIVE_SINCE) / MINUTE_IN_MILLISECONDS).toInt())
-		}
-
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.initializeShortcuts(this)
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play_circle_filled_black_24dp, Shortcuts.ShortcutType.START_COLLECTION)
@@ -428,8 +439,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		private const val NOTIFICATION_ID_SERVICE = -7643
 
 		private const val UPDATE_MAX_DISTANCE_TO_WIFI = 40
-
-		private val TRACKING_ACTIVE_SINCE = System.currentTimeMillis()
 
 		/**
 		 * LiveData containing information about whether the service is currently running

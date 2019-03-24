@@ -3,62 +3,12 @@ package com.adsamcik.signalcollector.utility
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
-import com.adsamcik.signalcollector.data.StatDay
-import com.adsamcik.signalcollector.extensions.dateUTC
-import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
-import com.squareup.moshi.Moshi
-import java.util.*
-import kotlin.collections.ArrayList
 
 /**
  * Object that simplifies access to some preferences
  * It contains many preferences as constant values so they don't have to be stored in SharedPreferences which creates unnecessary lookup
  */
 object Preferences {
-	private const val TAG = "SignalsSetting"
-
-	const val LAST_VERSION = "lastVersion"
-
-	const val PREF_AUTO_TRACKING = "backgroundTracking"
-	const val DEFAULT_AUTO_TRACKING = 1
-
-	const val PREF_HAS_BEEN_LAUNCHED = "hasBeenLaunched"
-	const val PREF_STOP_UNTIL_RECHARGE = "stoppedUntilRecharge"
-	const val PREF_STOP_UNTIL_TIME = "stoppedUntilTime"
-
-	//Local tracking stats
-	const val PREF_STATS_WIFI_FOUND = "statsWifiFound"
-	const val PREF_STATS_CELL_FOUND = "statsCellFound"
-	const val PREF_STATS_LOCATIONS_FOUND = "statsLocationsFound"
-	const val PREF_STATS_MINUTES = "statsMinutes"
-	const val PREF_STATS_STAT_LAST_DAY = "statsLastDay"
-	const val PREF_STATS_LAST_7_DAYS = "statsLast7Days"
-	const val PREF_STATS_UPLOADED = "statsUploaded"
-
-	const val PREF_OLDEST_RECENT_UPLOAD = "oldestRecentUpload"
-
-	const val PREF_TRACKING_WIFI_ENABLED = "trackingWifiEnabled"
-	const val DEFAULT_TRACKING_WIFI_ENABLED = false
-
-	const val PREF_TRACKING_CELL_ENABLED = "trackingCellEnabled"
-	const val DEFAULT_TRACKING_CELL_ENABLED = false
-
-	const val PREF_TRACKING_LOCATION_ENABLED = "trackingLocationEnabled"
-	const val DEFAULT_TRACKING_LOCATION_ENABLED = true
-
-	const val PREF_ACTIVITY_WATCHER_ENABLED = "activityWatcherEnabled"
-	const val DEFAULT_ACTIVITY_WATCHER_ENABLED = false
-	const val PREF_ACTIVITY_UPDATE_RATE = "activityUpdateRate"
-	const val DEFAULT_ACTIVITY_UPDATE_RATE = 30
-
-	const val PREF_SHOW_DEV_SETTINGS = "showDevSettings"
-	const val PREF_DEV_ACTIVITY_TRACKING_ENABLED = "activityDebugTracking"
-	const val PREF_DEV_ACTIVITY_TRACKING_STARTED = "adevTrackingStartTime"
-
-	const val PREF_ACTIVE_CHALLENGE_LIST = "activeChallengeList"
-
-	private const val MAX_DAY_DIFF_STATS = 7
-
 	private var sharedPreferences: SharedPreferences? = null
 
 	/**
@@ -72,80 +22,5 @@ object Preferences {
 		if (sharedPreferences == null)
 			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.applicationContext)
 		return sharedPreferences!!
-	}
-
-	/**
-	 * Checks if current day should be archived and clears up old StatDays
-	 * @param context context
-	 */
-	fun checkStatsDay(context: Context) {
-		val preferences = getPref(context)
-
-		val todayUTC = Calendar.getInstance().dateUTC().timeInMillis
-		val dayDiff = (todayUTC - preferences.getLong(Preferences.PREF_STATS_STAT_LAST_DAY, -1)).toInt() / DAY_IN_MILLISECONDS
-		if (dayDiff > 0) {
-			var stringStats: MutableSet<String>? = preferences.getStringSet(PREF_STATS_LAST_7_DAYS, null)
-			val stats = fromJson(stringStats, dayDiff.toInt())
-
-			stats.add(getCurrent(preferences))
-
-			if (stringStats == null)
-				stringStats = HashSet()
-			else
-				stringStats.clear()
-
-			val jsonAdapter = Moshi.Builder().build().adapter(StatDay::class.java)
-			stats.mapTo(stringStats) { jsonAdapter.toJson(it) }
-
-			preferences.edit()
-					.putLong(PREF_STATS_STAT_LAST_DAY, todayUTC)
-					.putStringSet(PREF_STATS_LAST_7_DAYS, stringStats)
-					.putInt(PREF_STATS_MINUTES, 0)
-					.putInt(PREF_STATS_LOCATIONS_FOUND, 0)
-					.putInt(PREF_STATS_WIFI_FOUND, 0)
-					.putInt(PREF_STATS_CELL_FOUND, 0)
-					.putLong(PREF_STATS_UPLOADED, 0)
-					.apply()
-		}
-	}
-
-	/**
-	 * Counts all stats and combines them to a single StatDay object
-	 * @param context context
-	 * @return sum of all StatDays
-	 */
-	fun countStats(context: Context): StatDay {
-		val sp = getPref(context)
-		val result = getCurrent(sp)
-		val set = fromJson(sp.getStringSet(PREF_STATS_LAST_7_DAYS, null), 0)
-
-		result += set
-		return result
-	}
-
-	/**
-	 * Creates stat day with today values
-	 * @param sp shared preferences
-	 * @return Today StatDay
-	 */
-	private fun getCurrent(sp: SharedPreferences): StatDay =
-			StatDay(sp.getInt(PREF_STATS_MINUTES, 0), sp.getInt(PREF_STATS_LOCATIONS_FOUND, 0), sp.getInt(PREF_STATS_WIFI_FOUND, 0), sp.getInt(PREF_STATS_CELL_FOUND, 0), 0, sp.getLong(PREF_STATS_UPLOADED, 0))
-
-	/**
-	 * Method loads data to list and checks if they are not too old
-	 * @param set string set
-	 * @param age how much should stats age
-	 * @return list with items that are not too old
-	 */
-	private fun fromJson(set: Set<String>?, age: Int): ArrayList<StatDay> {
-		val statDays: ArrayList<StatDay> = ArrayList()
-		if (set == null)
-			return statDays
-		val jsonAdapter = Moshi.Builder().build().adapter(StatDay::class.java)
-		set
-				.asSequence()
-				.map { jsonAdapter.fromJson(it)!! }
-				.filterTo(statDays) { age <= 0 || it.age(age) < MAX_DAY_DIFF_STATS }
-		return statDays
 	}
 }

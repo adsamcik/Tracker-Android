@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
 import android.util.SparseArray
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.enums.ResolvedActivities
 import com.adsamcik.signalcollector.extensions.powerManager
@@ -102,8 +103,13 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param tClass  class that requests update
 		 * @return true if success
 		 */
-		fun requestActivity(context: Context, tClass: Class<*>): Boolean =
-				requestActivityInternal(context, tClass, Preferences.getPref(context).getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), false)
+		fun requestActivity(context: Context, tClass: Class<*>): Boolean {
+			val preferences = Preferences.getPref(context)
+			val resources = context.resources
+			val key = resources.getString(R.string.settings_activity_freq_key)
+			val default = resources.getString(R.string.settings_activity_freq_default).toInt()
+			return requestActivityInternal(context, tClass, preferences.getInt(key, default), false)
+		}
 
 		/**
 		 * Request auto tracking updates
@@ -115,8 +121,15 @@ class ActivityService : IntentService("ActivityService") {
 		 */
 		fun requestAutoTracking(context: Context, tClass: Class<*>): Boolean {
 			val preferences = Preferences.getPref(context)
-			if (preferences.getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING) > 0) {
-				if (requestActivityInternal(context, tClass, preferences.getInt(Preferences.PREF_ACTIVITY_UPDATE_RATE, Preferences.DEFAULT_ACTIVITY_UPDATE_RATE), true)) {
+			val resources = context.resources
+			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
+			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
+
+			if (preferences.getInt(keyAutoTracking, defaultAutoTracking) > 0) {
+				val keyUpdateFrequency = resources.getString(R.string.settings_activity_freq_key)
+				val defaultUpdateFrequency = resources.getString(R.string.settings_activity_freq_default).toInt()
+
+				if (requestActivityInternal(context, tClass, preferences.getInt(keyUpdateFrequency, defaultUpdateFrequency), true)) {
 					mBackgroundTracking = true
 					return true
 				}
@@ -222,10 +235,18 @@ class ActivityService : IntentService("ActivityService") {
 		 * @return true if background tracking can be activated
 		 */
 		private fun canBackgroundTrack(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
-			if (evalActivity == 3 || evalActivity == 0 || TrackerService.isServiceRunning.value || Preferences.getPref(context).getBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false))
+			val resources = context.resources
+			val keyStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_key)
+			val defaultStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_default)!!.toBoolean()
+
+			if (evalActivity == 3 || evalActivity == 0 || TrackerService.isServiceRunning.value || Preferences.getPref(context).getBoolean(keyStopUntilRecharge, defaultStopUntilRecharge))
 				return false
-			val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
-			return `val` != 0 && (`val` == evalActivity || `val` > evalActivity)
+
+			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
+			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
+
+			val preference = Preferences.getPref(context).getInt(keyAutoTracking, defaultAutoTracking)
+			return preference != 0 && (preference == evalActivity || preference > evalActivity)
 		}
 
 		/**
@@ -237,8 +258,12 @@ class ActivityService : IntentService("ActivityService") {
 		private fun canContinueBackgroundTracking(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
 			if (evalActivity == 0)
 				return false
-			val `val` = Preferences.getPref(context).getInt(Preferences.PREF_AUTO_TRACKING, Preferences.DEFAULT_AUTO_TRACKING)
-			return `val` == 2 || `val` == 1 && (evalActivity == 1 || evalActivity == 3)
+
+			val resources = context.resources
+			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
+			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
+			val preference = Preferences.getPref(context).getInt(keyAutoTracking, defaultAutoTracking)
+			return preference == 2 || preference == 1 && (evalActivity == 1 || evalActivity == 3)
 		}
 	}
 }

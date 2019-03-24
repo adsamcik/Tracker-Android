@@ -25,11 +25,10 @@
     <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
 
     <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_weekly_collected_wifi">Wi-Fi data collected</string>
-    <string name="stats_weekly_collected_cell">Cell data collected</string>
+    <string name="stats_weekly_steps">Steps taken</string>
     <string name="stats_weekly_collected_location">Collections performed</string>
     <string name="stats_weekly_minutes">Minutes spent tracking</string>
-    <string name="stats_weekly_uploaded">Uploaded data</string>
+    <string name="stats_weekly_distance_travelled">Distance travelled</string>
 
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
@@ -67,8 +66,6 @@
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
 
-    <!-- Signin strings -->
-
     <!-- Activity strings -->
     <string name="activity_idle">Idle</string>
     <string name="activity_on_foot">On foot</string>
@@ -91,6 +88,9 @@
     <string name="share_nothing_to_share">Nothing to share</string>
     <string name="agree">I agree</string>
     <string name="disagree">I disagree</string>
+
+    <!-- PREFERENCES KEYS -->
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
 
     <!-- NEW UI -->
     <string name="info_altitude">%d m altitude</string>

@@ -20,4 +20,7 @@ interface SessionDataDao {
 	@Query("SELECT * FROM tracking_session WHERE datetime(start, 'start of day') == datetime(:day, 'start of day')")
 	fun getForDay(day: Long): List<TrackingSession>
 
+	@Query("SELECT * FROM tracking_session WHERE start >= :from AND start <= :to")
+	fun getBetween(from: Long, to: Long): List<TrackingSession>
+
 }

@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
 import com.adsamcik.signalcollector.data.LengthUnit
 import com.adsamcik.signalcollector.data.Stat
 import com.adsamcik.signalcollector.data.StatData
+import com.adsamcik.signalcollector.data.TrackingSession
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.dpAsPx
@@ -24,7 +25,6 @@ import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Constants
-import com.adsamcik.signalcollector.utility.Preferences
 import com.adsamcik.table.AppendBehaviors
 import com.adsamcik.table.Table
 import com.adsamcik.table.TableAdapter
@@ -32,6 +32,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.util.*
 
 class FragmentStats : Fragment(), IOnDemandView {
 	private lateinit var fragmentView: View
@@ -52,8 +53,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 
 		adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
-
-		Preferences.checkStatsDay(activity)
 
 		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
@@ -89,17 +88,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 		val r = activity.resources
 
 
-		val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
-		weeklyStats.title = r.getString(R.string.stats_weekly_title)
-		val weekStats = Preferences.countStats(activity)
-		weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), weekStats.minutes.toString())
-		weeklyStats.addData(r.getString(R.string.stats_weekly_uploaded), Assist.humanReadableByteCount(weekStats.uploaded, true))
-		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), weekStats.locations.toString())
-		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_wifi), weekStats.wifi.toString())
-		weeklyStats.addData(r.getString(R.string.stats_weekly_collected_cell), weekStats.cell.toString())
-		adapter!!.add(weeklyStats)
-
-
 		/*if (useMock) {
 			generateMockData()
 		} else {*/
@@ -110,6 +98,29 @@ class FragmentStats : Fragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val wifiDao = database.wifiDao()
 			val cellDao = database.cellDao()
+
+			val calendar = Calendar.getInstance()
+
+			val now = calendar.timeInMillis
+
+			calendar.add(Calendar.WEEK_OF_YEAR, -1)
+			val weekAgo = calendar.timeInMillis
+
+			val sumSession = TrackingSession(now, now, 0, 0f, 0)
+			var totalMinutes = 0.0
+			sessionDao.getBetween(now, weekAgo).forEach {
+				sumSession.mergeWith(it)
+				val time = it.end - it.start
+				totalMinutes += time.toDouble() / Constants.MINUTE_IN_MILLISECONDS.toDouble()
+			}
+
+			val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
+			weeklyStats.title = r.getString(R.string.stats_weekly_title)
+			weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), totalMinutes.toString())
+			weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString())
+			weeklyStats.addData(r.getString(R.string.stats_weekly_steps), sumSession.steps.toString())
+			weeklyStats.addData(r.getString(R.string.stats_weekly_distance_travelled), "${sumSession.distanceInM / 1000} km")
+			adapter!!.add(weeklyStats)
 
 			sessionDao.getAll().forEach {
 

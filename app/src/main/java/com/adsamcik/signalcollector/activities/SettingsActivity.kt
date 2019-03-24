@@ -215,7 +215,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	 * Initializes settings on preferences on debug screen
 	 */
 	private fun initializeDebug(caller: PreferenceFragmentCompat) {
-		setOnClickListener(R.string.settings_activity_debug_key) {
+		setOnClickListener(R.string.settings_debug_activity_key) {
 			startActivity<ActivityRecognitionActivity> { }
 		}
 

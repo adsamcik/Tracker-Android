@@ -159,8 +159,10 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 				} else if (!Assist.canTrack(activity)) {
 					SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_nothing_to_track)
 				} else {
+					val keyDisableTillRecharge = getString(R.string.settings_disabled_recharge_key)
+
 					Preferences.getPref(activity).edit {
-						putBoolean(Preferences.PREF_STOP_UNTIL_RECHARGE, false)
+						putBoolean(keyDisableTillRecharge, false)
 					}
 
 					activity.startForegroundService<TrackerService> {
