@@ -12,6 +12,8 @@ import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.hardware.SensorManager.SENSOR_DELAY_NORMAL
 import android.location.Location
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
@@ -259,6 +261,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val sp = Preferences.getPref(this)
 		val resources = resources
 
+		val packageManager = packageManager
+
 		//Get managers
 		notificationManager = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
@@ -307,6 +311,12 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			wifiManager.startScan()
 			wifiReceiver = WifiReceiver()
 			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
+		}
+
+		if(packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
+			val sensorManager = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
+			val stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+			sensorManager.registerListener(this, stepCounter, SENSOR_DELAY_NORMAL)
 		}
 
 
@@ -370,6 +380,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			Shortcuts.initializeShortcuts(this)
 			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play_circle_filled_black_24dp, Shortcuts.ShortcutType.START_COLLECTION)
 		}
+
+		val sensorManager = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
+		sensorManager.unregisterListener(this)
 
 
 		//Save data to database
