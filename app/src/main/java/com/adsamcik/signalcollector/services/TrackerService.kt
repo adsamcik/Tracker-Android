@@ -161,13 +161,17 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 				val cell = data.cell
 				cell?.registeredCells?.forEach {
-					database.cellDao().insert(DatabaseCellData(locationId, it))
+					if (database.cellDao().insertWithUpdate(DatabaseCellData(locationId, data.time, data.time, it)) == 0)
+						database.cellDao().update(it.cellId, locationId, data.time, it.type, it.asu)
 				}
 
 				val wifi = data.wifi
 				if (wifi != null) {
 					val wifiDao = database.wifiDao()
-					wifi.inRange.forEach { wifiDao.insert(DatabaseWifiData(locationId, it)) }
+					wifi.inRange.forEach {
+						if (wifiDao.insertWithUpdate(DatabaseWifiData(locationId, wifi.time, wifi.time, it)) == 0)
+							wifiDao.update(locationId, it.BSSID, it.SSID, it.capabilities, it.frequency, wifi.time, it.level)
+					}
 				}
 			}
 		}
@@ -235,7 +239,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val cell = d.cell
 		if (cell != null && cell.registeredCells.isNotEmpty()) {
 			val mainCell = cell.registeredCells[0]
-			sb.append(resources.getString(R.string.notification_cell_current, mainCell.typeString, mainCell.dbm)).append(' ').append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount)).append(", ")
+			sb.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm)).append(' ').append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount)).append(", ")
 			isEmpty = false
 		}
 
@@ -263,7 +267,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		//Database initialization
 		GlobalScope.launch {
 			val sessionDao = AppDatabase.getAppDatabase(applicationContext).sessionDao()
-			sessionDao.insert(session)
+			session.id = sessionDao.insert(session)
 		}
 
 		//Enable location update

@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.utility.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat
+import java.text.SimpleDateFormat
 import java.util.*
 
 
@@ -59,10 +60,26 @@ object Assist {
 		return context.windowManager.defaultDisplay.rotation
 	}
 
-	fun formatTime(context: Context, time: Long): String {
+	fun formatDate(context: Context, time: Long): String {
 		val date = Date(time)
 		val dateFormat = android.text.format.DateFormat.getDateFormat(context)
 		return dateFormat.format(date)
+	}
+
+	fun formatTime(context: Context, time: Long): String {
+		val date = Date(time)
+		val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
+		return timeFormat.format(date)
+	}
+
+	fun formatDateTime(context: Context, time: Long): String {
+		val date = Date(time)
+		return SimpleDateFormat.getDateTimeInstance().format(date)
+	}
+
+	fun formatShortDateTime(time: Long): String {
+		val date = Date(time)
+		return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
 	}
 
 	/**

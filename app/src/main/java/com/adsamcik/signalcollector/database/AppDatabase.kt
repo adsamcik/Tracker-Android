@@ -4,17 +4,20 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import com.adsamcik.signalcollector.data.TrackingSession
 import com.adsamcik.signalcollector.database.dao.CellDataDao
 import com.adsamcik.signalcollector.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.database.dao.WifiDataDao
+import com.adsamcik.signalcollector.database.data.CellTypeTypeConverter
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 
 
 @Database(entities = [DatabaseLocation::class, TrackingSession::class, DatabaseWifiData::class, DatabaseCellData::class], version = 2)
+@TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationDao(): LocationDataDao

@@ -106,11 +106,34 @@ class FragmentStats : Fragment(), IOnDemandView {
 		//refreshingCount = 2
 		//new stat loading
 		GlobalScope.launch {
-			val locations = AppDatabase.getAppDatabase(activity).locationDao().getAllSince(System.currentTimeMillis() - Constants.DAY_IN_MILLISECONDS * 30)
+			val database = AppDatabase.getAppDatabase(activity)
+			val sessionDao = database.sessionDao()
+			val wifiDao = database.wifiDao()
+			val cellDao = database.cellDao()
+
+			sessionDao.getAll().forEach {
+
+				//val locations = locationDao.getAllBetween(it.start, it.end)
+
+				//val distance = calculateDistance(locations)
+
+				val stats = arrayOf(Stat("${Assist.formatShortDateTime(it.start)} - ${Assist.formatShortDateTime(it.end)}", "", false, listOf(
+						StatData("distance", "${(it.distanceInM / 1000.0).format(2)} km"),
+						StatData("collections", Assist.formatNumber(it.collections)),
+						StatData("steps", it.steps.toString())
+				)))
+				GlobalScope.launch(Dispatchers.Main) {
+					addStatsTable(stats, AppendBehaviors.Any)
+					adapter!!.sort()
+				}
+			}
+
+
+			/*val locations = AppDatabase.getAppDatabase(activity).locationDao().getAllSince(System.currentTimeMillis() - Constants.DAY_IN_MILLISECONDS * 30)
 			locations.groupBy { it.location.time / Constants.DAY_IN_MILLISECONDS }.forEach {
 				val distance = calculateDistance(it.value).format(2)
 				//todo add localization support
-				val stats = arrayOf(Stat(Assist.formatTime(activity, it.value.first().location.time), "", false, listOf(
+				val stats = arrayOf(Stat(Assist.formatDate(activity, it.value.first().location.time), "", false, listOf(
 						StatData("distance", "$distance km"),
 						StatData("locations", Assist.formatNumber(it.value.size))
 				)))
@@ -118,7 +141,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 					addStatsTable(stats, AppendBehaviors.Any)
 					adapter!!.sort()
 				}
-			}
+			}*/
 		}
 		//}
 

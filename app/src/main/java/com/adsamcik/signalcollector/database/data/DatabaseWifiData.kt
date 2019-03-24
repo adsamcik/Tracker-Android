@@ -11,8 +11,11 @@ import com.adsamcik.signalcollector.data.WifiInfo
 		onDelete = SET_NULL,
 		onUpdate = NO_ACTION)])
 data class DatabaseWifiData(
-		@ColumnInfo(name = "location_id") val locationId: Long?,
+		@ColumnInfo(name = "location_id", index = true) val locationId: Long?,
+		@ColumnInfo(name = "first_seen") var firstSeen: Long,
+		@ColumnInfo(name = "last_seen") var lastSeen: Long,
 		@Embedded val wifiInfo: WifiInfo) {
-	@PrimaryKey(autoGenerate = true)
-	var id: Int = 0
+	@PrimaryKey(autoGenerate = false)
+	var id: String = wifiInfo.BSSID
 }
+

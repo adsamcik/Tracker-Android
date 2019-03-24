@@ -23,15 +23,15 @@ data class CellInfo
  * @param cellId           [CellInfo.cellId]
  * @param mcc          [CellInfo.mcc]
  * @param mnc          [CellInfo.mnc]
- * @param dbm          [CellInfo.dbm]
- * @param asu          [CellInfo.asu]
+ * @param dbm          [dbm]
+ * @param asu          [asu]
  * @param level        [CellInfo.level]
  */(@ColumnInfo(name = "operator_name")
     var operatorName: String,
     /**
-     * Network type. Can have values: GSM {@value #GSM}, CDMA {@value #CDMA}, WCDMA {@value #WCDMA}, LTE {@value #LTE}
+     * Network type.
      */
-    var type: Int,
+    var type: CellType,
     /**
      * Cell id
      * GSM - cid
@@ -52,38 +52,24 @@ data class CellInfo
      */
     var mnc: String,
     /**
-     * Strength of signal in decibels
-     */
-    var dbm: Int,
-    /**
      * Strength of signal in asu
      */
     var asu: Int,
     /**
+     * Strength of signal in decibels
+     */
+    @Ignore
+    var dbm: Int = 0,
+    /**
      * Signal strength as int 0...4 calculated by device
      */
-    var level: Int) {
+    @Ignore
+    var level: Int = 0) {
 
-	/**
-	 * Converts int type to string
-	 *
-	 * @return type of network as string
-	 */
-	@Ignore
-	val typeString: String = when (type) {
-		GSM -> "GSM"
-		CDMA -> "CDMA"
-		WCDMA -> "WCDMA"
-		LTE -> "LTE"
-		else -> "UNKNOWN"
-	}
+	constructor(operatorName: String, type: CellType, cellId: Int, mcc: String, mnc: String, asu: Int) : this(operatorName, type, cellId, mcc, mnc, asu, 0, 0)
+
 
 	companion object {
-		const val GSM = 0
-		const val CDMA = 1
-		const val WCDMA = 2
-		const val LTE = 3
-
 		/**
 		 * Finds carrier name in subscriptions
 		 *
@@ -142,7 +128,7 @@ data class CellInfo
 				mnc = cig.mnc.toString()
 			}
 
-			return CellInfo(operatorName, GSM, cig.cid, mcc, mnc, cssg.dbm, cssg.asuLevel, cssg.level)
+			return CellInfo(operatorName, CellType.GSM, cig.cid, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 
@@ -174,7 +160,7 @@ data class CellInfo
 			val cic = cinc.cellIdentity
 			val cssg = cinc.cellSignalStrength
 
-			return CellInfo(operatorName, CDMA, cic.basestationId, cic.systemId.toString(), cic.networkId.toString(), cssg.dbm, cssg.asuLevel, cssg.level)
+			return CellInfo(operatorName, CellType.CDMA, cic.basestationId, cic.systemId.toString(), cic.networkId.toString(), cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 		@RequiresApi(22)
@@ -208,7 +194,7 @@ data class CellInfo
 				mnc = cil.mnc.toString()
 			}
 
-			return CellInfo(operatorName, WCDMA, cil.cid, mcc, mnc, cssg.dbm, cssg.asuLevel, cssg.level)
+			return CellInfo(operatorName, CellType.WCDMA, cil.cid, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 
@@ -257,7 +243,7 @@ data class CellInfo
 				mnc = cil.mnc.toString()
 			}
 
-			return CellInfo(operatorName, LTE, cil.ci, mcc, mnc, cssg.dbm, cssg.asuLevel, cssg.level)
+			return CellInfo(operatorName, CellType.LTE, cil.ci, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 
@@ -280,4 +266,13 @@ data class CellInfo
 			}
 		}
 	}
+}
+
+enum class CellType {
+	Unknown,
+	GSM,
+	CDMA,
+	WCDMA,
+	LTE,
+	NR
 }

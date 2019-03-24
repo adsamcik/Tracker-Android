@@ -182,7 +182,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		rawData.location = Location(rawData.time, 15.0, 15.0, 123.0, 6f)
 		rawData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
 		rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
-		rawData.cell = CellData(arrayOf(CellInfo("MOCK", 2, 0, "123", "456", -30, 90, 0)), 8)
+		rawData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
 		updateData(rawData)
 	}
 
@@ -312,7 +312,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		if (cell != null) {
 			val component = initializeCellInfo()
 			if (cell.registeredCells.isNotEmpty()) {
-				component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, cell.registeredCells[0].typeString, cell.registeredCells[0].dbm, cell.registeredCells[0].asu))
+				component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, cell.registeredCells[0].type.name, cell.registeredCells[0].dbm, cell.registeredCells[0].asu))
 			} else
 				component.setVisibility(CELL_COMPONENT_CURRENT, GONE)
 			component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, cell.totalCount))
