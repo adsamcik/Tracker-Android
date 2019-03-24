@@ -10,7 +10,6 @@ import androidx.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition
 import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.rule.ActivityTestRule
 import androidx.test.rule.GrantPermissionRule
-import androidx.test.runner.AndroidJUnit4
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.exists
 import com.adsamcik.signalcollector.services.TrackerService
@@ -25,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 
-@RunWith(AndroidJUnit4::class)
+@RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
 class MainActivityTest {
 
     @get:Rule
