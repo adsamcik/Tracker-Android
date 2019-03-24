@@ -29,5 +29,4 @@ interface LocationDataDao {
 
 	@Query("SELECT COUNT(id) FROM location_data")
 	fun count(): LiveData<Int>
-
 }

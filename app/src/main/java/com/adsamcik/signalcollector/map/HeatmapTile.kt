@@ -2,53 +2,37 @@ package com.adsamcik.signalcollector.map
 
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
-import ca.hss.heatmaplib.HeatMap
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.toByteArray
-import com.adsamcik.signalcollector.utility.CoordinateBounds
-import kotlin.math.max
 import kotlin.math.roundToInt
 
-class HeatmapTile(val zoom: Int, val bounds: CoordinateBounds) {
-	val grid: IntArray
-	val heatmap: heatmap
+class HeatmapTile(val x: Int, val y: Int, val zoom: Int, val maxHeat: Float = 0f) {
+	val heatmap = Heatmap(HEATMAP_SIZE, HEATMAP_SIZE, maxHeat, maxHeat <= 0)
 
-	init {
-		grid = IntArray(HEATMAP_SIZE * HEATMAP_SIZE)
+	val tileCount = MapFunctions.getTileCount(zoom)
+
+	fun addAll(list: List<DatabaseLocation>) {
+		list.forEach { add(it) }
 	}
 
-	fun initialize(list: List<DatabaseLocation>) {
-		val width = bounds.width
-		val height = bounds.height
-		val lonRound = max(width / HEATMAP_SIZE, 5.0)
-		val latRound = max(height / HEATMAP_SIZE, 5.0)
-
-		list.groupBy { it.location.roundTo(lonRound, latRound) }.forEach {
-			val x = ((it.key.longitude - bounds.left) / HEATMAP_SIZE).roundToInt()
-			val y = ((it.key.latitude - bounds.bottom) / HEATMAP_SIZE).roundToInt()
-			this[y, x] = it.value.size
-		}
-
+	fun add(location: DatabaseLocation) {
+		val tx = MapFunctions.toTileX(location.longitude, tileCount)
+		val ty = MapFunctions.toTileY(location.latitude, tileCount)
+		val x = ((tx - x) * HEATMAP_SIZE_AS_DOUBLE).roundToInt()
+		val y = ((ty - y) * HEATMAP_SIZE_AS_DOUBLE).roundToInt()
+		heatmap.addPoint(x, y)
 	}
-
-	fun calculateSpreadMap() {
-
-	}
-
-	operator fun set(y: Int, x: Int, value: Int) {
-		grid[x + y * HEATMAP_SIZE] = value
-	}
-
-	operator fun get(y: Int, x: Int) = grid[x + y * HEATMAP_SIZE]
 
 
 	fun toByteArray(size: Int): ByteArray {
-		val bitmap = Bitmap.createBitmap(heatmap, HEATMAP_SIZE, HEATMAP_SIZE, Bitmap.Config.ARGB_8888)
+		val array = heatmap.renderDefaultTo()
+		val bitmap = Bitmap.createBitmap(array, HEATMAP_SIZE, HEATMAP_SIZE, Bitmap.Config.ARGB_8888)
 		val scaled = bitmap.scale(size, size, false)
 		return scaled.toByteArray()
 	}
 
 	companion object {
-		const val HEATMAP_SIZE = 16
+		const val HEATMAP_SIZE = 64
+		const val HEATMAP_SIZE_AS_DOUBLE = HEATMAP_SIZE.toDouble()
 	}
 }

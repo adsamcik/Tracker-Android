@@ -12,9 +12,15 @@ import com.adsamcik.signalcollector.utility.CoordinateBounds
 
 class LocationTileColorProvider(context: Context) : MapTileColorProvider {
 	override fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds): HeatmapTile {
-		val heatmap = HeatmapTile(z, area)
-		val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)
-		heatmap.initialize(allInside)
+		val heatmap = HeatmapTile(x, y, z, 20f)
+
+		val extendLatitude = area.height * (9.toDouble() / HeatmapTile.HEATMAP_SIZE_AS_DOUBLE)
+		val extendLongitude = area.width * (9.toDouble() / HeatmapTile.HEATMAP_SIZE_AS_DOUBLE)
+
+		val allInside = dao.getAllInside(area.top + extendLatitude, area.right + extendLongitude, area.bottom - extendLatitude, area.left - extendLongitude)
+		//val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)
+
+		heatmap.addAll(allInside.sortedWith(compareBy({ it.longitude }, { it.latitude })))
 		return heatmap
 	}
 
