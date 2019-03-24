@@ -4,12 +4,6 @@
     key="root"
     title="@string/settings_title">
 
-
-    <Preference
-        android:key="@string/settings_account_key"
-        android:title="@string/settings_account_title"
-        app:icon="@drawable/ic_outline_account_circle_24px"/>
-
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_tracking_title"
         app:icon="@drawable/ic_outline_perm_scan_wifi_24px">
