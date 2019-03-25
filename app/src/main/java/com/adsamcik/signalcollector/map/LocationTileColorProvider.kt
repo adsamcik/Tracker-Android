@@ -11,8 +11,8 @@ import com.adsamcik.signalcollector.map.MapFunctions.getTileCount
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 
 class LocationTileColorProvider(context: Context) : MapTileColorProvider {
-	override fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds): HeatmapTile {
-		val heatmap = HeatmapTile(x, y, z, 20f)
+	override fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Double): HeatmapTile {
+		val heatmap = HeatmapTile(x, y, z, maxHeat)
 
 		val extendLatitude = area.height * (9.toDouble() / HeatmapTile.HEATMAP_SIZE_AS_DOUBLE)
 		val extendLongitude = area.width * (9.toDouble() / HeatmapTile.HEATMAP_SIZE_AS_DOUBLE)

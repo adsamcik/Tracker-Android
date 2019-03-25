@@ -6,8 +6,8 @@ import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.toByteArray
 import kotlin.math.roundToInt
 
-class HeatmapTile(val x: Int, val y: Int, val zoom: Int, val maxHeat: Float = 0f) {
-	val heatmap = Heatmap(HEATMAP_SIZE, HEATMAP_SIZE, maxHeat, maxHeat <= 0)
+class HeatmapTile(val x: Int, val y: Int, zoom: Int, maxHeat: Double = 0.0) {
+	val heatmap = Heatmap(HEATMAP_SIZE, HEATMAP_SIZE, maxHeat.toFloat(), maxHeat <= 0)
 
 	val tileCount = MapFunctions.getTileCount(zoom)
 

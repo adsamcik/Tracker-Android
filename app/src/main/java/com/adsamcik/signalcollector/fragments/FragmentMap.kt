@@ -57,7 +57,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var map: GoogleMap? = null
 	private var mapFragment: SupportMapFragment? = null
 
-	private var tileProvider: LocationTileProvider = LocationTileProvider()
+	private var tileProvider: LocationTileProvider = LocationTileProvider(MAX_ZOOM)
 	private var locationManager: LocationManager? = null
 	private var activeOverlay: TileOverlay? = null
 

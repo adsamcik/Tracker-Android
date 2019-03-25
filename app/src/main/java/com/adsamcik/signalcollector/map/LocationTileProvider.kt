@@ -4,9 +4,10 @@ import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Int2
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
+import kotlin.math.pow
 
 
-class LocationTileProvider : TileProvider {
+class LocationTileProvider(private val maxZoom: Int) : TileProvider {
 	var colorProvider: MapTileColorProvider? = null
 
 	private val map = mutableMapOf<Int2, HeatmapTile>()
@@ -20,6 +21,8 @@ class LocationTileProvider : TileProvider {
 			it.value.heatmap.dynamicHeat = false
 		}
 	}
+
+	//todo improve max heat calculation
 
 	override fun getTile(x: Int, y: Int, z: Int): Tile {
 		if (lastZoom != z) {
@@ -43,7 +46,8 @@ class LocationTileProvider : TileProvider {
 		if (map.containsKey(key)) {
 			heatmap = map[key]!!
 		} else {
-			heatmap = colorProvider.getHeatmap(x, y, z, area)
+			//todo add dynamic scaling and better handling of more zoomed out areas (potentially dynamic scaling on per zoom level?)
+			heatmap = colorProvider.getHeatmap(x, y, z, area, 10.0 * 4.0.pow(maxZoom - z))
 			map[key] = heatmap
 		}
 		return Tile(IMAGE_SIZE, IMAGE_SIZE, heatmap.toByteArray(IMAGE_SIZE))
