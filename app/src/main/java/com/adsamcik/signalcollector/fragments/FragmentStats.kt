@@ -11,10 +11,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.adapters.ChangeTableAdapter
-import com.adsamcik.signalcollector.data.LengthUnit
-import com.adsamcik.signalcollector.data.Stat
-import com.adsamcik.signalcollector.data.StatData
-import com.adsamcik.signalcollector.data.TrackingSession
+import com.adsamcik.signalcollector.data.*
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.dpAsPx
@@ -109,7 +106,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			val sumSession = TrackingSession(now, now, 0, 0f, 0)
 			var totalMinutes = 0.0
-			sessionDao.getBetween(now, weekAgo).forEach {
+			sessionDao.getBetween(weekAgo, now).forEach {
 				sumSession.mergeWith(it)
 				val time = it.end - it.start
 				totalMinutes += time.toDouble() / Constants.MINUTE_IN_MILLISECONDS.toDouble()
