@@ -79,6 +79,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 			return@OnPreferenceChangeListener true
 		}
+
+		//todo check if device has Wi-Fi and telephony features
 	}
 
 	private fun initializeExport(caller: PreferenceFragmentCompat) {
