@@ -15,10 +15,9 @@ import org.hamcrest.Matchers.`is`
 import org.hamcrest.Matchers.allOf
 import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
 
 
-@RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
+//@RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
 class MainActivityTest {
 
 	@get:Rule
