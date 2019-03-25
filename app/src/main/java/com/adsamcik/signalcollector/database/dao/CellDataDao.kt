@@ -17,4 +17,7 @@ interface CellDataDao {
 
 	@Query("SELECT * from cell_data")
 	fun getAll(): List<DatabaseCellData>
+
+	@Query("SELECT COUNT(*) from cell_data")
+	fun count(): Long
 }

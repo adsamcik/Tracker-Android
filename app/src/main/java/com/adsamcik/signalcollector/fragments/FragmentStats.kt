@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
+import kotlin.math.roundToInt
 
 class FragmentStats : Fragment(), IOnDemandView {
 	private lateinit var fragmentView: View
@@ -99,6 +100,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val wifiDao = database.wifiDao()
 			val cellDao = database.cellDao()
+			val locationDao = database.locationDao()
 
 			val calendar = Calendar.getInstance()
 
@@ -112,17 +114,28 @@ class FragmentStats : Fragment(), IOnDemandView {
 			sessionDao.getBetween(weekAgo, now).forEach {
 				sumSession.mergeWith(it)
 				val time = it.end - it.start
-				totalMinutes += time.toDouble() / Constants.MINUTE_IN_MILLISECONDS.toDouble()
+				if (time > 0)
+					totalMinutes += time.toDouble() / Constants.MINUTE_IN_MILLISECONDS.toDouble()
 			}
 
-			val weeklyStats = arrayOf(Stat(r.getString(R.string.stats_weekly_title), "", showPosition = false, data = listOf(
-					StatData(r.getString(R.string.stats_weekly_minutes), totalMinutes.toString()),
+			//todo add strings
+			val summaryStats = Stat("Total stats", "", showPosition = false, data = listOf(
+					StatData("Wi-Fi count", wifiDao.count().toString()),
+					StatData("Cell count", cellDao.count().toString()),
+					StatData("Collections count", (locationDao.count().value ?: 0).toString()),
+					StatData("Session count", sessionDao.count().toString())
+			))
+
+			val weeklyStats = Stat(r.getString(R.string.stats_weekly_title), "", showPosition = false, data = listOf(
+					StatData(r.getString(R.string.stats_weekly_minutes), totalMinutes.roundToInt().toString()),
 					StatData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString()),
 					StatData(r.getString(R.string.stats_weekly_steps), sumSession.steps.toString()),
-					StatData(r.getString(R.string.stats_weekly_distance_travelled), "${sumSession.distanceInM / 1000} km")
-			)))
+					StatData(r.getString(R.string.stats_weekly_distance_travelled), "${(sumSession.distanceInM / 1000).format(2)} km")
+			))
 
-			handleResponse(weeklyStats, AppendBehaviors.FirstFirst)
+			val sumStatsArray = arrayOf(summaryStats, weeklyStats)
+
+			handleResponse(sumStatsArray, AppendBehaviors.First)
 
 
 			val monthAgoCalendar = Calendar.getInstance()

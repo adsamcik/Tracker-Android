@@ -17,4 +17,8 @@ interface WifiDataDao {
 
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
+
+	@Query("SELECT COUNT(*) from wifi_data")
+	fun count(): Long
+
 }
