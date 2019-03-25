@@ -1,9 +1,6 @@
 package com.adsamcik.signalcollector.database.dao
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import com.adsamcik.signalcollector.data.TrackingSession
 
 @Dao
@@ -13,6 +10,9 @@ interface SessionDataDao {
 
 	@Update
 	fun update(session: TrackingSession)
+
+	@Delete
+	fun delete(session: TrackingSession)
 
 	@Query("SELECT * FROM tracking_session")
 	fun getAll(): List<TrackingSession>

@@ -330,7 +330,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
 		}
 
-		if(packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
+		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
 			val sensorManager = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 			val stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 			sensorManager.registerListener(this, stepCounter, SENSOR_DELAY_NORMAL)
@@ -401,7 +401,11 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		GlobalScope.launch {
 			val sessionDao = AppDatabase.getAppDatabase(applicationContext).sessionDao()
-			sessionDao.update(session)
+
+			if (session.collections <= 1)
+				sessionDao.delete(session)
+			else
+				sessionDao.update(session)
 		}
 	}
 
