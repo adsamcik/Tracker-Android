@@ -239,10 +239,6 @@
     <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
     <string name="settings_allow_upload_notification_default" translatable="false">true</string>
 
-    <string name="settings_privacy_policy_agreement_key" translatable="false">agreedToPrivacyPolicy</string>
-    <string name="settings_privacy_policy_agreement_title">Agreed to the privacy policy</string>
-    <string name="settings_privacy_policy_agreement_summary">You must agree to the privacy policy prior to uploading files.</string>
-
     <string name="settings_privacy_policy_key" translatable="false">privacyPolicy</string>
 
     <string name="settings_feedback_title">Send feedback about the app</string>
