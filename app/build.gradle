@@ -18,8 +18,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 28
-        versionCode 287
-        versionName "7.0α6 Offline"
+        versionCode 288
+        versionName "7.0α7 Offline"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         kotlinOptions {
             freeCompilerArgs = ["-Xuse-experimental=kotlin.ExperimentalUnsignedTypes"]
