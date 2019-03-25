@@ -7,3 +7,12 @@ import com.squareup.moshi.JsonClass
  */
 @JsonClass(generateAdapter = true)
 data class Stat(val name: String, val type: String, val showPosition: Boolean, val data: List<StatData>)
+
+enum class StatType {
+    Table,
+    Line,
+    Bar,
+    Pie,
+    Scatter,
+    Bubble
+}
