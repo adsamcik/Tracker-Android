@@ -53,7 +53,7 @@ interface MapTileColorProvider {
 	}
 
 
-	fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Double): HeatmapTile
+	fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile
 
 	fun getColor(x: Int, y: Int, z: Int, area: CoordinateBounds): ByteArray
 }

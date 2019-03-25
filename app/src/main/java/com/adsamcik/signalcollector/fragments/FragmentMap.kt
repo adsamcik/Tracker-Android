@@ -57,7 +57,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var map: GoogleMap? = null
 	private var mapFragment: SupportMapFragment? = null
 
-	private var tileProvider: LocationTileProvider = LocationTileProvider(MAX_ZOOM)
+	private lateinit var tileProvider: LocationTileProvider
 	private var locationManager: LocationManager? = null
 	private var activeOverlay: TileOverlay? = null
 
@@ -130,6 +130,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 	override fun onEnter(activity: FragmentActivity) {
 		this.fActivity = activity
+
+		tileProvider = LocationTileProvider(activity)
 
 		if (view != null) {
 			MapFragment.newInstance().getMapAsync(this)
@@ -539,6 +541,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
 			fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 
+			if (tileProvider.heatChange > HEAT_CHANGE_THRESHOLD) {
+				tileProvider.synchronizeMaxHeat()
+				activeOverlay!!.clearTileCache()
+			}
 		}
 	}
 
@@ -744,6 +750,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		private const val DURATION_STANDARD = 1000
 		private const val DURATION_SHORT = 200
+
+		private const val HEAT_CHANGE_THRESHOLD = 6
 
 		private const val TAG = "SignalsMap"
 	}

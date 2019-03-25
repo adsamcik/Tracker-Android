@@ -6,17 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.adsamcik.signalcollector.data.TrackingSession
-import com.adsamcik.signalcollector.database.dao.CellDataDao
-import com.adsamcik.signalcollector.database.dao.LocationDataDao
-import com.adsamcik.signalcollector.database.dao.SessionDataDao
-import com.adsamcik.signalcollector.database.dao.WifiDataDao
-import com.adsamcik.signalcollector.database.data.CellTypeTypeConverter
-import com.adsamcik.signalcollector.database.data.DatabaseCellData
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.database.dao.*
+import com.adsamcik.signalcollector.database.data.*
 
 
-@Database(entities = [DatabaseLocation::class, TrackingSession::class, DatabaseWifiData::class, DatabaseCellData::class], version = 2)
+@Database(entities = [DatabaseLocation::class, TrackingSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 3)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -28,13 +22,15 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun cellDao(): CellDataDao
 
+	abstract fun mapHeatDao(): MapHeatDao
+
 	companion object {
 		private var instance_: AppDatabase? = null
 
 		fun getAppDatabase(context: Context): AppDatabase {
 			if (instance_ == null) {
 				instance_ = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-						.fallbackToDestructiveMigration()
+						.addMigrations(MIGRATION_2_3)
 						.build()
 			}
 			return instance_ as AppDatabase

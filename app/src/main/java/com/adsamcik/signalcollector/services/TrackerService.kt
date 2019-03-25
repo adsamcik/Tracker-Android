@@ -228,6 +228,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	/**
 	 * Builds text for tracking notification
 	 */
+	//todo rewrite notification texts to better fit new offline approach
 	private fun buildNotificationText(d: RawData): String {
 		val resources = resources
 		val sb = StringBuilder()
