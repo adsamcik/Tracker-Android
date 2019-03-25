@@ -24,7 +24,14 @@ android {
         kotlinOptions {
             freeCompilerArgs = ["-Xuse-experimental=kotlin.ExperimentalUnsignedTypes"]
         }
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = ["room.schemaLocation":
+                                     "$projectDir/schemas".toString()]
+            }
+        }
     }
+
     buildTypes {
         debug {
             testCoverageEnabled = true
@@ -44,6 +51,9 @@ android {
     }
     lintOptions {
         checkReleaseBuilds false
+    }
+    sourceSets {
+        androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
     }
 
 }
