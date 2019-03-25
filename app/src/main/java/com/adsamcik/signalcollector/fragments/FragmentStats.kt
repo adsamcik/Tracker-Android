@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.fragments
 
-import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -40,8 +39,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 	private var adapter: TableAdapter? = null
 
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
-
-	private var refreshingCount = 0
 
 	private lateinit var colorManager: ColorManager
 
@@ -87,6 +84,10 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		val r = activity.resources
 
+		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+			swipeRefreshLayout.isRefreshing = true
+		}
+
 
 		/*if (useMock) {
 			generateMockData()
@@ -114,29 +115,31 @@ class FragmentStats : Fragment(), IOnDemandView {
 				totalMinutes += time.toDouble() / Constants.MINUTE_IN_MILLISECONDS.toDouble()
 			}
 
-			val weeklyStats = Table(4, false, CARD_LIST_MARGIN, AppendBehaviors.FirstFirst)
-			weeklyStats.title = r.getString(R.string.stats_weekly_title)
-			weeklyStats.addData(r.getString(R.string.stats_weekly_minutes), totalMinutes.toString())
-			weeklyStats.addData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString())
-			weeklyStats.addData(r.getString(R.string.stats_weekly_steps), sumSession.steps.toString())
-			weeklyStats.addData(r.getString(R.string.stats_weekly_distance_travelled), "${sumSession.distanceInM / 1000} km")
-			adapter!!.add(weeklyStats)
+			val weeklyStats = arrayOf(Stat(r.getString(R.string.stats_weekly_title), "", showPosition = false, data = listOf(
+					StatData(r.getString(R.string.stats_weekly_minutes), totalMinutes.toString()),
+					StatData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString()),
+					StatData(r.getString(R.string.stats_weekly_steps), sumSession.steps.toString()),
+					StatData(r.getString(R.string.stats_weekly_distance_travelled), "${sumSession.distanceInM / 1000} km")
+			)))
 
-			sessionDao.getAll().forEach {
+			handleResponse(weeklyStats, AppendBehaviors.FirstFirst)
+
+
+			val monthAgoCalendar = Calendar.getInstance()
+			monthAgoCalendar.add(Calendar.MONTH, -1)
+			//todo show all session for the past 24 hours and merge the rest
+			sessionDao.getBetween(monthAgoCalendar.timeInMillis, now).forEach {
 
 				//val locations = locationDao.getAllBetween(it.start, it.end)
 
 				//val distance = calculateDistance(locations)
 
 				val stats = arrayOf(Stat("${Assist.formatShortDateTime(it.start)} - ${Assist.formatShortDateTime(it.end)}", "", false, listOf(
-						StatData("distance", "${(it.distanceInM / 1000.0).format(2)} km"),
-						StatData("collections", Assist.formatNumber(it.collections)),
-						StatData("steps", it.steps.toString())
+						StatData(r.getString(R.string.stats_weekly_distance_travelled), "${(it.distanceInM / 1000.0).format(2)} km"),
+						StatData(r.getString(R.string.stats_weekly_collected_location), Assist.formatNumber(it.collections)),
+						StatData(r.getString(R.string.stats_weekly_steps), it.steps.toString())
 				)))
-				GlobalScope.launch(Dispatchers.Main) {
-					addStatsTable(stats, AppendBehaviors.Any)
-					adapter!!.sort()
-				}
+				handleResponse(stats, AppendBehaviors.FirstLast)
 			}
 
 
@@ -153,14 +156,12 @@ class FragmentStats : Fragment(), IOnDemandView {
 					adapter!!.sort()
 				}
 			}*/
-		}
-		//}
 
-		if (refreshingCount > 0) {
-			GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-				swipeRefreshLayout.isRefreshing = true
+			GlobalScope.launch(Dispatchers.Main) {
+				swipeRefreshLayout.isRefreshing = false
 			}
 		}
+		//}
 	}
 
 	private fun calculateDistance(locations: List<DatabaseLocation>): Double {
@@ -180,13 +181,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 		return totalDistance
 	}
 
-	private fun handleResponse(context: Context, value: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
-		refreshingCount--
-		swipeRefreshLayout.post {
-			if (refreshingCount == 0)
-				swipeRefreshLayout.isRefreshing = false
-		}
-
+	private fun handleResponse(value: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			addStatsTable(value, appendBehavior)
 			adapter!!.sort()
