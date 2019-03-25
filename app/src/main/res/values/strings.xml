@@ -28,7 +28,7 @@
     <string name="stats_weekly_steps">Steps taken</string>
     <string name="stats_weekly_collected_location">Collections performed</string>
     <string name="stats_weekly_minutes">Minutes spent tracking</string>
-    <string name="stats_weekly_distance_travelled">Distance travelled</string>
+    <string name="stats_weekly_distance_travelled">Distance traveled</string>
 
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
@@ -95,10 +95,4 @@
     <!-- NEW UI -->
     <string name="info_altitude">%d m altitude</string>
     <string name="info_accuracy">%d m accuracy</string>
-
-
-    <string name="privacy_policy_agreement_title">Privacy policy agreement</string>
-    <string name="privacy_policy_agreement_description">You need to agree to privacy policy, before uploading data to Signals servers.</string>
-    <string name="privacy_policy_agreement_autoup_description">Autoupload requires you to agree to privacy policy.</string>
-    <string name="privacy_policy_agreement_link">See privacy policy</string>
 </resources>
