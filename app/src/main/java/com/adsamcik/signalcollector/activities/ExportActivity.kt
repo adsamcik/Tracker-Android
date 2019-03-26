@@ -13,7 +13,8 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.exports.IExport
 import com.wdullaer.materialdatetimepicker.date.DatePickerDialog
 import com.wdullaer.materialdatetimepicker.time.TimePickerDialog
-import kotlinx.android.synthetic.main.layout_file_share.*
+import kotlinx.android.synthetic.main.layout_data_export.*
+import kotlinx.android.synthetic.main.layout_range_datetime.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -46,7 +47,7 @@ class ExportActivity : DetailActivity() {
 		exporter = exporterType.newInstance() as IExport
 
 		root = createLinearContentParent(false)
-		(layoutInflater.inflate(R.layout.layout_file_share, root) as ViewGroup).getChildAt(root.childCount - 1)
+		(layoutInflater.inflate(R.layout.layout_data_export, root) as ViewGroup).getChildAt(root.childCount - 1)
 
 		updateEditTextDate(edittext_from_date, from)
 		edittext_from_date.setOnClickListener {

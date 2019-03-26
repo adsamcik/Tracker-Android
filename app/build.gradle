@@ -89,6 +89,7 @@ dependencies {
     implementation 'de.psdev.licensesdialog:licensesdialog:2.0.0'
     implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
     implementation 'com.wdullaer:materialdatetimepicker:4.1.2'
+    implementation 'com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2'
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 
     //Google dependencies
