@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
+import android.util.Range
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.extensions.lock
@@ -10,6 +11,7 @@ import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
 
@@ -28,6 +30,8 @@ class LocationTileProvider(context: Context) : TileProvider {
 		private set
 
 	private var lastZoom = Int.MIN_VALUE
+
+	private var range: Range<Date>? = null
 
 	init {
 		GlobalScope.launch {

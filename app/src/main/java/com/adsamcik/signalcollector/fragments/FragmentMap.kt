@@ -14,10 +14,10 @@ import android.location.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.util.Range
 import android.view.LayoutInflater
 import android.view.View
-import android.view.View.GONE
-import android.view.View.VISIBLE
+import android.view.View.*
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
@@ -28,6 +28,7 @@ import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.MapLayer
+import com.adsamcik.signalcollector.dialogs.DateTimeRangeDialog
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.map.LocationTileColorProvider
@@ -48,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.IOException
+import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -83,6 +85,17 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
 
 	private val isMapLight = AtomicBoolean()
+
+	private val dateRange: Range<Date>
+
+	init {
+		val calendar = Calendar.getInstance()
+		val now = calendar.time
+		calendar.add(Calendar.MONTH, -1)
+		val monthAgo = calendar.time
+
+		dateRange = Range(monthAgo, now)
+	}
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 		if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -302,6 +315,20 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		button_map_search.setOnClickListener {
 			search(edittext_map_search.text.toString())
+		}
+
+		edittext_map_search.setOnFocusChangeListener { _, hasFocus ->
+			if (hasFocus) {
+				button_map_my_location.visibility = VISIBLE
+				button_map_date_range.visibility = VISIBLE
+			} else {
+				button_map_my_location.visibility = INVISIBLE
+				button_map_date_range.visibility = INVISIBLE
+			}
+		}
+
+		button_map_date_range.setOnClickListener {
+			DateTimeRangeDialog().show(fragmentManager!!, "Map date range dialog")
 		}
 
 		//todo This has to be invisible so spotlight can properly calculate its width, height and position. Improve forked version of Spotlight to fix this.
