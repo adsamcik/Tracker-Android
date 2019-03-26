@@ -7,4 +7,5 @@
     <dimen name="secondary_text_size">14sp</dimen>
     <dimen name="setting_item_padding">16dp</dimen>
     <dimen name="edge_margin">16dp</dimen>
+    <dimen name="map_searchbar_button_size">48</dimen>
 </resources>
