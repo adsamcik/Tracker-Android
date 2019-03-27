@@ -1,9 +1,10 @@
-package com.adsamcik.signalcollector.map
+package com.adsamcik.signalcollector.map.heatmap
 
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.extensions.toByteArray
+import com.adsamcik.signalcollector.map.MapFunctions
 import kotlin.math.roundToInt
 
 class HeatmapTile(val x: Int, val y: Int, zoom: Int, maxHeat: Float = 0f, dynamicHeat: Boolean = maxHeat <= 0f) {
@@ -13,11 +14,11 @@ class HeatmapTile(val x: Int, val y: Int, zoom: Int, maxHeat: Float = 0f, dynami
 
 	val maxHeat get() = heatmap.maxHeat
 
-	fun addAll(list: List<DatabaseLocation>) {
+	fun addAll(list: List<Database2DLocationWeightedMinimal>) {
 		list.forEach { add(it) }
 	}
 
-	fun add(location: DatabaseLocation) {
+	fun add(location: Database2DLocationWeightedMinimal) {
 		val tx = MapFunctions.toTileX(location.longitude, tileCount)
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
 		val x = ((tx - x) * HEATMAP_SIZE_AS_DOUBLE).roundToInt()

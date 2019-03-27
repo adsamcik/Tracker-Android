@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.map
+package com.adsamcik.signalcollector.map.heatmap
 
 import kotlin.math.min
 import kotlin.math.roundToInt
