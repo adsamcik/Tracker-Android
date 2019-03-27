@@ -4,9 +4,7 @@
     <string name="did_you_know">Věděli jste, že</string>
     <string name="button_back">zpět</string>
     <string name="settings_title">Nastavení</string>
-    <string name="settings_account_title">Účet</string>
     <string name="settings_tracking_title">Sběr dat</string>
-    <string name="settings_upload_title">Nahrávání dat</string>
     <string name="settings_style_title">Vzhled</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
     <string name="settings_other_title">Ostatní</string>
@@ -93,9 +91,6 @@
     <string name="info_accuracy">%d m přesnost</string>
     <string name="info_altitude">%d m n. m.</string>
     <string name="internet_connection_required">Nedostupné připojení k internetu</string>
-    <string name="user_renew_map">Obnovit přístup k mapě</string>
-    <string name="user_access_date">Máte přístup do %1$s</string>
-    <string name="user_cost_per_month">%1$s bezdrátových bodů měsíčně</string>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop_til_recharge">Zastavit do nabití</string>
     <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
@@ -120,10 +115,6 @@
     <string name="tutorial_settings_title">Nastavení</string>
     <string name="tutorial_welcome_title">Vítejte v Signals</string>
     <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
-    <string name="user_not_enough_wp">Nemáte dostatek bezdrátových bodů</string>
-    <string name="user_renew_personal_map">Obnovit přístup k osobní mapě</string>
-    <string name="user_have_wireless_points">Máte %s bezdrátových bodů</string>
-    <string name="signout">Odhlásit se</string>
     <string name="main_wifi_updated">Nalezeno %d m před záznamem</string>
     <string name="main_collected">%1$s nasbíráno</string>
     <string name="stats_weekly_title">Posledních 7 dnů</string>
@@ -264,4 +255,8 @@
     <string name="stats_weekly_steps">Počet kroků</string>
     <string name="tips_map_date_long_press_range_selection">Dlouhým stistkem a táhnutím z data aktivuje výběr časového období</string>
     <string name="location">Umístění</string>
+    <string name="settings_map_default_layer_title">Výchozí vrstva</string>
+    <string name="settings_map_title">Mapa</string>
+    <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
+    <string name="settings_map_quality_summary">Relativně k výchozímu rozlišení</string>
 </resources>

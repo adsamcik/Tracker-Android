@@ -97,6 +97,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 	}
 
+	private fun initializeMap(caller: PreferenceFragmentCompat) {
+
+	}
+
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {
 		setOnClickListener(R.string.settings_licenses_key) {
 			startActivity<LicenseActivity> { }
@@ -358,6 +362,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			r.getString(R.string.settings_debug_title) -> initializeDebug(caller)
 			r.getString(R.string.settings_style_title) -> initializeStyle(caller)
 			r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
+			r.getString(R.string.settings_map_title) -> initializeMap(caller)
 			r.getString(R.string.settings_export_title) -> initializeExport(caller)
 		}
 	}

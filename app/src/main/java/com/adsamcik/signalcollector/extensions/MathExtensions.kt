@@ -8,6 +8,7 @@ import androidx.core.graphics.green
 import androidx.core.graphics.red
 import kotlin.math.roundToInt
 
+
 /// <summary>
 /// Converts degrees to radians
 /// </summary>
@@ -27,6 +28,8 @@ fun Double.round(decimals: Int): Double {
 	repeat(decimals) { multiplier *= 10 }
 	return kotlin.math.round(this * multiplier) / multiplier
 }
+
+fun Int.isPowerOfTwo() = (this != 0) && ((this and (this - 1)) == 0)
 
 object MathExtensions {
 	fun lerp(fraction: Double, from: Double, to: Double): Double {

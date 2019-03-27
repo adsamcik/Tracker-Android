@@ -166,6 +166,8 @@ class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
 			return HeatmapStamp(diameter, diameter, stampData)
 		}
 
+		fun calculateOptimalRadius(size: Int) = size / 16 + 1
+
 		/* Having a default stamp ready makes it easier for simple usage of the library
         * since there is no need to create a new stamp.
         */

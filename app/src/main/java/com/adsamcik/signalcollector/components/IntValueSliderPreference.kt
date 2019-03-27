@@ -46,7 +46,7 @@ class IntValueSliderPreference : Preference {
     var slider: IntValueSlider? = null
 
     init {
-        layoutResource = R.layout.layout_settings_string_slider
+        layoutResource = R.layout.layout_settings_int_slider
     }
 
     override fun onGetDefaultValue(a: TypedArray, index: Int): Any {

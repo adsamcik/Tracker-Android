@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.extensions.lock
@@ -10,12 +11,15 @@ import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
 import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Int2
+import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
+import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
 
 
 class LocationTileProvider(context: Context) : TileProvider {
@@ -37,13 +41,16 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	private var lastZoom = Int.MIN_VALUE
 
-	private var heatmapSize: Int
-
-	private var stamp: HeatmapStamp
+	private val heatmapSize: Int
+	private val stamp: HeatmapStamp
 
 	init {
-
-		stamp = HeatmapStamp.generateNonlinear(HeatmapTile.HEATMAP_STAMP_RADIUS) { it.pow(2f) }
+		val resources = context.resources
+		val pref = Preferences.getPref(context)
+		val scale = pref.getFloat(resources.getString(R.string.settings_map_quality_key), resources.getString(R.string.settings_map_quality_default).toFloat())
+		heatmapSize = (scale * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
+		val stampRadius = HeatmapStamp.calculateOptimalRadius(heatmapSize)
+		stamp = HeatmapStamp.generateNonlinear(stampRadius) { it.pow(2f) }
 	}
 
 	var range: ClosedRange<Date>? = null
@@ -95,9 +102,9 @@ class LocationTileProvider(context: Context) : TileProvider {
 		} else {
 			val range = range
 			heatmap = if (range == null)
-				heatmapProvider.getHeatmap(x, y, zoom, area, heat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, heat.maxHeat)
 			else
-				heatmapProvider.getHeatmap(range.start.time, range.endInclusive.time, x, y, zoom, area, heat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.time, range.endInclusive.time, x, y, zoom, area, heat.maxHeat)
 			heatmapCache[key] = heatmap
 		}
 
@@ -111,11 +118,12 @@ class LocationTileProvider(context: Context) : TileProvider {
 			}
 		}
 
-		return Tile(IMAGE_SIZE, IMAGE_SIZE, heatmap.toByteArray(IMAGE_SIZE))
+		val imageSize = max(heatmapSize, HEATMAP_SIZE)
+		return Tile(imageSize, imageSize, heatmap.toByteArray(imageSize))
 	}
 
 	companion object {
-		const val IMAGE_SIZE: Int = 256
+		const val HEATMAP_SIZE = 256
 		const val MIN_HEAT: Float = 1f
 	}
 }

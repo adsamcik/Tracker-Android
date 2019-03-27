@@ -8,14 +8,14 @@ import com.adsamcik.signalcollector.map.MapFunctions
 import kotlin.math.roundToInt
 
 class HeatmapTile(
-		val tileSize: Int,
+		val heatmapSize: Int,
 		val stamp: HeatmapStamp,
 		val x: Int,
 		val y: Int,
 		zoom: Int,
 		maxHeat: Float = 0f,
 		dynamicHeat: Boolean = maxHeat <= 0f) {
-	val heatmap = Heatmap(HEATMAP_SIZE, HEATMAP_SIZE, maxHeat, dynamicHeat)
+	val heatmap = Heatmap(BASE_HEATMAP_SIZE, BASE_HEATMAP_SIZE, maxHeat, dynamicHeat)
 
 	val tileCount = MapFunctions.getTileCount(zoom)
 
@@ -36,16 +36,16 @@ class HeatmapTile(
 
 	fun toByteArray(size: Int): ByteArray {
 		val array = heatmap.renderDefaultTo()
-		val bitmap = Bitmap.createBitmap(array, HEATMAP_SIZE, HEATMAP_SIZE, Bitmap.Config.ARGB_8888)
+		val bitmap = Bitmap.createBitmap(array, heatmapSize, heatmapSize, Bitmap.Config.ARGB_8888)
 		val scaled = bitmap.scale(size, size, false)
 		return scaled.toByteArray()
 	}
 
 	companion object {
-		const val HEATMAP_SIZE = 256
-		const val HEATMAP_STAMP_RADIUS = HEATMAP_SIZE / 16 + 1
+		const val BASE_HEATMAP_SIZE = 64
+		const val HEATMAP_STAMP_RADIUS = BASE_HEATMAP_SIZE / 16 + 1
 
 		const val HEATMAP_STAMP_SIZE_AS_DOUBLE = HEATMAP_STAMP_RADIUS.toDouble()
-		const val HEATMAP_SIZE_AS_DOUBLE = HEATMAP_SIZE.toDouble()
+		const val HEATMAP_SIZE_AS_DOUBLE = BASE_HEATMAP_SIZE.toDouble()
 	}
 }

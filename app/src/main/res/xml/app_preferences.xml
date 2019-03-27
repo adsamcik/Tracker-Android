@@ -83,6 +83,27 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
+        android:title="@string/settings_map_title"
+        app:icon="@drawable/ic_outline_map_24dp">
+
+        <com.adsamcik.signalcollector.components.FloatValueSliderPreference
+            android:defaultValue="@string/settings_map_quality_default"
+            android:key="@string/settings_map_quality_key"
+            android:title="@string/settings_map_quality_title"
+            app:items="@array/settings_map_quality_values"
+            app:stringFormat="%1$fx"/>
+
+        <ListPreference
+            android:defaultValue="@string/settings_map_default_layer_default"
+            android:entries="@array/settings_map_default_layer_names"
+            android:entryValues="@array/settings_map_default_layer_values"
+            android:key="@string/settings_map_default_layer_key"
+            android:summary="%s"
+            android:title="@string/settings_map_default_layer_title"/>
+
+    </androidx.preference.PreferenceScreen>
+
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
         <ListPreference
