@@ -5,21 +5,10 @@
 
     <string name="internet_connection_required">Internet connection required</string>
 
-    <!-- SIGN-IN -->
-    <string name="user_have_wireless_points">You have %1$s wireless points</string>
-    <string name="user_renew_map">Renew map access</string>
-    <string name="user_access_date">You have access until %1$s</string>
-    <string name="user_cost_per_month">%1$s wireless points per month</string>
-    <string name="user_renew_personal_map">Renew personal map</string>
-    <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
-    <string name="signout">Sign out</string>
-
     <!--- TITLES -->
     <string name="settings_title">Settings</string>
-    <string name="settings_account_title">Account</string>
-    <string name="settings_account_key" translatable="false">account_key</string>
     <string name="settings_tracking_title">Tracking</string>
-    <string name="settings_upload_title">Upload</string>
+    <string name="settings_map_title">Map</string>
     <string name="settings_style_title">Style</string>
     <string name="settings_data_title">Data</string>
     <string name="settings_export_title">Export</string>
@@ -185,6 +174,35 @@
     <string name="settings_export_kml_title">As KML file</string>
     <string name="settings_export_kml_key" translatable="false">kmlExport</string>
     <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
+
+    <!-- MAP -->
+    <string name="settings_map_quality_title">Heatmap resolution</string>
+    <string name="settings_map_quality_key" translatable="false">mapHeatmapQuality</string>
+    <string name="settings_map_quality_summary">Scale relative to default value</string>
+    <string name="settings_map_quality_default" translatable="false">1f</string>
+    <string-array name="settings_map_quality_values">
+        <item>0.5</item>
+        <item>1</item>
+        <item>2</item>
+        <item>4</item>
+        <item>8</item>
+    </string-array>
+
+    <string name="settings_map_default_layer_title">Default layer</string>
+    <string name="settings_map_default_layer_key" translatable="false">mapDefaultLayer</string>
+    <string name="settings_map_default_layer_default" translatable="false">0</string>
+    <string-array name="settings_map_default_layer_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="settings_map_default_layer_names">
+        <item>Location</item>
+        <item>Cell</item>
+        <item>Wi-Fi</item>
+    </string-array>
+
 
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
