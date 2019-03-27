@@ -4,7 +4,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/* heatmap - High performance heatmap creation in C.
+/* heatmap - High performance heatmap creation in C. (Rewritten to Kotlin)
  *
  * The MIT License (MIT)
  *
@@ -26,35 +26,47 @@ import kotlin.math.sqrt
  * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * https://github.com/lucasb-eyer/heatmap/
  */
 
 class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, var dynamicHeat: Boolean = true) {
 	val data = FloatArray(width * height)
 
-	fun addPoint(x: Int, y: Int) = addPointWithStamp(x, y, HeatmapStamp.default)
+	fun addPoint(x: Int, y: Int) = addPointWithStamp(x, y, HeatmapStamp.default9x9)
 
-	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) {
-		//assert(x < width)
-		//assert(y < height)
-		//assert(x >= 0)
-		//assert(y >= 0)
+	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(x, y, weight, HeatmapStamp.default9x9)
+
+	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) = addPointWithStamp(x, y, stamp) { 1f }
+
+	fun addWeightedPointWithStamp(x: Int, y: Int, weight: Float, stamp: HeatmapStamp) = addPointWithStamp(x, y, stamp) { weight }
+
+	private inline fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp, weightFunc: () -> Float) {
+		//todo validate that odd numbers don't cause some weird artifacts
+		val halfStampHeight = stamp.height / 2
+		val halfStampWidth = stamp.width / 2
+
+		assert(x - halfStampWidth / 2 < width)
+		assert(y - halfStampHeight < height)
+		assert(x - halfStampHeight >= 0)
+		assert(y + halfStampWidth / 2 >= 0)
 
 		/* Note: the order of operations is important, since we're computing with unsigned! */
 
 		/* These are [first, last) pairs in the STAMP's pixels. */
-		val x0 = if (x < stamp.width / 2) stamp.width / 2 - x else 0
-		val y0 = if (y < stamp.height / 2) stamp.height / 2 - y else 0
-		val x1 = if (x + stamp.width / 2 < width) stamp.width else stamp.width / 2 + width - x
-		val y1 = if (y + stamp.height / 2 < height) stamp.height else stamp.height / 2 + height - y
+		val x0 = if (x < halfStampWidth) stamp.width / 2 - x else 0
+		val y0 = if (y < halfStampHeight) stamp.height / 2 - y else 0
+		val x1 = if (x + halfStampWidth < width) stamp.width else halfStampWidth + width - x
+		val y1 = if (y + halfStampHeight < height) stamp.height else halfStampHeight + height - y
 
 		for (itY in y0 until y1) {
-			var heatIndex = ((y + itY) - stamp.height / 2) * width + (x + x0) - stamp.width / 2
+			var heatIndex = ((y + itY) - halfStampHeight) * width + (x + x0) - halfStampWidth
 			var stampIndex = itY * stamp.width + x0
 			assert(stampIndex >= 0f)
 
 			for (itX in x0 until x1) {
 				val heatValue = data[heatIndex]
-				data[heatIndex] = heatValue + stamp.stampData[stampIndex]
+				data[heatIndex] = heatValue + stamp.stampData[stampIndex] * weightFunc.invoke()
 				if (dynamicHeat && heatValue > maxHeat)
 					maxHeat = heatValue
 
@@ -129,7 +141,7 @@ data class HeatmapColorScheme constructor(val colors: IntArray) {
 	}
 }
 
-data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
+class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
 
 
 	companion object {
@@ -143,9 +155,9 @@ data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArr
 			for (y in 0 until diameter) {
 				val yOffset = y * diameter
 				for (x in 0 until diameter) {
-					val xWOradius = x - radius
-					val yWOradius = y - radius
-					val baseDistance = sqrt(((xWOradius * xWOradius) + (yWOradius * yWOradius)).toFloat() / (radius + 1).toFloat())
+					val xMinusRadius = x - radius
+					val yMinusRadius = y - radius
+					val baseDistance = sqrt(((xMinusRadius * xMinusRadius) + (yMinusRadius * yMinusRadius)).toFloat()) / (radius + 1).toFloat()
 					val distance = distFunction(baseDistance).coerceIn(0f, 1f)
 					stampData[x + yOffset] = 1f - distance
 				}
@@ -168,6 +180,6 @@ data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArr
 				0.0f, 0.1514719f, 0.2788897f, 0.3675445f, 0.4f, 0.3675445f, 0.2788897f, 0.1514719f, 0.0f,
 				0.0f, 0.0f, 0.1055728f, 0.1753789f, 0.2f, 0.1753789f, 0.1055728f, 0.0f, 0.0f)
 
-		val default = HeatmapStamp(9, 9, STAMP_DEFAULT_4_DATA)
+		val default9x9 = HeatmapStamp(9, 9, STAMP_DEFAULT_4_DATA)
 	}
 }

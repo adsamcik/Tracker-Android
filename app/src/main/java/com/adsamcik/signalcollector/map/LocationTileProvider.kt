@@ -5,6 +5,7 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.extensions.lock
 import com.adsamcik.signalcollector.extensions.toCalendar
+import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
 import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.utility.CoordinateBounds
@@ -14,6 +15,7 @@ import com.google.android.gms.maps.model.TileProvider
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
+import kotlin.math.pow
 
 
 class LocationTileProvider(context: Context) : TileProvider {
@@ -34,6 +36,15 @@ class LocationTileProvider(context: Context) : TileProvider {
 		private set
 
 	private var lastZoom = Int.MIN_VALUE
+
+	private var heatmapSize: Int
+
+	private var stamp: HeatmapStamp
+
+	init {
+
+		stamp = HeatmapStamp.generateNonlinear(HeatmapTile.HEATMAP_STAMP_RADIUS) { it.pow(2f) }
+	}
 
 	var range: ClosedRange<Date>? = null
 		set(value) {
