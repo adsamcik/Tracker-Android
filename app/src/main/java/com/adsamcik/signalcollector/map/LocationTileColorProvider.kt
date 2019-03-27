@@ -6,20 +6,32 @@ import android.graphics.Color
 import android.graphics.Paint
 import com.adsamcik.signalcollector.data.Location
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.map.LocationTileProvider.Companion.IMAGE_SIZE
 import com.adsamcik.signalcollector.map.MapFunctions.getTileCount
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 
 class LocationTileColorProvider(context: Context) : MapTileColorProvider {
-	override fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile {
-		val heatmap = HeatmapTile(x, y, z, maxHeat, true)
+	override fun getHeatmap(from: Long, to: Long, x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile {
+		return createHeatmap(x, y, z, area, maxHeat) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
+			dao.getAllInsideAndBetween(from, to, topLatitude, rightLongitude, bottomLatitude, leftLongitude)
+		}
+	}
 
+	override fun getHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile {
+		return createHeatmap(x, y, z, area, maxHeat) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
+			dao.getAllInside(topLatitude, rightLongitude, bottomLatitude, leftLongitude)
+		}
+	}
+
+	private fun createHeatmap(x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float, getLocations: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<DatabaseLocation>): HeatmapTile {
 		val extendLatitude = area.height * (9.toDouble() / HeatmapTile.HEATMAP_SIZE_AS_DOUBLE)
 		val extendLongitude = area.width * (9.toDouble() / HeatmapTile.HEATMAP_SIZE_AS_DOUBLE)
 
-		val allInside = dao.getAllInside(area.top + extendLatitude, area.right + extendLongitude, area.bottom - extendLatitude, area.left - extendLongitude)
+		val allInside = getLocations.invoke(area.top + extendLatitude, area.right + extendLongitude, area.bottom - extendLatitude, area.left - extendLongitude)
 		//val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)
 
+		val heatmap = HeatmapTile(x, y, z, maxHeat, true)
 		heatmap.addAll(allInside.sortedWith(compareBy({ it.longitude }, { it.latitude })))
 		return heatmap
 	}

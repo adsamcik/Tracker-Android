@@ -12,3 +12,9 @@ fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calend
 		return cal
 	}
 }
+
+fun Date.toCalendar() : Calendar {
+	val calendar = Calendar.getInstance()
+	calendar.time = this
+	return calendar
+}

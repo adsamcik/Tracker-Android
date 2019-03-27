@@ -14,7 +14,6 @@ import android.location.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
-import android.util.Range
 import android.view.LayoutInflater
 import android.view.View
 import android.view.View.*
@@ -86,16 +85,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 	private val isMapLight = AtomicBoolean()
 
-	private val dateRange: Range<Date>
-
-	init {
-		val calendar = Calendar.getInstance()
-		val now = calendar.time
-		calendar.add(Calendar.MONTH, -1)
-		val monthAgo = calendar.time
-
-		dateRange = Range(monthAgo, now)
-	}
+	private var dateRange: ClosedRange<Date>? = null
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 		if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -328,7 +318,14 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		}
 
 		button_map_date_range.setOnClickListener {
-			DateTimeRangeDialog().show(fragmentManager!!, "Map date range dialog")
+			DateTimeRangeDialog().apply {
+				range = dateRange
+				successCallback = { range ->
+					this@FragmentMap.dateRange = range
+					tileProvider.range = range
+					activeOverlay?.clearTileCache()
+				}
+			}.show(fragmentManager!!, "Map date range dialog")
 		}
 
 		//todo This has to be invisible so spotlight can properly calculate its width, height and position. Improve forked version of Spotlight to fix this.

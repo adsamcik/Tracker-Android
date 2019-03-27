@@ -126,6 +126,8 @@ class FragmentStats : Fragment(), IOnDemandView {
 					StatData("Session count", sessionDao.count().toString())
 			))
 
+
+
 			val weeklyStats = Stat(r.getString(R.string.stats_weekly_title), "", showPosition = false, data = listOf(
 					StatData(r.getString(R.string.stats_weekly_minutes), totalMinutes.roundToInt().toString()),
 					StatData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString()),

@@ -1,10 +1,10 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
-import android.util.Range
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.extensions.lock
+import com.adsamcik.signalcollector.extensions.toCalendar
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Int2
 import com.google.android.gms.maps.model.Tile
@@ -31,7 +31,16 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	private var lastZoom = Int.MIN_VALUE
 
-	private var range: Range<Date>? = null
+	var range: ClosedRange<Date>? = null
+		set(value) {
+			field = if (value != null) {
+				val endCal = value.endInclusive.toCalendar()
+				endCal.add(Calendar.DAY_OF_MONTH, 1)
+				value.start..endCal.time
+			} else
+				null
+			map.clear()
+		}
 
 	init {
 		GlobalScope.launch {
@@ -75,7 +84,11 @@ class LocationTileProvider(context: Context) : TileProvider {
 		if (map.containsKey(key)) {
 			heatmap = map[key]!!
 		} else {
-			heatmap = colorProvider.getHeatmap(x, y, zoom, area, heat.maxHeat)
+			val range = range
+			heatmap = if (range == null)
+				colorProvider.getHeatmap(x, y, zoom, area, heat.maxHeat)
+			else
+				colorProvider.getHeatmap(range.start.time, range.endInclusive.time, x, y, zoom, area, heat.maxHeat)
 			map[key] = heatmap
 		}
 
@@ -94,6 +107,6 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	companion object {
 		const val IMAGE_SIZE: Int = 256
-		const val MIN_HEAT: Float = 5f
+		const val MIN_HEAT: Float = 2f
 	}
 }
