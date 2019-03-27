@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "b09195cf5cb826fcfdbf54e726e06ea7",
+    "identityHash": "3feee6bc7541f80db6bae9ca6f389deb",
     "entities": [
       {
         "tableName": "location_data",
@@ -63,7 +63,32 @@
           ],
           "autoGenerate": true
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_location_data_lat",
+            "unique": false,
+            "columnNames": [
+              "lat"
+            ],
+            "createSql": "CREATE  INDEX `index_location_data_lat` ON `${TABLE_NAME}` (`lat`)"
+          },
+          {
+            "name": "index_location_data_lon",
+            "unique": false,
+            "columnNames": [
+              "lon"
+            ],
+            "createSql": "CREATE  INDEX `index_location_data_lon` ON `${TABLE_NAME}` (`lon`)"
+          },
+          {
+            "name": "index_location_data_time",
+            "unique": false,
+            "columnNames": [
+              "time"
+            ],
+            "createSql": "CREATE  INDEX `index_location_data_time` ON `${TABLE_NAME}` (`time`)"
+          }
+        ],
         "foreignKeys": []
       },
       {
@@ -336,7 +361,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"b09195cf5cb826fcfdbf54e726e06ea7\")"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"3feee6bc7541f80db6bae9ca6f389deb\")"
     ]
   }
 }
