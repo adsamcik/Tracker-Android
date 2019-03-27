@@ -9,8 +9,6 @@ import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Int2
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
@@ -41,12 +39,6 @@ class LocationTileProvider(context: Context) : TileProvider {
 				null
 			map.clear()
 		}
-
-	init {
-		GlobalScope.launch {
-			heatDao.clear()
-		}
-	}
 
 	fun synchronizeMaxHeat() {
 		heatMutex.lock {
