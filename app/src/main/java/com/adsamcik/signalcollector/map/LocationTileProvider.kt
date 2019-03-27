@@ -5,6 +5,8 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.extensions.lock
 import com.adsamcik.signalcollector.extensions.toCalendar
+import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
+import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Int2
 import com.google.android.gms.maps.model.Tile
@@ -15,9 +17,13 @@ import kotlin.math.ceil
 
 
 class LocationTileProvider(context: Context) : TileProvider {
-	var colorProvider: MapTileColorProvider? = null
+	var heatmapProvider: MapTileHeatmapProvider? = null
+		set(value) {
+			heatmapCache.clear()
+			field = value
+		}
 
-	private val map = mutableMapOf<Int2, HeatmapTile>()
+	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
 	private val heatDao = AppDatabase.getAppDatabase(context).mapHeatDao()
 
@@ -37,12 +43,12 @@ class LocationTileProvider(context: Context) : TileProvider {
 				value.start..endCal.time
 			} else
 				null
-			map.clear()
+			heatmapCache.clear()
 		}
 
 	fun synchronizeMaxHeat() {
 		heatMutex.lock {
-			map.forEach {
+			heatmapCache.forEach {
 				it.value.heatmap.maxHeat = heat.maxHeat
 			}
 			heatChange = 0f
@@ -53,14 +59,14 @@ class LocationTileProvider(context: Context) : TileProvider {
 		//Ensure that everything is up to date. It's fine to lock every time, since it is called only handful of times at once.
 		heatMutex.lock {
 			if (lastZoom != zoom) {
-				map.clear()
+				heatmapCache.clear()
 				lastZoom = zoom
 
 				heat = heatDao.getSingle(zoom) ?: DatabaseMapMaxHeat(zoom, MIN_HEAT)
 			}
 		}
 
-		val colorProvider = colorProvider!!
+		val heatmapProvider = heatmapProvider!!
 
 
 		val leftX = MapFunctions.toLon(x.toDouble(), zoom)
@@ -73,15 +79,15 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 		val key = Int2(x, y)
 		val heatmap: HeatmapTile
-		if (map.containsKey(key)) {
-			heatmap = map[key]!!
+		if (heatmapCache.containsKey(key)) {
+			heatmap = heatmapCache[key]!!
 		} else {
 			val range = range
 			heatmap = if (range == null)
-				colorProvider.getHeatmap(x, y, zoom, area, heat.maxHeat)
+				heatmapProvider.getHeatmap(x, y, zoom, area, heat.maxHeat)
 			else
-				colorProvider.getHeatmap(range.start.time, range.endInclusive.time, x, y, zoom, area, heat.maxHeat)
-			map[key] = heatmap
+				heatmapProvider.getHeatmap(range.start.time, range.endInclusive.time, x, y, zoom, area, heat.maxHeat)
+			heatmapCache[key] = heatmap
 		}
 
 		heatMutex.lock {
@@ -99,6 +105,6 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	companion object {
 		const val IMAGE_SIZE: Int = 256
-		const val MIN_HEAT: Float = 2f
+		const val MIN_HEAT: Float = 1f
 	}
 }

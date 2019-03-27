@@ -130,7 +130,7 @@
     <string name="stats_weekly_collected_location">Záznamů</string>
     <string name="stats_weekly_minutes">Minut stráveno sběrem</string>
     <string name="wifi_new_title">Nové Wi-Fi</string>
-    <string name="cell_title">Mobilní vysílače</string>
+    <string name="cell">Mobilní vysílače</string>
     <string name="cell_new">Nové mobilní vysílače</string>
     <string name="collections_title">Záznamů</string>
     <string name="locations_new_title">Nových míst</string>
@@ -262,4 +262,6 @@
     <string name="settings_delete_tracked_data_title">Smazat nasbíraná data</string>
     <string name="stats_weekly_distance_travelled">Ujetá vzdálenost</string>
     <string name="stats_weekly_steps">Počet kroků</string>
+    <string name="tips_map_date_long_press_range_selection">Dlouhým stistkem a táhnutím z data aktivuje výběr časového období</string>
+    <string name="location">Umístění</string>
 </resources>

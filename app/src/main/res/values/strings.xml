@@ -33,7 +33,8 @@
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
     <string name="wifi">Wi-Fi</string>
-    <string name="cell_title">Cell</string>
+    <string name="cell">Cell</string>
+    <string name="location">Location</string>
 
     <string name="wifi_new_title">New Wi-Fi</string>
     <string name="cell_new">New cell</string>

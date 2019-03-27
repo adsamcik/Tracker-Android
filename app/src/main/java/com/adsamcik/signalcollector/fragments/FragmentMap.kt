@@ -30,8 +30,10 @@ import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.dialogs.DateTimeRangeDialog
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.*
-import com.adsamcik.signalcollector.map.LocationTileColorProvider
 import com.adsamcik.signalcollector.map.LocationTileProvider
+import com.adsamcik.signalcollector.map.heatmap.providers.CellTileHeatmapProvider
+import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapProvider
+import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.Assist
@@ -79,7 +81,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 	private var colorManager: ColorManager? = null
 
-	private var mapLayers: ArrayList<MapLayer>? = null
+	private var mapLayers: MutableList<MapLayer> = mutableListOf()
 
 	private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
 
@@ -199,20 +201,19 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private fun changeMapOverlay(type: String) {
 		if (map != null) {
 			if (type != this.type || activeOverlay == null) {
-				/*if (type == getString(R.string.map_personal))
-					tileProvider!!.setTypePersonal()
-				else
-					tileProvider!!.setType(type)*/
-
 				this.type = type
 
-				tileProvider.colorProvider = LocationTileColorProvider(context!!)
-
-				//val tProvider = HeatMap
+				val resources = resources
+				tileProvider.heatmapProvider = when (type) {
+					resources.getString(R.string.location) -> LocationTileHeatmapProvider(context!!)
+					resources.getString(R.string.wifi) -> WifiTileHeatmapProvider(context!!)
+					resources.getString(R.string.cell) -> CellTileHeatmapProvider(context!!)
+					else -> throw NotImplementedError()
+				}
 
 				val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
-				GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+				GlobalScope.launch(Dispatchers.Main) {
 					activeOverlay?.remove()
 					activeOverlay = map!!.addTileOverlay(tileOverlayOptions)
 				}
@@ -443,7 +444,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			this.locationManager = locationManager
 		}
 
-		changeMapOverlay("")
+		changeMapOverlay(getString(R.string.location))
 
 
 		val uiSettings = map.uiSettings
@@ -465,12 +466,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 */
 	private fun loadMapLayers() {
 		//call initializeMenuButton
-		val activity = activity!!
-		if (useMock) {
-
-		} else {
-
-		}
+		val resources = resources
+		mapLayers.add(MapLayer(resources.getString(R.string.location)))
+		mapLayers.add(MapLayer(resources.getString(R.string.wifi)))
+		mapLayers.add(MapLayer(resources.getString(R.string.cell)))
+		initializeMenuButton()
 	}
 
 	/**
@@ -490,11 +490,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
 				colorManager!!.watchAdapterView(ColorView(it.view!!, 2))
-				val layers = mapLayers
-				if (layers != null && layers.isNotEmpty()) {
+				if (mapLayers.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
-					adapter.addAll(layers)
+					adapter.addAll(mapLayers)
 					it.onClickListener = { mapLayer ->
 						changeMapOverlay(mapLayer.name)
 						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)

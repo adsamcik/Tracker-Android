@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 
 @Dao
@@ -17,6 +18,12 @@ interface WifiDataDao {
 
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
+
+	@Query("SELECT l.id, lat, lon, hor_acc as weight FROM location_data l INNER JOIN wifi_data w ON w.location_id == l.id WHERE lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	fun getAllInside(topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
+
+	@Query("SELECT l.id, lat, lon, hor_acc as weight FROM location_data l INNER JOIN wifi_data w ON w.location_id == l.id WHERE time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	fun getAllInsideAndBetween(from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
 	@Query("SELECT COUNT(*) from wifi_data")
 	fun count(): Long
