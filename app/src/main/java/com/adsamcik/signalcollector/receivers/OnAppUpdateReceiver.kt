@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.content.edit
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activities.LaunchActivity
 import com.adsamcik.signalcollector.services.ActivityService
@@ -18,45 +17,45 @@ import com.crashlytics.android.Crashlytics
  * Receiver that is subscribed to update event so some actions can be performed and services are restored
  */
 class OnAppUpdateReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.action
-        if (action != null && action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+	override fun onReceive(context: Context, intent: Intent) {
+		val action = intent.action
+		if (action != null && action == Intent.ACTION_MY_PACKAGE_REPLACED) {
 
-            val sp = Preferences.getPref(context)
-            val editor = sp.edit()
+			val sp = Preferences.getPref(context)
+			val editor = sp.edit()
 
-            val keyLastVersion = context.getString(R.string.key_last_app_version)
-            try {
-                sp.getLong(keyLastVersion, 0)
-            } catch(e: Exception) {
-                sp.edit { remove(keyLastVersion) }
-            }
+			val keyLastVersion = context.getString(R.string.key_last_app_version)
+			val lastVersion = sp.getLong(keyLastVersion, 0)
 
-            /*if (sp.getLong(Preferences.LAST_VERSION, 0) < 277) {
-                DataStore.clearAll(context)
-                CacheStore.clearAll(context)
-            }
+			if (lastVersion < 289) {
+				editor.clear()
+			}
 
-            var currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1)
-            if (currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile)) {
-                DataStore.getCurrentDataFile(context)!!.close()
-                editor.putInt(DataStore.PREF_DATA_FILE_INDEX, ++currentDataFile)
-            }*/
+			/*if (sp.getLong(Preferences.LAST_VERSION, 0) < 277) {
+				DataStore.clearAll(context)
+				CacheStore.clearAll(context)
+			}
 
-            try {
-                val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                @Suppress("DEPRECATION")
-                val version = if(Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong()
-                editor.putLong(keyLastVersion, version)
-            } catch (e: PackageManager.NameNotFoundException) {
-                Crashlytics.logException(e)
-            }
+			var currentDataFile = sp.getInt(DataStore.PREF_DATA_FILE_INDEX, -1)
+			if (currentDataFile >= 0 && DataStore.exists(context, DataStore.DATA_FILE + currentDataFile)) {
+				DataStore.getCurrentDataFile(context)!!.close()
+				editor.putInt(DataStore.PREF_DATA_FILE_INDEX, ++currentDataFile)
+			}*/
 
-            editor.apply()
+			try {
+				val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+				@Suppress("DEPRECATION")
+				val version = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong()
+				editor.putLong(keyLastVersion, version)
+			} catch (e: PackageManager.NameNotFoundException) {
+				Crashlytics.logException(e)
+			}
 
-            TrackingLocker.initializeFromPersistence(context)
-            ActivityWatcherService.pokeWithCheck(context)
-            ActivityService.requestAutoTracking(context, LaunchActivity::class.java)
-        }
-    }
+			editor.apply()
+
+			TrackingLocker.initializeFromPersistence(context)
+			ActivityWatcherService.pokeWithCheck(context)
+			ActivityService.requestAutoTracking(context, LaunchActivity::class.java)
+		}
+	}
 }

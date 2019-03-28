@@ -90,16 +90,18 @@
             android:defaultValue="@string/settings_map_quality_default"
             android:key="@string/settings_map_quality_key"
             android:title="@string/settings_map_quality_title"
+            app:icon="@drawable/ic_outline_hd_24dp"
             app:items="@array/settings_map_quality_values"
-            app:stringFormat="%1$fx"/>
+            app:stringFormat="%.1fx"/>
 
         <ListPreference
             android:defaultValue="@string/settings_map_default_layer_default"
             android:entries="@array/settings_map_default_layer_names"
-            android:entryValues="@array/settings_map_default_layer_values"
+            android:entryValues="@array/settings_map_default_layer_names"
             android:key="@string/settings_map_default_layer_key"
             android:summary="%s"
-            android:title="@string/settings_map_default_layer_title"/>
+            android:title="@string/settings_map_default_layer_title"
+            app:icon="@drawable/ic_outline_layers_24dp"/>
 
     </androidx.preference.PreferenceScreen>
 

@@ -18,7 +18,7 @@ import kotlinx.android.synthetic.main.fragment_map_menu.*
 class FragmentMapMenu : Fragment(), IOnDemandView {
     val adapter get() = list.adapter as MapFilterableAdapter
 
-    var onClickListener : ((MapLayer) -> Unit)? = null
+    var onClickListener : ((mapLayer: MapLayer, position: Int) -> Unit)? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.fragment_map_menu, container, false)
@@ -44,7 +44,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
         list.adapter = adapter
         list.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
-            onClickListener?.invoke(adapter.getItem(position))
+            onClickListener?.invoke(adapter.getItem(position), position)
         }
     }
 

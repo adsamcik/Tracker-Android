@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.data
 
+import android.os.Build
 import androidx.room.ColumnInfo
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.extensions.deg2rad
@@ -20,13 +21,22 @@ data class Location(
 		val longitude: Double,
 		@Json(name = "alt")
 		@ColumnInfo(name = "alt")
-		val altitude: Double,
-		@Json(name = "acc")
+		val altitude: Double?,
+		@Json(name = "hor_acc")
 		@ColumnInfo(name = "hor_acc")
-		val horizontalAccuracy: Float) {
+		val horizontalAccuracy: Float?,
+		@Json(name = "ver_acc")
+		@ColumnInfo(name = "ver_acc")
+		val verticalAccuracy: Float?) {
 
-	constructor(location: android.location.Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.accuracy)
-	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy)
+	constructor(location: android.location.Location) : this(location.time,
+			location.latitude,
+			location.longitude,
+			if (location.hasAltitude()) location.altitude else null,
+			if (location.hasAccuracy()) location.accuracy else null,
+			if (Build.VERSION.SDK_INT >= 26) location.verticalAccuracyMeters else null)
+
+	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy)
 
 
 	fun toDatabase(activityInfo: ActivityInfo) = DatabaseLocation(this, activityInfo)
@@ -80,6 +90,9 @@ data class Location(
 	fun distance(location: Location, unit: LengthUnit): Double {
 		val flatDistance = distanceFlat(location, unit)
 
+		if (location.altitude == null || altitude == null)
+			return flatDistance
+
 		val altitudeDistance = location.altitude - altitude
 		return kotlin.math.sqrt(flatDistance * flatDistance + altitudeDistance * altitudeDistance)
 	}
@@ -89,7 +102,7 @@ data class Location(
 	fun roundTo(metersHorizontal: Double, metersVertical: Double): Location {
 		val accLatitude = latitudeAccuracy(metersVertical)
 		val accLongitude = longitudeAccuracy(metersHorizontal, latitude)
-		return Location(time, (latitude - latitude % accLatitude).round(6), (longitude - longitude % accLongitude.round(6)), altitude, horizontalAccuracy)
+		return Location(time, (latitude - latitude % accLatitude).round(6), (longitude - longitude % accLongitude.round(6)), altitude, horizontalAccuracy, verticalAccuracy)
 	}
 
 	companion object {

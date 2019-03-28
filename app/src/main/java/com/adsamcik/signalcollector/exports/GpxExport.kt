@@ -39,12 +39,16 @@ class GpxExport : IExport {
 	}
 
 	private fun writeLocation(streamWriter: OutputStreamWriter, location: Location) {
-		streamWriter.write("<trkpt lat=\"${location.latitude}\" lon=\"${location.longitude}\">" +
-				"<ele>${location.altitude}</ele>" +
-				"<time>${formatTime(location.time)}</time>" +
-				"<fix>3d</fix>" +
-				"<pdop>${location.horizontalAccuracy / 5f}</pdop>" +
-				"</trkpt>\n")
+		streamWriter.write(buildString {
+			append("<trkpt lat=\"${location.latitude}\" lon=\"${location.longitude}\">")
+			if (location.altitude != null)
+				append("<ele>${location.altitude}</ele>")
+			append("<time>${formatTime(location.time)}</time>")
+			//todo implement accuracy support
+			/*if (location.horizontalAccuracy != null)
+				append("<pdop>${location.horizontalAccuracy / 5f}</pdop>")*/
+			append("</trkpt>\n")
+		})
 	}
 
 	private fun writeBeginning(streamWriter: OutputStreamWriter, locationData: List<DatabaseLocation>) {

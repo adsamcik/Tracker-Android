@@ -36,11 +36,8 @@ import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapPro
 import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.Assist
+import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
-import com.adsamcik.signalcollector.utility.CoordinateBounds
-import com.adsamcik.signalcollector.utility.SnackMaker
-import com.adsamcik.signalcollector.utility.Tips
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
@@ -56,7 +53,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
 	private var locationListener: UpdateLocationListener? = null
-	private var type: String? = null
+	private var activeLayerName: String? = null
 	private var map: GoogleMap? = null
 	private var mapFragment: SupportMapFragment? = null
 
@@ -129,8 +126,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			keyboardManager.removeKeyboardListener(keyboardListener)
 			keyboardInitialized.set(false)
 		}
-
-		type = null
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -198,13 +193,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 *
 	 * @param type exact case-sensitive name of the overlay
 	 */
-	private fun changeMapOverlay(type: String) {
+	private fun changeMapOverlay(layerName: String) {
 		if (map != null) {
-			if (type != this.type || activeOverlay == null) {
-				this.type = type
+			if (layerName != this.activeLayerName || activeOverlay == null) {
+				this.activeLayerName = layerName
 
 				val resources = resources
-				tileProvider.heatmapProvider = when (type) {
+				tileProvider.heatmapProvider = when (layerName) {
 					resources.getString(R.string.location) -> LocationTileHeatmapProvider(context!!)
 					resources.getString(R.string.wifi) -> WifiTileHeatmapProvider(context!!)
 					resources.getString(R.string.cell) -> CellTileHeatmapProvider(context!!)
@@ -219,7 +214,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				}
 			}
 		} else
-			this.type = type
+			this.activeLayerName = layerName
 	}
 
 	/**
@@ -444,7 +439,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			this.locationManager = locationManager
 		}
 
-		changeMapOverlay(getString(R.string.location))
+		val preferences = Preferences.getPref(context)
+		val resources = context.resources
+		val name = preferences.getString(resources.getString(R.string.settings_map_default_layer_key), resources.getString(R.string.settings_map_default_layer_default))
+
+		changeMapOverlay(name)
 
 
 		val uiSettings = map.uiSettings
@@ -494,8 +493,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					val adapter = it.adapter
 					adapter.clear()
 					adapter.addAll(mapLayers)
-					it.onClickListener = { mapLayer ->
-						changeMapOverlay(mapLayer.name)
+					it.onClickListener = { layer, _ ->
+						changeMapOverlay(layer.name)
 						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
 					}
 					it.filter(mapLayerFilterRule)
@@ -517,7 +516,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			//payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
 			//payload.setOffsetsDp(Offset(0, 24))
 			map_menu_button.addPayload(payload)
-			if (mapLayers?.isNotEmpty() == true) {
+			if (mapLayers.isNotEmpty()) {
 				map_menu_button.visibility = View.VISIBLE
 				colorManager!!.notifyChangeOn(map_menu_button)
 			}
@@ -774,7 +773,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		private const val DURATION_STANDARD = 1000
 		private const val DURATION_SHORT = 200
 
-		private const val HEAT_CHANGE_THRESHOLD = 6
+		private const val HEAT_CHANGE_THRESHOLD = 1
 
 		private const val TAG = "SignalsMap"
 	}

@@ -181,7 +181,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun mock() {
 		val rawData = RawData(System.currentTimeMillis())
-		rawData.location = Location(rawData.time, 15.0, 15.0, 123.0, 6f)
+		rawData.location = Location(rawData.time, 15.0, 15.0, 123.0, 6f, 3f)
 		rawData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
 		rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		rawData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
@@ -285,11 +285,19 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		val location = rawData.location
 		if (location != null) {
-			accuracy.visibility = VISIBLE
-			accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.toInt())
+			if (location.horizontalAccuracy != null) {
+				accuracy.visibility = VISIBLE
+				accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.toInt())
+			} else
+				accuracy.visibility = GONE
 
-			altitude.text = getString(R.string.info_altitude, location.altitude.toInt())
-			altitude.visibility = VISIBLE
+			//todo add vertical accuracy
+
+			if (location.altitude != null) {
+				altitude.text = getString(R.string.info_altitude, location.altitude.toInt())
+				altitude.visibility = VISIBLE
+			} else
+				altitude.visibility = GONE
 		} else {
 			accuracy.visibility = GONE
 			altitude.visibility = GONE

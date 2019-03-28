@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "3feee6bc7541f80db6bae9ca6f389deb",
+    "identityHash": "c502ba3e53974301e27ee1603e977286",
     "entities": [
       {
         "tableName": "location_data",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL NOT NULL, `hor_acc` REAL NOT NULL, `activity` INTEGER NOT NULL, `confidence` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL, `hor_acc` REAL, `ver_acc` REAL, `activity` INTEGER NOT NULL, `confidence` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -36,13 +36,19 @@
             "fieldPath": "location.altitude",
             "columnName": "alt",
             "affinity": "REAL",
-            "notNull": true
+            "notNull": false
           },
           {
             "fieldPath": "location.horizontalAccuracy",
             "columnName": "hor_acc",
             "affinity": "REAL",
-            "notNull": true
+            "notNull": false
+          },
+          {
+            "fieldPath": "location.verticalAccuracy",
+            "columnName": "ver_acc",
+            "affinity": "REAL",
+            "notNull": false
           },
           {
             "fieldPath": "activityInfo.activity",
@@ -361,7 +367,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"3feee6bc7541f80db6bae9ca6f389deb\")"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"c502ba3e53974301e27ee1603e977286\")"
     ]
   }
 }

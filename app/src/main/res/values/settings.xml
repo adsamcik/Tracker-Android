@@ -191,12 +191,6 @@
     <string name="settings_map_default_layer_title">Default layer</string>
     <string name="settings_map_default_layer_key" translatable="false">mapDefaultLayer</string>
     <string name="settings_map_default_layer_default" translatable="false">0</string>
-    <string-array name="settings_map_default_layer_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </string-array>
-
     <string-array name="settings_map_default_layer_names">
         <item>Location</item>
         <item>Cell</item>
