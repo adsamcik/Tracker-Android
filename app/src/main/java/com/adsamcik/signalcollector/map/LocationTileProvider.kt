@@ -17,7 +17,6 @@ import com.google.android.gms.maps.model.TileProvider
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
-import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -118,8 +117,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 			}
 		}
 
-		val imageSize = max(heatmapSize, HEATMAP_SIZE)
-		return Tile(imageSize, imageSize, heatmap.toByteArray(imageSize))
+		return Tile(heatmapSize, heatmapSize, heatmap.toByteArray())
 	}
 
 	companion object {
