@@ -28,7 +28,7 @@ import com.adsamcik.signalcollector.uitools.ColorManager
 import com.adsamcik.signalcollector.uitools.ColorSupervisor
 import com.adsamcik.signalcollector.uitools.ColorView
 import com.adsamcik.signalcollector.utility.Assist
-import com.adsamcik.signalcollector.utility.BottomBarBehavior
+import com.adsamcik.signalcollector.uitools.BottomBarBehavior
 import com.adsamcik.signalcollector.utility.Constants
 import com.adsamcik.signalcollector.utility.Tips
 import com.google.android.gms.location.LocationServices

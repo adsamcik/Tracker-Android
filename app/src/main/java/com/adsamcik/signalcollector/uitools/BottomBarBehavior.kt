@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.utility
+package com.adsamcik.signalcollector.uitools
 
 import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
