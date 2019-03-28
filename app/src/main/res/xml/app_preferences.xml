@@ -97,7 +97,7 @@
         <ListPreference
             android:defaultValue="@string/settings_map_default_layer_default"
             android:entries="@array/settings_map_default_layer_names"
-            android:entryValues="@array/settings_map_default_layer_names"
+            android:entryValues="@array/settings_map_default_layer_values"
             android:key="@string/settings_map_default_layer_key"
             android:summary="%s"
             android:title="@string/settings_map_default_layer_title"
