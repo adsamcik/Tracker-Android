@@ -26,14 +26,12 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.data.LayerType
 import com.adsamcik.signalcollector.data.MapLayer
 import com.adsamcik.signalcollector.dialogs.DateTimeRangeDialog
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.map.LocationTileProvider
-import com.adsamcik.signalcollector.map.heatmap.providers.CellTileHeatmapProvider
-import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapProvider
-import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
@@ -53,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
 	private var locationListener: UpdateLocationListener? = null
-	private var activeLayerName: String? = null
+	private var activeLayerType: LayerType? = null
 	private var map: GoogleMap? = null
 	private var mapFragment: SupportMapFragment? = null
 
@@ -193,18 +191,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 *
 	 * @param type exact case-sensitive name of the overlay
 	 */
-	private fun changeMapOverlay(layerName: String) {
+	private fun changeMapOverlay(layerType: LayerType) {
 		if (map != null) {
-			if (layerName != this.activeLayerName || activeOverlay == null) {
-				this.activeLayerName = layerName
+			if (layerType != this.activeLayerType || activeOverlay == null) {
+				this.activeLayerType = layerType
 
-				val resources = resources
-				tileProvider.heatmapProvider = when (layerName) {
-					resources.getString(R.string.location) -> LocationTileHeatmapProvider(context!!)
-					resources.getString(R.string.wifi) -> WifiTileHeatmapProvider(context!!)
-					resources.getString(R.string.cell) -> CellTileHeatmapProvider(context!!)
-					else -> throw NotImplementedError()
-				}
+				tileProvider.setHeatmapLayer(context!!, layerType)
 
 				val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
@@ -214,7 +206,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				}
 			}
 		} else
-			this.activeLayerName = layerName
+			this.activeLayerType = layerType
 	}
 
 	/**
@@ -441,9 +433,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		val preferences = Preferences.getPref(context)
 		val resources = context.resources
-		val name = preferences.getString(resources.getString(R.string.settings_map_default_layer_key), resources.getString(R.string.settings_map_default_layer_default))
+		val name = preferences.getString(resources.getString(R.string.settings_map_default_layer_key), resources.getString(R.string.settings_map_default_layer_default))!!
 
-		changeMapOverlay(name)
+		changeMapOverlay(LayerType.valueOfCaseInsensitive(name))
 
 
 		val uiSettings = map.uiSettings
@@ -494,7 +486,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					adapter.clear()
 					adapter.addAll(mapLayers)
 					it.onClickListener = { layer, _ ->
-						changeMapOverlay(layer.name)
+						changeMapOverlay(LayerType.valueOfCaseInsensitive(layer.name))
 						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
 					}
 					it.filter(mapLayerFilterRule)

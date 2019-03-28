@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.database.dao.*
 import com.adsamcik.signalcollector.database.data.*
 
 
-@Database(entities = [DatabaseLocation::class, TrackingSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 3)
+@Database(entities = [DatabaseLocation::class, TrackingSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 4)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -30,7 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
 		fun getAppDatabase(context: Context): AppDatabase {
 			if (instance_ == null) {
 				instance_ = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-						.addMigrations(MIGRATION_2_3)
+						.addMigrations(MIGRATION_2_3, MIGRATION_3_4)
 						.build()
 			}
 			return instance_ as AppDatabase

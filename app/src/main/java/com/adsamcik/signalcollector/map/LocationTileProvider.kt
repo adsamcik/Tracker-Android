@@ -2,18 +2,24 @@ package com.adsamcik.signalcollector.map
 
 import android.content.Context
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.data.LayerType
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.extensions.lock
 import com.adsamcik.signalcollector.extensions.toCalendar
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
+import com.adsamcik.signalcollector.map.heatmap.providers.CellTileHeatmapProvider
+import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapProvider
 import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
+import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Int2
 import com.adsamcik.signalcollector.utility.Preferences
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
@@ -21,8 +27,9 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 
+//todo refactor
 class LocationTileProvider(context: Context) : TileProvider {
-	var heatmapProvider: MapTileHeatmapProvider? = null
+	private var heatmapProvider: MapTileHeatmapProvider? = null
 		set(value) {
 			heatmapCache.clear()
 			field = value
@@ -32,8 +39,8 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	private val heatDao = AppDatabase.getAppDatabase(context).mapHeatDao()
 
-	private var heat = DatabaseMapMaxHeat(Int.MIN_VALUE, 0f)
-	private val heatMutex = ReentrantLock()
+	private lateinit var maxHeat: DatabaseMapMaxHeat
+	private val heatLock = ReentrantLock()
 
 	var heatChange = 0f
 		private set
@@ -61,25 +68,54 @@ class LocationTileProvider(context: Context) : TileProvider {
 			} else
 				null
 			heatmapCache.clear()
+			initMaxHeat(maxHeat.layerName, maxHeat.zoom, value == null)
 		}
 
 	fun synchronizeMaxHeat() {
-		heatMutex.lock {
+		heatLock.lock {
 			heatmapCache.forEach {
-				it.value.heatmap.maxHeat = heat.maxHeat
+				it.value.heatmap.maxHeat = maxHeat.maxHeat
 			}
 			heatChange = 0f
 		}
 	}
 
+	fun initMaxHeat(layerName: String, zoom: Int, useDatabase: Boolean) {
+		maxHeat = DatabaseMapMaxHeat(layerName, zoom, MIN_HEAT)
+
+		if (useDatabase) {
+			GlobalScope.launch {
+				val dbMaxHeat = heatDao.getSingle(layerName, zoom)
+				if (dbMaxHeat != null) {
+					heatLock.lock {
+						if(maxHeat.zoom != dbMaxHeat.zoom || maxHeat.layerName != dbMaxHeat.layerName)
+							return@launch
+
+						if (maxHeat.maxHeat < dbMaxHeat.maxHeat)
+							maxHeat = dbMaxHeat
+					}
+				}
+			}
+		}
+	}
+
+	fun setHeatmapLayer(context: Context, layerType: LayerType) {
+		heatmapProvider = when (layerType) {
+			LayerType.Location -> LocationTileHeatmapProvider(context)
+			LayerType.Cell -> CellTileHeatmapProvider(context)
+			LayerType.WiFi -> WifiTileHeatmapProvider(context)
+		}
+		initMaxHeat(layerType.name, lastZoom, range == null)
+	}
+
 	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
 		//Ensure that everything is up to date. It's fine to lock every time, since it is called only handful of times at once.
-		heatMutex.lock {
+		heatLock.lock {
 			if (lastZoom != zoom) {
 				heatmapCache.clear()
 				lastZoom = zoom
 
-				heat = heatDao.getSingle(zoom) ?: DatabaseMapMaxHeat(zoom, MIN_HEAT)
+				initMaxHeat(maxHeat.layerName, zoom, range == null)
 			}
 		}
 
@@ -101,19 +137,21 @@ class LocationTileProvider(context: Context) : TileProvider {
 		} else {
 			val range = range
 			heatmap = if (range == null)
-				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, heat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
 			else
-				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.time, range.endInclusive.time, x, y, zoom, area, heat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.time, range.endInclusive.time, x, y, zoom, area, maxHeat.maxHeat)
 			heatmapCache[key] = heatmap
 		}
 
-		heatMutex.lock {
-			if (heat.maxHeat < heatmap.maxHeat) {
+		heatLock.lock {
+			if (maxHeat.maxHeat < heatmap.maxHeat) {
 				//round to next whole number to avoid frequent calls
 				val newHeat = ceil(heatmap.maxHeat)
-				heatChange += newHeat - heat.maxHeat
-				heat.maxHeat = heatmap.maxHeat
-				heatDao.insert(heat)
+				heatChange += newHeat - maxHeat.maxHeat
+				maxHeat.maxHeat = heatmap.maxHeat
+
+				if (range == null)
+					heatDao.insert(maxHeat)
 			}
 		}
 
