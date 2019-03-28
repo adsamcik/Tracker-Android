@@ -1,25 +1,7 @@
 package com.adsamcik.signalcollector.activities
 
 
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.rule.ActivityTestRule
-import androidx.test.rule.GrantPermissionRule
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.exists
-import com.adsamcik.signalcollector.services.TrackerService
-import com.adsamcik.signalcollector.test.isTestMode
-import org.hamcrest.Matchers.`is`
-import org.hamcrest.Matchers.allOf
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
-
-
-@RunWith(AndroidJUnit4::class)
+/*@RunWith(AndroidJUnit4::class)
 class MainActivityTest {
 
 	@get:Rule
@@ -103,4 +85,4 @@ class MainActivityTest {
 			e.printStackTrace()
 		}
 	}
-}
+}*/
