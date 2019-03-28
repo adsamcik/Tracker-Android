@@ -5,6 +5,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,16 +46,17 @@ class MigrationTest {
 			val cursor = query("SELECT * FROM location_data WHERE id == 3")
 
 			with(cursor) {
-				while (moveToNext()) {
-					assertEquals(3, getInt(0))
-					assertEquals(1528243933, getLong(1))
-					assertEquals(19.1780491, getDouble(2), 0.00001)
-					assertEquals(-96.1288426, getDouble(3), 0.00001)
-					assertEquals(-34.0, getDouble(4), 0.00001)
-					assertEquals(31.3, getDouble(5), 0.00001)
-					assertEquals(3, getInt(6))
-					assertEquals(6, getInt(7))
-				}
+				val hasNext = moveToNext()
+				assertTrue(hasNext)
+				assertEquals(3, getInt(0))
+				assertEquals(1528243933, getLong(1))
+				assertEquals(19.1780491, getDouble(2), 0.00001)
+				assertEquals(-96.1288426, getDouble(3), 0.00001)
+				assertEquals(-34.0, getDouble(4), 0.00001)
+				assertEquals(31.3, getDouble(5), 0.00001)
+				assertEquals(3, getInt(6))
+				assertEquals(6, getInt(7))
+
 			}
 
 		}
