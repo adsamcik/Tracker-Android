@@ -1,17 +1,16 @@
 package com.adsamcik.signalcollector.database.data
 
-import androidx.room.*
-import androidx.room.ForeignKey.NO_ACTION
-import androidx.room.ForeignKey.SET_NULL
+import androidx.room.ColumnInfo
+import androidx.room.Embedded
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import com.adsamcik.signalcollector.tracker.data.WifiInfo
 
-@Entity(tableName = "wifi_data", foreignKeys = [ForeignKey(entity = DatabaseLocation::class,
-		parentColumns = ["id"],
-		childColumns = ["location_id"],
-		onDelete = SET_NULL,
-		onUpdate = NO_ACTION)])
+@Entity(tableName = "wifi_data")
 data class DatabaseWifiData(
-		@ColumnInfo(name = "location_id", index = true) val locationId: Long?,
+		val longitude: Double,
+		val latitude: Double,
+		val altitude: Double?,
 		@ColumnInfo(name = "first_seen") var firstSeen: Long,
 		@ColumnInfo(name = "last_seen") var lastSeen: Long,
 		@Embedded val wifiInfo: WifiInfo) {

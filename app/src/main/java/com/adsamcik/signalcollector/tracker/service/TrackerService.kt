@@ -25,22 +25,23 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
-import com.adsamcik.signalcollector.tracker.data.RawData
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseCellData
-import com.adsamcik.signalcollector.database.data.DatabaseWifiData
-import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.app.activity.LaunchActivity
+import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
+import com.adsamcik.signalcollector.misc.extension.LocationExtensions
+import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.data.RawData
+import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
@@ -152,20 +153,20 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		rawDataEcho.postValue(d)
 
-		prevLocation = location
-		prevLocation!!.time = d.time
-
 		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
 
-		saveData(d)
+		saveData(d, location, prevLocation)
 
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
 			stopSelf()
 
+		prevLocation = location
+		prevLocation!!.time = d.time
+
 		wakeLock.release()
 	}
 
-	private fun saveData(data: RawData) {
+	private fun saveData(data: RawData, thisLocation: Location, previousLocation: Location?) {
 		GlobalScope.launch {
 			val appContext = applicationContext
 			val database = AppDatabase.getAppDatabase(appContext)
@@ -183,11 +184,16 @@ class TrackerService : LifecycleService(), SensorEventListener {
 				}
 
 				val wifi = data.wifi
-				if (wifi != null) {
+				if (wifi != null && previousLocation != null) {
 					val wifiDao = database.wifiDao()
-					wifi.inRange.forEach {
-						if (wifiDao.insertWithUpdate(DatabaseWifiData(locationId, wifi.time, wifi.time, it)) == 0)
-							wifiDao.update(locationId, it.BSSID, it.SSID, it.capabilities, it.frequency, wifi.time, it.level)
+
+					//position calculation
+					val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(LocationExtensions.approximateLocation(previousLocation, thisLocation, wifi.time))
+
+					database.runInTransaction {
+						wifi.inRange.forEach {
+							wifiDao.upsert(DatabaseWifiData(estimatedWifiLocation.longitude, estimatedWifiLocation.latitude, estimatedWifiLocation.altitude, data.time, data.time, it))
+						}
 					}
 				}
 			}

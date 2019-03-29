@@ -68,12 +68,22 @@ class MigrationTest {
 				assertEquals(null, getDoubleOrNull(4))
 				assertEquals(null, getFloatOrNull(5))
 			}
-
 		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate3To4() {
+		val db = helper.createDatabase(TEST_DB, 3)
+
+		db.execSQL("CREATE TABLE IF NOT EXISTS wifi_data (`id` TEXT NOT NULL, `location_id` INTEGER, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `isPasspoint` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`location_id`) REFERENCES `location_data`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL)")
+		// Prepare for the next version.
+		db.close()
 
 
-		// MigrationTestHelper automatically verifies the schema changes,
-		// but you need to validate that the data was migrated properly.
+		// Re-open the database with version 3 and provide
+		// MIGRATION_2_3 as the migration process.
+		helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4)
 	}
 
 	companion object {

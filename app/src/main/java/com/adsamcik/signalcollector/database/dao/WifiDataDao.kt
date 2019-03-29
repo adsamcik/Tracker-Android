@@ -1,9 +1,6 @@
 package com.adsamcik.signalcollector.database.dao
 
-import androidx.room.Dao
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 
@@ -11,18 +8,29 @@ import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 interface WifiDataDao {
 
 	@Update(onConflict = OnConflictStrategy.IGNORE)
-	fun insertWithUpdate(wifi: DatabaseWifiData): Int
+	fun insertWithUpdate(data: DatabaseWifiData): Int
 
-	@Query("UPDATE wifi_data SET last_seen = :lastSeen, ssid = :ssid, capabilities = :capabilities, frequency = :frequency, location_id = CASE WHEN location_id IS NULL OR level < :level THEN :locationId ELSE location_id END, level = CASE WHEN level < :level THEN :level ELSE level END WHERE bssid = :bssid")
-	fun update(locationId: Long?, bssid: String, ssid: String, capabilities: String, frequency: Int, lastSeen: Long, level: Int)
+	@Query("UPDATE wifi_data SET longitude = :longitude, latitude = :latitude, altitude = :altitude, level = :level WHERE bssid = :bssid AND level < :level")
+	fun updateSignalStrength(bssid: String, longitude: Double, latitude: Double, altitude: Double?, level: Int)
+
+	@Query("UPDATE wifi_data SET last_seen = :lastSeen, ssid = :ssid, capabilities = :capabilities, frequency = :frequency WHERE bssid = :bssid")
+	fun updateData(bssid: String, ssid: String, capabilities: String, frequency: Int, lastSeen: Long)
+
+	@Transaction
+	fun upsert(wifiData: DatabaseWifiData) {
+		if (insertWithUpdate(wifiData) == 0) {
+			updateSignalStrength(wifiData.wifiInfo.BSSID, wifiData.longitude, wifiData.latitude, wifiData.altitude, wifiData.wifiInfo.level)
+			updateData(wifiData.wifiInfo.BSSID, wifiData.wifiInfo.SSID, wifiData.wifiInfo.capabilities, wifiData.wifiInfo.frequency, wifiData.lastSeen)
+		}
+	}
 
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
 
-	@Query("SELECT l.id, lat, lon, hor_acc as weight FROM location_data l INNER JOIN wifi_data w ON w.location_id == l.id WHERE lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	@Query("SELECT id, latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data WHERE latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude")
 	fun getAllInside(topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
-	@Query("SELECT l.id, lat, lon, hor_acc as weight FROM location_data l INNER JOIN wifi_data w ON w.location_id == l.id WHERE time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	@Query("SELECT id, latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data WHERE last_seen >= :from and last_seen <= :to and latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude")
 	fun getAllInsideAndBetween(from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
 	@Query("SELECT COUNT(*) from wifi_data")
