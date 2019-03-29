@@ -12,7 +12,6 @@ import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.misc.Int2
 import com.adsamcik.signalcollector.misc.extension.cloneCalendar
-import com.adsamcik.signalcollector.misc.extension.lock
 import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
@@ -20,6 +19,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
@@ -71,7 +71,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 		}
 
 	fun synchronizeMaxHeat() {
-		heatLock.lock {
+		heatLock.withLock {
 			heatmapCache.forEach {
 				it.value.heatmap.maxHeat = maxHeat.maxHeat
 			}
@@ -86,7 +86,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 			GlobalScope.launch {
 				val dbMaxHeat = heatDao.getSingle(layerName, zoom)
 				if (dbMaxHeat != null) {
-					heatLock.lock {
+					heatLock.withLock {
 						if (maxHeat.zoom != dbMaxHeat.zoom || maxHeat.layerName != dbMaxHeat.layerName)
 							return@launch
 
@@ -109,7 +109,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
 		//Ensure that everything is up to date. It's fine to lock every time, since it is called only handful of times at once.
-		heatLock.lock {
+		heatLock.withLock {
 			if (lastZoom != zoom) {
 				heatmapCache.clear()
 				lastZoom = zoom
@@ -142,7 +142,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 			heatmapCache[key] = heatmap
 		}
 
-		heatLock.lock {
+		heatLock.withLock {
 			if (maxHeat.maxHeat < heatmap.maxHeat) {
 				//round to next whole number to avoid frequent calls
 				val newHeat = ceil(heatmap.maxHeat)
