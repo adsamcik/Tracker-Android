@@ -10,7 +10,7 @@
         <androidx.preference.PreferenceCategory
             android:title="@string/settings_auto_tracking_category">
 
-            <com.adsamcik.signalcollector.components.ImageSwitchPreference
+            <com.adsamcik.signalcollector.preference.ImageSwitchPreference
                 android:defaultValue="@string/settings_tracking_activity_default"
                 android:key="@string/settings_tracking_activity_key"
                 app:drawables="@array/tracking_options_drawables"
@@ -24,7 +24,7 @@
                 android:title="@string/settings_activity_watcher_title"
                 app:icon="@drawable/ic_outline_remove_red_eye_24px"/>
 
-            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
                 android:defaultValue="@string/settings_activity_freq_default"
                 android:dependency="@string/settings_activity_watcher_key"
                 android:key="@string/settings_activity_freq_key"
@@ -42,7 +42,7 @@
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
                 android:defaultValue="@integer/settings_tracking_min_distance_default"
                 android:key="@string/settings_tracking_min_distance_key"
                 android:title="@string/settings_tracking_min_distance_title"
@@ -50,7 +50,7 @@
                 app:items="@array/settings_tracking_min_distance_values"
                 app:stringFormat="%1$d m"/>
 
-            <com.adsamcik.signalcollector.components.IntValueSliderPreference
+            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
                 android:defaultValue="@integer/settings_tracking_min_time_default"
                 android:key="@string/settings_tracking_min_time_key"
                 android:title="@string/settings_tracking_min_time_title"
@@ -86,7 +86,7 @@
         android:title="@string/settings_map_title"
         app:icon="@drawable/ic_outline_map_24dp">
 
-        <com.adsamcik.signalcollector.components.FloatValueSliderPreference
+        <com.adsamcik.signalcollector.preference.FloatValueSliderPreference
             android:defaultValue="@string/settings_map_quality_default"
             android:key="@string/settings_map_quality_key"
             android:title="@string/settings_map_quality_title"
@@ -116,22 +116,22 @@
             android:summary="%s"
             android:title="@string/settings_style_mode_title"/>
 
-        <com.adsamcik.signalcollector.components.ColorSupportPreference
+        <com.adsamcik.signalcollector.preference.ColorSupportPreference
             android:defaultValue="@color/settings_color_morning_default"
             android:key="@string/settings_color_morning_key"
             android:title="@string/settings_color_morning_title"/>
 
-        <com.adsamcik.signalcollector.components.ColorSupportPreference
+        <com.adsamcik.signalcollector.preference.ColorSupportPreference
             android:defaultValue="@color/settings_color_day_default"
             android:key="@string/settings_color_day_key"
             android:title="@string/settings_color_day_title"/>
 
-        <com.adsamcik.signalcollector.components.ColorSupportPreference
+        <com.adsamcik.signalcollector.preference.ColorSupportPreference
             android:defaultValue="@color/settings_color_evening_default"
             android:key="@string/settings_color_evening_key"
             android:title="@string/settings_color_evening_title"/>
 
-        <com.adsamcik.signalcollector.components.ColorSupportPreference
+        <com.adsamcik.signalcollector.preference.ColorSupportPreference
             android:defaultValue="@color/settings_color_night_default"
             android:key="@string/settings_color_night_key"
             android:title="@string/settings_color_night_title"/>
