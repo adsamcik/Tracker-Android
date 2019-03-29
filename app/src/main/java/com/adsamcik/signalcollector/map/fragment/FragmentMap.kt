@@ -26,22 +26,22 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.map.LayerType
-import com.adsamcik.signalcollector.map.MapLayer
-import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
-import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
-import com.adsamcik.signalcollector.misc.extension.*
-import com.adsamcik.signalcollector.map.LocationTileProvider
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Assist.navbarSize
-import com.adsamcik.signalcollector.map.CoordinateBounds
-import com.adsamcik.signalcollector.misc.SnackMaker
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
+import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
+import com.adsamcik.signalcollector.map.CoordinateBounds
+import com.adsamcik.signalcollector.map.LayerType
+import com.adsamcik.signalcollector.map.LocationTileProvider
+import com.adsamcik.signalcollector.map.MapLayer
+import com.adsamcik.signalcollector.misc.SnackMaker
+import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.misc.keyboard.KeyboardManager
+import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.crashlytics.android.Crashlytics
@@ -132,6 +132,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			keyboardManager.removeKeyboardListener(keyboardListener)
 			keyboardInitialized.set(false)
 		}
+
+		activeLayerType = null
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -139,7 +141,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		tileProvider = LocationTileProvider(activity)
 
-		if (view != null) {
+
+		if (this.mapFragment == null) {
 			MapFragment.newInstance().getMapAsync(this)
 			val mapFragment = SupportMapFragment.newInstance()
 			mapFragment.getMapAsync(this)
@@ -147,8 +150,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				replace(R.id.container_map, mapFragment)
 			}
 			this.mapFragment = mapFragment
-		} else
-			loadMapLayers()
+		}
 
 		Tips.showTips(activity, Tips.MAP_TIPS, null)
 	}
