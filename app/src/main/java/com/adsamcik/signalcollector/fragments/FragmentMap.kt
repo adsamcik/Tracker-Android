@@ -32,10 +32,12 @@ import com.adsamcik.signalcollector.dialogs.DateTimeRangeDialog
 import com.adsamcik.signalcollector.enums.NavBarPosition
 import com.adsamcik.signalcollector.extensions.*
 import com.adsamcik.signalcollector.map.LocationTileProvider
-import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
-import com.adsamcik.signalcollector.utility.*
+import com.adsamcik.signalcollector.utility.Assist
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
+import com.adsamcik.signalcollector.utility.CoordinateBounds
+import com.adsamcik.signalcollector.utility.SnackMaker
+import com.adsamcik.signalcollector.utility.Tips
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.crashlytics.android.Crashlytics
@@ -442,11 +444,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			this.locationManager = locationManager
 		}
 
-		val preferences = Preferences.getPref(context)
 		val resources = context.resources
-		val name = preferences.getString(resources.getString(R.string.settings_map_default_layer_key), resources.getString(R.string.settings_map_default_layer_default))!!
+		val layerType = LayerType.fromPreference(context, resources.getString(R.string.settings_map_default_layer_key), LayerType.Location)
 
-		changeMapOverlay(LayerType.valueOfCaseInsensitive(name))
+		changeMapOverlay(layerType)
 
 
 		val uiSettings = map.uiSettings
@@ -464,14 +465,15 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	}
 
 	/**
-	 * Function that mocks or actually loads map layers from the server based on [useMock]
+	 * Initializes map layers and menu button. If map layers are already initialized only initializes menu button.
 	 */
 	private fun loadMapLayers() {
-		//call initializeMenuButton
-		val resources = resources
-		mapLayers.add(MapLayer(resources.getString(R.string.location)))
-		mapLayers.add(MapLayer(resources.getString(R.string.wifi)))
-		mapLayers.add(MapLayer(resources.getString(R.string.cell)))
+		if (mapLayers.isEmpty()) {
+			val resources = resources
+			mapLayers.add(MapLayer(resources.getString(R.string.location)))
+			mapLayers.add(MapLayer(resources.getString(R.string.wifi)))
+			mapLayers.add(MapLayer(resources.getString(R.string.cell)))
+		}
 		initializeMenuButton()
 	}
 
