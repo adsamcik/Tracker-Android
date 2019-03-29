@@ -116,22 +116,22 @@
             android:summary="%s"
             android:title="@string/settings_style_mode_title"/>
 
-        <com.adsamcik.signalcollector.preference.ColorSupportPreference
+        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
             android:defaultValue="@color/settings_color_morning_default"
             android:key="@string/settings_color_morning_key"
             android:title="@string/settings_color_morning_title"/>
 
-        <com.adsamcik.signalcollector.preference.ColorSupportPreference
+        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
             android:defaultValue="@color/settings_color_day_default"
             android:key="@string/settings_color_day_key"
             android:title="@string/settings_color_day_title"/>
 
-        <com.adsamcik.signalcollector.preference.ColorSupportPreference
+        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
             android:defaultValue="@color/settings_color_evening_default"
             android:key="@string/settings_color_evening_key"
             android:title="@string/settings_color_evening_title"/>
 
-        <com.adsamcik.signalcollector.preference.ColorSupportPreference
+        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
             android:defaultValue="@color/settings_color_night_default"
             android:key="@string/settings_color_night_key"
             android:title="@string/settings_color_night_title"/>
@@ -200,17 +200,6 @@
             <Preference
                 android:key="@string/settings_hello_world_key"
                 android:title="@string/settings_hello_world_title"/>
-        </androidx.preference.PreferenceCategory>
-
-        <androidx.preference.PreferenceCategory>
-            <Preference
-                android:key="@string/settings_browse_files_key"
-                android:title="@string/settings_browse_files_title"/>
-
-            <Preference
-                android:key="@string/settings_browse_cache_key"
-                android:title="@string/settings_browse_cache_title"/>
-
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>

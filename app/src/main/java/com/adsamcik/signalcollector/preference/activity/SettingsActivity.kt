@@ -13,25 +13,25 @@ import androidx.core.content.edit
 import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.service.ActivityService
+import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
+import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.activity.DetailActivity
-import com.adsamcik.signalcollector.export.activity.ExportActivity
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
-import com.adsamcik.signalcollector.preference.ColorSupportPreference
+import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
+import com.adsamcik.signalcollector.export.activity.ExportActivity
 import com.adsamcik.signalcollector.misc.extension.*
-import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
 import com.adsamcik.signalcollector.notification.Notifications
-import com.adsamcik.signalcollector.activity.service.ActivityService
-import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.app.Tips
+import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
 import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
 import java.io.File
 import java.util.*
 
@@ -269,16 +269,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 	private fun initializeStyle(caller: PreferenceFragmentCompat) {
 		val morningKey = getString(R.string.settings_color_morning_key)
-		val morning = caller.findPreferenceTyped<ColorSupportPreference>(morningKey)
+		val morning = caller.findPreferenceTyped<ColorPreferenceCompat>(morningKey)
 
 		val eveningKey = getString(R.string.settings_color_evening_key)
-		val evening = caller.findPreferenceTyped<ColorSupportPreference>(eveningKey)
+		val evening = caller.findPreferenceTyped<ColorPreferenceCompat>(eveningKey)
 
 		val nightKey = getString(R.string.settings_color_night_key)
-		val night = caller.findPreferenceTyped<ColorSupportPreference>(nightKey)
+		val night = caller.findPreferenceTyped<ColorPreferenceCompat>(nightKey)
 
 		val dayKey = getString(R.string.settings_color_day_key)
-		val day = caller.findPreferenceTyped<ColorSupportPreference>(dayKey)
+		val day = caller.findPreferenceTyped<ColorPreferenceCompat>(dayKey)
 
 		val onStyleChange = androidx.preference.Preference.OnPreferenceChangeListener { _, newValue ->
 			val newValueInt = (newValue as String).toInt()
