@@ -81,7 +81,7 @@ enum class LayerType {
 		fun valueOfCaseInsensitive(value: String) = when (value.toLowerCase()) {
 			Location.name.toLowerCase() -> Location
 			Cell.name.toLowerCase() -> Cell
-			WiFi.name.toLowerCase() -> WiFi
+			WiFi.name.toLowerCase(), "wi-fi" -> WiFi
 			else -> throw IllegalArgumentException("Value '$value' is not a valid layer type.")
 		}
 
