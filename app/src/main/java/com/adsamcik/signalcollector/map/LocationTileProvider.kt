@@ -4,8 +4,6 @@ import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
-import com.adsamcik.signalcollector.misc.extension.cloneCalendar
-import com.adsamcik.signalcollector.misc.extension.lock
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
 import com.adsamcik.signalcollector.map.heatmap.providers.CellTileHeatmapProvider
@@ -13,6 +11,8 @@ import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapPro
 import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.misc.Int2
+import com.adsamcik.signalcollector.misc.extension.cloneCalendar
+import com.adsamcik.signalcollector.misc.extension.lock
 import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.math.ceil
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -153,10 +154,11 @@ class LocationTileProvider(context: Context) : TileProvider {
 			}
 		}
 
-		return Tile(heatmapSize, heatmapSize, heatmap.toByteArray())
+		return Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
 	}
 
 	companion object {
 		const val MIN_HEAT: Float = 3f
+		const val MIN_TILE_SIZE = 128
 	}
 }

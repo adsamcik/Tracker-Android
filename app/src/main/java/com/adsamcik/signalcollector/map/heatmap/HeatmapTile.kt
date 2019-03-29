@@ -1,9 +1,10 @@
 package com.adsamcik.signalcollector.map.heatmap
 
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.signalcollector.misc.extension.toByteArray
 import com.adsamcik.signalcollector.map.MapFunctions
+import com.adsamcik.signalcollector.misc.extension.toByteArray
 import kotlin.math.roundToInt
 
 class HeatmapTile(
@@ -33,13 +34,17 @@ class HeatmapTile(
 	}
 
 
-	fun toByteArray(): ByteArray {
+	fun toByteArray(bitmapSize: Int): ByteArray {
 		val array = heatmap.renderDefaultTo()
 		val bitmap = Bitmap.createBitmap(array, heatmapSize, heatmapSize, Bitmap.Config.ARGB_8888)
-		return bitmap.toByteArray()
+
+		return if (heatmapSize != bitmapSize) {
+			bitmap.scale(bitmapSize, bitmapSize, false).toByteArray()
+		} else
+			bitmap.toByteArray()
 	}
 
 	companion object {
-		const val BASE_HEATMAP_SIZE = 64
+		const val BASE_HEATMAP_SIZE = 128
 	}
 }
