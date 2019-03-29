@@ -9,4 +9,5 @@
     <string name="error_general">Error occurred</string>
 
     <string name="error_nothing_to_track">You need to track more than time</string>
+    <string name="error_no_locations_in_interval">No locations found in the selected interval.</string>
 </resources>

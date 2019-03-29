@@ -27,7 +27,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 			val keyLastVersion = context.getString(R.string.key_last_app_version)
 			val lastVersion = sp.getLong(keyLastVersion, 0)
 
-			if (lastVersion < 289) {
+			if (lastVersion < 290) {
 				editor.clear()
 			}
 

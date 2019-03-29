@@ -237,7 +237,7 @@ class ActivityService : IntentService("ActivityService") {
 		private fun canBackgroundTrack(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
 			val resources = context.resources
 			val keyStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_key)
-			val defaultStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_default)!!.toBoolean()
+			val defaultStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
 
 			if (evalActivity == 3 || evalActivity == 0 || TrackerService.isServiceRunning.value || Preferences.getPref(context).getBoolean(keyStopUntilRecharge, defaultStopUntilRecharge))
 				return false

@@ -5,8 +5,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.data.LayerType
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
+import com.adsamcik.signalcollector.extensions.cloneCalendar
 import com.adsamcik.signalcollector.extensions.lock
-import com.adsamcik.signalcollector.extensions.toCalendar
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
 import com.adsamcik.signalcollector.map.heatmap.providers.CellTileHeatmapProvider
@@ -59,12 +59,12 @@ class LocationTileProvider(context: Context) : TileProvider {
 		stamp = HeatmapStamp.generateNonlinear(stampRadius) { it.pow(2f) }
 	}
 
-	var range: ClosedRange<Date>? = null
+	var range: ClosedRange<Calendar>? = null
 		set(value) {
 			field = if (value != null) {
-				val endCal = value.endInclusive.toCalendar()
+				val endCal = value.endInclusive.cloneCalendar()
 				endCal.add(Calendar.DAY_OF_MONTH, 1)
-				value.start..endCal.time
+				value.start..endCal
 			} else
 				null
 			heatmapCache.clear()
@@ -88,7 +88,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 				val dbMaxHeat = heatDao.getSingle(layerName, zoom)
 				if (dbMaxHeat != null) {
 					heatLock.lock {
-						if(maxHeat.zoom != dbMaxHeat.zoom || maxHeat.layerName != dbMaxHeat.layerName)
+						if (maxHeat.zoom != dbMaxHeat.zoom || maxHeat.layerName != dbMaxHeat.layerName)
 							return@launch
 
 						if (maxHeat.maxHeat < dbMaxHeat.maxHeat)
@@ -139,7 +139,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 			heatmap = if (range == null)
 				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
 			else
-				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.time, range.endInclusive.time, x, y, zoom, area, maxHeat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
 			heatmapCache[key] = heatmap
 		}
 

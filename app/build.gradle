@@ -18,8 +18,8 @@ android {
         applicationId "com.adsamcik.signalcollector"
         minSdkVersion 21
         targetSdkVersion 28
-        versionCode 289
-        versionName "7.0α8 Offline"
+        versionCode 290
+        versionName "7.0α9 Offline"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         kotlinOptions {
             freeCompilerArgs = ["-Xuse-experimental=kotlin.ExperimentalUnsignedTypes"]
@@ -88,7 +88,6 @@ dependencies {
 
     implementation 'de.psdev.licensesdialog:licensesdialog:2.0.0'
     implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
-    implementation 'com.wdullaer:materialdatetimepicker:4.1.2'
     implementation 'com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2'
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 

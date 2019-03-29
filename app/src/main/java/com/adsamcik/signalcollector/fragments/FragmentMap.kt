@@ -36,6 +36,8 @@ import com.adsamcik.signalcollector.test.useMock
 import com.adsamcik.signalcollector.uitools.*
 import com.adsamcik.signalcollector.utility.*
 import com.adsamcik.signalcollector.utility.Assist.navbarSize
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
@@ -82,7 +84,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 	private val isMapLight = AtomicBoolean()
 
-	private var dateRange: ClosedRange<Date>? = null
+	private var dateRange: ClosedRange<Calendar>? = null
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 		if (requestCode == PERMISSION_LOCATION_CODE && success && fActivity != null) {
@@ -189,7 +191,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	/**
 	 * Changes overlay of the map
 	 *
-	 * @param type exact case-sensitive name of the overlay
+	 * @param layerType Layer type
 	 */
 	private fun changeMapOverlay(layerType: LayerType) {
 		if (map != null) {
@@ -307,7 +309,16 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		button_map_date_range.setOnClickListener {
 			DateTimeRangeDialog().apply {
-				range = dateRange
+				arguments = Bundle().apply {
+					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
+						val dateRange = this@FragmentMap.dateRange
+						if (dateRange != null)
+							setDateParams(dateRange.start, dateRange.endInclusive)
+
+						setDisplayOptions(ACTIVATE_DATE_PICKER)
+						setCanPickDateRange(true)
+					})
+				}
 				successCallback = { range ->
 					this@FragmentMap.dateRange = range
 					tileProvider.range = range
@@ -341,13 +352,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		val geocoder = Geocoder(context)
 		try {
 			val addresses = geocoder.getFromLocationName(searchText, 1)
-			if (addresses?.isNotEmpty() == true) {
-				if (map != null && locationListener != null) {
-					val address = addresses[0]
-					locationListener!!.stopUsingUserPosition(true)
-					locationListener!!.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
-				}
+			if (addresses?.isNotEmpty() == true && map != null && locationListener != null) {
+				val address = addresses[0]
+				locationListener!!.stopUsingUserPosition(true)
+				locationListener!!.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
 			}
+
 
 		} catch (e: IOException) {
 			Crashlytics.logException(e)
@@ -370,6 +380,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	/**
 	 * Called when map is ready and initializes everything that needs to be initialized after maps loading
 	 */
+	//todo refactor
 	override fun onMapReady(map: GoogleMap) {
 		this.map = map
 		userRadius = null

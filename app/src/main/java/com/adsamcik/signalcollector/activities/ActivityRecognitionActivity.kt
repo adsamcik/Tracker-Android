@@ -41,7 +41,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 
 		val resources = resources
 		val keyDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)
-		val defaultDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)!!.toBoolean()
+		val defaultDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key).toBoolean()
 
 		if (Preferences.getPref(this).getBoolean(keyDevActivityTracking, defaultDevActivityTracking))
 			start_stop_button.text = getString(R.string.stop)
@@ -62,7 +62,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 			editor.apply()
 		}
 
-		val appContext = applicationContext;
+		val appContext = applicationContext
 		val items = DebugDatabase.getAppDatabase(appContext).activityDebugDao().getAll()
 		adapter = StringFilterableAdapter(this, R.layout.spinner_item) { item ->
 			item.joinToString(delim)
@@ -110,7 +110,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 			val preferences = Preferences.getPref(context)
 			val resources = context.resources
 			val keyDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)
-			val defaultDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key)!!.toBoolean()
+			val defaultDevActivityTracking = resources.getString(R.string.settings_activity_debug_tracking_key).toBoolean()
 
 			if (preferences.getBoolean(keyDevActivityTracking, defaultDevActivityTracking)) {
 

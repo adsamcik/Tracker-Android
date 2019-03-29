@@ -10,7 +10,7 @@
         android:layout_height="wrap_content"
         android:background="@color/color_primary"
         android:padding="8dp"
-        android:text="Long press to select date range"
+        android:text="@string/tips_map_date_long_press_range_selection"
         android:textAlignment="center"
         android:textSize="@dimen/secondary_text_size"/>
 

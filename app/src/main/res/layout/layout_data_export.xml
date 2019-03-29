@@ -5,20 +5,61 @@
                                                    android:layout_height="match_parent"
                                                    android:orientation="vertical">
 
-    <include
-        android:id="@+id/range_layout"
-        layout="@layout/layout_range_datetime"/>
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/imageview_from_date"
+        android:layout_width="48dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:scaleType="centerInside"
+
+        app:layout_constraintBottom_toBottomOf="@id/edittext_date_range_to"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/edittext_date_range_from"
+        app:srcCompat="@drawable/ic_date_range_black_24dp"/>
+
+    <androidx.appcompat.widget.AppCompatEditText
+        android:id="@+id/edittext_date_range_from"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:clickable="false"
+        android:cursorVisible="false"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
+        android:hint="@string/settings_export_dialog_from"
+        android:inputType="datetime"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/imageview_from_date"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+
+    <androidx.appcompat.widget.AppCompatEditText
+        android:id="@+id/edittext_date_range_to"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:clickable="false"
+        android:cursorVisible="false"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
+        android:hint="@string/settings_export_dialog_to"
+        android:inputType="datetime"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/imageview_from_date"
+        app:layout_constraintTop_toBottomOf="@id/edittext_date_range_from"/>
 
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/button_export"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:layout_marginEnd="8dp"
-        android:layout_marginTop="32dp"
         android:text="@string/export_share_button"
-        app:layout_constraintEnd_toEndOf="@+id/range_layout"
-        app:layout_constraintStart_toStartOf="@+id/range_layout"
-        app:layout_constraintTop_toBottomOf="@+id/range_layout"/>
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/edittext_date_range_to"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

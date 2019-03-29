@@ -64,10 +64,10 @@ data class Location(
 
 		val a = sinLatDistance * sinLatDistance +
 				kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
-				sinLonDistance * sinLonDistance;
-		val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a));
+				sinLonDistance * sinLonDistance
+		val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
 
-		var distance = Location.EARTH_CIRCUMFERENCE * c;
+		var distance = Location.EARTH_CIRCUMFERENCE * c
 
 
 		when (unit) {
@@ -106,8 +106,8 @@ data class Location(
 	}
 
 	companion object {
-		const val EARTH_CIRCUMFERENCE = 40075000;
-		const val METER_DEGREE_LATITUDE = 360.0 / EARTH_CIRCUMFERENCE;
+		const val EARTH_CIRCUMFERENCE = 40075000
+		const val METER_DEGREE_LATITUDE = 360.0 / EARTH_CIRCUMFERENCE
 
 		fun toGoogleLon(lon: Double, tileCount: Int): Double {
 			return tileCount * ((lon + 180.0) / 360.0)

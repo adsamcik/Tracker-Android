@@ -100,7 +100,7 @@ class ActivityWatcherService : LifecycleService() {
 		 * Returns preference whether this service should run
 		 */
 		fun getServicePreference(context: Context) =
-				Preferences.getPref(context).getBoolean(context.getString(R.string.settings_activity_watcher_key), context.getString(R.string.settings_activity_watcher_default)!!.toBoolean())
+				Preferences.getPref(context).getBoolean(context.getString(R.string.settings_activity_watcher_key), context.getString(R.string.settings_activity_watcher_default).toBoolean())
 
 		/**
 		 * Checks if current [ActivityWatcherService] state is the one it should be in right now.

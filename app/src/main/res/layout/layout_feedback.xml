@@ -2,6 +2,7 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
@@ -80,7 +81,8 @@
             android:lines="10"
             android:maxLines="20"
             android:minLines="4"
-            android:importantForAutofill="no"/>
+            android:importantForAutofill="no"
+            tools:targetApi="o"/>
 
     </com.google.android.material.textfield.TextInputLayout>
 

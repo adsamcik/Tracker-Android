@@ -277,6 +277,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		}
 	}
 
+	//todo refactor
 	private fun updateData(rawData: RawData) {
 		val context = context!!
 		val res = context.resources

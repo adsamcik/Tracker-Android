@@ -76,7 +76,7 @@ object TrackingLocker {
 	    val defaultDisabledTime = resources.getString(R.string.settings_disabled_time_default).toLong()
 
 	    val keyDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_key)
-	    val defaultDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_default)!!.toBoolean()
+	    val defaultDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
 
         synchronized(this) {
             lockedUntil = preferences.getLong(keyDisabledTime, defaultDisabledTime)

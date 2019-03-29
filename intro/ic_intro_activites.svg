@@ -79,8 +79,7 @@
          style="stop-color:#000000;stop-opacity:0" />
     </linearGradient>
     <clipPath
-       clipPathUnits="userSpaceOnUse"
-       id="clipPath4585">
+        id="clipPath4585">
       <circle
          style="fill:none;fill-opacity:1;stroke:none;stroke-width:0;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:normal;image-rendering:optimizeQuality"
          transform="scale(-1)"

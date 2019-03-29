@@ -175,6 +175,9 @@
     <string name="settings_export_kml_key" translatable="false">kmlExport</string>
     <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
 
+    <string name="settings_export_dialog_from">From</string>
+    <string name="settings_export_dialog_to">To</string>
+
     <!-- MAP -->
     <string name="settings_map_quality_title">Heatmap resolution</string>
     <string name="settings_map_quality_key" translatable="false">mapHeatmapQuality</string>
@@ -239,9 +242,6 @@
     <string name="settings_clear_data_title">Remove persistent files</string>
     <string name="settings_clear_data_key" translatable="false">clearData</string>
 
-    <string name="settings_clear_reports_title">Remove upload reports</string>
-    <string name="settings_clear_reports_key" translatable="false">clearUploadReports</string>
-
     <string name="settings_clear_cache_title">Remove cache files</string>
     <string name="settings_clear_cache_key" translatable="false">clearCache</string>
 
@@ -250,17 +250,6 @@
 
     <!-- OTHER -->
     <string name="settings_notifications_title">Notifications</string>
-
-    <string name="settings_allow_upload_notification_title">Show upload notifications</string>
-    <string name="settings_allow_upload_notification_key" translatable="false">uploadNotificationsEnabled</string>
-    <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
-    <string name="settings_allow_upload_notification_default" translatable="false">true</string>
-
-    <string name="settings_privacy_policy_key" translatable="false">privacyPolicy</string>
-
-    <string name="settings_feedback_title">Send feedback about the app</string>
-    <string name="settings_feedback_key" translatable="false">feedbackButton</string>
-    <string name="settings_feedback_summary">You can send valuable feedback about the app such as new ideas for improvements or bug reports</string>
 
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>

@@ -1,9 +1,9 @@
 package com.adsamcik.signalcollector.data
 
 import android.content.Context
+import com.adsamcik.signalcollector.utility.CoordinateBounds
 import com.adsamcik.signalcollector.utility.Preferences
 import com.squareup.moshi.JsonClass
-import java.util.*
 
 /**
  * Data class containing information about the name and boundaries.
@@ -12,14 +12,21 @@ import java.util.*
 //todo Update to use CoordinateBounds
 @JsonClass(generateAdapter = true)
 data class MapLayer(var name: String,
-                    var top: Double = MAX_LATITUDE,
-                    var right: Double = MAX_LONGITUDE,
-                    var bottom: Double = MIN_LATITUDE,
-                    var left: Double = MIN_LONGITUDE,
+                    val bounds: CoordinateBounds,
                     /**
                      * Contains information for the legend
                      */
                     var values: Array<ValueColor>? = null) {
+
+	constructor(name: String,
+	            top: Double = MAX_LATITUDE,
+	            right: Double = MAX_LONGITUDE,
+	            bottom: Double = MIN_LATITUDE,
+	            left: Double = MIN_LONGITUDE,
+	            /**
+	             * Contains information for the legend
+	             */
+	            values: Array<ValueColor>? = null) : this(name, CoordinateBounds(top, right, bottom, left), values)
 
 	companion object {
 		const val MIN_LATITUDE = -90.0
@@ -48,22 +55,19 @@ data class MapLayer(var name: String,
 		other as MapLayer
 
 		if (name != other.name) return false
-		if (top != other.top) return false
-		if (right != other.right) return false
-		if (bottom != other.bottom) return false
-		if (left != other.left) return false
-		if (!Arrays.equals(values, other.values)) return false
+		if (bounds != other.bounds) return false
+		if (values != null) {
+			if (other.values == null) return false
+			if (!values!!.contentEquals(other.values!!)) return false
+		} else if (other.values != null) return false
 
 		return true
 	}
 
 	override fun hashCode(): Int {
 		var result = name.hashCode()
-		result = 31 * result + top.hashCode()
-		result = 31 * result + right.hashCode()
-		result = 31 * result + bottom.hashCode()
-		result = 31 * result + left.hashCode()
-		result = 31 * result + (values?.let { Arrays.hashCode(it) } ?: 0)
+		result = 31 * result + bounds.hashCode()
+		result = 31 * result + (values?.contentHashCode() ?: 0)
 		return result
 	}
 }

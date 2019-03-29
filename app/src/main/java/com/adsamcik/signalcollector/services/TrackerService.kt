@@ -277,9 +277,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		keyLocationEnabled = resources.getString(R.string.settings_location_enabled_key)
 		keyWifiEnabled = resources.getString(R.string.settings_wifi_enabled_key)
 
-		defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default)!!.toBoolean()
-		defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default)!!.toBoolean()
-		defaultWifiEnabled = resources.getString(R.string.settings_wifi_enabled_default)!!.toBoolean()
+		defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default).toBoolean()
+		defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default).toBoolean()
+		defaultWifiEnabled = resources.getString(R.string.settings_wifi_enabled_default).toBoolean()
 
 		//Get managers
 		notificationManager = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)

@@ -3,18 +3,22 @@ package com.adsamcik.signalcollector.activities
 import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableStringBuilder
-import android.text.format.DateFormat
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.dialogs.DateTimeRangeDialog
 import com.adsamcik.signalcollector.exports.IExport
-import com.wdullaer.materialdatetimepicker.date.DatePickerDialog
-import com.wdullaer.materialdatetimepicker.time.TimePickerDialog
+import com.adsamcik.signalcollector.extensions.cloneCalendar
+import com.adsamcik.signalcollector.utility.SnackMaker
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.layout_data_export.*
-import kotlinx.android.synthetic.main.layout_range_datetime.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -30,13 +34,22 @@ class ExportActivity : DetailActivity() {
 
 	private lateinit var exporter: IExport
 
-	private val from: Calendar = Calendar.getInstance().apply {
-		add(Calendar.MONTH, -1)
+	private var range: ClosedRange<Calendar> = createDefaultRange()
+		set(value) {
+			field = value
+			updateDateTimeText(edittext_date_range_from, value.start)
+			updateDateTimeText(edittext_date_range_to, value.endInclusive)
+		}
+
+	//init block cannot be used with custom setter (Kotlin 1.3)
+	private fun createDefaultRange(): ClosedRange<Calendar> {
+		val now = Calendar.getInstance()
+		val monthAgo = now.cloneCalendar().apply {
+			add(Calendar.MONTH, -1)
+		}
+
+		return monthAgo..now
 	}
-
-	private val to: Calendar = Calendar.getInstance()
-
-	//private val files = ArrayList<IReadableFile>()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -47,28 +60,40 @@ class ExportActivity : DetailActivity() {
 		exporter = exporterType.newInstance() as IExport
 
 		root = createLinearContentParent(false)
-		(layoutInflater.inflate(R.layout.layout_data_export, root) as ViewGroup).getChildAt(root.childCount - 1)
+		layoutInflater.inflate(R.layout.layout_data_export, root)
 
-		updateEditTextDate(edittext_from_date, from)
-		edittext_from_date.setOnClickListener {
-			showDatePickerDialog(from, edittext_from_date, "FromDatePicker")
+		val now = Calendar.getInstance()
+
+		val in15minutes = now.cloneCalendar().apply {
+			add(Calendar.MINUTE, 15)
 		}
 
-		updateEditTextDate(edittext_to_date, to)
-		edittext_to_date.setOnClickListener {
-			showDatePickerDialog(to, edittext_to_date, "ToDatePicker")
+		val monthBefore = now.cloneCalendar().apply {
+			add(Calendar.MONTH, -1)
 		}
 
+		range = monthBefore..now
 
-		updateEditTextTime(edittext_from_time, from)
-		edittext_from_time.setOnClickListener {
-			showTimePickerDialog(from, edittext_from_time, "FromTimePicker")
+		val clickListener = { _ : View ->
+			DateTimeRangeDialog().apply {
+				arguments = Bundle().apply {
+					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
+						setCanPickDateRange(true)
+						setDateParams(range.start, range.endInclusive)
+						setDisplayOptions(ACTIVATE_DATE_PICKER.or(ACTIVATE_TIME_PICKER))
+						setDateRange(-1L, in15minutes.timeInMillis)
+						pickerToShow = SublimeOptions.Picker.DATE_PICKER
+						setAnimateLayoutChanges(true)
+					})
+				}
+				successCallback = { range ->
+					this@ExportActivity.range = range
+				}
+			}.show(supportFragmentManager, "Map date range dialog")
 		}
 
-		updateEditTextTime(edittext_to_time, to)
-		edittext_to_time.setOnClickListener {
-			showTimePickerDialog(to, edittext_to_time, "ToTimePicker")
-		}
+		edittext_date_range_from.setOnClickListener(clickListener)
+		edittext_date_range_to.setOnClickListener(clickListener)
 
 
 		button_export.setOnClickListener {
@@ -76,9 +101,17 @@ class ExportActivity : DetailActivity() {
 			val database = AppDatabase.getAppDatabase(applicationContext)
 			val locationDao = database.locationDao()
 
+			val from = this.range.start
+			val to = this.range.endInclusive
+
 			GlobalScope.launch {
 				sharableDir.mkdirs()
 				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
+
+				if (locations.isEmpty()) {
+					SnackMaker(root).showSnackbar(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
+					return@launch
+				}
 
 				val exportFile = "FileName"
 				val result = exporter.export(locations, sharableDir, exportFile)
@@ -108,44 +141,11 @@ class ExportActivity : DetailActivity() {
 		setTitle(R.string.export_share_button)
 	}
 
-	private fun updateEditTextDate(editText: AppCompatEditText, cal: Calendar) {
-		val text = SimpleDateFormat.getDateInstance().format(cal.time)
-		editText.text = SpannableStringBuilder(text)
+	private fun updateDateTimeText(textView: AppCompatEditText, value: Calendar) {
+		val format = SimpleDateFormat.getDateTimeInstance()
+		textView.text = SpannableStringBuilder(format.format(value.time))
 	}
 
-	private fun updateEditTextTime(editText: AppCompatEditText, cal: Calendar) {
-		val text = SimpleDateFormat.getTimeInstance().format(cal.time)
-		editText.text = SpannableStringBuilder(text)
-	}
-
-	private fun showTimePickerDialog(cal: Calendar, editText: AppCompatEditText, tag: String) {
-		val dpd = TimePickerDialog.newInstance(
-				{ _, hourOfDay, minute, second ->
-					cal.set(java.util.Calendar.HOUR_OF_DAY, hourOfDay)
-					cal.set(java.util.Calendar.MINUTE, minute)
-					cal.set(java.util.Calendar.SECOND, second)
-					updateEditTextTime(editText, cal)
-				},
-				cal.get(java.util.Calendar.HOUR_OF_DAY),
-				cal.get(java.util.Calendar.MONTH),
-				cal.get(java.util.Calendar.SECOND),
-				DateFormat.is24HourFormat(this)
-		)
-		dpd.show(supportFragmentManager, tag)
-	}
-
-	private fun showDatePickerDialog(cal: Calendar, editText: AppCompatEditText, tag: String) {
-		val dpd = DatePickerDialog.newInstance(
-				{ _, year, monthOfYear, dayOfMonth ->
-					cal.set(year, monthOfYear, dayOfMonth)
-					updateEditTextDate(editText, cal)
-				},
-				cal.get(Calendar.YEAR),
-				cal.get(Calendar.MONTH),
-				cal.get(Calendar.DAY_OF_MONTH)
-		)
-		dpd.show(supportFragmentManager, tag)
-	}
 
 	override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
 		super.onActivityResult(requestCode, resultCode, data)
