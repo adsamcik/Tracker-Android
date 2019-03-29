@@ -1,27 +1,27 @@
 package com.adsamcik.signalcollector.database.dao
 
 import androidx.room.*
-import com.adsamcik.signalcollector.data.TrackingSession
+import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
 @Dao
 interface SessionDataDao {
 	@Insert
-	fun insert(session: TrackingSession): Long
+	fun insert(session: TrackerSession): Long
 
 	@Update
-	fun update(session: TrackingSession)
+	fun update(session: TrackerSession)
 
 	@Delete
-	fun delete(session: TrackingSession)
+	fun delete(session: TrackerSession)
 
 	@Query("SELECT * FROM tracking_session")
-	fun getAll(): List<TrackingSession>
+	fun getAll(): List<TrackerSession>
 
 	@Query("SELECT * FROM tracking_session WHERE datetime(start, 'start of day') == datetime(:day, 'start of day')")
-	fun getForDay(day: Long): List<TrackingSession>
+	fun getForDay(day: Long): List<TrackerSession>
 
 	@Query("SELECT * FROM tracking_session WHERE start >= :from AND start <= :to ORDER BY start DESC")
-	fun getBetween(from: Long, to: Long): List<TrackingSession>
+	fun getBetween(from: Long, to: Long): List<TrackerSession>
 
 	@Query("SELECT COUNT(*) FROM tracking_session")
 	fun count(): Long

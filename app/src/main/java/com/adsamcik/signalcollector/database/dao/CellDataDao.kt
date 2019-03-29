@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.adsamcik.signalcollector.data.CellType
+import com.adsamcik.signalcollector.tracker.data.CellType
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 
 @Dao

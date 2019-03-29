@@ -1,10 +1,10 @@
 package com.adsamcik.signalcollector.map.heatmap.providers
 
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.signalcollector.extensions.isPowerOfTwo
+import com.adsamcik.signalcollector.misc.extension.isPowerOfTwo
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
-import com.adsamcik.signalcollector.utility.CoordinateBounds
+import com.adsamcik.signalcollector.map.CoordinateBounds
 
 interface MapTileHeatmapProvider {
 	val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>

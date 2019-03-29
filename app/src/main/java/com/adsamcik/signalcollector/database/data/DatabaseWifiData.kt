@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.database.data
 import androidx.room.*
 import androidx.room.ForeignKey.NO_ACTION
 import androidx.room.ForeignKey.SET_NULL
-import com.adsamcik.signalcollector.data.WifiInfo
+import com.adsamcik.signalcollector.tracker.data.WifiInfo
 
 @Entity(tableName = "wifi_data", foreignKeys = [ForeignKey(entity = DatabaseLocation::class,
 		parentColumns = ["id"],

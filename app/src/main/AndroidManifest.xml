@@ -56,7 +56,7 @@
         </provider>
 
         <activity
-            android:name=".activities.LaunchActivity"
+            android:name="com.adsamcik.signalcollector.app.activity.LaunchActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
             <intent-filter>
@@ -66,22 +66,22 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".activities.ShortcutActivity"
+            android:name="com.adsamcik.signalcollector.misc.shortcut.ShortcutActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
         </activity>
         <activity
-            android:name=".activities.MainActivity"
+            android:name="com.adsamcik.signalcollector.app.activity.MainActivity"
             android:exported="true"
             android:resizeableActivity="true"
             android:theme="@style/AppThemeTransluscent"
             android:windowSoftInputMode="adjustResize"
             tools:targetApi="n"/>
         <activity
-            android:name=".activities.ActivityRecognitionActivity"
+            android:name=".debug.activity.ActivityRecognitionActivity"
             android:screenOrientation="portrait"/>
         <activity
-            android:name=".activities.ExportActivity"
+            android:name=".export.activity.ExportActivity"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.PICK"/>
@@ -93,34 +93,34 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".activities.LicenseActivity"
+            android:name="com.adsamcik.signalcollector.app.activity.LicenseActivity"
             android:screenOrientation="portrait"/>
         <activity
-            android:name=".activities.SettingsActivity"
-            android:parentActivityName=".activities.MainActivity"/>
+            android:name=".preference.activity.SettingsActivity"
+            android:parentActivityName="com.adsamcik.signalcollector.app.activity.MainActivity"/>
 
-        <receiver android:name=".receivers.BootReceiver">
+        <receiver android:name="com.adsamcik.signalcollector.app.receiver.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".receivers.NotificationReceiver">
+        <receiver android:name=".tracker.receiver.TrackerNotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".receivers.OnAppUpdateReceiver">
+        <receiver android:name="com.adsamcik.signalcollector.app.receiver.OnAppUpdateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".receivers.TrackingUnlockReceiver"/>
+        <receiver android:name=".tracker.receiver.TrackerUnlockReceiver"/>
 
         <service
-            android:name=".services.TrackerService"
+            android:name=".tracker.service.TrackerService"
             android:exported="false"/>
-        <service android:name=".services.ActivityService"/>
-        <service android:name=".services.ActivityWatcherService"/>
+        <service android:name=".activity.service.ActivityService"/>
+        <service android:name=".activity.service.ActivityWatcherService"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
@@ -130,7 +130,7 @@
             android:value="@string/google_app_id2"/>
 
         <activity
-            android:name=".activities.StatusActivity"
+            android:name=".debug.activity.StatusActivity"
             android:exported="true">
         </activity>
     </application>

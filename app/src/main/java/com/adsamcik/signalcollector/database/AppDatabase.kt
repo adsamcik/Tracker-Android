@@ -5,12 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.signalcollector.data.TrackingSession
+import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.adsamcik.signalcollector.database.dao.*
 import com.adsamcik.signalcollector.database.data.*
 
 
-@Database(entities = [DatabaseLocation::class, TrackingSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 4)
+@Database(entities = [DatabaseLocation::class, TrackerSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 4)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
