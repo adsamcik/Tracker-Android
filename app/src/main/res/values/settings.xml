@@ -184,6 +184,7 @@
     <string name="settings_map_quality_summary">Scale relative to default value</string>
     <string name="settings_map_quality_default" translatable="false">1f</string>
     <string-array name="settings_map_quality_values">
+        <item>0.25</item>
         <item>0.5</item>
         <item>1</item>
         <item>2</item>
