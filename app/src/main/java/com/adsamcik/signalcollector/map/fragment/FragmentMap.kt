@@ -531,7 +531,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			}
 			payload.onBeforeDestroyed = {
 				fragmentMapMenu.set(null)
-				colorManager!!.stopWatchingAdapterView(R.id.list)
+				colorManager!!.stopWatchingAdapterView(R.id.recycler)
 			}
 
 			map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->

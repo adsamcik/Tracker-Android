@@ -4,14 +4,14 @@ import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import android.widget.ListView
+import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.ActivityInfo
+import com.adsamcik.signalcollector.app.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.adapter.StringFilterableAdapter
 import com.adsamcik.signalcollector.database.DebugDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseDebugActivity
-import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.app.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.preference.Preferences
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
 import kotlinx.coroutines.CoroutineStart
@@ -27,7 +27,7 @@ import java.text.DateFormat.getDateTimeInstance
 class ActivityRecognitionActivity : DetailActivity() {
 
 	private lateinit var adapter: StringFilterableAdapter
-	private lateinit var listView: ListView
+	private lateinit var recyclerView: RecyclerView
 
 	private var usingFilter = false
 
@@ -37,7 +37,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 
 		setTitle(R.string.settings_debug_activity_title)
 
-		listView = dev_activity_list_view
+		recyclerView = dev_activity_list_view
 
 
 		val resources = resources
@@ -91,7 +91,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 			DebugDatabase.getAppDatabase(applicationContext).activityDebugDao().deleteAll()
 		}
 
-		listView.adapter = adapter
+		recyclerView.adapter = adapter
 
 		instance = WeakReference(this)
 	}
@@ -146,8 +146,9 @@ class ActivityRecognitionActivity : DetailActivity() {
 				val adapter = inst.adapter
 				val activityName = activity.getResolvedActivityName(context)
 				adapter.add(if (action == null) arrayOf(timeString, activityName) else arrayOf(timeString, activityName, action))
-				if (inst.listView.lastVisiblePosition == adapter.count - 2)
-					inst.listView.smoothScrollToPosition(adapter.count - 1)
+				//too complicated on recycler view
+				/*if (inst.recyclerView. == adapter.count - 2)
+					inst.recyclerView.smoothScrollToPosition(adapter.count - 1)*/
 			}
 		}
 	}

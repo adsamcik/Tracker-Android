@@ -157,7 +157,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 	}
 
 	companion object {
-		const val MIN_HEAT: Float = 3f
+		const val MIN_HEAT: Float = 1f
 		const val MIN_TILE_SIZE = 256
 	}
 }

@@ -39,7 +39,7 @@
         app:layout_constraintRight_toLeftOf="@+id/dev_activity_recognition_clear"/>
 
 
-    <ListView
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/dev_activity_list_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
