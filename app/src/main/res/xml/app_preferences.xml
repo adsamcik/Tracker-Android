@@ -59,6 +59,15 @@
                 app:stringFormat="%1$d s"/>
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
+            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
+                android:defaultValue="@integer/settings_tracking_required_accuracy_default"
+                android:key="@string/settings_tracking_required_accuracy_key"
+                android:title="@string/settings_tracking_required_accuracy_title"
+                app:icon="@drawable/ic_gps_fixed_black_24dp"
+                app:items="@array/settings_tracking_required_accuracy"
+                app:stringFormat="%1$d m"/>
+        </androidx.preference.PreferenceCategory>
+        <androidx.preference.PreferenceCategory>
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_location_enabled_default"
                 android:key="@string/settings_location_enabled_key"
@@ -86,23 +95,30 @@
         android:title="@string/settings_map_title"
         app:icon="@drawable/ic_outline_map_24dp">
 
-        <com.adsamcik.signalcollector.preference.FloatValueSliderPreference
-            android:defaultValue="@string/settings_map_quality_default"
-            android:key="@string/settings_map_quality_key"
-            android:title="@string/settings_map_quality_title"
-            app:icon="@drawable/ic_outline_hd_24dp"
-            app:items="@array/settings_map_quality_values"
-            app:stringFormat="%.2fx"/>
+        <androidx.preference.PreferenceCategory>
+            <com.adsamcik.signalcollector.preference.FloatValueSliderPreference
+                android:defaultValue="@string/settings_map_quality_default"
+                android:key="@string/settings_map_quality_key"
+                android:title="@string/settings_map_quality_title"
+                app:icon="@drawable/ic_outline_hd_24dp"
+                app:items="@array/settings_map_quality_values"
+                app:stringFormat="%.2fx"/>
 
-        <ListPreference
-            android:defaultValue="@string/settings_map_default_layer_default"
-            android:entries="@array/settings_map_default_layer_names"
-            android:entryValues="@array/settings_map_default_layer_values"
-            android:key="@string/settings_map_default_layer_key"
-            android:summary="%s"
-            android:title="@string/settings_map_default_layer_title"
-            app:icon="@drawable/ic_outline_layers_24dp"/>
-
+            <ListPreference
+                android:defaultValue="@string/settings_map_default_layer_default"
+                android:entries="@array/settings_map_default_layer_names"
+                android:entryValues="@array/settings_map_default_layer_values"
+                android:key="@string/settings_map_default_layer_key"
+                android:summary="%s"
+                android:title="@string/settings_map_default_layer_title"
+                app:icon="@drawable/ic_outline_layers_24dp"/>
+        </androidx.preference.PreferenceCategory>
+        <androidx.preference.PreferenceCategory>
+            <Preference
+                android:key="@string/settings_color_default_key"
+                android:title="@string/settings_color_default_title"
+                android:description="@string/settings_map_clear_heat_cache_description"/>
+        </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen

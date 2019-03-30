@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
@@ -12,7 +11,6 @@ import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.misc.Int2
 import com.adsamcik.signalcollector.misc.extension.cloneCalendar
-import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import kotlinx.coroutines.GlobalScope
@@ -46,16 +44,17 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 	private var lastZoom = Int.MIN_VALUE
 
-	private val heatmapSize: Int
-	private val stamp: HeatmapStamp
+	var quality: Float = 0f
+		private set
+	private var heatmapSize: Int = 0
+	private lateinit var stamp: HeatmapStamp
 
-	init {
-		val resources = context.resources
-		val pref = Preferences.getPref(context)
-		val scale = pref.getFloat(resources.getString(R.string.settings_map_quality_key), resources.getString(R.string.settings_map_quality_default).toFloat())
-		heatmapSize = (scale * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
+	fun updateQuality(quality: Float) {
+		this.quality = quality
+		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
 		val stampRadius = HeatmapStamp.calculateOptimalRadius(heatmapSize)
 		stamp = HeatmapStamp.generateNonlinear(stampRadius) { it.pow(2f) }
+		heatmapCache.clear()
 	}
 
 	var range: ClosedRange<Calendar>? = null

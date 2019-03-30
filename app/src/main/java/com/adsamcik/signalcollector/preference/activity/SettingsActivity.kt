@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.preference.activity
 import android.app.NotificationManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.annotation.StringRes
@@ -21,6 +22,7 @@ import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
+import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity
 import com.adsamcik.signalcollector.export.GpxExport
@@ -32,6 +34,8 @@ import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
 import com.adsamcik.signalcollector.tracker.TrackerLocker
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
 
@@ -86,7 +90,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			return@OnPreferenceChangeListener true
 		}
 
-		//todo check if device has Wi-Fi and telephony features
+		val packageManager = packageManager
+		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI))
+			caller.findPreference(R.string.settings_wifi_enabled_key).isEnabled = false
+
+		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY))
+			caller.findPreference(R.string.settings_cell_enabled_key).isEnabled = false
 	}
 
 	private fun initializeExport(caller: PreferenceFragmentCompat) {
@@ -104,7 +113,11 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	}
 
 	private fun initializeMap(caller: PreferenceFragmentCompat) {
-
+		setOnClickListener(R.string.settings_map_clear_heat_cache_key) {
+			GlobalScope.launch {
+				AppDatabase.getAppDatabase(applicationContext).mapHeatDao().clear()
+			}
+		}
 	}
 
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {

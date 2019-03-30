@@ -92,6 +92,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private lateinit var keyLocationEnabled: String
 	private var defaultLocationEnabled: Boolean = false
 
+	private lateinit var keyRequiredLocationAccuracy: String
+	private var defaultRequiredLocationAccuracy: Int = 0
+
 
 	/**
 	 * Collects data from necessary places and sensors and creates new RawData instance
@@ -107,14 +110,21 @@ class TrackerService : LifecycleService(), SensorEventListener {
 				return
 		}
 
-		wakeLock.acquire(10 * Constants.MINUTE_IN_MILLISECONDS)
+		wakeLock.acquire(Constants.MINUTE_IN_MILLISECONDS)
+
+		val preferences = Preferences.getPref(this)
+
+		//if we don't know the accuracy the location is worthless
+		if(!location.hasAccuracy() || location.accuracy > preferences.getInt(keyRequiredLocationAccuracy, defaultRequiredLocationAccuracy)) {
+			wakeLock.release()
+			return
+		}
 
 		session.apply {
 			distanceInM += distance
 			collections++
 		}
 
-		val preferences = Preferences.getPref(this)
 		val d = RawData(System.currentTimeMillis())
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
@@ -289,10 +299,12 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		keyCellEnabled = resources.getString(R.string.settings_cell_enabled_key)
 		keyLocationEnabled = resources.getString(R.string.settings_location_enabled_key)
 		keyWifiEnabled = resources.getString(R.string.settings_wifi_enabled_key)
+		keyRequiredLocationAccuracy = resources.getString(R.string.settings_tracking_required_accuracy_key)
 
 		defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default).toBoolean()
 		defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default).toBoolean()
 		defaultWifiEnabled = resources.getString(R.string.settings_wifi_enabled_default).toBoolean()
+		defaultRequiredLocationAccuracy = resources.getInteger(R.integer.settings_tracking_required_accuracy_default)
 
 		//Get managers
 		notificationManager = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)

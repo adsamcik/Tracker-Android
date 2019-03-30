@@ -1,14 +1,24 @@
 package com.adsamcik.signalcollector.map.heatmap.providers
 
 import android.content.Context
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.preference.Preferences
 
 class LocationTileHeatmapProvider(context: Context) : MapTileHeatmapProvider {
 	private val dao = AppDatabase.getAppDatabase(context).locationDao()
 
-	override val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
-		 = dao::getAllInsideAndBetween
-	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
-		 = dao::getAllInside
+	override val weightNormalizationValue: Double
+
+	init {
+		val resources = context.resources
+		val nKey = resources.getString(R.string.settings_tracking_required_accuracy_key)
+		val nDefault = resources.getInteger(R.integer.settings_tracking_required_accuracy_default)
+		weightNormalizationValue = Preferences.getPref(context).getInt(nKey, nDefault).toDouble()
+	}
+
+	override val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal> = dao::getAllInsideAndBetween
+
+	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal> = dao::getAllInside
 }

@@ -11,7 +11,7 @@ interface MapHeatDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	fun insert(heat: DatabaseMapMaxHeat)
 
-	@Query("SELECT * FROM map_max_heat WHERE layer_name = :layerName AND zoom <= :zoom ORDER BY zoom ASC LIMIT 1")
+	@Query("SELECT * FROM map_max_heat WHERE layer_name = :layerName AND zoom = :zoom")
 	fun getSingle(layerName: String, zoom: Int): DatabaseMapMaxHeat?
 
 	@Query("DELETE FROM map_max_heat")

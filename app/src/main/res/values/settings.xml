@@ -109,6 +109,25 @@
         <item>60</item>
     </integer-array>
 
+
+    <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
+    <string name="settings_tracking_required_accuracy_key" translatable="false">requiredTrackingAccuracy</string>
+    <integer name="settings_tracking_required_accuracy_default">50</integer>
+
+    <integer-array name="settings_tracking_required_accuracy">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>35</item>
+        <item>50</item>
+        <item>75</item>
+        <item>100</item>
+        <item>200</item>
+        <item>500</item>
+        <item>1000</item>
+    </integer-array>
+
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
     <string name="settings_style_mode_key" translatable="false">styleMode</string>
@@ -206,6 +225,10 @@
         <item>Wi-Fi</item>
     </string-array>
 
+
+    <string name="settings_map_clear_heat_cache_title">Clear heatmap offset</string>
+    <string name="settings_map_clear_heat_cache_description">Use this if your locations on the map suddenly became too dim</string>
+    <string name="settings_map_clear_heat_cache_key" translatable="false">clearHeatmapMaxHeat</string>
 
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>

@@ -313,4 +313,5 @@
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
+    <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
 </resources>

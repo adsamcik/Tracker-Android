@@ -42,6 +42,7 @@ import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.preference.Preferences
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.crashlytics.android.Crashlytics
@@ -63,7 +64,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var map: GoogleMap? = null
 	private var mapFragment: SupportMapFragment? = null
 
-	private lateinit var tileProvider: LocationTileProvider
+	private var tileProvider: LocationTileProvider? = null
 	private var locationManager: LocationManager? = null
 	private var activeOverlay: TileOverlay? = null
 
@@ -139,8 +140,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	override fun onEnter(activity: FragmentActivity) {
 		this.fActivity = activity
 
-		tileProvider = LocationTileProvider(activity)
-
+		initializeTileProvider(activity)
 
 		if (this.mapFragment == null) {
 			MapFragment.newInstance().getMapAsync(this)
@@ -188,6 +188,23 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		return fragmentView
 	}
 
+	private fun initializeTileProvider(context: Context) {
+		val pref = Preferences.getPref(context)
+		val resources = context.resources
+		val quality = pref.getFloat(resources.getString(R.string.settings_map_quality_key), resources.getString(R.string.settings_map_quality_default).toFloat())
+
+		if (tileProvider == null)
+			tileProvider = LocationTileProvider(context)
+
+		tileProvider!!.let {
+			if (it.quality != quality) {
+				it.updateQuality(quality)
+				activeOverlay?.clearTileCache()
+			}
+		}
+
+	}
+
 	override fun onDestroyView() {
 		super.onDestroyView()
 		fragmentView = null
@@ -206,7 +223,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			if (layerType != this.activeLayerType || activeOverlay == null) {
 				this.activeLayerType = layerType
 
-				tileProvider.setHeatmapLayer(context!!, layerType)
+				tileProvider!!.setHeatmapLayer(context!!, layerType)
 
 				val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
@@ -329,7 +346,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				}
 				successCallback = { range ->
 					this@FragmentMap.dateRange = range
-					tileProvider.range = range
+					tileProvider!!.range = range
 					activeOverlay?.clearTileCache()
 				}
 			}.show(fragmentManager!!, "Map date range dialog")
@@ -388,7 +405,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	/**
 	 * Called when map is ready and initializes everything that needs to be initialized after maps loading
 	 */
-	//todo refactor
+//todo refactor
 	override fun onMapReady(map: GoogleMap) {
 		this.map = map
 		userRadius = null
@@ -453,6 +470,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		val resources = context.resources
 		val layerType = LayerType.fromPreference(context, resources.getString(R.string.settings_map_default_layer_key), LayerType.Location)
 
+		initializeTileProvider(context)
 		changeMapOverlay(layerType)
 
 
@@ -574,8 +592,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
 			fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 
-			if (tileProvider.heatChange > HEAT_CHANGE_THRESHOLD) {
-				tileProvider.synchronizeMaxHeat()
+			if (tileProvider!!.heatChange > HEAT_CHANGE_THRESHOLD) {
+				tileProvider!!.synchronizeMaxHeat()
 				activeOverlay!!.clearTileCache()
 			}
 		}
