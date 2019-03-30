@@ -30,7 +30,7 @@ class HeatmapTile(
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
 		val x = ((tx - x) * heatmapSize).roundToInt()
 		val y = ((ty - y) * heatmapSize).roundToInt()
-		heatmap.addWeightedPointWithStamp(x, y, location.weight.toFloat(), stamp)
+		heatmap.addWeightedPointWithStamp(x, y, location.normalizedWeight.toFloat(), stamp)
 	}
 
 
