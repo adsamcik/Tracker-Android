@@ -14,7 +14,7 @@ data class TrackerSession(var start: Long,
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0
 
-	constructor(start: Long) : this(start, -1, 0, 0f, 0)
+	constructor(start: Long) : this(start, start, 0, 0f, 0)
 
 	fun mergeWith(session: TrackerSession) {
 		if (session.start > start) {
