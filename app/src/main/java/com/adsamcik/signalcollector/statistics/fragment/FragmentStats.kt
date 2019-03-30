@@ -234,7 +234,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 	 */
 	private fun addStatsTable(stats: Array<Stat>, appendBehavior: AppendBehaviour) {
 		for (s in stats) {
-			val table = TableCard(s.showPosition, CARD_LIST_MARGIN, appendBehavior)
+			val table = TableCard(s.showPosition, appendBehavior)
 			table.title = s.name
 			s.data.indices
 					.asSequence()
@@ -255,10 +255,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 
-	}
-
-	companion object {
-		private const val CARD_LIST_MARGIN = 16
 	}
 }
 
