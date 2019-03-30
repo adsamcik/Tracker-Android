@@ -115,8 +115,8 @@
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
             <Preference
-                android:key="@string/settings_color_default_key"
-                android:title="@string/settings_color_default_title"
+                android:key="@string/settings_map_clear_heat_cache_title"
+                android:title="@string/settings_map_clear_heat_cache_key"
                 android:description="@string/settings_map_clear_heat_cache_description"/>
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>

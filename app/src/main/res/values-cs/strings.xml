@@ -314,4 +314,6 @@
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
     <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
+    <string name="settings_map_clear_heat_cache_title">Smazat ofsetové hodnoty teplotní mapy</string>
+    <string name="settings_map_clear_heat_cache_description">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
 </resources>

@@ -114,8 +114,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 	private fun initializeMap(caller: PreferenceFragmentCompat) {
 		setOnClickListener(R.string.settings_map_clear_heat_cache_key) {
-			GlobalScope.launch {
-				AppDatabase.getAppDatabase(applicationContext).mapHeatDao().clear()
+			createConfirmDialog(it.title.toString()) {
+				GlobalScope.launch {
+					AppDatabase.getAppDatabase(applicationContext).mapHeatDao().clear()
+				}
 			}
 		}
 	}
@@ -199,14 +201,14 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 	}
 
-	private fun createClearDialog(action: CharSequence, clearFunction: (Context) -> Unit) {
+	private fun createConfirmDialog(action: String, clearFunction: (Context) -> Unit) {
 		val alertDialogBuilder = AlertDialog.Builder(this)
 		alertDialogBuilder
 				.setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
 					clearFunction.invoke(this)
 				}
 				.setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
-				.setMessage(resources.getString(R.string.alert_confirm, action.toString().toLowerCase()))
+				.setMessage(resources.getString(R.string.alert_confirm, action.toLowerCase()))
 
 		alertDialogBuilder.show()
 	}
@@ -267,7 +269,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 
 		caller.findPreference(R.string.settings_clear_preferences_key).setOnPreferenceClickListener { pref ->
-			createClearDialog(pref.title) {
+			createConfirmDialog(pref.title.toString()) {
 				Preferences.getPref(it).edit {
 					clear()
 				}
