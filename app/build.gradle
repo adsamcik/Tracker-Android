@@ -9,8 +9,6 @@ apply plugin: 'com.google.android.gms.strict-version-matcher-plugin'
 if (file('key.gradle').exists())
     apply from: 'key.gradle'
 
-ext.stag_version = '2.5.1'
-
 android {
     compileSdkVersion 28
     buildToolsVersion '28.0.3'
