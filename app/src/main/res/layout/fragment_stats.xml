@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                                       xmlns:app="http://schemas.android.com/apk/res-auto"
                                                        android:id="@+id/swiperefresh_stats"
                                                        android:layout_width="match_parent"
                                                        android:layout_height="match_parent">
 
-    <ListView
-        android:id="@+id/listview_stats"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_stats"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:clipToPadding="false"
-        android:divider="@null"
-        android:dividerHeight="0dp"
+        android:focusable="false"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager "
         android:listSelector="@android:color/transparent"
-        android:paddingBottom="@dimen/navbar_height_new_padding"
         android:paddingTop="@dimen/status_bar_height"
+        android:paddingBottom="@dimen/navbar_height_new_padding"
+        android:scrollbars="vertical"
         android:verticalScrollbarPosition="left"/>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

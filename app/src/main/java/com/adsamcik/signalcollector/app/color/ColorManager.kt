@@ -10,11 +10,12 @@ import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
 import androidx.appcompat.widget.AppCompatTextView
-import com.adsamcik.signalcollector.misc.extension.contains
+import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.app.adapter.IViewChange
 import com.adsamcik.signalcollector.app.color.ColorSupervisor.backgroundColorFor
 import com.adsamcik.signalcollector.app.color.ColorSupervisor.foregroundColorFor
 import com.adsamcik.signalcollector.app.color.ColorSupervisor.layerColor
+import com.adsamcik.signalcollector.misc.extension.contains
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -76,7 +77,7 @@ class ColorManager {
 		if (!colorView.recursive)
 			throw RuntimeException("Recycler view cannot be non recursive")
 
-		colorView.view as AdapterView<*>
+		colorView.view as RecyclerView
 		val adapter = colorView.view.adapter
 		if (adapter is IViewChange) {
 			adapter.onViewChangedListener = {

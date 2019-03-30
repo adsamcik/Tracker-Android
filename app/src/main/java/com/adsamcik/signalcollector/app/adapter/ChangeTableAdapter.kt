@@ -1,20 +1,19 @@
 package com.adsamcik.signalcollector.app.adapter
 
-import android.content.Context
 import android.view.View
-import android.view.ViewGroup
 import androidx.annotation.StyleRes
-import com.adsamcik.table.TableAdapter
+import com.adsamcik.cardlist.CardListAdapter
+import com.adsamcik.cardlist.table.TableCard
+import com.adsamcik.cardlist.table.TableCardCreator
 
 /**
  * ChangeTableAdapter was created to extend TableAdapter with IViewChange interface for proper color updating
  */
-internal class ChangeTableAdapter(context: Context, itemMarginDp: Int, @StyleRes themeInt: Int) : TableAdapter(context, itemMarginDp, themeInt), IViewChange {
+internal class ChangeTableAdapter(@StyleRes themeInt: Int) : CardListAdapter<TableCard.ViewHolder, TableCard>(themeInt, TableCardCreator(themeInt)), IViewChange {
     override var onViewChangedListener: ((View) -> Unit)? = null
 
-    override fun getView(i: Int, view: View?, viewGroup: ViewGroup): View {
-        val finalView = super.getView(i, view, viewGroup)
-        onViewChangedListener?.invoke(finalView)
-        return finalView
+    override fun onBindViewHolder(holder: TableCard.ViewHolder, position: Int) {
+        super.onBindViewHolder(holder, position)
+        onViewChangedListener?.invoke(holder.cardView)
     }
 }

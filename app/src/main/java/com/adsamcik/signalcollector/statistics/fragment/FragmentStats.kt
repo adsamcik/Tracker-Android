@@ -4,29 +4,29 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ListView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.adsamcik.cardlist.AppendBehaviour
+import com.adsamcik.cardlist.CardItemDecoration
+import com.adsamcik.cardlist.table.TableCard
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.adapter.ChangeTableAdapter
-import com.adsamcik.signalcollector.tracker.data.LengthUnit
-import com.adsamcik.signalcollector.statistics.data.Stat
-import com.adsamcik.signalcollector.statistics.data.StatData
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.app.color.ColorManager
+import com.adsamcik.signalcollector.app.color.ColorSupervisor
+import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.misc.extension.format
-import com.adsamcik.signalcollector.app.color.ColorManager
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.app.color.ColorView
-import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.table.AppendBehaviors
-import com.adsamcik.table.Table
-import com.adsamcik.table.TableAdapter
+import com.adsamcik.signalcollector.statistics.data.Stat
+import com.adsamcik.signalcollector.statistics.data.StatData
+import com.adsamcik.signalcollector.tracker.data.LengthUnit
+import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -37,7 +37,7 @@ import kotlin.math.roundToInt
 class FragmentStats : Fragment(), IOnDemandView {
 	private lateinit var fragmentView: View
 
-	private var adapter: TableAdapter? = null
+	private var adapter: ChangeTableAdapter? = null
 
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
@@ -50,7 +50,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
 
-		adapter = ChangeTableAdapter(activity, CARD_LIST_MARGIN, activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
+		adapter = ChangeTableAdapter(activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
 
 		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
@@ -59,14 +59,16 @@ class FragmentStats : Fragment(), IOnDemandView {
 		swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
 		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 
-		val listView = fragmentView!!.findViewById<ListView>(R.id.listview_stats)
-		listView.setRecyclerListener { }
-		listView.adapter = adapter
+		val recyclerView = fragmentView!!.recycler_stats
+		recyclerView.setRecyclerListener { }
 		updateStats()
+		recyclerView.adapter = adapter
+		val decoration = CardItemDecoration()
+		recyclerView.addItemDecoration(decoration)
 
 		this.fragmentView = fragmentView
 
-		colorManager.watchAdapterView(ColorView(listView, 1, recursive = true, rootIsBackground = true))
+		colorManager.watchAdapterView(ColorView(recyclerView, 1, recursive = true, rootIsBackground = true))
 
 		return fragmentView
 	}
@@ -128,7 +130,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 			))
 
 
-
 			val weeklyStats = Stat(r.getString(R.string.stats_weekly_title), "", showPosition = false, data = listOf(
 					StatData(r.getString(R.string.stats_weekly_minutes), totalMinutes.roundToInt().toString()),
 					StatData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString()),
@@ -138,7 +139,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			val sumStatsArray = arrayOf(summaryStats, weeklyStats)
 
-			handleResponse(sumStatsArray, AppendBehaviors.First)
+			handleResponse(sumStatsArray, AppendBehaviour.First)
 
 
 			val monthAgoCalendar = Calendar.getInstance()
@@ -155,7 +156,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 						StatData(r.getString(R.string.stats_weekly_collected_location), Assist.formatNumber(it.collections)),
 						StatData(r.getString(R.string.stats_weekly_steps), it.steps.toString())
 				)))
-				handleResponse(stats, AppendBehaviors.FirstLast)
+				handleResponse(stats, AppendBehaviour.FirstLast)
 			}
 
 
@@ -197,7 +198,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 		return totalDistance
 	}
 
-	private fun handleResponse(value: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+	private fun handleResponse(value: Array<Stat>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			addStatsTable(value, appendBehavior)
 			adapter!!.sort()
@@ -205,7 +206,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 	}
 
 	private fun generateMockData() {
-		addStatsTable(generateMockStatList(), AppendBehaviors.Any)
+		addStatsTable(generateMockStatList(), AppendBehaviour.Any)
 	}
 
 	private fun generateMockStatList(): Array<Stat> {
@@ -231,9 +232,9 @@ class FragmentStats : Fragment(), IOnDemandView {
 	 *
 	 * @param stats stats
 	 */
-	private fun addStatsTable(stats: Array<Stat>, @AppendBehaviors.AppendBehavior appendBehavior: Int) {
+	private fun addStatsTable(stats: Array<Stat>, appendBehavior: AppendBehaviour) {
 		for (s in stats) {
-			val table = Table(s.data.size, s.showPosition, CARD_LIST_MARGIN, appendBehavior)
+			val table = TableCard(s.showPosition, CARD_LIST_MARGIN, appendBehavior)
 			table.title = s.name
 			s.data.indices
 					.asSequence()
