@@ -263,10 +263,7 @@
 
     <string name="start">Start</string>
 
-    <string name="stats_weekly_collected_location">Záznamů</string>
-    <string name="stats_weekly_distance_travelled">Ujetá vzdálenost</string>
-    <string name="stats_weekly_minutes">Minut stráveno sběrem</string>
-    <string name="stats_weekly_steps">Počet kroků</string>
+
     <string name="stats_weekly_title">Posledních 7 dnů</string>
 
     <string name="stop">Stop</string>
@@ -301,4 +298,19 @@
     <string name="yes">Ano</string>
 
     <string name="your_stats">Vaše statistiky</string>
+    <string name="stats_cell_count">Počet mobilních vysílačů</string>
+    <string name="stats_distance_total">Vzdálenost</string>
+    <string name="stats_in_vehicle">Vzdálenost ve vozidle</string>
+    <string name="stats_distance_on_foot">Vzdálenost pěšky</string>
+    <string name="stats_location_count">Počet poloh</string>
+    <string name="stats_session_count">Počet relací</string>
+    <string name="stats_steps">Počet kroků</string>
+    <string name="stats_sum_title">Souhrn</string>
+    <string name="stats_time">Čas stráven sběrem</string>
+    <string name="stats_wifi_count">Počet Wi-Fi</string>
+    <string name="stats_collections">Počet sběrů</string>
+    <string name="day_short">%d d</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
 </resources>

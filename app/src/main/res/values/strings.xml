@@ -24,11 +24,19 @@
     <string name="map_search_no_text">Searching for nothing is not very useful</string>
     <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
 
+    <string name="stats_sum_title">Summary</string>
+    <string name="stats_steps">Step count</string>
+    <string name="stats_distance_on_foot">Distance on foot</string>
+    <string name="stats_in_vehicle">Distance in vehicle</string>
+    <string name="stats_distance_total">Distance</string>
+    <string name="stats_collections">Collection count</string>
+    <string name="stats_location_count">Location count</string>
+    <string name="stats_time">Time spent tracking</string>
+    <string name="stats_session_count">Session count</string>
+    <string name="stats_wifi_count">Wi-Fi count</string>
+    <string name="stats_cell_count">Cell count</string>
+
     <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_weekly_steps">Steps taken</string>
-    <string name="stats_weekly_collected_location">Collections performed</string>
-    <string name="stats_weekly_minutes">Minutes spent tracking</string>
-    <string name="stats_weekly_distance_travelled">Distance traveled</string>
 
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
@@ -89,6 +97,11 @@
     <string name="share_nothing_to_share">Nothing to share</string>
     <string name="agree">I agree</string>
     <string name="disagree">I disagree</string>
+
+    <string name="day_short">%d d</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
 
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>

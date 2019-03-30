@@ -12,7 +12,6 @@ import com.adsamcik.cardlist.CardItemDecoration
 import com.adsamcik.cardlist.table.TableCard
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.adapter.ChangeTableAdapter
 import com.adsamcik.signalcollector.app.color.ColorManager
@@ -20,19 +19,17 @@ import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
-import com.adsamcik.signalcollector.misc.extension.format
+import com.adsamcik.signalcollector.misc.DistanceUnit
+import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.statistics.data.Stat
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.tracker.data.LengthUnit
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
-import kotlin.math.roundToInt
 
 class FragmentStats : Fragment(), IOnDemandView {
 	private lateinit var fragmentView: View
@@ -111,30 +108,26 @@ class FragmentStats : Fragment(), IOnDemandView {
 			calendar.add(Calendar.WEEK_OF_YEAR, -1)
 			val weekAgo = calendar.timeInMillis
 
-			val sumSession = TrackerSession(now, now, 0, 0f, 0)
-			var totalMinutes = 0.0
-			sessionDao.getBetween(weekAgo, now).forEach {
-				sumSession.mergeWith(it)
-				val time = it.end - it.start
-				if (time > 0)
-					totalMinutes += time.toDouble() / Constants.MINUTE_IN_MILLISECONDS.toDouble()
-			}
-
-			//todo add strings
-			val summaryStats = Stat("Total stats", "", showPosition = false, data = listOf(
-					StatData("Wi-Fi count", wifiDao.count().toString()),
-					StatData("Cell count", cellDao.count().toString()),
-					StatData("Collections count", (locationDao.count().value
-							?: 0).toString()),
-					StatData("Session count", sessionDao.count().toString())
+			val sumSessionData = sessionDao.getSummary()
+			val summaryStats = Stat(r.getString(R.string.stats_sum_title), "", showPosition = false, data = listOf(
+					StatData(r.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
+					StatData(r.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
+					StatData(r.getString(R.string.stats_distance_total), sumSessionData.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+					StatData(r.getString(R.string.stats_location_count), (locationDao.count().value
+							?: 0).formatReadable()),
+					StatData(r.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
+					StatData(r.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
+					StatData(r.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
+					StatData(r.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
 			))
 
+			val lastMonthSummary = sessionDao.getSummary(weekAgo, now)
 
 			val weeklyStats = Stat(r.getString(R.string.stats_weekly_title), "", showPosition = false, data = listOf(
-					StatData(r.getString(R.string.stats_weekly_minutes), totalMinutes.roundToInt().toString()),
-					StatData(r.getString(R.string.stats_weekly_collected_location), sumSession.collections.toString()),
-					StatData(r.getString(R.string.stats_weekly_steps), sumSession.steps.toString()),
-					StatData(r.getString(R.string.stats_weekly_distance_travelled), "${(sumSession.distanceInM / 1000).format(2)} km")
+					StatData(r.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(appContext)),
+					StatData(r.getString(R.string.stats_distance_total), lastMonthSummary.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+					StatData(r.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
+					StatData(r.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
 			))
 
 			val sumStatsArray = arrayOf(summaryStats, weeklyStats)
@@ -145,34 +138,15 @@ class FragmentStats : Fragment(), IOnDemandView {
 			val monthAgoCalendar = Calendar.getInstance()
 			monthAgoCalendar.add(Calendar.MONTH, -1)
 			//todo show all session for the past 24 hours and merge the rest
-			sessionDao.getBetween(monthAgoCalendar.timeInMillis, now).forEach {
-
-				//val locations = locationDao.getAllBetween(it.start, it.end)
-
-				//val distance = calculateDistance(locations)
-
-				val stats = arrayOf(Stat("${Assist.formatShortDateTime(it.start)} - ${Assist.formatShortDateTime(it.end)}", "", false, listOf(
-						StatData(r.getString(R.string.stats_weekly_distance_travelled), "${(it.distanceInM / 1000.0).format(2)} km"),
-						StatData(r.getString(R.string.stats_weekly_collected_location), Assist.formatNumber(it.collections)),
-						StatData(r.getString(R.string.stats_weekly_steps), it.steps.toString())
+			sessionDao.getBetween(monthAgoCalendar.timeInMillis, now).map {
+				arrayOf(Stat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", "", false, listOf(
+						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
+						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
 				)))
-				handleResponse(stats, AppendBehaviour.FirstLast)
+			}.let {
+				handleResponse(it, AppendBehaviour.Any)
 			}
-
-
-			/*val locations = AppDatabase.getAppDatabase(activity).locationDao().getAllSince(System.currentTimeMillis() - Constants.DAY_IN_MILLISECONDS * 30)
-			locations.groupBy { it.location.time / Constants.DAY_IN_MILLISECONDS }.forEach {
-				val distance = calculateDistance(it.value).format(2)
-				//todo add localization support
-				val stats = arrayOf(Stat(Assist.formatDate(activity, it.value.first().location.time), "", false, listOf(
-						StatData("distance", "$distance km"),
-						StatData("locations", Assist.formatNumber(it.value.size))
-				)))
-				GlobalScope.launch(Dispatchers.Main) {
-					addStatsTable(stats, AppendBehaviors.Any)
-					adapter!!.sort()
-				}
-			}*/
 
 			GlobalScope.launch(Dispatchers.Main) {
 				swipeRefreshLayout.isRefreshing = false
@@ -201,6 +175,13 @@ class FragmentStats : Fragment(), IOnDemandView {
 	private fun handleResponse(value: Array<Stat>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			addStatsTable(value, appendBehavior)
+			adapter!!.sort()
+		}
+	}
+
+	private fun handleResponse(list: List<Array<Stat>>, appendBehavior: AppendBehaviour) {
+		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+			list.forEach { addStatsTable(it, appendBehavior) }
 			adapter!!.sort()
 		}
 	}

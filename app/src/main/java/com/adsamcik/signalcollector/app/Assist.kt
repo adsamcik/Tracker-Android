@@ -17,17 +17,16 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.app.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.misc.extension.connectivityManager
 import com.adsamcik.signalcollector.misc.extension.inputMethodManager
 import com.adsamcik.signalcollector.misc.extension.locationManager
 import com.adsamcik.signalcollector.misc.extension.windowManager
+import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.app.Constants.DAY_IN_MILLISECONDS
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.text.DecimalFormat
-import java.text.SimpleDateFormat
 import java.util.*
 
 
@@ -59,28 +58,6 @@ object Assist {
 	 */
 	fun orientation(context: Context): Int {
 		return context.windowManager.defaultDisplay.rotation
-	}
-
-	fun formatDate(context: Context, time: Long): String {
-		val date = Date(time)
-		val dateFormat = android.text.format.DateFormat.getDateFormat(context)
-		return dateFormat.format(date)
-	}
-
-	fun formatTime(context: Context, time: Long): String {
-		val date = Date(time)
-		val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
-		return timeFormat.format(date)
-	}
-
-	fun formatDateTime(context: Context, time: Long): String {
-		val date = Date(time)
-		return SimpleDateFormat.getDateTimeInstance().format(date)
-	}
-
-	fun formatShortDateTime(time: Long): String {
-		val date = Date(time)
-		return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
 	}
 
 	/**
@@ -271,17 +248,6 @@ object Assist {
 	fun formatNumber(number: Int): String {
 		val df = DecimalFormat("#,###,###")
 		return df.format(number.toLong()).replace(",".toRegex(), " ")
-	}
-
-	/**
-	 * Formats 1000 as 1 000
-	 *
-	 * @param number input number
-	 * @return formatted number
-	 */
-	fun formatNumber(number: Long): String {
-		val df = DecimalFormat("#,###,###")
-		return df.format(number).replace(",".toRegex(), " ")
 	}
 
 	/**

@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.database.dao
 
 import androidx.room.*
+import com.adsamcik.signalcollector.statistics.data.TrackerSessionSummary
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
 @Dao
@@ -16,6 +17,12 @@ interface SessionDataDao {
 
 	@Query("SELECT * FROM tracking_session")
 	fun getAll(): List<TrackerSession>
+
+	@Query("SELECT SUM(`end` - start) as duration, SUM(steps) as steps, SUM(collections) as collections, SUM(distance) as distance FROM tracking_session")
+	fun getSummary(): TrackerSessionSummary
+
+	@Query("SELECT SUM(`end` - start) as duration, SUM(steps) as steps, SUM(collections) as collections, SUM(distance) as distance FROM tracking_session WHERE start >= :from AND start <= :to")
+	fun getSummary(from: Long, to: Long): TrackerSessionSummary
 
 	@Query("SELECT * FROM tracking_session WHERE datetime(start, 'start of day') == datetime(:day, 'start of day')")
 	fun getForDay(day: Long): List<TrackerSession>
