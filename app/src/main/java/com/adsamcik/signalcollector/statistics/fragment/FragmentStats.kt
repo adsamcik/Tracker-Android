@@ -21,9 +21,8 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.misc.DistanceUnit
 import com.adsamcik.signalcollector.misc.extension.*
-import com.adsamcik.signalcollector.statistics.data.Stat
 import com.adsamcik.signalcollector.statistics.data.StatData
-import com.adsamcik.signalcollector.statistics.data.StatType
+import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.tracker.data.LengthUnit
 import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.CoroutineStart
@@ -110,7 +109,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			val weekAgo = calendar.timeInMillis
 
 			val sumSessionData = sessionDao.getSummary()
-			val summaryStats = Stat(r.getString(R.string.stats_sum_title), StatType.Table, showPosition = false, data = listOf(
+			val summaryStats = TableStat(r.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
 					StatData(r.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
 					StatData(r.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
 					StatData(r.getString(R.string.stats_distance_total), sumSessionData.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
@@ -124,7 +123,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			val lastMonthSummary = sessionDao.getSummary(weekAgo, now)
 
-			val weeklyStats = Stat(r.getString(R.string.stats_weekly_title), StatType.Table, showPosition = false, data = listOf(
+			val weeklyStats = TableStat(r.getString(R.string.stats_weekly_title), showPosition = false, data = listOf(
 					StatData(r.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(appContext)),
 					StatData(r.getString(R.string.stats_distance_total), lastMonthSummary.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
 					StatData(r.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
@@ -139,7 +138,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 				add(Calendar.DAY_OF_MONTH, -1)
 			}
 			sessionDao.getBetween(dayAgoCalendar.timeInMillis, now).map {
-				arrayOf(Stat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", StatType.Table, false, listOf(
+				arrayOf(TableStat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", false, listOf(
 						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
 						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
 						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
@@ -153,7 +152,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			}
 
 			sessionDao.getSummaryByDays(monthAgoCalendar.timeInMillis, dayAgoCalendar.timeInMillis).map {
-				arrayOf(Stat(it.time.formatAsDate(), StatType.Table, false, listOf(
+				arrayOf(TableStat(it.time.formatAsDate(), false, listOf(
 						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
 						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
 						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
@@ -186,14 +185,14 @@ class FragmentStats : Fragment(), IOnDemandView {
 		return totalDistance
 	}
 
-	private fun handleResponse(value: Array<Stat>, appendBehavior: AppendBehaviour) {
+	private fun handleResponse(value: Array<TableStat>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			addStatsTable(value, appendBehavior)
 			adapter!!.sort()
 		}
 	}
 
-	private fun handleResponse(list: List<Array<Stat>>, appendBehavior: AppendBehaviour) {
+	private fun handleResponse(list: List<Array<TableStat>>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			list.forEach { addStatsTable(it, appendBehavior) }
 			adapter!!.sort()
@@ -204,15 +203,15 @@ class FragmentStats : Fragment(), IOnDemandView {
 		addStatsTable(generateMockStatList(), AppendBehaviour.Any)
 	}
 
-	private fun generateMockStatList(): Array<Stat> {
-		val list = ArrayList<Stat>()
+	private fun generateMockStatList(): Array<TableStat> {
+		val list = ArrayList<TableStat>()
 		for (i in 1..10) {
 			list.add(generateMockStat(i))
 		}
 		return list.toTypedArray()
 	}
 
-	private fun generateMockStat(index: Int) = Stat("Mock $index", StatType.Table, false, generateStatData(index))
+	private fun generateMockStat(index: Int) = TableStat("Mock $index", false, generateStatData(index))
 
 	private fun generateStatData(index: Int): List<StatData> {
 		val list = ArrayList<StatData>()
@@ -227,7 +226,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 	 *
 	 * @param stats stats
 	 */
-	private fun addStatsTable(stats: Array<Stat>, appendBehavior: AppendBehaviour) {
+	private fun addStatsTable(stats: Array<TableStat>, appendBehavior: AppendBehaviour) {
 		for (s in stats) {
 			val table = TableCard(s.showPosition, appendBehavior)
 			table.title = s.name
