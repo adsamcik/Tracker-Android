@@ -47,7 +47,6 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.android.synthetic.main.fragment_map.*
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -361,13 +360,13 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 				isMapLight.set(true)
 
-				GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) }
+				GlobalScope.launch(Dispatchers.Main) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) }
 			} else {
 				if (!isMapLight.get())
 					return@addListener
 
 				isMapLight.set(false)
-				GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) }
+				GlobalScope.launch(Dispatchers.Main) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) }
 			}
 		}
 
