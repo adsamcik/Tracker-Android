@@ -5,6 +5,9 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.TileOverlayOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.util.*
 
 class MapController(context: Context, val map: GoogleMap) {
@@ -64,7 +67,7 @@ class MapController(context: Context, val map: GoogleMap) {
 		tileProvider.onHeatChange = { heat, heatChange ->
 			if (heatChange / (heat - heatChange) > HEAT_CHANGE_THRESHOLD_PERCENTAGE) {
 				tileProvider.synchronizeMaxHeat()
-				activeOverlay.clearTileCache()
+				GlobalScope.launch(Dispatchers.Main) { activeOverlay.clearTileCache() }
 			}
 		}
 
