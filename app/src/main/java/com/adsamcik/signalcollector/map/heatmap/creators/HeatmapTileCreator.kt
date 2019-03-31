@@ -27,9 +27,14 @@ interface HeatmapTileCreator {
 
 	private fun createHeatmap(heatmapSize: Int, stamp: HeatmapStamp, x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float, getLocations: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>): HeatmapTile {
 		assert(heatmapSize.isPowerOfTwo())
+		assert(area.left < area.right)
+		assert(area.bottom < area.top)
 
 		val extendLatitude = area.height * (stamp.height.toDouble() / heatmapSize.toDouble())
 		val extendLongitude = area.width * (stamp.width.toDouble() / heatmapSize.toDouble())
+
+		assert(extendLatitude > 0)
+		assert(extendLongitude > 0)
 
 		val allInside = getLocations.invoke(area.top + extendLatitude, area.right + extendLongitude, area.bottom - extendLatitude, area.left - extendLongitude)
 		//val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)

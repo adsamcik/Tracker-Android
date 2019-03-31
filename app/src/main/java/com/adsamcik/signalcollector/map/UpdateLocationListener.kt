@@ -73,7 +73,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 
 	init {
 		initializePositions()
-		subscribeToLocationUpdates(context)
+		subscribeToLocationUpdates(context, true)
 	}
 
 	/**
@@ -87,7 +87,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		targetZoom = cameraPosition.zoom
 	}
 
-	fun subscribeToLocationUpdates(context: Context) {
+	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
 			val locationRequest = LocationRequest().apply {
@@ -98,11 +98,13 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 				Looper.prepare()
 
 			locationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper())
-			locationClient.lastLocation.addOnCompleteListener {
-				if (it.isSuccessful) {
-					val result = it.result!!
-					onNewLocationAvailable(result)
-					moveTo(LatLng(result.latitude, result.longitude))
+			if(moveToCurrentLocation) {
+				locationClient.lastLocation.addOnCompleteListener {
+					if (it.isSuccessful) {
+						val result = it.result!!
+						onNewLocationAvailable(result)
+						moveTo(LatLng(result.latitude, result.longitude))
+					}
 				}
 			}
 		}

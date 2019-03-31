@@ -69,6 +69,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var mapLayerFilterRule = CoordinateBounds()
 
 	private var hasPermissions = false
+	private var initialized = false
 
 	private var keyboardManager: KeyboardManager? = null
 	private var searchOriginalMargin = 0
@@ -143,19 +144,19 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		Tips.showTips(activity, Tips.MAP_TIPS, null)
 	}
 
-	override fun onStart() {
-		super.onStart()
-
-		if (map_ui_parent == null)
-			return
-
-		initializeUserElements()
-	}
-
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		MapsInitializer.initialize(context)
 		retainInstance = false
+	}
+
+	override fun onStart() {
+		super.onStart()
+		if (!initialized) {
+			initialized = true
+			initializeUserElements()
+			loadMapLayers()
+		}
 	}
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -291,9 +292,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			locationListener?.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
 
-		//todo This has to be invisible so spotlight can properly calculate its width, height and position. Improve forked version of Spotlight to fix this.
-		map_menu_button.visibility = View.INVISIBLE
-
 		colorManager!!.watchView(ColorView(map_menu_button, 2, recursive = false, rootIsBackground = false))
 		colorManager!!.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
 	}
@@ -385,8 +383,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 
 		initializeKeyboardDetection()
-
-		loadMapLayers()
 	}
 
 	/**

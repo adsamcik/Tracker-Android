@@ -9,6 +9,7 @@ import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.WifiHeatmapTileCreator
+import com.adsamcik.signalcollector.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.misc.Int2
 import com.adsamcik.signalcollector.misc.extension.date
 import com.google.android.gms.maps.model.Tile
@@ -16,6 +17,7 @@ import com.google.android.gms.maps.model.TileProvider
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.ceil
@@ -38,6 +40,9 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private lateinit var maxHeat: DatabaseMapMaxHeat
 	private val heatLock = ReentrantLock()
+	private val heatUpdateScheduled = AtomicBoolean(false)
+
+	private val tileRequestCount: ConditionVariableInt = ConditionVariableInt(0)
 
 	var heatChange = 0f
 		private set
@@ -110,6 +115,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	}
 
 	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
+		tileRequestCount.incrementAndGet()
 		//Ensure that everything is up to date. It's fine to lock every time, since it is called only handful of times at once.
 		heatLock.withLock {
 			if (lastZoom != zoom) {
@@ -133,12 +139,16 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 		val key = Int2(x, y)
 		val heatmap: HeatmapTile
-		val range = range
-		heatmap = if (range == null)
-			heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
-		else
-			heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
-		//heatmapCache[key] = heatmap
+		if (heatmapCache.containsKey(key)) {
+			heatmap = heatmapCache[key]!!
+		} else {
+			val range = range
+			heatmap = if (range == null)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
+			else
+				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
+			heatmapCache[key] = heatmap
+		}
 
 		heatLock.withLock {
 			if (maxHeat.maxHeat < heatmap.maxHeat) {
@@ -150,11 +160,19 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 				if (range == null)
 					heatDao.insert(maxHeat)
 
-				onHeatChange?.invoke(newHeat, heatChange)
+				if (!heatUpdateScheduled.get()) {
+					heatUpdateScheduled.set(true)
+					tileRequestCount.addWaiter({ it == 0 }) {
+						onHeatChange?.invoke(newHeat, heatChange)
+						heatUpdateScheduled.set(false)
+					}
+				}
 			}
 		}
 
-		return Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
+		val tile = Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
+		tileRequestCount.decrementAndGet()
+		return tile
 	}
 
 	companion object {
