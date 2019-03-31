@@ -163,7 +163,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 				if (!heatUpdateScheduled.get()) {
 					heatUpdateScheduled.set(true)
 					tileRequestCount.addWaiter({ it == 0 }) {
-						onHeatChange?.invoke(newHeat, heatChange)
+						onHeatChange?.invoke(maxHeat.maxHeat, heatChange)
 						heatUpdateScheduled.set(false)
 					}
 				}
