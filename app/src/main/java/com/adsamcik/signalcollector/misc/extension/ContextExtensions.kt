@@ -6,6 +6,7 @@ import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ShortcutManager
+import android.hardware.SensorManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -191,3 +192,8 @@ inline val Context.alarmManager get() = getSystemServiceTyped<AlarmManager>(Cont
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
  */
 inline val Context.shortcutManager @RequiresApi(25) get() = getSystemServiceTyped<ShortcutManager>(Context.SHORTCUT_SERVICE)
+
+/**
+ * Shortcut to get [ShortcutManager]. This property does not cache the service.
+ */
+inline val Context.sensorManager  get() = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)

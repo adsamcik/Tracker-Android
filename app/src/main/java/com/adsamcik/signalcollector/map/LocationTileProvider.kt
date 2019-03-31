@@ -42,20 +42,15 @@ class LocationTileProvider(context: Context) : TileProvider {
 	var heatChange = 0f
 		private set
 
+	var onHeatChange: ((currentHeat: Float, heatChange: Float) -> Unit)? = null
+
 	private var lastZoom = Int.MIN_VALUE
 
 	var quality: Float = 0f
 		private set
+
 	private var heatmapSize: Int = 0
 	private lateinit var stamp: HeatmapStamp
-
-	fun updateQuality(quality: Float) {
-		this.quality = quality
-		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
-		val stampRadius = HeatmapStamp.calculateOptimalRadius(heatmapSize)
-		stamp = HeatmapStamp.generateNonlinear(stampRadius) { it.pow(2f) }
-		heatmapCache.clear()
-	}
 
 	var range: ClosedRange<Calendar>? = null
 		set(value) {
@@ -68,6 +63,14 @@ class LocationTileProvider(context: Context) : TileProvider {
 			heatmapCache.clear()
 			initMaxHeat(maxHeat.layerName, maxHeat.zoom, value == null)
 		}
+
+	fun updateQuality(quality: Float) {
+		this.quality = quality
+		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
+		val stampRadius = HeatmapStamp.calculateOptimalRadius(heatmapSize)
+		stamp = HeatmapStamp.generateNonlinear(stampRadius) { it.pow(2f) }
+		heatmapCache.clear()
+	}
 
 	fun synchronizeMaxHeat() {
 		heatLock.withLock {
@@ -150,6 +153,8 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 				if (range == null)
 					heatDao.insert(maxHeat)
+
+				onHeatChange?.invoke(maxHeat.maxHeat, heatChange)
 			}
 		}
 

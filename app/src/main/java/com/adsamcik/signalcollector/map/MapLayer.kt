@@ -88,6 +88,11 @@ enum class LayerType {
 			val stringName = Preferences.getPref(context).getString(key, null) ?: return default
 			return valueOfCaseInsensitive(stringName)
 		}
+
+		fun fromPreference(context: Context, key: String, default: String): LayerType {
+			val stringName = Preferences.getPref(context).getString(key, default)!!
+			return valueOfCaseInsensitive(stringName)
+		}
 	}
 }
 
