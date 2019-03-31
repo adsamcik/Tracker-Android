@@ -31,6 +31,8 @@ import kotlin.math.sqrt
  */
 
 class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, var dynamicHeat: Boolean = true) {
+	var pointCount: Int = 0
+
 	val data = FloatArray(width * height)
 
 	fun addPoint(x: Int, y: Int) = addPointWithStamp(x, y, HeatmapStamp.default9x9)
@@ -50,6 +52,8 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 		assert(y - halfStampHeight < height)
 		assert(x - halfStampHeight >= 0)
 		assert(y + halfStampWidth / 2 >= 0)
+
+		pointCount++
 
 		/* Note: the order of operations is important, since we're computing with unsigned! */
 
@@ -96,6 +100,9 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 		assert(saturation > 0f)
 
 		val buffer = IntArray(width * height)
+
+		if (pointCount == 0)
+			return buffer
 
 		for (itY in 0 until height) {
 			var index = itY * width
