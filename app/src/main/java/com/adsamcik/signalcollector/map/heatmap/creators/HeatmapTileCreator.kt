@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.map.heatmap.providers
+package com.adsamcik.signalcollector.map.heatmap.creators
 
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.map.CoordinateBounds
@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
 import com.adsamcik.signalcollector.misc.extension.isPowerOfTwo
 
-interface MapTileHeatmapProvider {
+interface HeatmapTileCreator {
 	val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 
 	val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>

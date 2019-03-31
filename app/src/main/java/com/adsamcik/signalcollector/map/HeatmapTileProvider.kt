@@ -5,10 +5,10 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
-import com.adsamcik.signalcollector.map.heatmap.providers.CellTileHeatmapProvider
-import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapProvider
-import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
-import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
+import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
+import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
+import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCreator
+import com.adsamcik.signalcollector.map.heatmap.creators.WifiHeatmapTileCreator
 import com.adsamcik.signalcollector.misc.Int2
 import com.adsamcik.signalcollector.misc.extension.date
 import com.google.android.gms.maps.model.Tile
@@ -25,8 +25,8 @@ import kotlin.math.roundToInt
 
 
 //todo refactor
-class LocationTileProvider(context: Context) : TileProvider {
-	private var heatmapProvider: MapTileHeatmapProvider? = null
+class HeatmapTileProvider(context: Context) : TileProvider {
+	private var heatmapTileCreator: HeatmapTileCreator? = null
 		set(value) {
 			heatmapCache.clear()
 			field = value
@@ -101,10 +101,10 @@ class LocationTileProvider(context: Context) : TileProvider {
 	}
 
 	fun setHeatmapLayer(context: Context, layerType: LayerType) {
-		heatmapProvider = when (layerType) {
-			LayerType.Location -> LocationTileHeatmapProvider(context)
-			LayerType.Cell -> CellTileHeatmapProvider(context)
-			LayerType.WiFi -> WifiTileHeatmapProvider(context)
+		heatmapTileCreator = when (layerType) {
+			LayerType.Location -> LocationHeatmapTileCreator(context)
+			LayerType.Cell -> CellHeatmapTileCreator(context)
+			LayerType.WiFi -> WifiHeatmapTileCreator(context)
 		}
 		initMaxHeat(layerType.name, lastZoom, range == null)
 	}
@@ -120,7 +120,7 @@ class LocationTileProvider(context: Context) : TileProvider {
 			}
 		}
 
-		val heatmapProvider = heatmapProvider!!
+		val heatmapProvider = heatmapTileCreator!!
 
 
 		val leftX = MapFunctions.toLon(x.toDouble(), zoom)
@@ -133,28 +133,24 @@ class LocationTileProvider(context: Context) : TileProvider {
 
 		val key = Int2(x, y)
 		val heatmap: HeatmapTile
-		if (heatmapCache.containsKey(key)) {
-			heatmap = heatmapCache[key]!!
-		} else {
-			val range = range
-			heatmap = if (range == null)
-				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
-			else
-				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
-			heatmapCache[key] = heatmap
-		}
+		val range = range
+		heatmap = if (range == null)
+			heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
+		else
+			heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
+		//heatmapCache[key] = heatmap
 
 		heatLock.withLock {
 			if (maxHeat.maxHeat < heatmap.maxHeat) {
 				//round to next whole number to avoid frequent calls
 				val newHeat = ceil(heatmap.maxHeat)
 				heatChange += newHeat - maxHeat.maxHeat
-				maxHeat.maxHeat = heatmap.maxHeat
+				maxHeat.maxHeat = newHeat
 
 				if (range == null)
 					heatDao.insert(maxHeat)
 
-				onHeatChange?.invoke(maxHeat.maxHeat, heatChange)
+				onHeatChange?.invoke(newHeat, heatChange)
 			}
 		}
 

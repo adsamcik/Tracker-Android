@@ -9,7 +9,7 @@ import java.util.*
 
 class MapController(context: Context, val map: GoogleMap) {
 	private var layerType: LayerType
-	private val tileProvider: LocationTileProvider = LocationTileProvider(context)
+	private val tileProvider: HeatmapTileProvider = HeatmapTileProvider(context)
 
 	private val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 	private val activeOverlay = map.addTileOverlay(tileOverlayOptions)
@@ -56,6 +56,7 @@ class MapController(context: Context, val map: GoogleMap) {
 	init {
 		val resources = context.resources
 		layerType = LayerType.fromPreference(context, resources.getString(R.string.settings_map_default_layer_key), resources.getString(R.string.settings_map_default_layer_default))
+		tileProvider.setHeatmapLayer(context, layerType)
 		onEnable(context)
 	}
 

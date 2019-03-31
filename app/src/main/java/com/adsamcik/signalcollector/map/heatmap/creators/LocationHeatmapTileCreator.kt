@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.map.heatmap.providers
+package com.adsamcik.signalcollector.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.signalcollector.R
@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.preference.Preferences
 
-class LocationTileHeatmapProvider(context: Context) : MapTileHeatmapProvider {
+class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	private val dao = AppDatabase.getAppDatabase(context).locationDao()
 
 	override val weightNormalizationValue: Double
