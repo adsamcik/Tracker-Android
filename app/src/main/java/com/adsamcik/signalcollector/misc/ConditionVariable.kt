@@ -22,43 +22,46 @@ open class ConditionVariable<T>(default: T) {
 
 	var value: T
 		get() {
-			valueLock.read {
-				return unsafeValue
-			}
+			return valueLock.read { unsafeValue }
 		}
 		set(value) {
-			valueLock.write {
-				unsafeValue = value
-
-				waiterLock.withLock {
-					waiters.removeAll {
-						if (it.first.invoke(value)) {
-							GlobalScope.launch(block = it.second)
-							true
-						} else
-							false
-					}
-				}
-			}
+			valueLock.write { unsafeValue = value }
+			testWaiters(value)
 		}
 
-	fun addWaiter(checker: ConditionChecker<T>, job: JobFunction) {
+	protected fun testWaiters(value: T) {
 		waiterLock.withLock {
-			waiters.add(Pair(checker, job))
+			waiters.removeAll {
+				if (it.first.invoke(value)) {
+					GlobalScope.launch(block = it.second)
+					true
+				} else
+					false
+			}
+		}
+	}
+
+	fun addWaiter(checker: ConditionChecker<T>, job: JobFunction) {
+		if (checker.invoke(value))
+			GlobalScope.launch(block = job)
+		else {
+			waiterLock.withLock {
+				waiters.add(Pair(checker, job))
+			}
 		}
 	}
 }
 
 class ConditionVariableInt(value: Int) : ConditionVariable<Int>(value) {
 	fun incrementAndGet(): Int {
-		valueLock.write {
-			return ++unsafeValue
-		}
+		val value = valueLock.write { ++unsafeValue }
+		testWaiters(value)
+		return value
 	}
 
 	fun decrementAndGet(): Int {
-		valueLock.write {
-			return --unsafeValue
-		}
+		val value = valueLock.write { --unsafeValue }
+		testWaiters(value)
+		return value
 	}
 }
