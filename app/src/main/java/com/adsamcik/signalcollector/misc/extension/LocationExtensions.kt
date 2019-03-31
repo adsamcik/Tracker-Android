@@ -19,8 +19,8 @@ object LocationExtensions {
 		val timeTo = locationTo.time
 		val timeFrom = locationFrom.time
 
-		if (timeTo > timeFrom)
-			throw IllegalArgumentException("Time to cannot be larger than time from")
+		if (timeFrom > timeTo)
+			throw IllegalArgumentException("Time from cannot be larger than time to")
 
 		if (estimateTime <= timeFrom)
 			return locationFrom
