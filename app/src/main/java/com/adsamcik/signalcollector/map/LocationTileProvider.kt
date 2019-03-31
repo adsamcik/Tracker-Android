@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.map.heatmap.providers.LocationTileHeatmapPro
 import com.adsamcik.signalcollector.map.heatmap.providers.MapTileHeatmapProvider
 import com.adsamcik.signalcollector.map.heatmap.providers.WifiTileHeatmapProvider
 import com.adsamcik.signalcollector.misc.Int2
-import com.adsamcik.signalcollector.misc.extension.cloneCalendar
+import com.adsamcik.signalcollector.misc.extension.date
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import kotlinx.coroutines.GlobalScope
@@ -55,9 +55,9 @@ class LocationTileProvider(context: Context) : TileProvider {
 	var range: ClosedRange<Calendar>? = null
 		set(value) {
 			field = if (value != null) {
-				val endCal = value.endInclusive.cloneCalendar()
-				endCal.add(Calendar.DAY_OF_MONTH, 1)
-				value.start..endCal
+				value.start.date()..value.endInclusive.date().apply {
+					add(Calendar.DAY_OF_MONTH, 1)
+				}
 			} else
 				null
 			heatmapCache.clear()
