@@ -1,8 +1,10 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
+import android.graphics.Color
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
+import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
@@ -44,7 +46,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private val tileRequestCount: ConditionVariableInt = ConditionVariableInt(0)
 
-	var heatChange = 0f
+	var heatChange: Float = 0f
 		private set
 
 	var onHeatChange: ((currentHeat: Float, heatChange: Float) -> Unit)? = null
@@ -68,6 +70,8 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			heatmapCache.clear()
 			initMaxHeat(maxHeat.layerName, maxHeat.zoom, value == null)
 		}
+
+	private val colorScheme = HeatmapColorScheme.fromArray(arrayOf(Color.TRANSPARENT, Color.BLUE, Color.CYAN, Color.YELLOW, Color.RED), 30)
 
 	fun updateQuality(quality: Float) {
 		this.quality = quality
@@ -144,9 +148,9 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 		} else {
 			val range = range
 			heatmap = if (range == null)
-				heatmapProvider.getHeatmap(heatmapSize, stamp, x, y, zoom, area, maxHeat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat.maxHeat)
 			else
-				heatmapProvider.getHeatmap(heatmapSize, stamp, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
 			heatmapCache[key] = heatmap
 		}
 
@@ -177,6 +181,6 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	companion object {
 		const val MIN_HEAT: Float = 1f
-		const val MIN_TILE_SIZE = 256
+		const val MIN_TILE_SIZE: Int = 256
 	}
 }

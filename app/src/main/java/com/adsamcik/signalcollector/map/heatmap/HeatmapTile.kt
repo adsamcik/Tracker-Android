@@ -10,16 +10,17 @@ import kotlin.math.roundToInt
 class HeatmapTile(
 		val heatmapSize: Int,
 		val stamp: HeatmapStamp,
+		val colorScheme: HeatmapColorScheme,
 		val x: Int,
 		val y: Int,
 		zoom: Int,
 		maxHeat: Float = 0f,
 		dynamicHeat: Boolean = maxHeat <= 0f) {
-	val heatmap = Heatmap(heatmapSize, heatmapSize, maxHeat, dynamicHeat)
+	val heatmap: Heatmap = Heatmap(heatmapSize, heatmapSize, maxHeat, dynamicHeat)
 
-	val tileCount = MapFunctions.getTileCount(zoom)
+	val tileCount: Int = MapFunctions.getTileCount(zoom)
 
-	val maxHeat get() = heatmap.maxHeat
+	val maxHeat: Float get() = heatmap.maxHeat
 
 	fun addAll(list: List<Database2DLocationWeightedMinimal>) {
 		list.forEach { add(it) }
@@ -35,7 +36,7 @@ class HeatmapTile(
 
 
 	fun toByteArray(bitmapSize: Int): ByteArray {
-		val array = heatmap.renderDefaultTo()
+		val array = heatmap.renderSaturatedTo(colorScheme, heatmap.maxHeat) { it.coerceAtLeast(0.1f) }
 		val bitmap = Bitmap.createBitmap(array, heatmapSize, heatmapSize, Bitmap.Config.ARGB_8888)
 
 		return if (heatmapSize != bitmapSize) {
@@ -45,6 +46,6 @@ class HeatmapTile(
 	}
 
 	companion object {
-		const val BASE_HEATMAP_SIZE = 128
+		const val BASE_HEATMAP_SIZE: Int = 128
 	}
 }
