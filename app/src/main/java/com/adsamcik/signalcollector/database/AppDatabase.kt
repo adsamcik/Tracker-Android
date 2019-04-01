@@ -36,5 +36,9 @@ abstract class AppDatabase : RoomDatabase() {
 			return instance_ as AppDatabase
 		}
 
+		fun getTestDatabase(context: Context): AppDatabase {
+			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java).addMigrations(MIGRATION_2_3, MIGRATION_3_4).build()
+		}
+
 	}
 }

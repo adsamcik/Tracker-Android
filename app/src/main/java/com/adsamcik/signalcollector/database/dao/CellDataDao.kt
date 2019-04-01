@@ -1,14 +1,15 @@
 package com.adsamcik.signalcollector.database.dao
 
-import androidx.room.Dao
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.tracker.data.CellType
 
 @Dao
 interface CellDataDao {
+	@Insert
+	fun insert(cell: DatabaseCellData): Long
+
+	//Rewrite as https://www.sqlite.org/lang_UPSERT.html
 	@Update(onConflict = OnConflictStrategy.IGNORE)
 	fun insertWithUpdate(cell: DatabaseCellData): Int
 
