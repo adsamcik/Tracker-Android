@@ -1,28 +1,28 @@
 package com.adsamcik.signalcollector.database.dao
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Query
+import androidx.room.Transaction
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.tracker.data.CellType
 
 @Dao
-interface CellDataDao {
-	@Insert
-	fun insert(cell: DatabaseCellData): Long
+interface CellDataDao : BaseDao<DatabaseCellData> {
 
-	//Rewrite as https://www.sqlite.org/lang_UPSERT.html
-	@Query("INSERT INTO cell_data(id, cell_id, location_id, last_seen, first_seen, operator_name, type, mcc, mnc, asu) VALUES(:cellId, :cellId, :locationId, :lastSeen, :lastSeen, :operatorName, :type, :mcc, :mnc, :asu) ON CONFLICT(id) DO UPDATE SET location_id = CASE WHEN location_id IS NULL OR asu < :asu THEN :locationId ELSE location_id END, last_seen = :lastSeen, type = :type, asu = CASE WHEN asu < :asu THEN :asu ELSE asu END WHERE cell_id = :cellId")
-	fun insertWithUpdate(cellId: Int,
-	                     locationId: Long?,
-	                     lastSeen: Long,
-	                     operatorName: String,
-	                     type: CellType,
-	                     mcc: String,
-	                     mnc: String,
-	                     asu: Int)
+	@Query("UPDATE cell_data SET location_id = CASE WHEN location_id IS NULL OR asu < :asu THEN :locationId ELSE location_id END, last_seen = :lastSeen, type = :type, asu = CASE WHEN asu < :asu THEN :asu ELSE asu END WHERE id = :id")
+	abstract fun update(id: String, locationId: Long?, lastSeen: Long, type: CellType, asu: Int)
+
+	@Transaction
+	fun upsert(objList: Collection<DatabaseCellData>) {
+		val insertResult = insert(objList)
+		val updateList = objList.filterIndexed { index, _ -> insertResult[index] == -1L }
+
+		updateList.forEach { update(it.id, it.locationId, it.lastSeen, it.cellInfo.type, it.cellInfo.asu) }
+	}
 
 	@Query("SELECT * from cell_data")
-	fun getAll(): List<DatabaseCellData>
+	abstract fun getAll(): List<DatabaseCellData>
 
 	@Query("SELECT COUNT(*) from cell_data")
-	fun count(): Long
+	abstract fun count(): Long
 }

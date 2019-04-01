@@ -188,22 +188,20 @@ class TrackerService : LifecycleService(), SensorEventListener {
 					locationId = database.locationDao().insert(location.toDatabase(data.activity!!))
 
 				val cell = data.cell
-				cell?.registeredCells?.forEach {
-					if (database.cellDao().insertWithUpdate(DatabaseCellData(locationId, data.time, data.time, it)) == 0)
-						database.cellDao().update(it.cellId, locationId, data.time, it.type, it.asu)
-				}
+				val cellDao = database.cellDao()
+				cell?.registeredCells?.map { DatabaseCellData(locationId, data.time, data.time, it) }?.let { cellDao.upsert(it) }
+			}
 
-				val wifi = data.wifi
-				if (wifi != null && previousLocation != null) {
-					val wifiDao = database.wifiDao()
+			val wifi = data.wifi
+			if (wifi != null && previousLocation != null) {
+				val wifiDao = database.wifiDao()
 
-					//position calculation
-					val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(LocationExtensions.approximateLocation(previousLocation, thisLocation, wifi.time))
+				//position calculation
+				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(LocationExtensions.approximateLocation(previousLocation, thisLocation, wifi.time))
 
-					database.runInTransaction {
-						wifi.inRange.forEach {
-							wifiDao.upsert(DatabaseWifiData(estimatedWifiLocation.longitude, estimatedWifiLocation.latitude, estimatedWifiLocation.altitude, data.time, data.time, it))
-						}
+				database.runInTransaction {
+					wifi.inRange.forEach {
+						wifiDao.upsert(DatabaseWifiData(estimatedWifiLocation.longitude, estimatedWifiLocation.latitude, estimatedWifiLocation.altitude, data.time, data.time, it))
 					}
 				}
 			}
