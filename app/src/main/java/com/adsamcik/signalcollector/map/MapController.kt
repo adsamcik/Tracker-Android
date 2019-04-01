@@ -1,7 +1,9 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
+import android.os.Looper
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.map.heatmap.HeatmapTileProvider
 import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.TileOverlayOptions
@@ -15,7 +17,7 @@ class MapController(context: Context, val map: GoogleMap) {
 	private val tileProvider: HeatmapTileProvider = HeatmapTileProvider(context)
 
 	private val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
-	private val activeOverlay = map.addTileOverlay(tileOverlayOptions)
+	private var activeOverlay = map.addTileOverlay(tileOverlayOptions)
 
 	fun setLayer(context: Context, layerType: LayerType, force: Boolean = false) {
 		if (force || this.layerType != layerType) {
@@ -25,8 +27,22 @@ class MapController(context: Context, val map: GoogleMap) {
 	}
 
 	fun setDateRange(range: ClosedRange<Calendar>?) {
-		tileProvider.range = range
-		activeOverlay.clearTileCache()
+		if (Looper.myLooper() == Looper.getMainLooper()) {
+			GlobalScope.launch {
+				tileProvider.range = range
+				clearTileCache()
+			}
+		} else {
+			tileProvider.range = range
+			clearTileCache()
+		}
+	}
+
+	private fun clearTileCache() {
+		if (Looper.myLooper() != Looper.getMainLooper())
+			GlobalScope.launch(Dispatchers.Main) { activeOverlay.clearTileCache() }
+		else
+			activeOverlay.clearTileCache()
 	}
 
 	fun onEnable(context: Context) {
@@ -38,7 +54,7 @@ class MapController(context: Context, val map: GoogleMap) {
 		tileProvider.let {
 			if (it.quality != quality) {
 				it.updateQuality(quality)
-				activeOverlay.clearTileCache()
+				clearTileCache()
 			}
 		}
 	}
@@ -59,7 +75,7 @@ class MapController(context: Context, val map: GoogleMap) {
 	init {
 		val resources = context.resources
 		layerType = LayerType.fromPreference(context, resources.getString(R.string.settings_map_default_layer_key), resources.getString(R.string.settings_map_default_layer_default))
-		tileProvider.setHeatmapLayer(context, layerType)
+		GlobalScope.launch { tileProvider.setHeatmapLayer(context, layerType) }
 		onEnable(context)
 	}
 
@@ -67,11 +83,9 @@ class MapController(context: Context, val map: GoogleMap) {
 		tileProvider.onHeatChange = { heat, heatChange ->
 			if (heatChange / (heat - heatChange) > HEAT_CHANGE_THRESHOLD_PERCENTAGE) {
 				tileProvider.synchronizeMaxHeat()
-				GlobalScope.launch(Dispatchers.Main) { activeOverlay.clearTileCache() }
+				clearTileCache()
 			}
 		}
-
-		tileProvider.initMaxHeat(layerType.name, map.cameraPosition.zoom.toInt(), true)
 	}
 
 	companion object {

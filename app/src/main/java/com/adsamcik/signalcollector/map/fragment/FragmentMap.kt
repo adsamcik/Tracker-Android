@@ -134,7 +134,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		}
 
 		mapController?.let {
-			it.setDateRange(dateRange)
+			GlobalScope.launch { it.setDateRange(dateRange) }
 			it.onEnable(activity)
 		}
 

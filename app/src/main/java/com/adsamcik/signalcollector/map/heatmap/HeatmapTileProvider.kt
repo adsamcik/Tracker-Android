@@ -1,12 +1,12 @@
-package com.adsamcik.signalcollector.map
+package com.adsamcik.signalcollector.map.heatmap
 
 import android.content.Context
 import android.graphics.Color
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
-import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
-import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
-import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
+import com.adsamcik.signalcollector.map.CoordinateBounds
+import com.adsamcik.signalcollector.map.LayerType
+import com.adsamcik.signalcollector.map.MapFunctions
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCreator
@@ -16,8 +16,6 @@ import com.adsamcik.signalcollector.misc.Int2
 import com.adsamcik.signalcollector.misc.extension.date
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
@@ -91,21 +89,17 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	}
 
 	fun initMaxHeat(layerName: String, zoom: Int, useDatabase: Boolean) {
-		maxHeat = DatabaseMapMaxHeat(layerName, zoom, MIN_HEAT)
-
-		if (useDatabase) {
-			GlobalScope.launch {
+		heatLock.withLock {
+			heatChange = 0f
+			if (useDatabase) {
 				val dbMaxHeat = heatDao.getSingle(layerName, zoom)
 				if (dbMaxHeat != null) {
-					heatLock.withLock {
-						if (maxHeat.zoom != dbMaxHeat.zoom || maxHeat.layerName != dbMaxHeat.layerName)
-							return@launch
-
-						if (maxHeat.maxHeat < dbMaxHeat.maxHeat)
-							maxHeat = dbMaxHeat
-					}
+					maxHeat = dbMaxHeat
+					return
 				}
 			}
+
+			maxHeat = DatabaseMapMaxHeat(layerName, zoom, MIN_HEAT)
 		}
 	}
 
@@ -155,7 +149,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 		}
 
 		heatLock.withLock {
-			if (maxHeat.maxHeat < heatmap.maxHeat) {
+			if (maxHeat.maxHeat < heatmap.maxHeat && zoom == lastZoom) {
 				//round to next whole number to avoid frequent calls
 				val newHeat = ceil(heatmap.maxHeat)
 				heatChange += newHeat - maxHeat.maxHeat
@@ -167,15 +161,19 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 				if (!heatUpdateScheduled.get()) {
 					heatUpdateScheduled.set(true)
 					tileRequestCount.addWaiter({ it == 0 }) {
-						onHeatChange?.invoke(maxHeat.maxHeat, heatChange)
-						heatUpdateScheduled.set(false)
+						if (heatChange > 0) {
+							onHeatChange?.invoke(maxHeat.maxHeat, heatChange)
+							heatUpdateScheduled.set(false)
+						}
 					}
 				}
+				return@withLock
 			}
 		}
 
 		val tile = Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
 		tileRequestCount.decrementAndGet()
+
 		return tile
 	}
 
