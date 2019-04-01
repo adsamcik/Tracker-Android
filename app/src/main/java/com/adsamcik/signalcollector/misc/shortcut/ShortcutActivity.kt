@@ -15,29 +15,29 @@ import com.crashlytics.android.Crashlytics
 @RequiresApi(25)
 class ShortcutActivity : AppCompatActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val intent = intent
-        if (intent.action == Shortcuts.ACTION) {
-            val value = intent.getIntExtra(Shortcuts.ACTION_STRING, -1)
-            if (value >= 0 && value < ShortcutType.values().size) {
-                val type = ShortcutType.values()[value]
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		val intent = intent
+		if (intent.action == Shortcuts.ACTION) {
+			val value = intent.getIntExtra(Shortcuts.ACTION_STRING, -1)
+			if (value >= 0 && value < ShortcutType.values().size) {
+				val type = ShortcutType.values()[value]
 
-                when (type) {
-                    Shortcuts.ShortcutType.START_COLLECTION -> {
-                        startForegroundService<TrackerService> {
-                            putExtra("backTrack", false)
-                        }
-                    }
-                    Shortcuts.ShortcutType.STOP_COLLECTION -> {
-                        if (TrackerService.isServiceRunning.value)
-                            stopService<TrackerService>()
-                    }
-                }
-            } else {
-                Crashlytics.logException(Throwable("Invalid value $value"))
-            }
-        }
-        finishAffinity()
-    }
+				when (type) {
+					Shortcuts.ShortcutType.START_COLLECTION -> {
+						startForegroundService<TrackerService> {
+							putExtra("backTrack", false)
+						}
+					}
+					Shortcuts.ShortcutType.STOP_COLLECTION -> {
+						if (TrackerService.isServiceRunning.value)
+							stopService<TrackerService>()
+					}
+				}
+			} else {
+				Crashlytics.logException(Throwable("Invalid value $value"))
+			}
+		}
+		finishAffinity()
+	}
 }

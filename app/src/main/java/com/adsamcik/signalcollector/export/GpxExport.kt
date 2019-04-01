@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.export
 import android.annotation.SuppressLint
 import android.os.Build
 import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.tracker.data.Location
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.tracker.data.Location
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStreamWriter

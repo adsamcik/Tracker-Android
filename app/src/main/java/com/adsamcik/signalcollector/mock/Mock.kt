@@ -12,14 +12,14 @@ val useMock: Boolean = isEmulator || isTestMode
  * Returns true if app was launched during a test.
  */
 val isTestMode: Boolean
-    get() {
-        return try {
-            Class.forName("com.adsamcik.signalcollector.app.activities.AppTest")
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
+	get() {
+		return try {
+			Class.forName("com.adsamcik.signalcollector.app.activities.AppTest")
+			true
+		} catch (e: Exception) {
+			false
+		}
+	}
 
 /**
  * Checks if the device looks like an emulator. This is used primarily to detect automated testing.
@@ -27,11 +27,11 @@ val isTestMode: Boolean
  * @return true if emulator is detected
  */
 val isEmulator: Boolean
-    get() = (Build.FINGERPRINT.startsWith("generic")
-            || Build.FINGERPRINT.startsWith("unknown")
-            || Build.MODEL.contains("google_sdk")
-            || Build.MODEL.contains("Emulator")
-            || Build.MODEL.contains("Android SDK built for x86")
-            || Build.MANUFACTURER.contains("Genymotion")
-            || Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")
-            || "google_sdk" == Build.PRODUCT)
+	get() = (Build.FINGERPRINT.startsWith("generic")
+			|| Build.FINGERPRINT.startsWith("unknown")
+			|| Build.MODEL.contains("google_sdk")
+			|| Build.MODEL.contains("Emulator")
+			|| Build.MODEL.contains("Android SDK built for x86")
+			|| Build.MANUFACTURER.contains("Genymotion")
+			|| Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")
+			|| "google_sdk" == Build.PRODUCT)

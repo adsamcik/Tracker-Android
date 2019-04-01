@@ -16,8 +16,8 @@ import androidx.preference.PreferenceGroup
  * @param title Title used for the search
  */
 fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(title: CharSequence): T {
-    @Suppress("UNCHECKED_CAST")
-    return findDirectPreferenceByTitle(title) as T
+	@Suppress("UNCHECKED_CAST")
+	return findDirectPreferenceByTitle(title) as T
 }
 
 /**
@@ -26,7 +26,7 @@ fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(t
  * @param title Title used for the search
  */
 fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): Preference? {
-    return preferenceScreen?.findDirectPreferenceByTitle(title)
+	return preferenceScreen?.findDirectPreferenceByTitle(title)
 }
 
 
@@ -38,7 +38,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
-    return findPreference(title)!!
+	return findPreference(title)!!
 }
 
 /**
@@ -49,8 +49,8 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
  * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
-    @Suppress("UNCHECKED_CAST")
-    return findPreference(getString(titleId))!!
+	@Suppress("UNCHECKED_CAST")
+	return findPreference(getString(titleId))!!
 }
 
 /**
@@ -61,8 +61,8 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes tit
  * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference {
-    @Suppress("UNCHECKED_CAST")
-    return findPreference(getString(titleId))!!
+	@Suppress("UNCHECKED_CAST")
+	return findPreference(getString(titleId))!!
 }
 
 /**
@@ -71,31 +71,31 @@ fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference
  * @param title Title used for the search
  */
 fun PreferenceGroup.findDirectPreferenceByTitle(title: CharSequence): Preference? {
-    val count = preferenceCount
-    for (i in 0 until count) {
-        val preference = getPreference(i)
-        val prefTitle = preference.title
+	val count = preferenceCount
+	for (i in 0 until count) {
+		val preference = getPreference(i)
+		val prefTitle = preference.title
 
-        if (prefTitle == title)
-            return preference
-    }
-    return null
+		if (prefTitle == title)
+			return preference
+	}
+	return null
 }
 
 /**
  * Utility method to get integer from SharedPreferences which has default values saved as String resource
  */
 fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): Int {
-    val resources = context.resources
-    return getInt(resources.getString(key), resources.getString(defaultResource).toInt())
+	val resources = context.resources
+	return getInt(resources.getString(key), resources.getString(defaultResource).toInt())
 }
 
 /**
  * Utility method to get string from SharedPreferences which has default values saved as String resource
  */
 fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
-    val resources = context.resources
-    return getString(resources.getString(key), resources.getString(defaultResource))!!
+	val resources = context.resources
+	return getString(resources.getString(key), resources.getString(defaultResource))!!
 }
 
 /**
@@ -103,6 +103,6 @@ fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRe
  */
 @ColorInt
 fun SharedPreferences.getColor(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
-    val defaultColor = ContextCompat.getColor(context, defaultResource)
-    return getInt(context.getString(key), defaultColor)
+	val defaultColor = ContextCompat.getColor(context, defaultResource)
+	return getInt(context.getString(key), defaultColor)
 }

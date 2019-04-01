@@ -227,12 +227,12 @@ class FragmentStats : Fragment(), IOnDemandView {
 	 * @param stats stats
 	 */
 	private fun addStatsTable(stats: Array<TableStat>, appendBehavior: AppendBehaviour) {
-		for (s in stats) {
-			val table = TableCard(s.showPosition, appendBehavior)
-			table.title = s.name
-			s.data.indices
+		for ((name, showPosition, data) in stats) {
+			val table = TableCard(showPosition, appendBehavior)
+			table.title = name
+			data.indices
 					.asSequence()
-					.map { s.data[it] }
+					.map { data[it] }
 					.forEach { table.addData(it.id, it.value) }
 			adapter!!.add(table)
 		}

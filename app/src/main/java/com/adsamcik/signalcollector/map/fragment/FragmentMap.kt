@@ -417,8 +417,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					val adapter = it.adapter
 					adapter.clear()
 					adapter.addAll(mapLayers)
-					it.onClickListener = { layer, _ ->
-						mapController?.setLayer(activity, LayerType.valueOfCaseInsensitive(layer.name))
+					it.onClickListener = { (name), _ ->
+						mapController?.setLayer(activity, LayerType.valueOfCaseInsensitive(name))
 						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
 					}
 					it.filter(mapLayerFilterRule)

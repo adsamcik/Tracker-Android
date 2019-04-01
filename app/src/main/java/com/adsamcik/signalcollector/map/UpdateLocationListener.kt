@@ -23,7 +23,7 @@ import com.google.android.gms.maps.model.*
 import java.lang.Math.toDegrees
 
 class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
-	var followMyPosition = false
+	var followMyPosition: Boolean = false
 	internal var useGyroscope = false
 
 	private val sensorManager: SensorManager = context.sensorManager
@@ -98,7 +98,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 				Looper.prepare()
 
 			locationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper())
-			if(moveToCurrentLocation) {
+			if (moveToCurrentLocation) {
 				locationClient.lastLocation.addOnCompleteListener {
 					if (it.isSuccessful) {
 						val result = it.result!!

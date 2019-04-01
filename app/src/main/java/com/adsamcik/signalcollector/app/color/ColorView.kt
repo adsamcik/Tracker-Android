@@ -12,8 +12,8 @@ import android.view.View
  * @param backgroundIsForeground True if view should have inverted background and foreground colors
  */
 data class ColorView(val view: View,
-                val layer: Int,
-                val recursive: Boolean = true,
-                val rootIsBackground: Boolean = true,
-                val ignoreRoot: Boolean = false,
-                val backgroundIsForeground: Boolean = false)
+                     val layer: Int,
+                     val recursive: Boolean = true,
+                     val rootIsBackground: Boolean = true,
+                     val ignoreRoot: Boolean = false,
+                     val backgroundIsForeground: Boolean = false)

@@ -14,14 +14,14 @@ import kotlin.math.roundToInt
 /// </summary>
 /// <param name="deg">Degree to convert</param>
 /// <returns>Degree in radians</returns>
-fun Double.deg2rad() = (this * kotlin.math.PI / 180.0)
+fun Double.deg2rad(): Double = (this * kotlin.math.PI / 180.0)
 
 /// <summary>
 /// Converts radians to degrees
 /// </summary>
 /// <param name="rad">Radians to convert</param>
 /// <returns>Radians as degrees</returns>
-fun Double.rad2deg() = (this / kotlin.math.PI * 180.0)
+fun Double.rad2deg(): Double = (this / kotlin.math.PI * 180.0)
 
 fun Double.round(decimals: Int): Double {
 	var multiplier = 1.0
@@ -29,7 +29,7 @@ fun Double.round(decimals: Int): Double {
 	return kotlin.math.round(this * multiplier) / multiplier
 }
 
-fun Int.isPowerOfTwo() = (this != 0) && ((this and (this - 1)) == 0)
+fun Int.isPowerOfTwo(): Boolean = (this != 0) && ((this and (this - 1)) == 0)
 
 object MathExtensions {
 	fun lerp(fraction: Double, from: Double, to: Double): Double {

@@ -6,9 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
+import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.TrackerLocker
 import com.crashlytics.android.Crashlytics

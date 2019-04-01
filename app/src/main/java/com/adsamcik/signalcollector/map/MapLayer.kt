@@ -4,11 +4,6 @@ import android.content.Context
 import com.adsamcik.signalcollector.preference.Preferences
 import com.squareup.moshi.JsonClass
 
-/**
- * Data class containing information about the name and boundaries.
- * Does not use [com.adsamcik.signalcollector.utility.CoordinateBounds] because Stag does not support this level of customization for TypeAdapters and custom type adapter is not a priority right now.
- */
-//todo Update to use CoordinateBounds
 @JsonClass(generateAdapter = true)
 data class MapLayer(var name: String,
                     val bounds: CoordinateBounds,
@@ -28,10 +23,10 @@ data class MapLayer(var name: String,
 	            values: Array<ValueColor>? = null) : this(name, CoordinateBounds(top, right, bottom, left), values)
 
 	companion object {
-		const val MIN_LATITUDE = -90.0
-		const val MAX_LATITUDE = 90.0
-		const val MIN_LONGITUDE = -180.0
-		const val MAX_LONGITUDE = 180.0
+		const val MIN_LATITUDE: Double = -90.0
+		const val MAX_LATITUDE: Double = 90.0
+		const val MIN_LONGITUDE: Double = -180.0
+		const val MAX_LONGITUDE: Double = 180.0
 		/**
 		 * Checks if MapLayer is in given array
 		 */
@@ -77,7 +72,7 @@ enum class LayerType {
 	WiFi;
 
 	companion object {
-		fun valueOfCaseInsensitive(value: String) = when (value.toLowerCase()) {
+		fun valueOfCaseInsensitive(value: String): LayerType = when (value.toLowerCase()) {
 			Location.name.toLowerCase() -> Location
 			Cell.name.toLowerCase() -> Cell
 			WiFi.name.toLowerCase(), "wi-fi" -> WiFi

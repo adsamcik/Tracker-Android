@@ -30,12 +30,12 @@ import androidx.fragment.app.FragmentTransaction
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> Activity.startActivity(
-        requestCode: Int = -1,
-        options: Bundle? = null,
-        noinline init: Intent.() -> Unit = {}) {
-    val intent = newIntent<T>()
-    intent.init()
-    startActivityForResult(intent, requestCode, options)
+		requestCode: Int = -1,
+		options: Bundle? = null,
+		noinline init: Intent.() -> Unit = {}) {
+	val intent = newIntent<T>()
+	intent.init()
+	startActivityForResult(intent, requestCode, options)
 }
 
 /**
@@ -46,9 +46,9 @@ inline fun <reified T : Any> Activity.startActivity(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> androidx.fragment.app.Fragment.startActivity(
-        options: Bundle? = null,
-        noinline init: Intent.() -> Unit = {}) {
-    context!!.startActivity<T>(options, init)
+		options: Bundle? = null,
+		noinline init: Intent.() -> Unit = {}) {
+	context!!.startActivity<T>(options, init)
 }
 
 /**
@@ -58,12 +58,12 @@ inline fun <reified T : Any> androidx.fragment.app.Fragment.startActivity(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> Context.startActivity(
-        options: Bundle? = null,
-        noinline init: Intent.() -> Unit = {}) {
+		options: Bundle? = null,
+		noinline init: Intent.() -> Unit = {}) {
 
-    val intent = newIntent<T>()
-    intent.init()
-    startActivity(intent, options)
+	val intent = newIntent<T>()
+	intent.init()
+	startActivity(intent, options)
 }
 
 /**
@@ -73,10 +73,10 @@ inline fun <reified T : Any> Context.startActivity(
  * @param uri URI
  */
 fun Context.startActivity(
-        action: String,
-        uri: Uri) {
-    val intent = Intent(action, uri)
-    startActivity(intent)
+		action: String,
+		uri: Uri) {
+	val intent = Intent(action, uri)
+	startActivity(intent)
 }
 
 /**
@@ -85,10 +85,10 @@ fun Context.startActivity(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> Context.startService(
-        noinline init: Intent.() -> Unit = {}) {
-    val intent = newIntent<T>()
-    intent.init()
-    startService(intent)
+		noinline init: Intent.() -> Unit = {}) {
+	val intent = newIntent<T>()
+	intent.init()
+	startService(intent)
 }
 
 /**
@@ -97,10 +97,10 @@ inline fun <reified T : Any> Context.startService(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> Context.startForegroundService(
-        noinline init: Intent.() -> Unit = {}) {
-    val intent = newIntent<T>()
-    intent.init()
-    ContextCompat.startForegroundService(this, intent)
+		noinline init: Intent.() -> Unit = {}) {
+	val intent = newIntent<T>()
+	intent.init()
+	ContextCompat.startForegroundService(this, intent)
 }
 
 /**
@@ -108,8 +108,8 @@ inline fun <reified T : Any> Context.startForegroundService(
  * Uses standard [Context.stopService] method.
  */
 inline fun <reified T : Any> Context.stopService() {
-    val intent = newIntent<T>()
-    stopService(intent)
+	val intent = newIntent<T>()
+	stopService(intent)
 }
 
 
@@ -117,14 +117,14 @@ inline fun <reified T : Any> Context.stopService() {
  * Creates new intent for class of type [T]
  */
 inline fun <reified T : Any> Context.newIntent(): Intent =
-        Intent(this, T::class.java)
+		Intent(this, T::class.java)
 
 fun Context.appVersion(): Long {
-    val packageInfo = packageManager.getPackageInfo(packageName, 0)
-    return if (Build.VERSION.SDK_INT >= 28)
-        packageInfo.longVersionCode
-    else
-        packageInfo.versionCode.toLong()
+	val packageInfo = packageManager.getPackageInfo(packageName, 0)
+	return if (Build.VERSION.SDK_INT >= 28)
+		packageInfo.longVersionCode
+	else
+		packageInfo.versionCode.toLong()
 }
 
 /**
@@ -134,7 +134,7 @@ fun Context.appVersion(): Long {
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
 inline fun FragmentManager.transaction(func: FragmentTransaction.() -> FragmentTransaction) {
-    beginTransaction().func().commit()
+	beginTransaction().func().commit()
 }
 
 /**
@@ -144,7 +144,7 @@ inline fun FragmentManager.transaction(func: FragmentTransaction.() -> FragmentT
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */
 inline fun FragmentManager.transactionStateLoss(func: FragmentTransaction.() -> FragmentTransaction) {
-    beginTransaction().func().commitAllowingStateLoss()
+	beginTransaction().func().commitAllowingStateLoss()
 }
 
 /**
@@ -156,44 +156,44 @@ inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String):
 /**
  * Shortcut to get [TelephonyManager]. This property does not cache the service.
  */
-inline val Context.telephonyManager get() = getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE)
+inline val Context.telephonyManager: TelephonyManager get() = getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE)
 
 /**
  * Shortcut to get [ConnectivityManager]. This property does not cache the service.
  */
-inline val Context.connectivityManager get() = getSystemServiceTyped<ConnectivityManager>(Context.CONNECTIVITY_SERVICE)
+inline val Context.connectivityManager: ConnectivityManager get() = getSystemServiceTyped<ConnectivityManager>(Context.CONNECTIVITY_SERVICE)
 
 /**
  * Shortcut to get [LocationManager]. This property does not cache the service.
  */
-inline val Context.locationManager get() = getSystemServiceTyped<LocationManager>(Context.LOCATION_SERVICE)
+inline val Context.locationManager: LocationManager get() = getSystemServiceTyped<LocationManager>(Context.LOCATION_SERVICE)
 
 /**
  * Shortcut to get [InputMethodManager]. This property does not cache the service.
  */
-inline val Context.inputMethodManager get() = getSystemServiceTyped<InputMethodManager>(Context.INPUT_METHOD_SERVICE)
+inline val Context.inputMethodManager: InputMethodManager get() = getSystemServiceTyped<InputMethodManager>(Context.INPUT_METHOD_SERVICE)
 
 /**
  * Shortcut to get [WindowManager]. This property does not cache the service.
  */
-inline val Context.windowManager get() = getSystemServiceTyped<WindowManager>(Context.WINDOW_SERVICE)
+inline val Context.windowManager: WindowManager get() = getSystemServiceTyped<WindowManager>(Context.WINDOW_SERVICE)
 
 /**
  * Shortcut to get [PowerManager]. This property does not cache the service.
  */
-inline val Context.powerManager get() = getSystemServiceTyped<PowerManager>(Context.POWER_SERVICE)
+inline val Context.powerManager: PowerManager get() = getSystemServiceTyped<PowerManager>(Context.POWER_SERVICE)
 
 /**
  * Shortcut to get [JobScheduler]. This property does not cache the service.
  */
-inline val Context.alarmManager get() = getSystemServiceTyped<AlarmManager>(Context.ALARM_SERVICE)
+inline val Context.alarmManager: AlarmManager get() = getSystemServiceTyped<AlarmManager>(Context.ALARM_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
  */
-inline val Context.shortcutManager @RequiresApi(25) get() = getSystemServiceTyped<ShortcutManager>(Context.SHORTCUT_SERVICE)
+inline val Context.shortcutManager: ShortcutManager @RequiresApi(25) get() = getSystemServiceTyped<ShortcutManager>(Context.SHORTCUT_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
  */
-inline val Context.sensorManager  get() = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
+inline val Context.sensorManager: SensorManager get() = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)

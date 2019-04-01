@@ -18,22 +18,22 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.preference.activity.SettingsActivity
-import com.adsamcik.signalcollector.app.widget.InfoComponent
-import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.activity.ResolvedActivities
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.extension.*
-import com.adsamcik.signalcollector.tracker.service.TrackerService
-import com.adsamcik.signalcollector.mock.useMock
-import com.adsamcik.signalcollector.tracker.TrackerLocker
-import com.adsamcik.signalcollector.tracker.data.*
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
+import com.adsamcik.signalcollector.app.widget.InfoComponent
+import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.misc.SnackMaker
+import com.adsamcik.signalcollector.misc.extension.*
+import com.adsamcik.signalcollector.mock.useMock
 import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.preference.activity.SettingsActivity
+import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.data.*
+import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.Dispatchers
@@ -205,7 +205,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	/**
 	 * Updates collected data text
 	 *
-	 * @param collected amount of collected data
+	 * @param count number of collections performed
 	 */
 	private fun setCollected(count: Int) {
 		val resources = context!!.resources

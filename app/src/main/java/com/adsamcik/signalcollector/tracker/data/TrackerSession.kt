@@ -9,7 +9,7 @@ data class TrackerSession(var start: Long,
                           var end: Long,
                           var collections: Int,
                           @ColumnInfo(name = "distance")
-                           var distanceInM: Float,
+                          var distanceInM: Float,
                           var steps: Int) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0

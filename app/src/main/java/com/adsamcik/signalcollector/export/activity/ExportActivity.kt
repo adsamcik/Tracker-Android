@@ -10,11 +10,11 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.DetailActivity
-import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
+import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.export.IExport
-import com.adsamcik.signalcollector.misc.extension.cloneCalendar
 import com.adsamcik.signalcollector.misc.SnackMaker
+import com.adsamcik.signalcollector.misc.extension.cloneCalendar
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
@@ -75,7 +75,7 @@ class ExportActivity : DetailActivity() {
 
 		range = monthBefore..now
 
-		val clickListener = { _ : View ->
+		val clickListener = { _: View ->
 			DateTimeRangeDialog().apply {
 				arguments = Bundle().apply {
 					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
@@ -160,6 +160,6 @@ class ExportActivity : DetailActivity() {
 	companion object {
 		private const val SHARE_RESULT = 1
 		private const val SHARABLE_DIR_NAME = "sharable"
-		const val EXPORTER_KEY = "exporter"
+		const val EXPORTER_KEY: String = "exporter"
 	}
 }

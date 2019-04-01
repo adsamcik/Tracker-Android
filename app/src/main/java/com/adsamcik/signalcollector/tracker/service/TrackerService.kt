@@ -115,7 +115,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val preferences = Preferences.getPref(this)
 
 		//if we don't know the accuracy the location is worthless
-		if(!location.hasAccuracy() || location.accuracy > preferences.getInt(keyRequiredLocationAccuracy, defaultRequiredLocationAccuracy)) {
+		if (!location.hasAccuracy() || location.accuracy > preferences.getInt(keyRequiredLocationAccuracy, defaultRequiredLocationAccuracy)) {
 			wakeLock.release()
 			return
 		}
@@ -473,12 +473,12 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		/**
 		 * LiveData containing information about whether the service is currently running
 		 */
-		val isServiceRunning = NonNullLiveMutableData(false)
+		val isServiceRunning: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
 
 		/**
 		 * RawData from previous collection
 		 */
-		var rawDataEcho = MutableLiveData<RawData>()
+		var rawDataEcho: MutableLiveData<RawData> = MutableLiveData<RawData>()
 
 		/**
 		 * Extra information about distance for tracker
@@ -495,7 +495,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		 *
 		 * @return true if activated by the app
 		 */
-		var isBackgroundActivated = false
+		var isBackgroundActivated: Boolean = false
 			private set
 	}
 }

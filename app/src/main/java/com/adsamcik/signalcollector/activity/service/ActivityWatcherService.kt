@@ -9,12 +9,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.activity.ResolvedActivities
-import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
@@ -100,7 +100,7 @@ class ActivityWatcherService : LifecycleService() {
 		/**
 		 * Returns preference whether this service should run
 		 */
-		fun getServicePreference(context: Context) =
+		fun getServicePreference(context: Context): Boolean =
 				Preferences.getPref(context).getBoolean(context.getString(R.string.settings_activity_watcher_key), context.getString(R.string.settings_activity_watcher_default).toBoolean())
 
 		/**

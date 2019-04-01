@@ -21,7 +21,4 @@
     </plurals>
 
     <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
-
-    <string name="notification_feedback_success">Feedback sent successfully</string>
-    <string name="notification_feedback_user_not_signed">User is not signed in. Aborting feedback sending. Sorry.</string>
 </resources>

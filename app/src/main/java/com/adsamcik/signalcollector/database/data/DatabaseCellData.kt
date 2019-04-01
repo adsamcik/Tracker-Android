@@ -25,7 +25,7 @@ data class DatabaseCellData(
 
 class CellTypeTypeConverter {
 	@TypeConverter
-	fun fromCellType(value: CellType) = value.ordinal
+	fun fromCellType(value: CellType): Int = value.ordinal
 
 	@TypeConverter
 	fun toCellType(ordinal: Int): CellType = CellType.values()[ordinal]

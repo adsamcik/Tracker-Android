@@ -2,10 +2,10 @@ package com.adsamcik.signalcollector.tracker.data
 
 import android.os.Build
 import androidx.room.ColumnInfo
+import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.misc.extension.deg2rad
 import com.adsamcik.signalcollector.misc.extension.round
-import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlin.math.pow
@@ -39,7 +39,7 @@ data class Location(
 	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy)
 
 
-	fun toDatabase(activityInfo: ActivityInfo) = DatabaseLocation(this, activityInfo)
+	fun toDatabase(activityInfo: ActivityInfo): DatabaseLocation = DatabaseLocation(this, activityInfo)
 
 	private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
 
@@ -106,8 +106,8 @@ data class Location(
 	}
 
 	companion object {
-		const val EARTH_CIRCUMFERENCE = 40075000
-		const val METER_DEGREE_LATITUDE = 360.0 / EARTH_CIRCUMFERENCE
+		const val EARTH_CIRCUMFERENCE: Int = 40075000
+		const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE
 
 		fun toGoogleLon(lon: Double, tileCount: Int): Double {
 			return tileCount * ((lon + 180.0) / 360.0)

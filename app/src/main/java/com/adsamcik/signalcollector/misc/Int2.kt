@@ -12,7 +12,7 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 	 *
 	 * @return
 	 */
-	val length get() = 2
+	val length: Int get() = 2
 
 	/** @hide
 	 */
@@ -177,7 +177,7 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 	 *
 	 * @return
 	 */
-	val elementSum get() = x + y
+	val elementSum: Int get() = x + y
 
 	/** @hide
 	 * get the vector field value by index

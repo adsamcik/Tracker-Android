@@ -13,24 +13,24 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.activity.service.ActivityService
+import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.app.Tips
+import com.adsamcik.signalcollector.app.color.ColorManager
+import com.adsamcik.signalcollector.app.color.ColorSupervisor
+import com.adsamcik.signalcollector.app.color.ColorView
+import com.adsamcik.signalcollector.app.widget.behavior.BottomBarBehavior
+import com.adsamcik.signalcollector.game.fragment.FragmentGame
+import com.adsamcik.signalcollector.map.fragment.FragmentMap
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.misc.extension.marginBottom
 import com.adsamcik.signalcollector.misc.extension.setMargin
 import com.adsamcik.signalcollector.misc.extension.transaction
-import com.adsamcik.signalcollector.game.fragment.FragmentGame
-import com.adsamcik.signalcollector.map.fragment.FragmentMap
+import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.statistics.fragment.FragmentStats
 import com.adsamcik.signalcollector.tracker.fragment.FragmentTracker
-import com.adsamcik.signalcollector.notification.NotificationChannels
-import com.adsamcik.signalcollector.activity.service.ActivityService
-import com.adsamcik.signalcollector.app.color.ColorManager
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.app.color.ColorView
-import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.app.widget.behavior.BottomBarBehavior
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.app.Tips
 import com.google.android.gms.location.LocationServices
 import kotlinx.android.synthetic.main.activity_ui.*
 
@@ -302,8 +302,8 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	companion object {
-		const val MAP_OPENED = "mapopened"
-		const val STATS_OPENED = "statsopened"
-		const val ACTIVITIES_OPENED = "activitiesopened"
+		const val MAP_OPENED: String = "mapopened"
+		const val STATS_OPENED: String = "statsopened"
+		const val ACTIVITIES_OPENED: String = "activitiesopened"
 	}
 }

@@ -16,7 +16,7 @@ import com.adsamcik.signalcollector.mock.useMock
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
 class FragmentMapMenu : Fragment(), IOnDemandView {
-	val adapter get() = recycler.adapter as MapFilterableAdapter
+	val adapter: MapFilterableAdapter get() = recycler.adapter as MapFilterableAdapter
 
 	var onClickListener: ((mapLayer: MapLayer, position: Int) -> Unit)? = null
 

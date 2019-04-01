@@ -13,10 +13,10 @@ typealias ConditionChecker<T> = (T) -> Boolean
 typealias JobFunction = suspend CoroutineScope.() -> Unit
 
 open class ConditionVariable<T>(default: T) {
-	protected val waiterLock = ReentrantLock()
-	protected val valueLock = ReentrantReadWriteLock()
+	protected val waiterLock: ReentrantLock = ReentrantLock()
+	protected val valueLock: ReentrantReadWriteLock = ReentrantReadWriteLock()
 
-	protected val waiters = mutableListOf<Pair<ConditionChecker<T>, JobFunction>>()
+	protected val waiters: MutableList<Pair<ConditionChecker<T>, JobFunction>> = mutableListOf<Pair<ConditionChecker<T>, JobFunction>>()
 
 	protected var unsafeValue: T = default
 

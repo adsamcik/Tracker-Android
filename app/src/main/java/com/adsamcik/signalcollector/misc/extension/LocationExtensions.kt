@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.misc.extension
 import android.location.Location
 
 object LocationExtensions {
-	const val ESTIMATE_LOCATION_PROVIDER = "Estimate"
+	const val ESTIMATE_LOCATION_PROVIDER: String = "Estimate"
 
 	/// <summary>
 /// Tries to approximate location in time between 2 known locations.
@@ -47,7 +47,7 @@ object LocationExtensions {
 				estimate.altitude = from.altitude + (to.altitude - from.altitude) * delta
 			else
 				estimate.altitude = from.altitude
-		} else if(to.hasAltitude())
+		} else if (to.hasAltitude())
 			estimate.altitude = to.altitude
 
 		estimate.time = from.time + (to.time - from.time * delta).toLong()

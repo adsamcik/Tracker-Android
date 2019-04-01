@@ -3,7 +3,6 @@
 
     <string name="button_back">back</string>
 
-    <string name="main_collected">%1$s collected</string>
     <plurals name="main_collections">
         <item quantity="one">1 collection</item>
         <item quantity="other">%d collections</item>
@@ -11,7 +10,6 @@
 
     <string name="main_latitude">%1$s latitude</string>
     <string name="main_longitude">%1$s longitude</string>
-    <string name="main_archived_data">%1$s archived</string>
 
     <string name="main_last_update">%1$s</string>
     <string name="main_wifi_updated">found %1$d m before collection</string>
@@ -20,7 +18,6 @@
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
 
     <string name="map_search">Search</string>
-    <string name="map_personal">Personal</string>
     <string name="map_search_no_text">Searching for nothing is not very useful</string>
     <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
 
@@ -48,29 +45,14 @@
     <string name="cell_new">New cell</string>
     <string name="collections_title">Collections</string>
     <string name="locations_new_title">New locations</string>
-    <string name="size_title">Size</string>
 
     <string name="export_share_button">Share (Export)</string>
 
     <string name="challenge_list_title">Challenges</string>
 
-    <string name="dev_browse_files">Browse files</string>
     <string name="dev_notification_dummy">Hello World!</string>
     <string name="dev_activity_recognition_hide">Filter</string>
     <string name="dev_activity_recognition_show">Show all</string>
-
-    <!-- Feedback strings -->
-    <string name="feedback_title">Feedback</string>
-    <string name="feedback_bug">Bug</string>
-    <string name="feedback_feature">Enhancement</string>
-    <string name="feedback_summary">Summary</string>
-    <string name="feedback_description">Description (optional)</string>
-
-    <string name="feedback_error_type">You must select a type of feedback</string>
-    <string name="feedback_error_short_summary">Summary is too brief</string>
-    <string name="feedback_error_long_summary">Summary is too long</string>
-    <string name="feedback_error_spaces_summary">Too much spacing</string>
-    <string name="feedback_error_long_description">Description is too long</string>
 
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
@@ -88,7 +70,6 @@
     <string name="no">No</string>
     <string name="send">Send</string>
     <string name="enable">Enable</string>
-    <string name="your_stats">Your stats</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
     <string name="clear">Clear</string>

@@ -43,7 +43,7 @@ class MigrationTest {
 
 		// Re-open the database with version 3 and provide
 		// MIGRATION_2_3 as the migration process.
-		helper.runMigrationsAndValidate(Companion.TEST_DB, 3, true, MIGRATION_2_3).apply {
+		helper.runMigrationsAndValidate(TEST_DB, 3, true, MIGRATION_2_3).apply {
 			var cursor = query("SELECT * FROM location_data WHERE id == 3")
 
 			with(cursor) {

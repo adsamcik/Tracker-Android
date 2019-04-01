@@ -9,10 +9,10 @@ import android.util.SparseArray
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.activity.ActivityRequestInfo
-import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.activity.ResolvedActivities
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.misc.extension.powerManager
 import com.adsamcik.signalcollector.misc.extension.startForegroundService
 import com.adsamcik.signalcollector.misc.extension.stopService
@@ -88,7 +88,7 @@ class ActivityService : IntentService("ActivityService") {
 		 * Contains instance of last known activity
 		 * Initialization value is Unknown activity with 0 confidence
 		 */
-		var lastActivity = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+		var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
 			private set
 
 		/**

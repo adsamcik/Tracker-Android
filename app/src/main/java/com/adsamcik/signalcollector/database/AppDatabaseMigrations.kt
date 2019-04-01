@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.database
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-val MIGRATION_2_3 = object : Migration(2, 3) {
+val MIGRATION_2_3: Migration = object : Migration(2, 3) {
 	override fun migrate(database: SupportSQLiteDatabase) {
 		with(database) {
 			execSQL("CREATE TABLE tmp_location_data (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL, `hor_acc` REAL, `ver_acc` REAL, `activity` INTEGER NOT NULL, `confidence` INTEGER NOT NULL)")
@@ -22,7 +22,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 	}
 }
 
-val MIGRATION_3_4 = object : Migration(3, 4) {
+val MIGRATION_3_4: Migration = object : Migration(3, 4) {
 	override fun migrate(database: SupportSQLiteDatabase) {
 		with(database) {
 			execSQL("DROP TABLE map_max_heat")

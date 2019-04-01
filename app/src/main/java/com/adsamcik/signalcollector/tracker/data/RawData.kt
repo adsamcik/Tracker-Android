@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import android.net.wifi.ScanResult
 import android.os.Build
 import android.telephony.*
-import com.adsamcik.signalcollector.activity.ResolvedActivities
 import com.adsamcik.signalcollector.activity.ActivityInfo
+import com.adsamcik.signalcollector.activity.ResolvedActivities
 import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.JsonClass
 import java.util.*

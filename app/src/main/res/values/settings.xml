@@ -3,8 +3,6 @@
     <string name="alert_confirm_generic">Are you sure?</string>
     <string name="alert_confirm">Are you sure you want to %1$s?</string>
 
-    <string name="internet_connection_required">Internet connection required</string>
-
     <!--- TITLES -->
     <string name="settings_title">Settings</string>
     <string name="settings_tracking_title">Tracking</string>
@@ -167,11 +165,6 @@
 
 
     <!-- DATA -->
-    <string name="settings_delete_uploaded_data_title">Delete uploaded data</string>
-    <string name="settings_delete_uploaded_data_summary">If disabled, uploaded data will be compressed and put into special folder</string>
-    <string name="settings_delete_uploaded_data_key" translatable="false">deleteUploadedData</string>
-    <string name="settings_delete_uploaded_data_default" translatable="false">true</string>
-
     <string name="settings_delete_stored_data_title">Delete archived data</string>
     <string name="settings_delete_stored_data_summary">Delete tracked data that have already been uploaded but kept for future use</string>
     <string name="settings_delete_stored_data_key" translatable="false">deleteStoredData</string>
@@ -239,15 +232,6 @@
         <item quantity="one">%d tap left to enable developer options</item>
         <item quantity="other">%d taps left to enable developer options</item>
     </plurals>
-
-    <string name="settings_browse_files_title">Browse files</string>
-    <string name="settings_browse_files_key" translatable="false">browseFiles</string>
-
-    <string name="settings_browse_cache_title">Browse cache</string>
-    <string name="settings_browse_cache_key" translatable="false">browseCache</string>
-
-    <string name="settings_browse_archived_data_title">Browse archived data</string>
-    <string name="settings_browse_archived_data_key" translatable="false">browseArchivedData</string>
 
     <string name="settings_debug_activity_title">Activity recognition logger</string>
     <string name="settings_debug_activity_key" translatable="false">activityLogger</string>
