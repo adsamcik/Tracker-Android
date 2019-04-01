@@ -1,20 +1,23 @@
 package com.adsamcik.signalcollector.database.data
 
 import androidx.room.ColumnInfo
-import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.adsamcik.signalcollector.tracker.data.Location
 import com.adsamcik.signalcollector.tracker.data.WifiInfo
 
 @Entity(tableName = "wifi_data")
 data class DatabaseWifiData(
+		@PrimaryKey @ColumnInfo(name = "bssid") var BSSID: String,
 		val longitude: Double,
 		val latitude: Double,
 		val altitude: Double?,
 		@ColumnInfo(name = "first_seen") var firstSeen: Long,
 		@ColumnInfo(name = "last_seen") var lastSeen: Long,
-		@Embedded val wifiInfo: WifiInfo) {
-	@PrimaryKey(autoGenerate = false)
-	var id: String = wifiInfo.BSSID
-}
+		@ColumnInfo(name = "ssid") var SSID: String,
+		var capabilities: String,
+		var frequency: Int = 0,
+		var level: Int = 0) {
 
+	constructor(location: Location, wifiData: WifiInfo) : this(wifiData.BSSID, location.longitude, location.latitude, location.altitude, location.time, location.time, wifiData.SSID, wifiData.capabilities, wifiData.frequency, wifiData.level)
+}

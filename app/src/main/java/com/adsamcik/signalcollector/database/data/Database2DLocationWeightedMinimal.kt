@@ -6,7 +6,6 @@ import kotlin.math.max
 
 
 data class Database2DLocationWeightedMinimal(
-		val id: Int,
 		@ColumnInfo(name = "lat")
 		val latitude: Double,
 		@ColumnInfo(name = "lon")
