@@ -25,6 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Assist
@@ -120,9 +121,18 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			return
 		}
 
+		val activityInfo = ActivityService.lastActivity
+
 		session.apply {
 			distanceInM += distance
 			collections++
+
+			when (activityInfo.groupedActivity) {
+				GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
+				GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
+				else -> {
+				}
+			}
 		}
 
 		val d = RawData(System.currentTimeMillis())
@@ -156,8 +166,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			d.addCell(telephonyManager)
 		}
 
-		val activityInfo = ActivityService.lastActivity
-
 		if (preferences.getBoolean(keyLocationEnabled, defaultLocationEnabled))
 			d.setLocation(location).setActivity(activityInfo)
 
@@ -181,16 +189,14 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			val appContext = applicationContext
 			val database = AppDatabase.getAppDatabase(appContext)
 
-			database.runInTransaction {
-				val location = data.location
-				var locationId: Long? = null
-				if (location != null)
-					locationId = database.locationDao().insert(location.toDatabase(data.activity!!))
+			val location = data.location
+			var locationId: Long? = null
+			if (location != null)
+				locationId = database.locationDao().insert(location.toDatabase(data.activity!!))
 
-				val cell = data.cell
-				val cellDao = database.cellDao()
-				cell?.registeredCells?.map { DatabaseCellData(locationId, data.time, data.time, it) }?.let { cellDao.upsert(it) }
-			}
+			val cell = data.cell
+			val cellDao = database.cellDao()
+			cell?.registeredCells?.map { DatabaseCellData(locationId, data.time, data.time, it) }?.let { cellDao.upsert(it) }
 
 			val wifi = data.wifi
 			if (wifi != null && previousLocation != null) {
@@ -199,11 +205,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 				//position calculation
 				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(LocationExtensions.approximateLocation(previousLocation, thisLocation, wifi.time))
 
-				database.runInTransaction {
-					wifi.inRange.forEach {
-						wifiDao.upsert(DatabaseWifiData(estimatedWifiLocation.longitude, estimatedWifiLocation.latitude, estimatedWifiLocation.altitude, data.time, data.time, it))
-					}
-				}
+				wifi.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
 			}
 		}
 	}
@@ -476,7 +478,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		/**
 		 * RawData from previous collection
 		 */
-		var rawDataEcho: MutableLiveData<RawData> = MutableLiveData<RawData>()
+		var rawDataEcho: MutableLiveData<RawData> = MutableLiveData()
 
 		/**
 		 * Extra information about distance for tracker

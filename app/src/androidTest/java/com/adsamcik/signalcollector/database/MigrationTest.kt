@@ -86,6 +86,22 @@ class MigrationTest {
 		helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4)
 	}
 
+	@Test
+	@Throws(IOException::class)
+	fun migrate4To5() {
+		val db = helper.createDatabase(TEST_DB, 4)
+
+		db.execSQL("CREATE TABLE IF NOT EXISTS `wifi_data` (`id` TEXT NOT NULL, `longitude` REAL NOT NULL, `latitude` REAL NOT NULL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `isPasspoint` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+		db.execSQL("CREATE TABLE IF NOT EXISTS `tracking_data` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `steps` INTEGER NOT NULL)")
+
+		db.execSQL("INSERT INTO tracking_data VALUES ()")
+
+		db.close()
+
+
+		helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+	}
+
 	companion object {
 		private const val TEST_DB = "migration-test"
 	}

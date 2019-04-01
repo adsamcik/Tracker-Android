@@ -9,7 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ResolvedActivities
+import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.preference.Preferences
@@ -82,11 +82,11 @@ class ActivityWatcherService : LifecycleService() {
 
 		builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
 		builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getResolvedActivityName(this), activityInfo.confidence))
-		when (activityInfo.resolvedActivity) {
-			ResolvedActivities.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
-			ResolvedActivities.ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
-			ResolvedActivities.STILL -> builder.setSmallIcon(R.drawable.ic_accessibility_white_24dp)
-			ResolvedActivities.UNKNOWN -> builder.setSmallIcon(R.drawable.ic_help_white_24dp)
+		when (activityInfo.groupedActivity) {
+			GroupedActivity.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
+			GroupedActivity.ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
+			GroupedActivity.STILL -> builder.setSmallIcon(R.drawable.ic_accessibility_white_24dp)
+			GroupedActivity.UNKNOWN -> builder.setSmallIcon(R.drawable.ic_help_white_24dp)
 		}
 
 		return builder.build()

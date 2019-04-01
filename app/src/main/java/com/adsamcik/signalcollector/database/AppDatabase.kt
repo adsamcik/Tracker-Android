@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.database.data.*
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
 
-@Database(entities = [DatabaseLocation::class, TrackerSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 4)
+@Database(entities = [DatabaseLocation::class, TrackerSession::class, DatabaseWifiData::class, DatabaseCellData::class, DatabaseMapMaxHeat::class], version = 5)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 

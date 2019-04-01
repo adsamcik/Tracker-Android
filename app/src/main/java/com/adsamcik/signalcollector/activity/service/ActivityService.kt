@@ -9,7 +9,7 @@ import android.util.SparseArray
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.activity.ActivityRequestInfo
-import com.adsamcik.signalcollector.activity.ResolvedActivities
+import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
@@ -41,13 +41,13 @@ class ActivityService : IntentService("ActivityService") {
 		lastActivity = detectedActivity
 		if (mBackgroundTracking && detectedActivity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerService.isServiceRunning.value) {
-				if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, detectedActivity.resolvedActivity)) {
+				if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, detectedActivity.groupedActivity)) {
 					stopService<TrackerService>()
 					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "stopped tracking")
 				} else {
 					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, null)
 				}
-			} else if (canBackgroundTrack(this, detectedActivity.resolvedActivity) &&
+			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) &&
 					!TrackerLocker.isLocked.value &&
 					!mPowerManager.isPowerSaveMode &&
 					Assist.canTrack(this)) {
@@ -237,39 +237,46 @@ class ActivityService : IntentService("ActivityService") {
 		/**
 		 * Checks if background tracking can be activated
 		 *
-		 * @param evalActivity evaluated activity
+		 * @param groupedActivity evaluated activity
 		 * @return true if background tracking can be activated
 		 */
-		private fun canBackgroundTrack(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
+		private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 			val resources = context.resources
 			val keyStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_key)
 			val defaultStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
 
-			if (evalActivity == 3 || evalActivity == 0 || TrackerService.isServiceRunning.value || Preferences.getPref(context).getBoolean(keyStopUntilRecharge, defaultStopUntilRecharge))
+			if (groupedActivity == GroupedActivity.UNKNOWN ||
+					groupedActivity == GroupedActivity.UNKNOWN ||
+					TrackerService.isServiceRunning.value ||
+					Preferences.getPref(context).getBoolean(keyStopUntilRecharge, defaultStopUntilRecharge))
 				return false
 
 			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
 			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
 
 			val preference = Preferences.getPref(context).getInt(keyAutoTracking, defaultAutoTracking)
-			return preference != 0 && (preference == evalActivity || preference > evalActivity)
+			val prefActivity = GroupedActivity.values()[preference]
+			return prefActivity != GroupedActivity.STILL && (prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
 		}
 
 		/**
 		 * Checks if background tracking should stop
 		 *
-		 * @param evalActivity evaluated activity
+		 * @param groupedActivity evaluated activity
 		 * @return true if background tracking can continue running
 		 */
-		private fun canContinueBackgroundTracking(context: Context, @ResolvedActivities.ResolvedActivity evalActivity: Int): Boolean {
-			if (evalActivity == 0)
+		private fun canContinueBackgroundTracking(context: Context, groupedActivity: GroupedActivity): Boolean {
+			if (groupedActivity == GroupedActivity.STILL)
 				return false
 
 			val resources = context.resources
 			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
 			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
 			val preference = Preferences.getPref(context).getInt(keyAutoTracking, defaultAutoTracking)
-			return preference == 2 || preference == 1 && (evalActivity == 1 || evalActivity == 3)
+			val prefActivity = GroupedActivity.values()[preference]
+			return prefActivity == GroupedActivity.IN_VEHICLE ||
+					(prefActivity == GroupedActivity.ON_FOOT &&
+							(groupedActivity == GroupedActivity.ON_FOOT || groupedActivity == GroupedActivity.UNKNOWN))
 		}
 	}
 }

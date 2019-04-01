@@ -4,27 +4,19 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tracking_session")
+@Entity(tableName = "tracker_session")
 data class TrackerSession(var start: Long,
                           var end: Long,
                           var collections: Int,
                           @ColumnInfo(name = "distance")
                           var distanceInM: Float,
+                          @ColumnInfo(name = "distance_on_foot")
+                          var distanceOnFootInM: Float,
+                          @ColumnInfo(name = "distance_in_vehicle")
+                          var distanceInVehicleInM: Float,
                           var steps: Int) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0
 
-	constructor(start: Long) : this(start, start, 0, 0f, 0)
-
-	fun mergeWith(session: TrackerSession) {
-		if (session.start > start) {
-			end = session.end
-		} else {
-			start = session.start
-		}
-
-		collections += session.collections
-		distanceInM += session.distanceInM
-		steps += session.steps
-	}
+	constructor(start: Long) : this(start, start, 0, 0f, 0f, 0f, 0)
 }

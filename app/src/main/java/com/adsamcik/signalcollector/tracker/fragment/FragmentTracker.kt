@@ -18,7 +18,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.activity.ResolvedActivities
+import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.color.ColorManager
@@ -337,23 +337,23 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			cellInfo = null
 		}
 
-		when (rawData.activity?.resolvedActivity) {
-			ResolvedActivities.STILL -> {
+		when (rawData.activity?.groupedActivity) {
+			GroupedActivity.STILL -> {
 				icon_activity.setImageResource(R.drawable.ic_outline_still_24px)
 				icon_activity.contentDescription = getString(R.string.activity_idle)
 				icon_activity.visibility = VISIBLE
 			}
-			ResolvedActivities.ON_FOOT -> {
+			GroupedActivity.ON_FOOT -> {
 				icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
 				icon_activity.contentDescription = getString(R.string.activity_on_foot)
 				icon_activity.visibility = VISIBLE
 			}
-			ResolvedActivities.IN_VEHICLE -> {
+			GroupedActivity.IN_VEHICLE -> {
 				icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
 				icon_activity.contentDescription = getString(R.string.activity_in_vehicle)
 				icon_activity.visibility = VISIBLE
 			}
-			ResolvedActivities.UNKNOWN -> {
+			GroupedActivity.UNKNOWN -> {
 				icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
 				icon_activity.contentDescription = getString(R.string.activity_unknown)
 				icon_activity.visibility = VISIBLE
