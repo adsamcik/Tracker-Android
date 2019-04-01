@@ -6,6 +6,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -92,14 +93,32 @@ class MigrationTest {
 		val db = helper.createDatabase(TEST_DB, 4)
 
 		db.execSQL("CREATE TABLE IF NOT EXISTS `wifi_data` (`id` TEXT NOT NULL, `longitude` REAL NOT NULL, `latitude` REAL NOT NULL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `isPasspoint` INTEGER NOT NULL, PRIMARY KEY(`id`))")
-		db.execSQL("CREATE TABLE IF NOT EXISTS `tracking_data` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `steps` INTEGER NOT NULL)")
+		db.execSQL("CREATE TABLE IF NOT EXISTS `tracking_session` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `steps` INTEGER NOT NULL)")
 
-		db.execSQL("INSERT INTO tracking_data VALUES ()")
+		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (1, 200, 300, 10, 1000, 50)")
+		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (2, 400, 600, 20, 2000, 100)")
 
 		db.close()
 
 
-		helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+
+		helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5).apply {
+			val cursor = query("SELECT * FROM tracker_session WHERE id == 2")
+
+			with(cursor) {
+				val hasNext = moveToNext()
+				Assert.assertTrue(hasNext)
+				Assert.assertEquals(2, getInt(0))
+				Assert.assertEquals(400, getInt(1))
+				Assert.assertEquals(600, getInt(2))
+				Assert.assertEquals(20, getInt(3))
+				Assert.assertEquals(2000, getInt(4))
+				Assert.assertEquals(0, getInt(5))
+				Assert.assertEquals(0, getInt(6))
+				Assert.assertEquals(100, getInt(7))
+			}
+		}
 	}
 
 	companion object {
