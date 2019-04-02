@@ -166,7 +166,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(location, rawData))
 
 		saveData(rawData)
-		rawDataEcho.postValue(rawData)
+		trackerEcho.postValue(Pair(session, rawData))
 
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
 			stopSelf()
@@ -529,7 +529,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		/**
 		 * RawData from previous collection
 		 */
-		var rawDataEcho: MutableLiveData<RawData> = MutableLiveData()
+		//todo look at how to improve this
+		var trackerEcho: MutableLiveData<Pair<TrackerSession, RawData>> = MutableLiveData()
 
 		/**
 		 * Extra information about distance for tracker

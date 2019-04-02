@@ -25,7 +25,6 @@ import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.app.widget.InfoComponent
-import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.SnackMaker
 import com.adsamcik.signalcollector.misc.extension.*
@@ -38,9 +37,6 @@ import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.util.*
 import kotlin.math.roundToInt
 
@@ -64,7 +60,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		icon_activity.visibility = GONE
 		altitude.visibility = GONE
-		accuracy.visibility = GONE
+		horizontal_accuracy.visibility = GONE
 
 
 		button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
@@ -96,9 +92,9 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			updateTrackerButton(it)
 		}
 
-		TrackerService.rawDataEcho.observe(this) {
-			if (it != null && it.time > 0) {
-				updateData(it)
+		TrackerService.trackerEcho.observe(this) {
+			if (it != null && it.first.start > 0) {
+				updateData(it.first, it.second)
 			}
 		}
 
@@ -131,15 +127,6 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
 			include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
 		}
-
-
-		val appDatabase = AppDatabase.getAppDatabase(context)
-		val locationDao = appDatabase.locationDao()
-
-		val liveCount = locationDao.count()
-		setCollected(liveCount.value ?: 0)
-
-		liveCount.observe(this) { GlobalScope.launch(Dispatchers.Main) { setCollected(it!!) } }
 
 		if (useMock)
 			mock()
@@ -204,7 +191,10 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			accuracy = location.horizontalAccuracy!!
 		}, System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		rawData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
-		updateData(rawData)
+
+		val session = TrackerSession(System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), 56, 5410f, 15f, 5000f, 154)
+
+		updateData(session, rawData)
 	}
 
 	private fun initializeColorElements() {
@@ -214,16 +204,6 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		cellInfo?.setColorManager(colorManager)
 		wifiInfo?.setColorManager(colorManager)
-	}
-
-	/**
-	 * Updates collected data text
-	 *
-	 * @param count number of collections performed
-	 */
-	private fun setCollected(count: Int) {
-		val resources = context!!.resources
-		collection_count!!.text = resources.getQuantityString(R.plurals.main_collections, count, count)
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
@@ -268,9 +248,9 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeExtendedInfo() {
-		val rawData = TrackerService.rawDataEcho.value
+		val rawData = TrackerService.trackerEcho.value
 		if (rawData != null) {
-			updateExtendedInfo(rawData)
+			updateExtendedInfo(rawData.second)
 		} else {
 			longitude.visibility = GONE
 			latitude.visibility = GONE
@@ -296,62 +276,26 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		}
 	}
 
-	//todo refactor
-	private fun updateData(rawData: RawData) {
+	private fun updateData(session: TrackerSession, rawData: RawData) {
 		val context = context!!
 		val res = context.resources
 
 		textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(rawData.time)))
 
-		val location = rawData.location
-		if (location != null) {
-			if (location.horizontalAccuracy != null) {
-				accuracy.visibility = VISIBLE
-				accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.toInt())
-			} else
-				accuracy.visibility = GONE
+		updateActivityUI(rawData.activity)
+		updateLocationUI(rawData.location)
+		updateSessionUI(session)
+		updateCellUI(rawData.cell)
+		updateWifiUI(rawData.time, rawData.wifi)
 
-			//todo add vertical accuracy
 
-			if (location.altitude != null) {
-				altitude.text = getString(R.string.info_altitude, location.altitude.toInt().formatAsDistance(2, LengthSystem.Metric))
-				altitude.visibility = VISIBLE
-			} else
-				altitude.visibility = GONE
-		} else {
-			accuracy.visibility = GONE
-			altitude.visibility = GONE
+		if (bar_info_top_extended.visibility == VISIBLE) {
+			updateExtendedInfo(rawData)
 		}
+	}
 
-		when {
-			rawData.wifi != null -> {
-				val component = initializeWifiInfo()
-				component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, rawData.wifi!!.inRange.size))
-				component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
-				lastWifiTime = rawData.time
-			}
-			lastWifiTime - rawData.time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
-				wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
-			else -> {
-				wifiInfo?.detach()
-				wifiInfo = null
-			}
-		}
-
-		val cell = rawData.cell
-		if (cell != null) {
-			val component = initializeCellInfo()
-			if (cell.registeredCells.isNotEmpty()) {
-				component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, cell.registeredCells[0].type.name, cell.registeredCells[0].dbm, cell.registeredCells[0].asu))
-			} else
-				component.setVisibility(CELL_COMPONENT_CURRENT, GONE)
-			component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, cell.totalCount))
-		} else {
-			cellInfo?.detach()
-			cellInfo = null
-		}
-
-		when (rawData.activity?.groupedActivity) {
+	private fun updateActivityUI(activityInfo: ActivityInfo?) {
+		when (activityInfo?.groupedActivity) {
 			GroupedActivity.STILL -> {
 				icon_activity.setImageResource(R.drawable.ic_outline_still_24px)
 				icon_activity.contentDescription = getString(R.string.activity_idle)
@@ -374,10 +318,68 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			}
 			else -> icon_activity.visibility = GONE
 		}
+	}
 
-		if (bar_info_top_extended.visibility == VISIBLE) {
-			updateExtendedInfo(rawData)
+	private fun updateLocationUI(location: Location?) {
+		if (location != null) {
+			if (location.horizontalAccuracy != null) {
+				horizontal_accuracy.visibility = VISIBLE
+				horizontal_accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.formatAsDistance(0, LengthSystem.Metric))
+			} else
+				horizontal_accuracy.visibility = GONE
+
+			//todo add vertical accuracy
+
+			if (location.altitude != null) {
+				altitude.text = getString(R.string.info_altitude, location.altitude.toInt().formatAsDistance(2, LengthSystem.Metric))
+				altitude.visibility = VISIBLE
+			} else
+				altitude.visibility = GONE
+		} else {
+			horizontal_accuracy.visibility = GONE
+			altitude.visibility = GONE
 		}
+	}
+
+	private fun updateCellUI(cellData: CellData?) {
+		val res = resources
+		if (cellData != null) {
+			val component = initializeCellInfo()
+			if (cellData.registeredCells.isNotEmpty()) {
+				val firstCell = cellData.registeredCells.first()
+				component.setText(CELL_COMPONENT_CURRENT, res.getString(R.string.main_cell_current, firstCell.type.name, firstCell.dbm, firstCell.asu))
+			} else
+				component.setVisibility(CELL_COMPONENT_CURRENT, GONE)
+			component.setText(CELL_COMPONENT_COUNT, res.getString(R.string.main_cell_count, cellData.totalCount))
+		} else {
+			cellInfo?.detach()
+			cellInfo = null
+		}
+	}
+
+	private fun updateWifiUI(time: Long, wifiData: WifiData?) {
+		val res = resources
+		when {
+			wifiData != null -> {
+				val component = initializeWifiInfo()
+				component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, wifiData.inRange.size))
+				component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
+				lastWifiTime = time
+			}
+			lastWifiTime - time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
+				wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
+			else -> {
+				wifiInfo?.detach()
+				wifiInfo = null
+			}
+		}
+	}
+
+	private fun updateSessionUI(session: TrackerSession) {
+		val res = resources
+		session_collections.text = res.getString(R.string.info_session_collections, session.collections)
+		session_distance.text = res.getString(R.string.info_session_distance, session.distanceInM.formatAsDistance(1, LengthSystem.Metric))
+
 	}
 
 	companion object {

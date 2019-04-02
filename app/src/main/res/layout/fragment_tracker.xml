@@ -83,7 +83,7 @@
             app:srcCompat="@drawable/ic_storage_black_24dp"/>
 
         <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/data_size"
+            android:id="@+id/session_collections"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
@@ -94,11 +94,11 @@
             app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
             app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
             app:layout_constraintStart_toEndOf="@id/image_storage"
-            tools:text="TBD"
+            tools:text="170 collections"
             />
 
         <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/collection_count"
+            android:id="@+id/session_distance"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
@@ -109,7 +109,7 @@
             app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
             app:layout_constraintStart_toEndOf="@id/image_storage"
             app:layout_constraintTop_toBottomOf="@id/guideline_info_horizontal"
-            tools:text="170 collections"
+            tools:text="1500 m distance"
             />
 
         <ImageView
@@ -140,7 +140,7 @@
             />
 
         <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/accuracy"
+            android:id="@+id/horizontal_accuracy"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"

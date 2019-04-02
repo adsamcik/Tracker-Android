@@ -90,4 +90,6 @@
     <!-- NEW UI -->
     <string name="info_altitude">%s altitude</string>
     <string name="info_accuracy">%s accuracy</string>
+    <string name="info_session_collections">%d collections</string>
+    <string name="info_session_distance">%s distance</string>
 </resources>
