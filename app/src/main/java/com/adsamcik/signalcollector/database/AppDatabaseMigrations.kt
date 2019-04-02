@@ -43,6 +43,8 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
 			execSQL("CREATE TABLE IF NOT EXISTS `tracker_session` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `distance_on_foot` REAL NOT NULL, `distance_in_vehicle` REAL NOT NULL, `steps` INTEGER NOT NULL)")
 			execSQL("INSERT INTO tracker_session SELECT id, start, `end`, collections, distance, 0.0, 0.0, steps FROM tracking_session")
 			execSQL("DROP TABLE tracking_session")
+
+			execSQL("DELETE FROM tracker_session WHERE start >= `end` OR collections <= 1")
 		}
 	}
 }

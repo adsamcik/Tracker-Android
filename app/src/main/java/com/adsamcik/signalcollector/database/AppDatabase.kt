@@ -30,14 +30,14 @@ abstract class AppDatabase : RoomDatabase() {
 		fun getAppDatabase(context: Context): AppDatabase {
 			if (instance_ == null) {
 				instance_ = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-						.addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+						.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 						.build()
 			}
 			return instance_ as AppDatabase
 		}
 
 		fun getTestDatabase(context: Context): AppDatabase {
-			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java).addMigrations(MIGRATION_2_3, MIGRATION_3_4).build()
+			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java).build()
 		}
 
 	}

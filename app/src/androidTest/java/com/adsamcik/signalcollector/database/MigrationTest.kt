@@ -97,6 +97,8 @@ class MigrationTest {
 
 		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (1, 200, 300, 10, 1000, 50)")
 		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (2, 400, 600, 20, 2000, 100)")
+		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (3, 600, 400, 20, 2000, 100)")
+		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (4, 400, 600, 0, 2000, 100)")
 
 		db.close()
 
@@ -117,6 +119,12 @@ class MigrationTest {
 				Assert.assertEquals(0, getInt(5))
 				Assert.assertEquals(0, getInt(6))
 				Assert.assertEquals(100, getInt(7))
+			}
+
+			val cursorCount = query("SELECT COUNT(*) FROM tracker_session")
+			with(cursorCount) {
+				Assert.assertTrue(moveToNext())
+				Assert.assertEquals(2, getInt(0))
 			}
 		}
 	}
