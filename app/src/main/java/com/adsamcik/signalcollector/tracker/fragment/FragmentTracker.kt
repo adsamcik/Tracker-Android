@@ -31,8 +31,8 @@ import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.mock.useMock
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
-import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.data.*
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.fragment_tracker.*
@@ -69,7 +69,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		button_tracking.setOnClickListener {
 			val activity = activity!!
 			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated) {
-				val lockedForMinutes = 30
+				val lockedForMinutes = 60
 				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
 				SnackMaker(activity.findViewById(R.id.root) as View).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
 			} else

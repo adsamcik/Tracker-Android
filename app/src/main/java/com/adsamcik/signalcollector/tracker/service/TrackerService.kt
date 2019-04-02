@@ -39,9 +39,9 @@ import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.data.RawData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
@@ -229,7 +229,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		if (isBackgroundActivated) {
 			builder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop)
 
-			val stopForMinutes = 60
+			val stopForMinutes = 30
 			val stopForMinutesIntent = Intent(this, TrackerNotificationReceiver::class.java)
 			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, TrackerNotificationReceiver.STOP_MINUTES_EXTRA)
 			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
