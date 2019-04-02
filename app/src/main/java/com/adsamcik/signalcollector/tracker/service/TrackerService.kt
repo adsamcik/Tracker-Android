@@ -52,6 +52,7 @@ import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.text.DecimalFormat
 import kotlin.math.abs
+import kotlin.math.max
 
 class TrackerService : LifecycleService(), SensorEventListener {
 	private var wifiScanTime: Long = 0
@@ -79,7 +80,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	/**
 	 * Previous location of collection
 	 */
-	private var prevLocation: Location? = null
+	private var previousLocation: Location? = null
 
 	private lateinit var locationCallback: LocationCallback
 
@@ -104,12 +105,13 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	 * Collects data from necessary places and sensors and creates new RawData instance
 	 */
 	private fun updateData(locationResult: LocationResult) {
+		val previousLocation = previousLocation
 		val location = locationResult.lastLocation
-		val distance = if (prevLocation == null) 0f else location.distanceTo(prevLocation)
+		val distance = if (previousLocation == null) 0f else location.distanceTo(previousLocation)
 		if (location.isFromMockProvider) {
 			prevMocked = true
 			return
-		} else if (prevMocked && prevLocation != null) {
+		} else if (prevMocked && previousLocation != null) {
 			prevMocked = false
 			if (distance < minDistanceInMeters)
 				return
@@ -131,10 +133,14 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			distanceInM += distance
 			collections++
 
-			when (activityInfo.groupedActivity) {
-				GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
-				GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
-				else -> {
+			if (previousLocation != null &&
+					(location.time - previousLocation.time < max(Constants.SECOND_IN_MILLISECONDS * 20, minUpdateDelayInSeconds * 2 * Constants.SECOND_IN_MILLISECONDS) ||
+							distance <= minDistanceInMeters * 2f)) {
+				when (activityInfo.groupedActivity) {
+					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
+					GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
+					else -> {
+					}
 				}
 			}
 		}
@@ -142,7 +148,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val rawData = RawData(location.time)
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
-			val prevLocation = prevLocation
 			synchronized(wifiScanTime) {
 				if (wifiScanData != null) {
 					val locations = locationResult.locations
@@ -153,8 +158,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 						val first = nearestLocation[firstIndex]
 						val second = nearestLocation[(firstIndex + 1).rem(2)]
 						setWifi(first, second, first.distanceTo(second), rawData)
-					} else if (prevLocation != null) {
-						setWifi(prevLocation, location, distance, rawData)
+					} else if (previousLocation != null) {
+						setWifi(previousLocation, location, distance, rawData)
 					}
 
 					wifiScanData = null
@@ -190,7 +195,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
 			stopSelf()
 
-		prevLocation = location
+		this.previousLocation = location
 
 		wakeLock.release()
 	}
