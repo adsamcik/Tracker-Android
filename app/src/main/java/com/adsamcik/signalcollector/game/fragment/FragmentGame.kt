@@ -16,8 +16,6 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.adapter.IViewChange
 import com.adsamcik.signalcollector.app.color.ColorManager
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulties
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.data.Challenge
@@ -36,21 +34,21 @@ class FragmentGame : Fragment(), IOnDemandView {
 	private lateinit var colorManager: ColorManager
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-		val rootView = inflater.inflate(R.layout.fragment_activities, container, false)
+		val rootView = inflater.inflate(R.layout.fragment_game, container, false)
 
 		listViewChallenges = rootView.findViewById(R.id.listview_challenges)
 
 		refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
 		refreshLayout.setColorSchemeResources(R.color.color_primary)
 		refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
-		refreshLayout.setOnRefreshListener { this.updateData() }
+		//refreshLayout.setOnRefreshListener { this.updateData() }
 
-		updateData()
+		//updateData()
 
 		val context = context!!
 		listViewChallenges.adapter = ChallengesAdapter(context, arrayOf())
-		colorManager = ColorSupervisor.createColorManager(context)
-		colorManager.watchAdapterView(ColorView(listViewChallenges, 1, recursive = true, rootIsBackground = false))
+		//colorManager = ColorSupervisor.createColorManager(context)
+		//colorManager.watchAdapterView(ColorView(listViewChallenges, 1, recursive = true, rootIsBackground = false))
 
 		return rootView
 	}
