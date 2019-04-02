@@ -60,10 +60,10 @@ data class RawData(
 	 * @param time time of collection
 	 * @return this
 	 */
-	fun setWifi(data: Array<ScanResult>?, time: Long): RawData {
+	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?): RawData {
 		if (data != null && time > 0) {
 			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }.toTypedArray()
-			this.wifi = WifiData(time, scannedWifi)
+			this.wifi = WifiData(location, time, scannedWifi)
 		}
 		return this
 	}

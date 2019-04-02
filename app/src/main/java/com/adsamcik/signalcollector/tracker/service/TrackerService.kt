@@ -35,7 +35,6 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
@@ -51,6 +50,7 @@ import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.text.DecimalFormat
+import kotlin.math.abs
 
 class TrackerService : LifecycleService(), SensorEventListener {
 	private var wifiScanTime: Long = 0
@@ -100,7 +100,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	/**
 	 * Collects data from necessary places and sensors and creates new RawData instance
 	 */
-	private fun updateData(location: Location) {
+	private fun updateData(locationResult: LocationResult) {
+		val location = locationResult.lastLocation
 		val distance = if (prevLocation == null) 0f else location.distanceTo(prevLocation)
 		if (location.isFromMockProvider) {
 			prevMocked = true
@@ -135,56 +136,62 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			}
 		}
 
-		val d = RawData(System.currentTimeMillis())
+		val rawData = RawData(location.time)
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
 			val prevLocation = prevLocation
-			if (prevLocation != null) {
-				if (wifiScanData != null) {
-					val timeDiff = (wifiScanTime - prevLocation.time).toDouble() / (d.time - prevLocation.time).toDouble()
-					if (timeDiff >= 0) {
-						val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff))
-						distanceToWifi = distTo.toInt()
+			if (wifiScanData != null) {
+				val locations = locationResult.locations
+				if (locations.size == 2) {
+					val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
+					val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
 
-						if (distTo <= UPDATE_MAX_DISTANCE_TO_WIFI && distTo > 0)
-							d.setWifi(wifiScanData, wifiScanTime)
-					}
-					wifiScanData = null
-				} else {
-					val timeDiff = (wifiScanTime - prevLocation.time).toDouble() / (d.time - prevLocation.time).toDouble()
-					if (timeDiff >= 0) {
-						val distTo = location.distanceTo(Assist.interpolateLocation(prevLocation, location, timeDiff))
-						distanceToWifi += distTo.toInt()
-					}
+					val first = nearestLocation[firstIndex]
+					val second = nearestLocation[(firstIndex + 1).rem(2)]
+					setWifi(first, second, first.distanceTo(second), rawData)
+				} else if (prevLocation != null) {
+					setWifi(prevLocation, location, distance, rawData)
 				}
+
+				wifiScanData = null
+				wifiScanTime = -1L
 			}
 
 			wifiManager.startScan()
 		}
 
 		if (preferences.getBoolean(keyCellEnabled, defaultCellEnabled) && !Assist.isAirplaneModeEnabled(this)) {
-			d.addCell(telephonyManager)
+			rawData.addCell(telephonyManager)
 		}
 
 		if (preferences.getBoolean(keyLocationEnabled, defaultLocationEnabled))
-			d.setLocation(location).setActivity(activityInfo)
+			rawData.setLocation(location).setActivity(activityInfo)
 
-		rawDataEcho.postValue(d)
 
-		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, d))
+		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, rawData))
 
-		saveData(d, location, prevLocation)
+		saveData(rawData)
+		rawDataEcho.postValue(rawData)
 
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
 			stopSelf()
 
 		prevLocation = location
-		prevLocation!!.time = d.time
 
 		wakeLock.release()
 	}
 
-	private fun saveData(data: RawData, thisLocation: Location, previousLocation: Location?) {
+	private fun setWifi(firstLocation: Location, secondLocation: Location, distanceBetweenFirstAndSecond: Float, rawData: RawData) {
+		val timeDelta = (wifiScanTime - firstLocation.time).toDouble() / (secondLocation.time - firstLocation.time).toDouble()
+		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
+		if (wifiDistance <= UPDATE_MAX_DISTANCE_TO_WIFI) {
+			val interpolatedLocation = Assist.interpolateLocation(firstLocation, secondLocation, timeDelta)
+			rawData.setWifi(interpolatedLocation, wifiScanTime, wifiScanData)
+			distanceToWifi = distanceBetweenFirstAndSecond
+		}
+	}
+
+	private fun saveData(data: RawData) {
 		GlobalScope.launch {
 			val appContext = applicationContext
 			val database = AppDatabase.getAppDatabase(appContext)
@@ -194,18 +201,16 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			if (location != null)
 				locationId = database.locationDao().insert(location.toDatabase(data.activity!!))
 
-			val cell = data.cell
+			val cellData = data.cell
 			val cellDao = database.cellDao()
-			cell?.registeredCells?.map { DatabaseCellData(locationId, data.time, data.time, it) }?.let { cellDao.upsert(it) }
+			cellData?.registeredCells?.map { DatabaseCellData(locationId, data.time, data.time, it) }?.let { cellDao.upsert(it) }
 
-			val wifi = data.wifi
-			if (wifi != null && previousLocation != null) {
+			val wifiData = data.wifi
+			if (wifiData != null) {
 				val wifiDao = database.wifiDao()
 
-				//position calculation
-				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(LocationExtensions.approximateLocation(previousLocation, thisLocation, wifi.time))
-
-				wifi.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
+				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(wifiData.location)
+				wifiData.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
 			}
 		}
 	}
@@ -332,7 +337,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 			locationCallback = object : LocationCallback() {
 				override fun onLocationResult(result: LocationResult) {
-					updateData(result.lastLocation)
+					updateData(result)
 				}
 
 				override fun onLocationAvailability(availability: LocationAvailability) {
@@ -483,7 +488,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		/**
 		 * Extra information about distance for tracker
 		 */
-		var distanceToWifi: Int = 0
+		var distanceToWifi: Float = 0f
 
 		/**
 		 * Weak reference to service for AutoLock and check if service is running
