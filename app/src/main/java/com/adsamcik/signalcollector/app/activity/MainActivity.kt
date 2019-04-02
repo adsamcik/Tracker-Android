@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 			NotificationChannels.prepareChannels(this)
 
 		if (Assist.checkPlayServices(this))
-			ActivityService.requestAutoTracking(this, javaClass)
+			ActivityService.requestAutoTracking(this, this::class)
 
 		initializeColors()
 		initializeButtons()

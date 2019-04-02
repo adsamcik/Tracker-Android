@@ -13,8 +13,6 @@ import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
-import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
@@ -34,7 +32,8 @@ class ActivityWatcherService : LifecycleService() {
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 
-		ActivityService.requestAutoTracking(this, javaClass)
+
+		ActivityService.requestAutoTracking(this, this::class)
 
 		thread = Thread {
 			//Is not supposed to quit while, until service is stopped
@@ -60,7 +59,7 @@ class ActivityWatcherService : LifecycleService() {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		ActivityService.removeActivityRequest(this, javaClass)
+		ActivityService.removeActivityRequest(this, this::class)
 		instance = null
 		thread!!.interrupt()
 	}
@@ -97,11 +96,36 @@ class ActivityWatcherService : LifecycleService() {
 
 		private var instance: ActivityWatcherService? = null
 
-		/**
-		 * Returns preference whether this service should run
-		 */
-		fun getServicePreference(context: Context): Boolean =
-				Preferences.getPref(context).getBoolean(context.getString(R.string.settings_activity_watcher_key), context.getString(R.string.settings_activity_watcher_default).toBoolean())
+		fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(context).let {
+			context.resources.let { resources ->
+				it.getBoolean(resources.getString(R.string.settings_activity_watcher_key), resources.getString(R.string.settings_activity_watcher_default).toBoolean())
+			}
+		}
+
+		fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(context).let {
+			context.resources.let { resources ->
+				it.getInt(resources.getString(R.string.settings_tracking_activity_key), resources.getString(R.string.settings_tracking_activity_default).toInt())
+			}
+		}
+
+		fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(context).let {
+			context.resources.let { resources ->
+				it.getInt(resources.getString(R.string.settings_activity_freq_key), resources.getString(R.string.settings_activity_freq_default).toInt())
+			}
+		}
+
+		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
+			poke(context, value, getActivityIntervalPreference(context), getAutoTrackingPreference(context))
+		}
+
+		fun onAutoTrackingPreferenceChange(context: Context, value: Int) {
+			poke(context, getWatcherPreference(context), getActivityIntervalPreference(context), value)
+		}
+
+		fun onActivityIntervalPreferenceChange(context: Context, value: Int) {
+			poke(context, getWatcherPreference(context), value, getAutoTrackingPreference(context))
+		}
+
 
 		/**
 		 * Checks if current [ActivityWatcherService] state is the one it should be in right now.
@@ -109,36 +133,23 @@ class ActivityWatcherService : LifecycleService() {
 		 * @param context context
 		 */
 		@Synchronized
-		fun pokeWithCheck(context: Context) {
-			val preference = getServicePreference(context)
-			pokeWithCheck(context, preference)
+		fun poke(context: Context) {
+			poke(context, getWatcherPreference(context), getActivityIntervalPreference(context), getAutoTrackingPreference(context))
 		}
 
 		/**
-		 * Pokes Activity Waker Service which checks if it should run
-		 * Ignores preference
-		 * Uses desired state instead of preference
-		 *
-		 * @param context context
-		 * @param desiredState desired service state
-		 */
-		fun pokeWithCheck(context: Context, desiredState: Boolean) {
-			poke(context, desiredState && !TrackerService.isServiceRunning.value && !TrackerLocker.isLocked.value)
-		}
-
-		/**
-		 * Pokes Activity Waker Service which checks if it should run
+		 * Pokes [ActivityWatcherService] which checks if it should run
 		 *
 		 * @param context context
 		 */
 		@Synchronized
-		fun poke(context: Context, desiredState: Boolean) {
-			if (desiredState) {
-				if (instance == null)
+		fun poke(context: Context, watcherPreference: Boolean, updateInterval: Int, autoTracking: Int) {
+			if (updateInterval > 0 && autoTracking > 0) {
+				ActivityService.requestActivity(context, LaunchActivity::class, updateInterval)
+				if (instance == null && watcherPreference && updateInterval > 0 && autoTracking > 0)
 					ContextCompat.startForegroundService(context, Intent(context, ActivityWatcherService::class.java))
-			} else if (instance != null) {
-				instance!!.stopSelf()
-			}
+			} else
+				instance?.stopSelf()
 		}
 	}
 }

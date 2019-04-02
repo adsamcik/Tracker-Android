@@ -13,8 +13,8 @@ class BootReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
 			TrackerLocker.initializeFromPersistence(context)
-			ActivityWatcherService.pokeWithCheck(context)
-			ActivityService.requestAutoTracking(context, LaunchActivity::class.java)
+			ActivityWatcherService.poke(context)
+			ActivityService.requestAutoTracking(context, LaunchActivity::class)
 		}
 	}
 }

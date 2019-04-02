@@ -405,7 +405,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
 
 		if (isBackgroundActivated) {
-			ActivityService.requestAutoTracking(this, this::class)
+			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)
 			TrackerLocker.isLocked.observe(this) {
 				if (it)
 					stopSelf()
@@ -413,7 +413,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		} else
 			ActivityService.requestActivity(this, this::class, minUpdateDelayInSeconds)
 
-		ActivityWatcherService.poke(this, false)
+		ActivityWatcherService.poke(this)
 
 		isServiceRunning.value = true
 
@@ -428,7 +428,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		service = null
 		isServiceRunning.value = false
 
-		ActivityWatcherService.pokeWithCheck(this)
+		ActivityWatcherService.poke(this)
 		ActivityService.removeActivityRequest(this, this::class)
 
 		LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(locationCallback)

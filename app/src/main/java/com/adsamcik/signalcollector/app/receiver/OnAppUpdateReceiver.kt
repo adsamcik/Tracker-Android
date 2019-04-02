@@ -54,8 +54,8 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 			editor.apply()
 
 			TrackerLocker.initializeFromPersistence(context)
-			ActivityWatcherService.pokeWithCheck(context)
-			ActivityService.requestAutoTracking(context, LaunchActivity::class.java)
+			ActivityWatcherService.poke(context)
+			ActivityService.requestAutoTracking(context, LaunchActivity::class)
 		}
 	}
 }

@@ -118,7 +118,7 @@ object TrackerLocker {
 
 	/**
 	 * This method ensures the watcher is in proper state
-	 * It cannot be handled with observe because pokeWithCheck method requires context
+	 * It cannot be handled with observe because poke method requires context
 	 */
 	private fun pokeWatcherService(context: Context) {
 		//Desired state is checked from other sources because it might not be ready yet in LiveData
@@ -153,7 +153,7 @@ object TrackerLocker {
 		synchronized(this) {
 			lockedUntil = System.currentTimeMillis() + lockTimeInMillis
 
-			ActivityWatcherService.pokeWithCheck(context)
+			ActivityWatcherService.poke(context)
 
 			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
 				context.stopService<TrackerService>()
@@ -172,7 +172,7 @@ object TrackerLocker {
 			context.alarmManager.cancel(getIntent(context))
 			setTimeLock(context, 0)
 
-			ActivityWatcherService.pokeWithCheck(context)
+			ActivityWatcherService.poke(context)
 		}
 	}
 
@@ -183,7 +183,7 @@ object TrackerLocker {
 		synchronized(this) {
 			if (lockedUntil < System.currentTimeMillis()) {
 				isLocked.postValue(false)
-				ActivityWatcherService.pokeWithCheck(context)
+				ActivityWatcherService.poke(context)
 			}
 		}
 	}

@@ -28,7 +28,7 @@ class LaunchActivity : AppCompatActivity() {
 		if (Build.VERSION.SDK_INT >= 26)
 			NotificationChannels.prepareChannels(this)
 
-		ActivityWatcherService.pokeWithCheck(this)
+		ActivityWatcherService.poke(this)
 
 		TrackerLocker.initializeFromPersistence(this)
 

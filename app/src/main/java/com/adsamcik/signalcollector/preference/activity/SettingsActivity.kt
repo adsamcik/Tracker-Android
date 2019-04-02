@@ -14,12 +14,10 @@ import androidx.core.content.edit
 import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.activity.DetailActivity
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.database.AppDatabase
@@ -64,20 +62,18 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	}
 
 	private fun initializeTracking(caller: PreferenceFragmentCompat) {
-		caller.findPreference(R.string.settings_activity_watcher_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			if (newValue as Boolean) {
-				val updateRate = caller.preferenceManager.sharedPreferences.getInt(getString(R.string.settings_activity_freq_key), getString(R.string.settings_activity_freq_default).toInt())
-				ActivityService.requestActivity(this, LaunchActivity::class, updateRate)
-			} else
-				ActivityService.removeActivityRequest(this, LaunchActivity::class)
+		caller.findPreference(R.string.settings_tracking_activity_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+			ActivityWatcherService.onAutoTrackingPreferenceChange(this, newValue as Int)
+			return@OnPreferenceChangeListener true
+		}
 
-			ActivityWatcherService.pokeWithCheck(this@SettingsActivity, newValue)
+		caller.findPreference(R.string.settings_activity_watcher_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+			ActivityWatcherService.onWatcherPreferenceChange(this, newValue as Boolean)
 			return@OnPreferenceChangeListener true
 		}
 
 		caller.findPreference(R.string.settings_activity_freq_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			ActivityService.requestActivity(this, LaunchActivity::class, newValue as Int)
-			ActivityWatcherService.pokeWithCheck(this)
+			ActivityWatcherService.onActivityIntervalPreferenceChange(this, newValue as Int)
 			return@OnPreferenceChangeListener true
 		}
 

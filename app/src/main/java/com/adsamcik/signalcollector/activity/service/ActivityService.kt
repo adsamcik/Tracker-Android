@@ -118,6 +118,14 @@ class ActivityService : IntentService("ActivityService") {
 			return requestActivityInternal(context, tClass, preferences.getInt(key, default), false)
 		}
 
+		fun requestAutoTracking(context: Context, tClass: KClass<*>) {
+			val resources = context.resources
+			val keyUpdateFrequency = resources.getString(R.string.settings_activity_freq_key)
+			val defaultUpdateFrequency = resources.getString(R.string.settings_activity_freq_default).toInt()
+			val updateRate = Preferences.getPref(context).getInt(keyUpdateFrequency, defaultUpdateFrequency)
+			requestAutoTracking(context, tClass, updateRate)
+		}
+
 		/**
 		 * Request auto tracking updates
 		 * Checks if autotracking is allowed
@@ -126,17 +134,14 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param tClass  class that requests update
 		 * @return true if success
 		 */
-		fun requestAutoTracking(context: Context, tClass: KClass<*>): Boolean {
+		fun requestAutoTracking(context: Context, tClass: KClass<*>, updateRate: Int): Boolean {
 			val preferences = Preferences.getPref(context)
 			val resources = context.resources
 			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
 			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
 
 			if (preferences.getInt(keyAutoTracking, defaultAutoTracking) > 0) {
-				val keyUpdateFrequency = resources.getString(R.string.settings_activity_freq_key)
-				val defaultUpdateFrequency = resources.getString(R.string.settings_activity_freq_default).toInt()
-
-				if (requestActivityInternal(context, tClass, preferences.getInt(keyUpdateFrequency, defaultUpdateFrequency), true)) {
+				if (requestActivityInternal(context, tClass, updateRate, true)) {
 					mBackgroundTracking = true
 					return true
 				}
