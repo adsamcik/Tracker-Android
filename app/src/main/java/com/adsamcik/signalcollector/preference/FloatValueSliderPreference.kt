@@ -71,6 +71,8 @@ class FloatValueSliderPreference : Preference {
 
 		slider.setPreferences(sharedPreferences, key, mInitialValue)
 
+		slider.setOnValueChangeListener { value, fromUser -> if (fromUser) onPreferenceChangeListener?.onPreferenceChange(this, value) }
+
 		this.slider = slider
 	}
 }
