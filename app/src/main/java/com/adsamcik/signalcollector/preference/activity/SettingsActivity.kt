@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.debug.activity.StatusActivity
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
 import com.adsamcik.signalcollector.export.activity.ExportActivity
+import com.adsamcik.signalcollector.misc.SnackMaker
 import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.notification.Notifications
 import com.adsamcik.signalcollector.preference.Preferences
@@ -47,6 +48,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	private val backstack = ArrayList<PreferenceScreen>()
 
 	private var clickCount = 0
+
+	private lateinit var snackMaker: SnackMaker
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -86,12 +89,45 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			return@OnPreferenceChangeListener true
 		}
 
+		val locationPreference = caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_location_enabled_key)
+		val wifiPreference = caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_wifi_enabled_key)
+		val cellPreference = caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_cell_enabled_key)
+
+
 		val packageManager = packageManager
 		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI))
-			caller.findPreference(R.string.settings_wifi_enabled_key).isEnabled = false
+			wifiPreference.isEnabled = false
 
 		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY))
-			caller.findPreference(R.string.settings_cell_enabled_key).isEnabled = false
+			cellPreference.isEnabled = false
+
+		locationPreference.setOnPreferenceChangeListener { _, newValue ->
+			if (!validateEnablePreference(locationEnabled = newValue as Boolean, wifiEnabled = wifiPreference.isChecked, cellEnabled = cellPreference.isChecked)) {
+				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				false
+			} else
+				true
+		}
+
+		wifiPreference.setOnPreferenceChangeListener { _, newValue ->
+			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = newValue as Boolean, cellEnabled = cellPreference.isChecked)) {
+				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				false
+			} else
+				true
+		}
+
+		cellPreference.setOnPreferenceChangeListener { _, newValue ->
+			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = wifiPreference.isChecked, cellEnabled = newValue as Boolean)) {
+				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				false
+			} else
+				true
+		}
+	}
+
+	private fun validateEnablePreference(locationEnabled: Boolean, wifiEnabled: Boolean, cellEnabled: Boolean): Boolean {
+		return locationEnabled.or(wifiEnabled).or(cellEnabled)
 	}
 
 	private fun initializeExport(caller: PreferenceFragmentCompat) {
@@ -119,6 +155,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	}
 
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {
+		snackMaker = SnackMaker(caller.listView)
+
 		setOnClickListener(R.string.settings_licenses_key) {
 			startActivity<LicenseActivity> { }
 		}
