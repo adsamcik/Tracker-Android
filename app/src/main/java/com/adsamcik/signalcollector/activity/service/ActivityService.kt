@@ -24,6 +24,7 @@ import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.tasks.Task
+import kotlin.reflect.KClass
 
 /**
  * Intent service that receives all activity updates.
@@ -99,7 +100,7 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param updateRate update rate in seconds
 		 * @return true if success
 		 */
-		fun requestActivity(context: Context, tClass: Class<*>, updateRate: Int): Boolean =
+		fun requestActivity(context: Context, tClass: KClass<*>, updateRate: Int): Boolean =
 				requestActivityInternal(context, tClass, updateRate, false)
 
 		/**
@@ -109,7 +110,7 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param tClass  class that requests update
 		 * @return true if success
 		 */
-		fun requestActivity(context: Context, tClass: Class<*>): Boolean {
+		fun requestActivity(context: Context, tClass: KClass<*>): Boolean {
 			val preferences = Preferences.getPref(context)
 			val resources = context.resources
 			val key = resources.getString(R.string.settings_activity_freq_key)
@@ -125,7 +126,7 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param tClass  class that requests update
 		 * @return true if success
 		 */
-		fun requestAutoTracking(context: Context, tClass: Class<*>): Boolean {
+		fun requestAutoTracking(context: Context, tClass: KClass<*>): Boolean {
 			val preferences = Preferences.getPref(context)
 			val resources = context.resources
 			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
@@ -146,7 +147,7 @@ class ActivityService : IntentService("ActivityService") {
 		/**
 		 * Internal activity request
 		 */
-		private fun requestActivityInternal(context: Context, tClass: Class<*>, updateRate: Int, backgroundTracking: Boolean): Boolean {
+		private fun requestActivityInternal(context: Context, tClass: KClass<*>, updateRate: Int, backgroundTracking: Boolean): Boolean {
 			setMinUpdateRate(context, updateRate)
 			val hash = tClass.hashCode()
 			val index = mActiveRequests.indexOfKey(hash)
@@ -164,7 +165,7 @@ class ActivityService : IntentService("ActivityService") {
 		/**
 		 * Removes previous activity request
 		 */
-		fun removeActivityRequest(context: Context, tClass: Class<*>) {
+		fun removeActivityRequest(context: Context, tClass: KClass<*>) {
 			val index = mActiveRequests.indexOfKey(tClass.hashCode())
 			if (index >= 0) {
 				val request = mActiveRequests.valueAt(index)
@@ -177,7 +178,7 @@ class ActivityService : IntentService("ActivityService") {
 					setMinUpdateRate(context, ari.updateDelay)
 				}
 			} else {
-				Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.name + ")"))
+				Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.simpleName + ")"))
 			}
 
 			if (mActiveRequests.size() == 0) {

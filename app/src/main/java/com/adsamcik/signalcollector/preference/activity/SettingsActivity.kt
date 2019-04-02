@@ -67,16 +67,16 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		caller.findPreference(R.string.settings_activity_watcher_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			if (newValue as Boolean) {
 				val updateRate = caller.preferenceManager.sharedPreferences.getInt(getString(R.string.settings_activity_freq_key), getString(R.string.settings_activity_freq_default).toInt())
-				ActivityService.requestActivity(this, LaunchActivity::class.java, updateRate)
+				ActivityService.requestActivity(this, LaunchActivity::class, updateRate)
 			} else
-				ActivityService.removeActivityRequest(this, LaunchActivity::class.java)
+				ActivityService.removeActivityRequest(this, LaunchActivity::class)
 
 			ActivityWatcherService.pokeWithCheck(this@SettingsActivity, newValue)
 			return@OnPreferenceChangeListener true
 		}
 
 		caller.findPreference(R.string.settings_activity_freq_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			ActivityService.requestActivity(this, LaunchActivity::class.java, newValue as Int)
+			ActivityService.requestActivity(this, LaunchActivity::class, newValue as Int)
 			ActivityWatcherService.pokeWithCheck(this)
 			return@OnPreferenceChangeListener true
 		}
