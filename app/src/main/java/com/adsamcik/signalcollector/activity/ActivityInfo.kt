@@ -9,7 +9,7 @@ import com.google.android.gms.location.DetectedActivity
  * Class containing information about activity.
  * It stores original activity as well as resolved activity and confidence.
  *
- * Using [getResolvedActivityName]
+ * Using [getGroupedActivityName]
  */
 class ActivityInfo(val activity: Int, val confidence: Int) {
 	constructor(detectedActivity: DetectedActivity) : this(detectedActivity.type, detectedActivity.confidence)
@@ -22,7 +22,7 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
 	 *
 	 * @return Localized name of the resolved activity
 	 */
-	fun getResolvedActivityName(context: Context): String = getResolvedActivityName(context, groupedActivity)
+	fun getGroupedActivityName(context: Context): String = getGroupedActivityName(context, groupedActivity)
 
 
 	companion object {
@@ -47,7 +47,7 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
 		/**
 		 * Returns resolved activity string. String is localized.
 		 */
-		fun getResolvedActivityName(context: Context, resolvedActivity: GroupedActivity): String =
+		fun getGroupedActivityName(context: Context, resolvedActivity: GroupedActivity): String =
 				when (resolvedActivity) {
 					GroupedActivity.STILL -> context.getString(R.string.activity_idle)
 					GroupedActivity.ON_FOOT -> context.getString(R.string.activity_on_foot)

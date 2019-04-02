@@ -26,6 +26,7 @@ import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.app.widget.InfoComponent
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.SnackMaker
 import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.mock.useMock
@@ -313,7 +314,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			//todo add vertical accuracy
 
 			if (location.altitude != null) {
-				altitude.text = getString(R.string.info_altitude, location.altitude.toInt())
+				altitude.text = getString(R.string.info_altitude, location.altitude.toInt().formatAsDistance(2, LengthSystem.Metric))
 				altitude.visibility = VISIBLE
 			} else
 				altitude.visibility = GONE

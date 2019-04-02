@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Point
-import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.provider.Settings
@@ -90,22 +89,6 @@ object Assist {
 		return if (appUsableSize.y < realScreenSize.y) {
 			Pair(NavBarPosition.BOTTOM, Point(appUsableSize.x, realScreenSize.y - appUsableSize.y))
 		} else Pair(NavBarPosition.UNKNOWN, Point())
-	}
-
-	/**
-	 * Generates position between two passed positions based on time
-	 *
-	 * @param locationOne first location
-	 * @param locationTwo second location
-	 * @param time        Value between 0 and 1. 0 is locationOne, 1 is locationTwo
-	 * @return interpolated location
-	 */
-	fun interpolateLocation(locationOne: Location, locationTwo: Location, time: Double): Location {
-		val l = Location("interpolation")
-		l.latitude = locationOne.latitude + (locationTwo.latitude - locationOne.latitude) * time
-		l.longitude = locationOne.longitude + (locationTwo.longitude - locationOne.longitude) * time
-		l.altitude = locationOne.altitude + (locationTwo.altitude - locationOne.altitude) * time
-		return l
 	}
 
 	/**

@@ -8,7 +8,6 @@ import com.adsamcik.signalcollector.misc.extension.deg2rad
 import com.adsamcik.signalcollector.misc.extension.round
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
-import kotlin.math.pow
 
 @JsonClass(generateAdapter = true)
 data class Location(
@@ -108,19 +107,6 @@ data class Location(
 	companion object {
 		const val EARTH_CIRCUMFERENCE: Int = 40075000
 		const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE
-
-		fun toGoogleLon(lon: Double, tileCount: Int): Double {
-			return tileCount * ((lon + 180.0) / 360.0)
-		}
-
-		fun toGoogleLat(lat: Double, tileCount: Int): Double {
-			val latRad = lat.deg2rad()
-			return tileCount * (1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0
-		}
-
-		fun countPixelSize(latitude: Double, zoom: Int): Double {
-			return EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
-		}
 	}
 }
 

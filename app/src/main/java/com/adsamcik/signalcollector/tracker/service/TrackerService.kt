@@ -35,7 +35,10 @@ import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
+import com.adsamcik.signalcollector.misc.extension.LocationExtensions
+import com.adsamcik.signalcollector.misc.extension.formatAsDistance
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
@@ -159,7 +162,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			rawData.setLocation(location).setActivity(activityInfo)
 
 
-		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(true, rawData))
+		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(location, rawData))
 
 		saveData(rawData)
 		rawDataEcho.postValue(rawData)
@@ -208,7 +211,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val timeDelta = (wifiScanTime - firstLocation.time).toDouble() / (secondLocation.time - firstLocation.time).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
 		if (wifiDistance <= UPDATE_MAX_DISTANCE_TO_WIFI) {
-			val interpolatedLocation = Assist.interpolateLocation(firstLocation, secondLocation, timeDelta)
+			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation, secondLocation, timeDelta)
 			rawData.setWifi(interpolatedLocation, wifiScanTime, wifiScanData)
 			distanceToWifi = distanceBetweenFirstAndSecond
 		}
@@ -241,7 +244,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	/**
 	 * Generates tracking notification
 	 */
-	private fun generateNotification(gpsAvailable: Boolean, d: RawData?): Notification {
+	private fun generateNotification(location: Location? = null, d: RawData? = null): Notification {
 		val intent = Intent(this, LaunchActivity::class.java)
 		val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -266,11 +269,11 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		} else
 			builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, getString(R.string.notification_stop), stop)
 
-		if (!gpsAvailable)
+		if (location == null)
 			builder.setContentTitle(getString(R.string.notification_looking_for_gps))
 		else {
 			builder.setContentTitle(getString(R.string.notification_tracking_active))
-			builder.setContentText(buildNotificationText(d!!))
+			builder.setContentText(buildNotificationText(location, d!!))
 		}
 
 		return builder.build()
@@ -279,36 +282,44 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	/**
 	 * Builds text for tracking notification
 	 */
-	//todo rewrite notification texts to better fit new offline approach
-	private fun buildNotificationText(d: RawData): String {
+	private fun buildNotificationText(location: Location, d: RawData): String {
 		val resources = resources
 		val sb = StringBuilder()
-		val df = DecimalFormat("#.#")
+		val df = DecimalFormat.getNumberInstance()
 		df.roundingMode = RoundingMode.HALF_UP
 
-		var isEmpty = true
+		val delimeter = ", "
 
-		if (d.activity != null)
+		sb.append(resources.getString(R.string.notification_location,
+				Location.convert(location.latitude, Location.FORMAT_DEGREES),
+				Location.convert(location.longitude, Location.FORMAT_DEGREES)
+		))
+				.append(delimeter)
+				.append(resources.getString(R.string.info_altitude, location.altitude.toInt().formatAsDistance(2, LengthSystem.Metric)))
+				.append(delimeter)
+
+		val activity = d.activity
+		if (activity != null) {
 			sb.append(resources.getString(R.string.notification_activity,
-					d.activity!!.getResolvedActivityName(this))).append(", ")
+					activity.getGroupedActivityName(this))).append(delimeter)
+		}
 
 		val wifi = d.wifi
 		if (wifi != null) {
-			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(", ")
-			isEmpty = false
+			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(delimeter)
 		}
 
 		val cell = d.cell
 		if (cell != null && cell.registeredCells.isNotEmpty()) {
 			val mainCell = cell.registeredCells[0]
-			sb.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm)).append(' ').append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount)).append(", ")
-			isEmpty = false
+			sb
+					.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm))
+					.append(' ')
+					.append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount))
+					.append(delimeter)
 		}
 
-		if (!isEmpty)
-			sb.setLength(sb.length - 2)
-		else
-			sb.append(resources.getString(R.string.notification_nothing_found))
+		sb.setLength(sb.length - 2)
 
 		return sb.toString()
 	}
@@ -365,7 +376,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 				override fun onLocationAvailability(availability: LocationAvailability) {
 					if (!availability.isLocationAvailable)
-						notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
+						notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification())
 				}
 
 			}
@@ -411,7 +422,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		super.onStartCommand(intent, flags, startId)
 
 		isBackgroundActivated = intent.getBooleanExtra("backTrack", false)
-		startForeground(NOTIFICATION_ID_SERVICE, generateNotification(false, null))
+		startForeground(NOTIFICATION_ID_SERVICE, generateNotification())
 
 		if (isBackgroundActivated) {
 			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)

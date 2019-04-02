@@ -20,7 +20,7 @@ import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.misc.DistanceUnit
+import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
@@ -115,7 +115,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			val summaryStats = TableStat(r.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
 					StatData(r.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
 					StatData(r.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
-					StatData(r.getString(R.string.stats_distance_total), sumSessionData.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+					StatData(r.getString(R.string.stats_distance_total), sumSessionData.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
 					StatData(r.getString(R.string.stats_location_count), (locationDao.count().value
 							?: 0).formatReadable()),
 					StatData(r.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
@@ -128,7 +128,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			val weeklyStats = TableStat(r.getString(R.string.stats_weekly_title), showPosition = false, data = listOf(
 					StatData(r.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(appContext)),
-					StatData(r.getString(R.string.stats_distance_total), lastMonthSummary.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+					StatData(r.getString(R.string.stats_distance_total), lastMonthSummary.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
 					StatData(r.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
 					StatData(r.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
 			))
@@ -142,7 +142,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			}
 			sessionDao.getBetween(dayAgoCalendar.timeInMillis, now).map {
 				arrayOf(TableStat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", false, listOf(
-						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
 						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
 						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
 				)))
@@ -156,7 +156,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			sessionDao.getSummaryByDays(monthAgoCalendar.timeInMillis, dayAgoCalendar.timeInMillis).map {
 				arrayOf(TableStat(it.time.formatAsDate(), false, listOf(
-						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, DistanceUnit.Metric)),
+						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
 						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
 						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
 				)))

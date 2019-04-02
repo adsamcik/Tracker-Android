@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.misc
 
-enum class DistanceUnit {
+enum class LengthSystem {
 	Metric,
 	Imperial
 }

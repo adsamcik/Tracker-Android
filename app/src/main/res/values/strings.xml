@@ -88,6 +88,6 @@
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
     <!-- NEW UI -->
-    <string name="info_altitude">%d m altitude</string>
-    <string name="info_accuracy">%d m accuracy</string>
+    <string name="info_altitude">%s altitude</string>
+    <string name="info_accuracy">%s accuracy</string>
 </resources>

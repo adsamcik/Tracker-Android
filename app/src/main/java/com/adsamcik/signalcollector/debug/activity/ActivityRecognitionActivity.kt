@@ -70,7 +70,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 		}
 		adapter.addAll(items.map {
 			val action = it.action ?: ""
-			val activityName = it.activity.getResolvedActivityName(appContext)
+			val activityName = it.activity.getGroupedActivityName(appContext)
 			arrayOf(it.time.toString(), activityName, action)
 		})
 
@@ -144,7 +144,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 			val inst = instance?.get()
 			inst?.runOnUiThread {
 				val adapter = inst.adapter
-				val activityName = activity.getResolvedActivityName(context)
+				val activityName = activity.getGroupedActivityName(context)
 				adapter.add(if (action == null) arrayOf(timeString, activityName) else arrayOf(timeString, activityName, action))
 				//too complicated on recycler view
 				/*if (inst.recyclerView. == adapter.count - 2)

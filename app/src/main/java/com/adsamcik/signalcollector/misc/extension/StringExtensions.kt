@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.misc.extension
 import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.DistanceUnit
+import com.adsamcik.signalcollector.misc.LengthSystem
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -103,17 +103,40 @@ fun Long.formatAsShortDateTime(): String {
 	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
 }
 
-fun Float.formatAsDistance(digits: Int, unit: DistanceUnit): String {
-	val thisDouble = this.toDouble()
+fun Float.formatAsDistance(digits: Int, unit: LengthSystem): String {
+	return this.toDouble().formatAsDistance(digits, unit)
+}
+
+fun Double.formatAsDistance(digits: Int, unit: LengthSystem): String {
 	return when (unit) {
-		DistanceUnit.Metric -> {
-			if (thisDouble >= 10000.0)
-				"${(thisDouble / 1000.0).formatReadable(digits)} km"
+		LengthSystem.Metric -> {
+			if (this >= 10000.0)
+				"${(this / 1000.0).formatReadable(digits)} km"
 			else
-				"${thisDouble.formatReadable(digits)} m"
+				"${this.formatReadable(digits)} m"
 		}
-		DistanceUnit.Imperial -> {
-			val feet = 3.280839895 * thisDouble
+		LengthSystem.Imperial -> {
+			val feet = 3.280839895 * this
+
+			if (feet >= 5280) {
+				val miles = feet / 5280
+				"${miles.formatReadable(digits)} mile"
+			} else
+				"${feet.formatReadable(digits)} feet"
+		}
+	}
+}
+
+fun Int.formatAsDistance(digits: Int, unit: LengthSystem): String {
+	return when (unit) {
+		LengthSystem.Metric -> {
+			if (this >= 10000)
+				"${(this / 1000.0).formatReadable(digits)} km"
+			else
+				"${this.formatReadable()} m"
+		}
+		LengthSystem.Imperial -> {
+			val feet = 3.280839895 * this
 
 			if (feet >= 5280) {
 				val miles = feet / 5280

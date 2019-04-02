@@ -93,21 +93,8 @@
 
     <string name="export_share_button">Sdílet (Export)</string>
 
-    <string name="feedback_bug">Chyba</string>
-    <string name="feedback_description">Popis (dobrovolný)</string>
-    <string name="feedback_error_long_description">Popis je příliš dlouhý</string>
-    <string name="feedback_error_long_summary">Souhrn je příliš dlouhý</string>
-    <string name="feedback_error_short_summary">Souhrn je příliš stručný</string>
-    <string name="feedback_error_spaces_summary">Příliš mnoho mezer</string>
-    <string name="feedback_error_type">Musíte vybrat typ zpětné vazby</string>
-    <string name="feedback_feature">Vylepšení</string>
-    <string name="feedback_summary">Souhrn</string>
-    <string name="feedback_title">Zpětná vazba</string>
-
-    <string name="info_accuracy">%d m přesnost</string>
-    <string name="info_altitude">%d m n. m.</string>
-
-    <string name="internet_connection_required">Nedostupné připojení k internetu</string>
+    <string name="info_accuracy">%s přesnost</string>
+    <string name="info_altitude">%s n. m.</string>
 
     <string name="location">Umístění</string>
 

@@ -82,7 +82,7 @@ class ActivityWatcherService : LifecycleService() {
 				.setColor(ContextCompat.getColor(this, R.color.color_accent))
 
 		builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
-		builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getResolvedActivityName(this), activityInfo.confidence))
+		builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getGroupedActivityName(this), activityInfo.confidence))
 		when (activityInfo.groupedActivity) {
 			GroupedActivity.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
 			GroupedActivity.ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)

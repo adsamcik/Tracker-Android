@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.misc.extension
 
 import android.location.Location
+import kotlin.math.pow
 
 object LocationExtensions {
 	const val ESTIMATE_LOCATION_PROVIDER: String = "Estimate"
@@ -53,6 +54,19 @@ object LocationExtensions {
 		estimate.time = from.time + (to.time - from.time * delta).toLong()
 
 		return estimate
+	}
+
+	fun toGoogleLon(lon: Double, tileCount: Int): Double {
+		return tileCount * ((lon + 180.0) / 360.0)
+	}
+
+	fun toGoogleLat(lat: Double, tileCount: Int): Double {
+		val latRad = lat.deg2rad()
+		return tileCount * (1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0
+	}
+
+	fun countPixelSize(latitude: Double, zoom: Int): Double {
+		return com.adsamcik.signalcollector.tracker.data.Location.EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
 	}
 }
 
