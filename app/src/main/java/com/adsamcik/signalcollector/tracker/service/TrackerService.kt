@@ -148,35 +148,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val rawData = RawData(location.time)
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
-			synchronized(wifiScanTime) {
-				if (wifiScanData != null) {
-					val locations = locationResult.locations
-					if (locations.size == 2) {
-						val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
-						val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
-
-						val first = nearestLocation[firstIndex]
-						val second = nearestLocation[(firstIndex + 1).rem(2)]
-						setWifi(first, second, first.distanceTo(second), rawData)
-					} else if (previousLocation != null) {
-						setWifi(previousLocation, location, distance, rawData)
-					}
-
-					wifiScanData = null
-					wifiScanTime = -1L
-				}
-
-				val now = System.currentTimeMillis()
-				if (Build.VERSION.SDK_INT >= 28) {
-					if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 20 && (wifiScanTime == -1L || now - wifiScanTime > Constants.SECOND_IN_MILLISECONDS * 15)) {
-						wifiScanRequested = wifiManager.startScan()
-						wifiLastScanRequest = now
-					}
-				} else if (!wifiScanRequested) {
-					wifiManager.startScan()
-					wifiLastScanRequest = now
-				}
-			}
+			setWifi(locationResult, location, previousLocation, distance, rawData)
 		}
 
 		if (preferences.getBoolean(keyCellEnabled, defaultCellEnabled) && !Assist.isAirplaneModeEnabled(this)) {
@@ -198,6 +170,38 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		this.previousLocation = location
 
 		wakeLock.release()
+	}
+
+	private fun setWifi(locationResult: LocationResult, location: Location, previousLocation: Location?, distance: Float, rawData: RawData) {
+		synchronized(wifiScanTime) {
+			if (wifiScanData != null) {
+				val locations = locationResult.locations
+				if (locations.size == 2) {
+					val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
+					val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
+
+					val first = nearestLocation[firstIndex]
+					val second = nearestLocation[(firstIndex + 1).rem(2)]
+					setWifi(first, second, first.distanceTo(second), rawData)
+				} else if (previousLocation != null) {
+					setWifi(previousLocation, location, distance, rawData)
+				}
+
+				wifiScanData = null
+				wifiScanTime = -1L
+			}
+
+			val now = System.currentTimeMillis()
+			if (Build.VERSION.SDK_INT >= 28) {
+				if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 20 && (wifiScanTime == -1L || now - wifiScanTime > Constants.SECOND_IN_MILLISECONDS * 15)) {
+					wifiScanRequested = wifiManager.startScan()
+					wifiLastScanRequest = now
+				}
+			} else if (!wifiScanRequested) {
+				wifiManager.startScan()
+				wifiLastScanRequest = now
+			}
+		}
 	}
 
 	private fun setWifi(firstLocation: Location, secondLocation: Location, distanceBetweenFirstAndSecond: Float, rawData: RawData) {
