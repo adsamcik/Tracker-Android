@@ -287,4 +287,6 @@
     <string name="settings_map_clear_heat_cache_title">Smazat ofsetové hodnoty teplotní mapy</string>
     <string name="settings_map_clear_heat_cache_description">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
     <string name="notification_location">%1$s° S %2$s° V</string>
+    <string name="info_session_collections">%d sběrů</string>
+    <string name="info_session_distance">%s vzdálenost</string>
 </resources>
