@@ -252,7 +252,7 @@ class ActivityService : IntentService("ActivityService") {
 			val defaultStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
 
 			if (groupedActivity == GroupedActivity.UNKNOWN ||
-					groupedActivity == GroupedActivity.UNKNOWN ||
+					groupedActivity == GroupedActivity.STILL ||
 					TrackerService.isServiceRunning.value ||
 					Preferences.getPref(context).getBoolean(keyStopUntilRecharge, defaultStopUntilRecharge))
 				return false
