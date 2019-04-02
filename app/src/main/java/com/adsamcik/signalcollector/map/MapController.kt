@@ -22,7 +22,11 @@ class MapController(context: Context, val map: GoogleMap) {
 	fun setLayer(context: Context, layerType: LayerType, force: Boolean = false) {
 		if (force || this.layerType != layerType) {
 			this.layerType = layerType
-			tileProvider.setHeatmapLayer(context, layerType)
+
+			GlobalScope.launch {
+				tileProvider.setHeatmapLayer(context, layerType)
+				clearTileCache()
+			}
 		}
 	}
 
