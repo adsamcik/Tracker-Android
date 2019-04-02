@@ -1,21 +1,19 @@
 package com.adsamcik.signalcollector.misc
 
 import android.os.Handler
-import android.os.Looper
-import android.util.Pair
 import android.view.View
 import androidx.annotation.IntDef
 import androidx.annotation.StringRes
+import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.snackbar.Snackbar.*
 import java.lang.ref.WeakReference
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * SnackMaker class is builder and manager class for Snackbars.
  * It can properly queue multiple Snackbars and display them in order.
  */
-//todo all methods should use queue
 class SnackMaker(view: View) {
 	@Retention(AnnotationRetention.SOURCE)
 	@IntDef(LENGTH_INDEFINITE, LENGTH_LONG, LENGTH_SHORT)
@@ -23,7 +21,7 @@ class SnackMaker(view: View) {
 
 	private val weakView: WeakReference<View> = WeakReference(view)
 
-	private val queue = LinkedBlockingQueue<Pair<String, Int>>()
+	private val queue = ConcurrentLinkedQueue<SnackbarRecipe>()
 	private var current: Snackbar? = null
 	private var handler: Handler? = null
 
@@ -33,61 +31,94 @@ class SnackMaker(view: View) {
 	 * @param message Message
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun showSnackbar(message: String, @SnackDuration duration: Int = Snackbar.LENGTH_LONG) {
-		if (queue.isEmpty()) {
-			queue.add(Pair(message, duration))
-			next()
-		} else
-			queue.add(Pair(message, duration))
+	fun showSnackbar(message: String, @SnackDuration duration: Int = Snackbar.LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}
 
 	/**
 	 * Adds message to SnackMaker queue
 	 *
-	 * @param message Message resource
+	 * @param messageRes Message resource
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun showSnackbar(@StringRes message: Int, @SnackDuration duration: Int = LENGTH_LONG) {
-		showSnackbar(weakView.get()!!.context.getString(message), duration)
+	fun showSnackbar(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+		val message = weakView.get()!!.context.getString(messageRes)
+		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}
 
 	/**
 	 * Adds message with action to SnackMaker queue
 	 *
-	 * @param message Message string resource
+	 * @param messageRes Message string resource
 	 * @param duration Duration that has to be one of [SnackDuration] values
-	 * @param action Action string resource
-	 * @param onClickListener On action click listener
+	 * @param actionRes Action string resource
+	 * @param onActionClick On action click listener
 	 */
-	fun showSnackbar(@StringRes message: Int, @StringRes action: Int, onClickListener: View.OnClickListener, @SnackDuration duration: Int = LENGTH_LONG) {
-		Snackbar.make(weakView.get()!!, message, duration).setAction(action, onClickListener).show()
+	fun showSnackbar(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority, @StringRes actionRes: Int, onActionClick: View.OnClickListener) {
+		val resources = weakView.get()!!.context.resources
+		val action = resources.getString(actionRes)
+		val message = resources.getString(messageRes)
+		addSnackbar(SnackbarRecipe(message, duration, priority, action, onActionClick))
+	}
+
+	private fun addSnackbar(snackbarRecipe: SnackbarRecipe) {
+		when (snackbarRecipe.priority) {
+			SnackbarPriority.QUEUE -> {
+				queue.add(snackbarRecipe)
+				if (current == null)
+					next()
+			}
+			SnackbarPriority.IMPORTANT -> show(weakView.get()!!, snackbarRecipe)
+		}
+
 	}
 
 	private fun interrupt() {
-		if (current != null)
+		if (current != null) {
 			current!!.dismiss()
+			current = null
+		}
 		queue.clear()
 		handler = null
 	}
 
-	private operator fun next() {
-		if (current != null)
-			queue.remove()
+	private fun next() {
 		if (!queue.isEmpty()) {
 			val view = weakView.get()
 			if (view == null)
 				interrupt()
 			else {
-				current = Snackbar.make(view, queue.peek().first, queue.peek().second)
-
-				current!!.show()
-				if (handler == null) {
-					if (Looper.myLooper() == null)
-						Looper.prepare()
-					handler = Handler()
-				}
-				handler!!.postDelayed({ this.next() }, (if (queue.peek().second == Snackbar.LENGTH_LONG) 3500 else 2000).toLong())
+				val next = queue.remove()
+				current = show(view, next)
 			}
+		} else
+			current = null
+	}
+
+	private fun show(view: View, recipe: SnackbarRecipe): Snackbar {
+		return Snackbar.make(view, recipe.message, recipe.duration).apply {
+			if (recipe.action != null && recipe.onActionClick != null)
+				setAction(recipe.action, recipe.onActionClick)
+
+			addCallback(object : BaseTransientBottomBar.BaseCallback<Snackbar>() {
+				override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+					super.onDismissed(transientBottomBar, event)
+					next()
+				}
+			})
+			show()
 		}
+	}
+
+
+	private data class SnackbarRecipe(val message: String,
+	                                  @SnackDuration val duration: Int,
+	                                  val priority: SnackbarPriority,
+	                                  val action: String? = null,
+	                                  val onActionClick: View.OnClickListener? = null)
+
+	enum class SnackbarPriority {
+		QUEUE,
+		IMPORTANT
 	}
 }

@@ -35,6 +35,7 @@ import com.adsamcik.signalcollector.tracker.data.*
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
+import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -158,10 +159,13 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		if (requiredPermissions == null && view != null) {
 			if (!TrackerService.isServiceRunning.value) {
 				if (!Assist.isGNSSEnabled(activity)) {
-					SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_gnss_not_enabled, R.string.enable, View.OnClickListener {
-						val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-						startActivity(locationOptionsIntent)
-					})
+					SnackMaker(activity.root).showSnackbar(R.string.error_gnss_not_enabled,
+							priority = SnackMaker.SnackbarPriority.IMPORTANT,
+							actionRes = R.string.enable,
+							onActionClick = View.OnClickListener {
+								val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+								startActivity(locationOptionsIntent)
+							})
 				} else if (!Assist.canTrack(activity)) {
 					SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_nothing_to_track)
 				} else {
