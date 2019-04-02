@@ -17,6 +17,7 @@ import android.hardware.SensorManager.SENSOR_DELAY_NORMAL
 import android.location.Location
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Looper
 import android.os.PowerManager
 import android.telephony.TelephonyManager
@@ -56,6 +57,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private var wifiScanTime: Long = 0
 	private var wifiScanData: Array<ScanResult>? = null
 	private var wifiReceiver: WifiReceiver? = null
+	private var wifiLastScanRequest: Long = 0
+	private var wifiScanRequested: Boolean = false
 
 	private lateinit var notificationManager: NotificationManager
 	private lateinit var powerManager: PowerManager
@@ -140,24 +143,35 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
 			val prevLocation = prevLocation
-			if (wifiScanData != null) {
-				val locations = locationResult.locations
-				if (locations.size == 2) {
-					val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
-					val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
+			synchronized(wifiScanTime) {
+				if (wifiScanData != null) {
+					val locations = locationResult.locations
+					if (locations.size == 2) {
+						val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
+						val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
 
-					val first = nearestLocation[firstIndex]
-					val second = nearestLocation[(firstIndex + 1).rem(2)]
-					setWifi(first, second, first.distanceTo(second), rawData)
-				} else if (prevLocation != null) {
-					setWifi(prevLocation, location, distance, rawData)
+						val first = nearestLocation[firstIndex]
+						val second = nearestLocation[(firstIndex + 1).rem(2)]
+						setWifi(first, second, first.distanceTo(second), rawData)
+					} else if (prevLocation != null) {
+						setWifi(prevLocation, location, distance, rawData)
+					}
+
+					wifiScanData = null
+					wifiScanTime = -1L
 				}
 
-				wifiScanData = null
-				wifiScanTime = -1L
+				val now = System.currentTimeMillis()
+				if (Build.VERSION.SDK_INT >= 28) {
+					if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 20 && (wifiScanTime == -1L || now - wifiScanTime > Constants.SECOND_IN_MILLISECONDS * 15)) {
+						wifiScanRequested = wifiManager.startScan()
+						wifiLastScanRequest = now
+					}
+				} else if (!wifiScanRequested) {
+					wifiManager.startScan()
+					wifiLastScanRequest = now
+				}
 			}
-
-			wifiManager.startScan()
 		}
 
 		if (preferences.getBoolean(keyCellEnabled, defaultCellEnabled) && !Assist.isAirplaneModeEnabled(this)) {
@@ -356,7 +370,11 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		//Wifi tracking setup
 		if (sp.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
-			wifiManager.startScan()
+			//Let's not waste precious scan requests
+			if (Build.VERSION.SDK_INT < 28) {
+				wifiScanRequested = wifiManager.startScan()
+				wifiLastScanRequest = System.currentTimeMillis()
+			}
 			wifiReceiver = WifiReceiver()
 			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
 		}
@@ -462,9 +480,12 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 	private inner class WifiReceiver : BroadcastReceiver() {
 		override fun onReceive(context: Context, intent: Intent) {
-			wifiScanTime = System.currentTimeMillis()
-			val result = wifiManager.scanResults
-			wifiScanData = result.toTypedArray()
+			synchronized(wifiScanTime) {
+				wifiScanRequested = false
+				wifiScanTime = System.currentTimeMillis()
+				val result = wifiManager.scanResults
+				wifiScanData = result.toTypedArray()
+			}
 		}
 	}
 
