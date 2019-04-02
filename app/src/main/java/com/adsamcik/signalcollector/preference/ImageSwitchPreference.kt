@@ -127,17 +127,20 @@ class ImageSwitchPreference : Preference {
 
 
 	private fun initializeItem(item: SwitchItem, index: Int) {
-		val view = ImageView(context)
-		view.contentDescription = item.title
-		view.setImageResource(item.drawable)
-		view.imageTintList = mForegroundColors
-		val layoutParams = LinearLayout.LayoutParams(mImageSizePx, mImageSizePx)
-		layoutParams.setMargins(mMarginPx)
-		view.layoutParams = layoutParams
-		view.setOnClickListener { onClick(index) }
+		val view = item.imageView ?: ImageView(context).apply {
+			imageTintList = mForegroundColors
+			val layoutParams = LinearLayout.LayoutParams(mImageSizePx, mImageSizePx)
+			layoutParams.setMargins(mMarginPx)
+			this.layoutParams = layoutParams
+			mImageRoot!!.addView(this)
+			item.imageView = this
+		}
 
-		mImageRoot!!.addView(view)
-		item.imageView = view
+		view.run {
+			contentDescription = item.title
+			setImageResource(item.drawable)
+			setOnClickListener { onClick(index) }
+		}
 	}
 
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {
@@ -154,5 +157,5 @@ class ImageSwitchPreference : Preference {
 		mInitialized = true
 	}
 
-	class SwitchItem(val title: String, @DrawableRes val drawable: Int, var imageView: ImageView? = null)
+	data class SwitchItem(val title: String, @DrawableRes val drawable: Int, var imageView: ImageView? = null)
 }
