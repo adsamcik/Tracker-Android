@@ -13,6 +13,8 @@ import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
@@ -115,26 +117,15 @@ class ActivityWatcherService : LifecycleService() {
 		}
 
 		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
-			poke(context, value, getActivityIntervalPreference(context), getAutoTrackingPreference(context))
+			poke(context, watcherPreference = value)
 		}
 
 		fun onAutoTrackingPreferenceChange(context: Context, value: Int) {
-			poke(context, getWatcherPreference(context), getActivityIntervalPreference(context), value)
+			poke(context, autoTracking = value)
 		}
 
 		fun onActivityIntervalPreferenceChange(context: Context, value: Int) {
-			poke(context, getWatcherPreference(context), value, getAutoTrackingPreference(context))
-		}
-
-
-		/**
-		 * Checks if current [ActivityWatcherService] state is the one it should be in right now.
-		 *
-		 * @param context context
-		 */
-		@Synchronized
-		fun poke(context: Context) {
-			poke(context, getWatcherPreference(context), getActivityIntervalPreference(context), getAutoTrackingPreference(context))
+			poke(context, updateInterval = value)
 		}
 
 		/**
@@ -143,13 +134,22 @@ class ActivityWatcherService : LifecycleService() {
 		 * @param context context
 		 */
 		@Synchronized
-		fun poke(context: Context, watcherPreference: Boolean, updateInterval: Int, autoTracking: Int) {
+		fun poke(context: Context,
+		         watcherPreference: Boolean = getWatcherPreference(context),
+		         updateInterval: Int = getActivityIntervalPreference(context),
+		         autoTracking: Int = getAutoTrackingPreference(context),
+		         trackerLocked: Boolean = TrackerLocker.isLocked.value,
+		         trackerRunning: Boolean = TrackerService.isServiceRunning.value) {
+
 			if (updateInterval > 0 && autoTracking > 0) {
-				ActivityService.requestActivity(context, LaunchActivity::class, updateInterval)
-				if (instance == null && watcherPreference && updateInterval > 0 && autoTracking > 0)
+				ActivityService.requestAutoTracking(context, LaunchActivity::class, updateInterval)
+				if (instance == null && watcherPreference && !trackerLocked && !trackerRunning) {
 					ContextCompat.startForegroundService(context, Intent(context, ActivityWatcherService::class.java))
-			} else
-				instance?.stopSelf()
+					return
+				}
+			}
+
+			instance?.stopSelf()
 		}
 	}
 }

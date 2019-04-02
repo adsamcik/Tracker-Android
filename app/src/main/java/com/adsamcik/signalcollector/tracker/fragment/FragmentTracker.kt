@@ -186,9 +186,17 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun mock() {
 		val rawData = RawData(System.currentTimeMillis())
-		rawData.location = Location(rawData.time, 15.0, 15.0, 123.0, 6f, 3f)
+		val location = Location(rawData.time, 15.0, 15.0, 123.0, 6f, 3f)
+		rawData.location = location
 		rawData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
-		rawData.wifi = WifiData(System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
+		rawData.wifi = WifiData(android.location.Location("").apply {
+			latitude = location.latitude
+			longitude = location.longitude
+			altitude = location.altitude!!
+			if (Build.VERSION.SDK_INT >= 26)
+				verticalAccuracyMeters = location.verticalAccuracy!!
+			accuracy = location.horizontalAccuracy!!
+		}, System.currentTimeMillis(), arrayOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		rawData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
 		updateData(rawData)
 	}

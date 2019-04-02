@@ -122,7 +122,7 @@ object TrackerLocker {
 	 */
 	private fun pokeWatcherService(context: Context) {
 		//Desired state is checked from other sources because it might not be ready yet in LiveData
-		ActivityWatcherService.poke(context, ActivityWatcherService.getServicePreference(context) && !isLockedRightNow())
+		ActivityWatcherService.poke(context, trackerLocked = isLockedRightNow())
 	}
 
 	/**
