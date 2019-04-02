@@ -7,7 +7,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.misc.extension.startActivity
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.notification.NotificationChannels
-import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 
 /**

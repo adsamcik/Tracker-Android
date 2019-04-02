@@ -2,7 +2,8 @@ package com.adsamcik.signalcollector.preference
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.preference.PreferenceManager
+import androidx.preference.PreferenceManager
+
 
 /**
  * Object that simplifies access to some preferences

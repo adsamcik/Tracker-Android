@@ -6,7 +6,7 @@ import android.content.Intent
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
-import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 class BootReceiver : BroadcastReceiver() {
 

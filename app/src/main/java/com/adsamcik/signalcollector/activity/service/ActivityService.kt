@@ -17,7 +17,7 @@ import com.adsamcik.signalcollector.misc.extension.powerManager
 import com.adsamcik.signalcollector.misc.extension.startForegroundService
 import com.adsamcik.signalcollector.misc.extension.stopService
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition

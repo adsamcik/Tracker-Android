@@ -32,7 +32,7 @@ import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.notification.Notifications
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
-import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

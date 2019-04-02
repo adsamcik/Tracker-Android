@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
-import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 /**
  * Debug Activity used for displaying states of some parts of the app

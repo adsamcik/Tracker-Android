@@ -39,7 +39,7 @@ import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.data.RawData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver

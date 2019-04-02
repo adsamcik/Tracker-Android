@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker
+package com.adsamcik.signalcollector.tracker.locker
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import androidx.annotation.AnyThread
 import androidx.core.content.edit
-import androidx.work.*
+import androidx.work.Constraints
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
@@ -129,7 +131,7 @@ object TrackerLocker {
 	fun lockUntilRecharge(context: Context) {
 		synchronized(this) {
 			val workManager = WorkManager.getInstance()
-			val constraints = Constraints.Builder().setRequiresCharging(true).build()
+			val constraints = Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build()
 			val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(constraints).addTag(JOB_DISABLE_TILL_RECHARGE_TAG).build()
 			workManager.enqueue(work)
 			setRechargeLock(context, true)
@@ -189,15 +191,5 @@ object TrackerLocker {
 	private fun getIntent(context: Context): PendingIntent {
 		val intent = Intent(context, TrackerUnlockReceiver::class.java)
 		return PendingIntent.getBroadcast(context, 0, intent, 0)
-	}
-
-	/**
-	 * JobService used for job that waits until device is connected to a charger to remove recharge lockTimeLock
-	 */
-	class DisableTillRechargeWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
-		override fun doWork(): Result {
-			unlockRechargeLock(applicationContext)
-			return Result.success()
-		}
 	}
 }
