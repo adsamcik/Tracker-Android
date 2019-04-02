@@ -22,6 +22,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.telephony.TelephonyManager
 import androidx.core.app.NotificationCompat
+import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
@@ -246,13 +247,17 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	 */
 	private fun generateNotification(location: Location? = null, d: RawData? = null): Notification {
 		val intent = Intent(this, LaunchActivity::class.java)
+
 		val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setSmallIcon(R.drawable.ic_signals)  // the done icon
 				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(System.currentTimeMillis())  // the time stamp
-				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(this, R.color.color_accent))
+				.setContentIntent(TaskStackBuilder.create(this).run {
+					addNextIntentWithParentStack(intent)
+					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
+				})
 
 		val stopIntent = Intent(this, TrackerNotificationReceiver::class.java)
 		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, if (isBackgroundActivated) TrackerNotificationReceiver.LOCK_RECHARGE_ACTION else TrackerNotificationReceiver.STOP_TRACKING_ACTION)
