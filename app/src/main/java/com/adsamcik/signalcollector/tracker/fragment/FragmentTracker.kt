@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
+import kotlin.math.roundToInt
 
 class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	private lateinit var colorManager: ColorManager
@@ -321,11 +322,11 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			rawData.wifi != null -> {
 				val component = initializeWifiInfo()
 				component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, rawData.wifi!!.inRange.size))
-				component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
+				component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
 				lastWifiTime = rawData.time
 			}
 			lastWifiTime - rawData.time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
-				wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi))
+				wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
 			else -> {
 				wifiInfo?.detach()
 				wifiInfo = null
