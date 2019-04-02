@@ -101,9 +101,10 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 			if (moveToCurrentLocation) {
 				locationClient.lastLocation.addOnCompleteListener {
 					if (it.isSuccessful) {
-						val result = it.result!!
-						onNewLocationAvailable(result)
-						moveTo(LatLng(result.latitude, result.longitude))
+						it.result?.let { result ->
+							onNewLocationAvailable(result)
+							moveTo(LatLng(result.latitude, result.longitude), false)
+						}
 					}
 				}
 			}
@@ -174,6 +175,12 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		animateTo(position, zoom, targetTilt, targetBearing, DURATION_STANDARD)
 	}
 
+	fun teleportToPositionZoom(position: LatLng, zoom: Float) {
+		targetPosition = position
+		targetZoom = zoom
+		map.moveCamera(CameraUpdateFactory.newLatLngZoom(position, zoom))
+	}
+
 	/**
 	 * Animates bearing to the desired bearing value.
 	 *
@@ -228,9 +235,14 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		}
 	}
 
-	private fun moveTo(latlng: LatLng) {
+	private fun moveTo(latlng: LatLng, animate: Boolean = true) {
 		val zoom = map.cameraPosition.zoom.coerceIn(MIN_MOVE_ZOOM, MAX_MOVE_ZOOM)
-		animateToPositionZoom(latlng, zoom)
+		if (animate)
+			animateToPositionZoom(latlng, zoom)
+		else {
+			teleportToPositionZoom(latlng, zoom)
+		}
+
 	}
 
 	private fun updateRotation(rotation: Float) {
