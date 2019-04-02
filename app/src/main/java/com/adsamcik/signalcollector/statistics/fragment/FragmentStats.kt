@@ -18,6 +18,7 @@ import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.misc.DistanceUnit
 import com.adsamcik.signalcollector.misc.extension.*
@@ -107,6 +108,8 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			calendar.add(Calendar.WEEK_OF_YEAR, -1)
 			val weekAgo = calendar.timeInMillis
+
+			DatabaseMaintenance().run(activity)
 
 			val sumSessionData = sessionDao.getSummary()
 			val summaryStats = TableStat(r.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
