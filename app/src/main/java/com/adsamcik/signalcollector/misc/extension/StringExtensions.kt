@@ -90,12 +90,12 @@ fun Long.formatAsDuration(context: Context): String {
 
 fun Double.formatReadable(digits: Int): String {
 	val df = DecimalFormat("#,###,###.${"#".repeat(digits)}")
-	return df.format(this)
+	return df.format(this).removeSuffix(".")
 }
 
 fun Float.formatReadable(digits: Int): String {
 	val df = DecimalFormat("#,###,###.${"#".repeat(digits)}")
-	return df.format(this)
+	return df.format(this).removeSuffix(".")
 }
 
 fun Long.formatAsShortDateTime(): String {
