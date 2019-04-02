@@ -433,7 +433,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		} else
 			ActivityService.requestActivity(this, this::class, minUpdateDelayInSeconds)
 
-		ActivityWatcherService.poke(this)
+		ActivityWatcherService.poke(this, trackerRunning = true)
 
 		isServiceRunning.value = true
 
@@ -448,7 +448,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		service = null
 		isServiceRunning.value = false
 
-		ActivityWatcherService.poke(this)
+		ActivityWatcherService.poke(this, trackerRunning = false)
 		ActivityService.removeActivityRequest(this, this::class)
 
 		LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(locationCallback)

@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
+import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.misc.extension.alarmManager
 import com.adsamcik.signalcollector.misc.extension.stopService
@@ -148,12 +149,16 @@ object TrackerLocker {
 
 	/**
 	 * Sets auto lockTimeLock with time passed in variable.
+	 * Cannot be locked for less than a second
 	 */
 	fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
+		if (lockTimeInMillis <= Constants.SECOND_IN_MILLISECONDS)
+			return
+
 		synchronized(this) {
 			lockedUntil = System.currentTimeMillis() + lockTimeInMillis
 
-			ActivityWatcherService.poke(context)
+			ActivityWatcherService.poke(context, trackerLocked = true)
 
 			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
 				context.stopService<TrackerService>()
@@ -172,7 +177,7 @@ object TrackerLocker {
 			context.alarmManager.cancel(getIntent(context))
 			setTimeLock(context, 0)
 
-			ActivityWatcherService.poke(context)
+			ActivityWatcherService.poke(context, isLockedRightNow())
 		}
 	}
 
@@ -182,8 +187,9 @@ object TrackerLocker {
 	fun poke(context: Context) {
 		synchronized(this) {
 			if (lockedUntil < System.currentTimeMillis()) {
-				isLocked.postValue(false)
-				ActivityWatcherService.poke(context)
+				val lockedRightNow = isLockedRightNow()
+				isLocked.postValue(lockedRightNow)
+				ActivityWatcherService.poke(context, trackerLocked = lockedRightNow)
 			}
 		}
 	}
