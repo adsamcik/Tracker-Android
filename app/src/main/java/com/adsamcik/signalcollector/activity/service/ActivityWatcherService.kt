@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
+import com.adsamcik.signalcollector.misc.extension.notificationManager
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
@@ -22,32 +23,32 @@ import kotlin.concurrent.scheduleAtFixedRate
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
 class ActivityWatcherService : LifecycleService() {
-	private var notificationManager: NotificationManager? = null
-
 	private val keyUpdateFreq = getString(R.string.settings_activity_freq_key)
 	private val defaultUpdateFreq = getString(R.string.settings_activity_freq_default).toInt()
-
 
 	private var activityInfo = ActivityService.lastActivity
 
 	private val timer: Timer = Timer()
 
+	private lateinit var notificationManager: NotificationManager
+
 	override fun onCreate() {
 		super.onCreate()
 
 		instance = this
-		notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
 		val updatePreferenceInSeconds = Preferences.getPref(this).getInt(keyUpdateFreq, defaultUpdateFreq)
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 		ActivityService.requestAutoTracking(this, this::class, updatePreferenceInSeconds)
 
+		notificationManager = (this as Context).notificationManager
+
 		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Constants.SECOND_IN_MILLISECONDS) {
 			val newActivityInfo = ActivityService.lastActivity
 			if (newActivityInfo != activityInfo) {
 				activityInfo = newActivityInfo
-				notificationManager!!.notify(NOTIFICATION_ID, updateNotification())
+				notificationManager.notify(NOTIFICATION_ID, updateNotification())
 			}
 		}
 	}

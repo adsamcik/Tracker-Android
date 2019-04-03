@@ -8,6 +8,7 @@ import java.util.*
 /**
  * Class used for calculation of next sunset and sunrise.
  */
+//todo remember last location
 class SunSetRise {
 	private var location: Location? = null
 	private var lastUpdate: Calendar? = null
@@ -19,12 +20,13 @@ class SunSetRise {
 	 */
 	fun nextSunset(): Calendar {
 		val calendar = Calendar.getInstance()
+		val location = location
 		return if (location != null) {
-			val calculator = getCalculator(location!!, calendar)
+			val calculator = getCalculator(location, calendar)
 			val sunset = getSunset(calculator, calendar)
 			if (sunset < calendar) {
 				calendar.add(Calendar.DAY_OF_WEEK, 1)
-				getSunset(location!!, calendar)
+				getSunset(location, calendar)
 			} else
 				sunset
 		} else {
@@ -41,12 +43,13 @@ class SunSetRise {
 	 */
 	fun nextSunrise(): Calendar {
 		val calendar = Calendar.getInstance()
+		val location = location
 		return if (location != null) {
-			val calculator = getCalculator(location!!, calendar)
+			val calculator = getCalculator(location, calendar)
 			val sunrise = getSunrise(calculator, calendar)
 			if (sunrise < calendar) {
 				calendar.add(Calendar.DAY_OF_WEEK, 1)
-				getSunrise(location!!, calendar)
+				getSunrise(location, calendar)
 			} else
 				sunrise
 		} else {

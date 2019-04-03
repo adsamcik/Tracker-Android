@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.misc.extension
 
 import android.app.Activity
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
@@ -156,44 +157,47 @@ inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String):
 /**
  * Shortcut to get [TelephonyManager]. This property does not cache the service.
  */
-inline val Context.telephonyManager: TelephonyManager get() = getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE)
+inline val Context.telephonyManager: TelephonyManager get() = getSystemServiceTyped(Context.TELEPHONY_SERVICE)
 
 /**
  * Shortcut to get [ConnectivityManager]. This property does not cache the service.
  */
-inline val Context.connectivityManager: ConnectivityManager get() = getSystemServiceTyped<ConnectivityManager>(Context.CONNECTIVITY_SERVICE)
+inline val Context.connectivityManager: ConnectivityManager get() = getSystemServiceTyped(Context.CONNECTIVITY_SERVICE)
 
 /**
  * Shortcut to get [LocationManager]. This property does not cache the service.
  */
-inline val Context.locationManager: LocationManager get() = getSystemServiceTyped<LocationManager>(Context.LOCATION_SERVICE)
+inline val Context.locationManager: LocationManager get() = getSystemServiceTyped(Context.LOCATION_SERVICE)
 
 /**
  * Shortcut to get [InputMethodManager]. This property does not cache the service.
  */
-inline val Context.inputMethodManager: InputMethodManager get() = getSystemServiceTyped<InputMethodManager>(Context.INPUT_METHOD_SERVICE)
+inline val Context.inputMethodManager: InputMethodManager get() = getSystemServiceTyped(Context.INPUT_METHOD_SERVICE)
 
 /**
  * Shortcut to get [WindowManager]. This property does not cache the service.
  */
-inline val Context.windowManager: WindowManager get() = getSystemServiceTyped<WindowManager>(Context.WINDOW_SERVICE)
+inline val Context.windowManager: WindowManager get() = getSystemServiceTyped(Context.WINDOW_SERVICE)
 
 /**
  * Shortcut to get [PowerManager]. This property does not cache the service.
  */
-inline val Context.powerManager: PowerManager get() = getSystemServiceTyped<PowerManager>(Context.POWER_SERVICE)
+inline val Context.powerManager: PowerManager get() = getSystemServiceTyped(Context.POWER_SERVICE)
 
 /**
  * Shortcut to get [JobScheduler]. This property does not cache the service.
  */
-inline val Context.alarmManager: AlarmManager get() = getSystemServiceTyped<AlarmManager>(Context.ALARM_SERVICE)
+inline val Context.alarmManager: AlarmManager get() = getSystemServiceTyped(Context.ALARM_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
  */
-inline val Context.shortcutManager: ShortcutManager @RequiresApi(25) get() = getSystemServiceTyped<ShortcutManager>(Context.SHORTCUT_SERVICE)
+inline val Context.shortcutManager: ShortcutManager @RequiresApi(25) get() = getSystemServiceTyped(Context.SHORTCUT_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
  */
-inline val Context.sensorManager: SensorManager get() = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
+inline val Context.sensorManager: SensorManager get() = getSystemServiceTyped(Context.SENSOR_SERVICE)
+
+
+inline val Context.notificationManager: NotificationManager get() = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)

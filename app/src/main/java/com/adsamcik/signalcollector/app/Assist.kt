@@ -10,22 +10,18 @@ import android.location.LocationManager
 import android.os.Build
 import android.provider.Settings
 import android.view.Surface
-import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.misc.extension.connectivityManager
-import com.adsamcik.signalcollector.misc.extension.inputMethodManager
 import com.adsamcik.signalcollector.misc.extension.locationManager
 import com.adsamcik.signalcollector.misc.extension.windowManager
 import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import java.text.DecimalFormat
 import java.util.*
 
 
@@ -183,16 +179,6 @@ object Assist {
 	}
 
 	/**
-	 * Returns how old is supplied unix time in days
-	 *
-	 * @param time unix time in milliseconds
-	 * @return number of days as age (e.g. +50 = 50 days old)
-	 */
-	fun getAgeInDays(time: Long): Int =
-			((System.currentTimeMillis() - time) / DAY_IN_MILLISECONDS).toInt()
-
-
-	/**
 	 * Checks if play services are available
 	 *
 	 * @param context context
@@ -220,27 +206,6 @@ object Assist {
 	 */
 	fun verticalSmoothScrollTo(viewGroup: ViewGroup, y: Int, millis: Int) {
 		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.scrollY, y).setDuration(millis.toLong()).start()
-	}
-
-	/**
-	 * Formats 1000 as 1 000
-	 *
-	 * @param number input number
-	 * @return formatted number
-	 */
-	fun formatNumber(number: Int): String {
-		val df = DecimalFormat("#,###,###")
-		return df.format(number.toLong()).replace(",".toRegex(), " ")
-	}
-
-	/**
-	 * Hides software keyboard
-	 *
-	 * @param context Context
-	 * @param view     view that should have summoned the keyboard
-	 */
-	fun hideSoftKeyboard(context: Context, view: View) {
-		context.inputMethodManager.hideSoftInputFromWindow(view.applicationWindowToken, 0)
 	}
 
 	/**

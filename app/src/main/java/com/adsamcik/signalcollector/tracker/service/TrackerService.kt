@@ -225,8 +225,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 			val location = data.location
 			var locationId: Long? = null
-			if (location != null)
-				locationId = database.locationDao().insert(location.toDatabase(data.activity!!))
+			val activity = data.activity
+			if (location != null && activity != null)
+				locationId = database.locationDao().insert(location.toDatabase(activity))
 
 			val cellData = data.cell
 			val cellDao = database.cellDao()
