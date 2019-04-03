@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.database.dao
 
-import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -32,5 +31,5 @@ interface LocationDataDao {
 	fun getAllInsideAndBetween(from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
 	@Query("SELECT COUNT(*) FROM location_data")
-	fun count(): LiveData<Int>
+	fun count(): Long
 }

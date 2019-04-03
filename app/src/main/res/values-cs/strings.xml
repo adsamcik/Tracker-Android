@@ -270,7 +270,7 @@
 
     <string name="stats_cell_count">Počet mobilních vysílačů</string>
     <string name="stats_distance_total">Vzdálenost</string>
-    <string name="stats_in_vehicle">Vzdálenost ve vozidle</string>
+    <string name="stats_distance_in_vehicle">Vzdálenost ve vozidle</string>
     <string name="stats_distance_on_foot">Vzdálenost pěšky</string>
     <string name="stats_location_count">Počet poloh</string>
     <string name="stats_session_count">Počet relací</string>

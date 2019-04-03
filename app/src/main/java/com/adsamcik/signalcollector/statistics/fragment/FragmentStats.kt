@@ -116,8 +116,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 					StatData(r.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
 					StatData(r.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
 					StatData(r.getString(R.string.stats_distance_total), sumSessionData.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
-					StatData(r.getString(R.string.stats_location_count), (locationDao.count().value
-							?: 0).formatReadable()),
+					StatData(r.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(r.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
 					StatData(r.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
 					StatData(r.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
@@ -144,7 +143,9 @@ class FragmentStats : Fragment(), IOnDemandView {
 				arrayOf(TableStat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", false, listOf(
 						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
 						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
-						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
+						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable()),
+						StatData(r.getString(R.string.stats_distance_on_foot), it.distanceOnFootInM.formatAsDistance(2, LengthSystem.Metric)),
+						StatData(r.getString(R.string.stats_distance_in_vehicle), it.distanceInVehicleInM.formatAsDistance(1, LengthSystem.Metric))
 				)))
 			}.let {
 				handleResponse(it, AppendBehaviour.Any)
