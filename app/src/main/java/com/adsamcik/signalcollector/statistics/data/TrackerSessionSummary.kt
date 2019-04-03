@@ -2,16 +2,21 @@ package com.adsamcik.signalcollector.statistics.data
 
 import androidx.room.ColumnInfo
 
-data class TrackerSessionSummary(var duration: Long,
+open class TrackerSessionSummary(var duration: Long,
                                  var collections: Int,
                                  @ColumnInfo(name = "distance")
                                  var distanceInM: Float,
+                                 @ColumnInfo(name = "distance_on_foot")
+                                 var distanceOnFootInM: Float,
+                                 @ColumnInfo(name = "distance_in_vehicle")
+                                 var distanceInVehicleInM: Float,
                                  var steps: Int)
 
 
-data class TrackerSessionTimeSummary(var time: Long,
-                                     var duration: Long,
-                                     var collections: Int,
-                                     @ColumnInfo(name = "distance")
-                                     var distanceInM: Float,
-                                     var steps: Int)
+open class TrackerSessionTimeSummary(var time: Long,
+                                     duration: Long,
+                                     collections: Int,
+                                     distanceInM: Float,
+                                     distanceOnFootInM: Float,
+                                     distanceInVehicleInM: Float,
+                                     steps: Int) : TrackerSessionSummary(duration, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps)

@@ -159,7 +159,9 @@ class FragmentStats : Fragment(), IOnDemandView {
 				arrayOf(TableStat(it.time.formatAsDate(), false, listOf(
 						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
 						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
-						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable())
+						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable()),
+						StatData(r.getString(R.string.stats_distance_on_foot), it.distanceOnFootInM.formatAsDistance(2, LengthSystem.Metric)),
+						StatData(r.getString(R.string.stats_distance_in_vehicle), it.distanceInVehicleInM.formatAsDistance(1, LengthSystem.Metric))
 				)))
 			}.let {
 				handleResponse(it, AppendBehaviour.Any)
