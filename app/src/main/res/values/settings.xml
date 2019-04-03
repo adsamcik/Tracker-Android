@@ -30,6 +30,18 @@
     <string name="settings_activity_freq_title">Activity update rate</string>
     <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_freq_default" translatable="false">30</string>
+    <integer-array name="activity_watching_interval">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>7</item>
+        <item>10</item>
+        <item>15</item>
+        <item>30</item>
+        <item>60</item>
+        <item>120</item>
+    </integer-array>
 
     <string name="settings_tracking_activity_key" translatable="false">backgroundTracking</string>
     <string name="settings_tracking_activity_default" translatable="false">1</string>
@@ -59,18 +71,6 @@
         <item>@drawable/ic_close_black_24dp</item>
         <item>@drawable/ic_directions_walk_white_24dp</item>
         <item>@drawable/ic_directions_car_white_24dp</item>
-    </integer-array>
-
-    <integer-array name="activity_watching_interval">
-        <item>0</item>
-        <item>5</item>
-        <item>10</item>
-        <item>30</item>
-        <item>60</item>
-        <item>120</item>
-        <item>240</item>
-        <item>300</item>
-        <item>600</item>
     </integer-array>
 
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
