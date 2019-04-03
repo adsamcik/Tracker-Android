@@ -129,7 +129,7 @@ object TrackerLocker {
 	/**
 	 * Locks tracking until phone is connected to a charger
 	 */
-	fun     lockUntilRecharge(context: Context) {
+	fun lockUntilRecharge(context: Context) {
 		synchronized(this) {
 			val workManager = WorkManager.getInstance()
 			val constraints = Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build()
