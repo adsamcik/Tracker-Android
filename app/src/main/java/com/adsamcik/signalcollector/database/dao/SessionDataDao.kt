@@ -19,7 +19,7 @@ interface SessionDataDao {
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>
 
-	@Query("SELECT SUM(`end` - start) as duration, SUM(steps) as steps, SUM(collections) as collections, SUM(distance) as distance FROM tracker_session")
+	@Query("SELECT SUM(`end` - start) as duration, SUM(steps) as steps, SUM(collections) as collections, SUM(distance) as distance, SUM(distance_in_vehicle) as distance_in_vehicle, SUM(distance_on_foot) as distance_on_foot FROM tracker_session")
 	fun getSummary(): TrackerSessionSummary
 
 	@Query("SELECT SUM(`end` - start) as duration, SUM(steps) as steps, SUM(collections) as collections, SUM(distance) as distance, SUM(distance_in_vehicle) as distance_in_vehicle, SUM(distance_on_foot) as distance_on_foot FROM tracker_session WHERE start >= :from AND start <= :to")
