@@ -15,55 +15,48 @@ import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
+import java.util.*
+import kotlin.concurrent.scheduleAtFixedRate
 
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
 class ActivityWatcherService : LifecycleService() {
 	private var notificationManager: NotificationManager? = null
-	private var thread: Thread? = null
+
+	private val keyUpdateFreq = getString(R.string.settings_activity_freq_key)
+	private val defaultUpdateFreq = getString(R.string.settings_activity_freq_default).toInt()
+
 
 	private var activityInfo = ActivityService.lastActivity
+
+	private val timer: Timer = Timer()
 
 	override fun onCreate() {
 		super.onCreate()
 
 		instance = this
-
 		notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+		val updatePreferenceInSeconds = Preferences.getPref(this).getInt(keyUpdateFreq, defaultUpdateFreq)
+
 		startForeground(NOTIFICATION_ID, updateNotification())
+		ActivityService.requestAutoTracking(this, this::class, updatePreferenceInSeconds)
 
-
-		ActivityService.requestAutoTracking(this, this::class)
-
-		thread = Thread {
-			//Is not supposed to quit while, until service is stopped
-			while (!Thread.currentThread().isInterrupted) {
-				val keyUpdateFreq = getString(R.string.settings_activity_freq_key)
-				val defaultUpdateFreq = getString(R.string.settings_activity_freq_default).toInt()
-				try {
-					Thread.sleep((500 + Preferences.getPref(this).getInt(keyUpdateFreq, defaultUpdateFreq) * Constants.SECOND_IN_MILLISECONDS.toInt()).toLong())
-					val newActivityInfo = ActivityService.lastActivity
-					if (newActivityInfo != activityInfo) {
-						activityInfo = newActivityInfo
-						notificationManager!!.notify(NOTIFICATION_ID, updateNotification())
-					}
-				} catch (e: InterruptedException) {
-					break
-				}
-
+		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Constants.SECOND_IN_MILLISECONDS) {
+			val newActivityInfo = ActivityService.lastActivity
+			if (newActivityInfo != activityInfo) {
+				activityInfo = newActivityInfo
+				notificationManager!!.notify(NOTIFICATION_ID, updateNotification())
 			}
-
 		}
-		thread!!.start()
 	}
 
 	override fun onDestroy() {
 		super.onDestroy()
 		ActivityService.removeActivityRequest(this, this::class)
 		instance = null
-		thread!!.interrupt()
+		timer.cancel()
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
