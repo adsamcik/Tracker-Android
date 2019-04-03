@@ -69,7 +69,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			initMaxHeat(maxHeat.layerName, maxHeat.zoom, value == null)
 		}
 
-	private val colorScheme = HeatmapColorScheme.fromArray(arrayOf(Color.TRANSPARENT, Color.BLUE, Color.CYAN, Color.YELLOW, Color.RED), 30)
+	private val colorScheme = HeatmapColorScheme.fromArray(listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW), Pair(1.0, Color.RED)), 100)
 
 	fun updateQuality(quality: Float) {
 		this.quality = quality

@@ -112,7 +112,7 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 
 			for (itX in 0 until width) {
 				val value = data[index]
-				val normalizedValue = min(value, saturation) / saturation
+				val normalizedValue = normalizedValueModifierFunction(min(value, saturation) / saturation)
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
 
@@ -170,6 +170,49 @@ data class HeatmapColorScheme constructor(val colors: IntArray) {
 			data[data.size - 1] = argbArray.last()
 
 			return HeatmapColorScheme(data)
+		}
+
+
+		fun fromArray(argbArray: Collection<Pair<Double, Int>>, totalSteps: Int): HeatmapColorScheme {
+			if (argbArray.size < 2)
+				throw IllegalArgumentException("argbArray must contain at least 2 elements")
+
+			val resultColorArray = IntArray(totalSteps)
+
+			val sorted = argbArray.sortedBy { it.first }
+
+			val it = sorted.iterator()
+
+			var current = it.next()
+			var next = it.next()
+
+			val stepProgress = 1.0 / totalSteps.toDouble()
+			val startAt = (current.first / stepProgress).toInt()
+			val endAt = (argbArray.last().first / stepProgress).toInt()
+
+			repeat(startAt) { resultColorArray[it] = current.second }
+
+			var lastChangeAt = startAt
+			var nextChangeAt = (next.first / stepProgress).toInt()
+			var deltaRange = (nextChangeAt - lastChangeAt).toFloat()
+
+			for (i in startAt until endAt) {
+				if (nextChangeAt <= i) {
+					current = next
+					next = it.next()
+
+					lastChangeAt = i
+					nextChangeAt = (next.first / stepProgress).toInt()
+					deltaRange = (nextChangeAt - lastChangeAt).toFloat()
+				}
+
+				val delta = (i - lastChangeAt).toFloat() / deltaRange
+				resultColorArray[i] = ColorUtils.blendARGB(current.second, next.second, delta)
+			}
+
+			repeat(resultColorArray.size - endAt) { resultColorArray[endAt + it] = next.second }
+
+			return HeatmapColorScheme(resultColorArray)
 		}
 	}
 }

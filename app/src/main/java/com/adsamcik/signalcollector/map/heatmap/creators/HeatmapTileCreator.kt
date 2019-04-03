@@ -50,7 +50,9 @@ interface HeatmapTileCreator {
 
 		if (weightNormalizationValue != 0.0) {
 			val weightNormalizationValue = weightNormalizationValue
-			allInside.forEach { it.normalize(weightNormalizationValue) }
+			allInside.forEach {
+				it.normalize(weightNormalizationValue)
+			}
 		}
 
 		val heatmap = HeatmapTile(heatmapSize, stamp, colorScheme, x, y, z, maxHeat, true)
