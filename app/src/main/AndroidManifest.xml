@@ -110,7 +110,7 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".tracker.receiver.TrackerUnlockReceiver"/>
+        <receiver android:name=".tracker.receiver.TrackerTimeUnlockReceiver"/>
 
         <service
             android:name=".tracker.service.TrackerService"

@@ -16,7 +16,7 @@ import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.misc.extension.alarmManager
 import com.adsamcik.signalcollector.misc.extension.stopService
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.receiver.TrackerUnlockReceiver
+import com.adsamcik.signalcollector.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 /**
@@ -32,16 +32,7 @@ object TrackerLocker {
 	//Locking order is in the order of variable definitions
 
 	private var lockedUntil: Long = 0
-		set(value) {
-			field = value
-			refreshLockState()
-		}
-
 	private var lockedUntilRecharge = false
-		set(value) {
-			field = value
-			refreshLockState()
-		}
 
 	/**
 	 * Live object that can be observed
@@ -67,8 +58,6 @@ object TrackerLocker {
 		}
 	}
 
-	private fun refreshLockState() = isLocked.postValue(isLockedRightNow())
-
 	/**
 	 * Initializes locks from SharedPreferences (persistence)
 	 */
@@ -83,12 +72,8 @@ object TrackerLocker {
 		val keyDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_key)
 		val defaultDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
 
-		synchronized(this) {
-			lockedUntil = preferences.getLong(keyDisabledTime, defaultDisabledTime)
-			lockedUntilRecharge = preferences.getBoolean(keyDisabledRecharge, defaultDisabledRecharge)
-		}
-
-		isLocked.postValue(isLockedRightNow())
+		setTimeLock(context, preferences.getLong(keyDisabledTime, defaultDisabledTime))
+		setRechargeLock(context, preferences.getBoolean(keyDisabledRecharge, defaultDisabledRecharge))
 	}
 
 	private fun setRechargeLock(context: Context, lock: Boolean) {
@@ -100,7 +85,7 @@ object TrackerLocker {
 
 			lockedUntilRecharge = lock
 
-			pokeWatcherService(context)
+			refreshLockState(context)
 		}
 	}
 
@@ -113,13 +98,23 @@ object TrackerLocker {
 
 			lockedUntil = time
 
-			pokeWatcherService(context)
+			refreshLockState(context)
 		}
+	}
+
+	private fun refreshLockState(context: Context) {
+		val isLockedRightNow = isLockedRightNow()
+		if (isLockedRightNow != isLocked.value)
+			isLocked.postValue(isLockedRightNow)
+		pokeWatcherService(context)
+
+		if (isLockedRightNow && TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
+			context.stopService<TrackerService>()
 	}
 
 	/**
 	 * This method ensures the watcher is in proper state
-	 * It cannot be handled with observe because poke method requires context
+	 * It cannot be handled with observe because checkLockTime method requires context
 	 */
 	private fun pokeWatcherService(context: Context) {
 		//Desired state is checked from other sources because it might not be ready yet in LiveData
@@ -152,20 +147,12 @@ object TrackerLocker {
 	 * Cannot be locked for less than a second
 	 */
 	fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
-		if (lockTimeInMillis <= Constants.SECOND_IN_MILLISECONDS)
+		if (lockTimeInMillis < Constants.SECOND_IN_MILLISECONDS || lockTimeInMillis <= this.lockedUntil)
 			return
 
-		synchronized(this) {
-			lockedUntil = System.currentTimeMillis() + lockTimeInMillis
-
-			ActivityWatcherService.poke(context, trackerLocked = true)
-
-			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
-				context.stopService<TrackerService>()
-
-			context.alarmManager.set(AlarmManager.RTC_WAKEUP,
-					lockedUntil, getIntent(context))
-		}
+		setTimeLock(context, System.currentTimeMillis() + lockTimeInMillis)
+		context.alarmManager.set(AlarmManager.RTC_WAKEUP,
+				lockedUntil, getTimeUnlockBroadcastIntent(context))
 	}
 
 	/**
@@ -174,28 +161,15 @@ object TrackerLocker {
 	 */
 	fun unlockTimeLock(context: Context) {
 		synchronized(this) {
-			context.alarmManager.cancel(getIntent(context))
+			context.alarmManager.cancel(getTimeUnlockBroadcastIntent(context))
 			setTimeLock(context, 0)
 
 			ActivityWatcherService.poke(context, isLockedRightNow())
 		}
 	}
 
-	/**
-	 * Pokes the locks and tries if they are not supposed to be unlocked
-	 */
-	fun poke(context: Context) {
-		synchronized(this) {
-			if (lockedUntil < System.currentTimeMillis()) {
-				val lockedRightNow = isLockedRightNow()
-				isLocked.postValue(lockedRightNow)
-				ActivityWatcherService.poke(context, trackerLocked = lockedRightNow)
-			}
-		}
-	}
-
-	private fun getIntent(context: Context): PendingIntent {
-		val intent = Intent(context, TrackerUnlockReceiver::class.java)
+	private fun getTimeUnlockBroadcastIntent(context: Context): PendingIntent {
+		val intent = Intent(context, TrackerTimeUnlockReceiver::class.java)
 		return PendingIntent.getBroadcast(context, 0, intent, 0)
 	}
 }

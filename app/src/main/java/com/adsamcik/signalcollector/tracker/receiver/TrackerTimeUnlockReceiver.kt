@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
-class TrackerUnlockReceiver : BroadcastReceiver() {
+class TrackerTimeUnlockReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
-		TrackerLocker.poke(context)
+		TrackerLocker.unlockTimeLock(context)
 	}
 
 }
