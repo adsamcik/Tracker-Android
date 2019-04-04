@@ -26,16 +26,22 @@ data class Location(
 		val horizontalAccuracy: Float?,
 		@Json(name = "ver_acc")
 		@ColumnInfo(name = "ver_acc")
-		val verticalAccuracy: Float?) {
+		val verticalAccuracy: Float?,
+		val speed: Float?,
+		@ColumnInfo(name = "s_acc")
+		val speedAccuracy: Float?) {
 
 	constructor(location: android.location.Location) : this(location.time,
 			location.latitude,
 			location.longitude,
 			if (location.hasAltitude()) location.altitude else null,
 			if (location.hasAccuracy()) location.accuracy else null,
-			if (Build.VERSION.SDK_INT >= 26) location.verticalAccuracyMeters else null)
+			if (Build.VERSION.SDK_INT >= 26 && location.hasVerticalAccuracy()) location.verticalAccuracyMeters else null,
+			if (location.hasSpeed()) location.speed else null,
+			if (Build.VERSION.SDK_INT >= 26 && location.hasSpeedAccuracy()) location.speedAccuracyMetersPerSecond else null)
 
-	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy)
+
+	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy, location.speed, location.speedAccuracy)
 
 
 	fun toDatabase(activityInfo: ActivityInfo): DatabaseLocation = DatabaseLocation(this, activityInfo)
@@ -101,7 +107,14 @@ data class Location(
 	fun roundTo(metersHorizontal: Double, metersVertical: Double): Location {
 		val accLatitude = latitudeAccuracy(metersVertical)
 		val accLongitude = longitudeAccuracy(metersHorizontal, latitude)
-		return Location(time, (latitude - latitude % accLatitude).round(6), (longitude - longitude % accLongitude.round(6)), altitude, horizontalAccuracy, verticalAccuracy)
+		return Location(time,
+				(latitude - latitude % accLatitude).round(6),
+				(longitude - longitude % accLongitude.round(6)),
+				altitude,
+				horizontalAccuracy,
+				verticalAccuracy,
+				speed,
+				speedAccuracy)
 	}
 
 	companion object {
