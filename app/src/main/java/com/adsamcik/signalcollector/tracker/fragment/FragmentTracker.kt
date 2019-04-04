@@ -81,14 +81,14 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			TrackerLocker.unlockRechargeLock(context)
 		}
 
-		TrackerLocker.isLocked.observe(this) {
+		TrackerLocker.isLocked.observeGetCurrent(this) {
 			button_tracking_lock.visibility = if (it) VISIBLE else GONE
 		}
 
 		initializeColorElements()
 		updateExtendedInfoBar()
 
-		TrackerService.isServiceRunning.observe(this) {
+		TrackerService.isServiceRunning.observeGetCurrent(this) {
 			updateTrackerButton(it)
 		}
 

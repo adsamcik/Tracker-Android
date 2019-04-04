@@ -15,4 +15,9 @@ class NonNullLiveMutableData<T>(private val defaultValue: T) : MutableLiveData<T
 	fun observe(owner: LifecycleOwner, body: (T) -> Unit) {
 		observe(owner, Observer<T> { t -> body(t ?: defaultValue) })
 	}
+
+	fun observeGetCurrent(owner: LifecycleOwner, body: (T) -> Unit) {
+		body(value)
+		observe(owner, Observer<T> { t -> body(t ?: defaultValue) })
+	}
 }
