@@ -17,7 +17,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.adapter.IViewChange
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulties
-import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.data.Challenge
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.mock.useMock
@@ -69,11 +68,11 @@ class FragmentGame : Fragment(), IOnDemandView {
 			}
 		} else {
 			GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
-				val challenges = ChallengeManager.getChallenges(activity, isRefresh)
+				/*val challenges = ChallengeManager.getChallenges(activity, isRefresh)
 				launch(Dispatchers.Main) {
 					(listViewChallenges.adapter as ChallengesAdapter).updateData(challenges)
 					refreshLayout.isRefreshing = false
-				}
+				}*/
 			}
 		}
 	}
@@ -108,7 +107,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 				fragmentView = mInflater.inflate(R.layout.layout_challenge_small, viewGroup, false)
 
 			val challenge = mDataSource[i]
-			(fragmentView!!.findViewById<View>(R.id.challenge_title) as TextView).text = challenge.title
+			(fragmentView!!.findViewById<View>(R.id.challenge_title) as TextView).text = challenge.name
 			(fragmentView.findViewById<View>(R.id.challenge_description) as TextView).text = challenge.description
 
 			val textViewDifficulty = fragmentView.findViewById<TextView>(R.id.challenge_difficulty)

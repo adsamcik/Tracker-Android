@@ -179,7 +179,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun mock() {
 		val rawData = RawData(System.currentTimeMillis())
-		val location = Location(rawData.time, 15.0, 15.0, 123.0, 6f, 3f)
+		val location = Location(rawData.time, 15.0, 15.0, 123.0, 6f, 3f, 10f, 15f)
 		rawData.location = location
 		rawData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
 		rawData.wifi = WifiData(android.location.Location("").apply {

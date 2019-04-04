@@ -16,8 +16,8 @@
 
     <string name="challenge_progress">%1$d%%</string>
 
-    <string name="challenge_lawful_explorer_title">Lawful explorer</string>
-    <string name="challenge_lawful_explorer_description">Collect %1$s new locations without breaking the speed limit of %2$s km/h</string>
+    <string name="challenge_explorer_title">Explorer</string>
+    <string name="challenge_explorer_description">Collect %1$s new locations</string>
 
     <string name="challenge_awful_explorer_title">Awful explorer</string>
     <string name="challenge_awful_explorer_description">Don\'t find a single new location in %1$s concurrent collections</string>
@@ -29,10 +29,7 @@
     <string name="challenge_long_journey_description">Collect %1$s locations in a day</string>
 
     <string name="challenge_crowded_title">Crowded?</string>
-    <string name="challenge_crowded_description">Find a new place with at least %1$s new Wi-Fi networks</string>
-
-    <string name="challenge_peaceful_forest_title">Peaceful forest</string>
-    <string name="challenge_peaceful_forest_description">You should head out and find %1$s new places without any Wi-Fi networks. Be careful not to trespass!</string>
+    <string name="challenge_crowded_description">Find a new place with at least %1$s Wi-Fi networks</string>
 
     <string name="challenge_cross_country_title">Cross country</string>
     <string name="challenge_cross_country_description">Climb %1$s meters while on foot</string>

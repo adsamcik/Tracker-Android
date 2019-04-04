@@ -32,7 +32,7 @@ class TrackerLockerTest {
 		Assert.assertTrue(TrackerLocker.isTimeLocked)
 
 		testObserver
-				.awaitValue(1, TimeUnit.SECONDS)
+				.awaitValue(500, TimeUnit.MILLISECONDS)
 				.assertValue(true)
 				.awaitNextValue(5, TimeUnit.SECONDS)
 				.assertValue(false)

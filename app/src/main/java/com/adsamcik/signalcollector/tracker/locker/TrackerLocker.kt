@@ -54,7 +54,7 @@ object TrackerLocker {
 
 	private fun isLockedRightNow(): Boolean {
 		synchronized(this) {
-			return isTimeLocked || isChargeLocked
+			return isTimeLocked.or(isChargeLocked)
 		}
 	}
 

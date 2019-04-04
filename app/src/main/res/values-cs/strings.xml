@@ -32,8 +32,8 @@
     <string name="challenge_easy">Jednoduché</string>
     <string name="challenge_error_name">Aktualizujte na poslední verzi aplikace</string>
     <string name="challenge_hard">Obtížné</string>
-    <string name="challenge_lawful_explorer_description">Nasbírejte %1$s nových míst bez překročení rychlosti %2$s km/h</string>
-    <string name="challenge_lawful_explorer_title">Zákona dbalý průzkumník</string>
+    <string name="challenge_explorer_description">Nasbírejte %1$s nových míst bez překročení rychlosti %2$s km/h</string>
+    <string name="challenge_explorer_title">Zákona dbalý průzkumník</string>
     <string name="challenge_list_title">Herní výzvy</string>
     <string name="challenge_long_journey_description">Nasbírejte %1$s míst v jednom dni</string>
     <string name="challenge_long_journey_title">Dlouhá cesta</string>
