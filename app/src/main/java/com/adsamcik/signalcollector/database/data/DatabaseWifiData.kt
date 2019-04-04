@@ -2,11 +2,12 @@ package com.adsamcik.signalcollector.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.adsamcik.signalcollector.tracker.data.Location
 import com.adsamcik.signalcollector.tracker.data.WifiInfo
 
-@Entity(tableName = "wifi_data")
+@Entity(tableName = "wifi_data", indices = [Index("longitude"), Index("latitude"), Index("last_seen")])
 data class DatabaseWifiData(
 		@PrimaryKey @ColumnInfo(name = "bssid") var BSSID: String,
 		val longitude: Double,
