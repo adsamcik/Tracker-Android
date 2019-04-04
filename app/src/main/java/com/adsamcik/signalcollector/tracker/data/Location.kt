@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.misc.extension.deg2rad
 import com.adsamcik.signalcollector.misc.extension.round
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import kotlin.math.sqrt
 
 @JsonClass(generateAdapter = true)
 data class Location(
@@ -44,13 +45,10 @@ data class Location(
 	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy, location.speed, location.speedAccuracy)
 
 
+	/**
+	 * Creates new [DatabaseLocation] instance that uses [Location] instance
+	 */
 	fun toDatabase(activityInfo: ActivityInfo): DatabaseLocation = DatabaseLocation(this, activityInfo)
-
-	private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
-
-	private fun longitudeAccuracy(meters: Double, latitude: Double) = meters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
-
-	private fun latitudeAccuracy(meters: Double) = (METER_DEGREE_LATITUDE * meters).round(6)
 
 	/// <summary>
 	/// Calculates distance based on only latitude and longitude
@@ -59,31 +57,7 @@ data class Location(
 	/// <param name="unit">unit type</param>
 	/// <returns></returns>
 	fun distanceFlat(location: Location, unit: LengthUnit): Double {
-		val lat1Rad = latitude.deg2rad()
-		val lat2Rad = location.latitude.deg2rad()
-		val latDistance = (location.latitude - latitude).deg2rad()
-		val lonDistance = (location.longitude - longitude).deg2rad()
-
-		val sinLatDistance = kotlin.math.sin(latDistance / 2)
-		val sinLonDistance = kotlin.math.sin(lonDistance / 2)
-
-		val a = sinLatDistance * sinLatDistance +
-				kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
-				sinLonDistance * sinLonDistance
-		val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
-
-		var distance = EARTH_CIRCUMFERENCE * c
-
-
-		when (unit) {
-			LengthUnit.Meter -> {
-			}
-			LengthUnit.Kilometer -> distance /= 1000
-			LengthUnit.Mile -> distance /= 1.609
-			LengthUnit.NauticalMile -> distance /= 1.852
-		}
-
-		return distance
+		return Location.distance(latitude, longitude, location.latitude, location.longitude, unit)
 	}
 
 	/// <summary>
@@ -93,23 +67,28 @@ data class Location(
 	/// <param name="unit">unity type</param>
 	/// <returns></returns>
 	fun distance(location: Location, unit: LengthUnit): Double {
-		val flatDistance = distanceFlat(location, unit)
-
-		if (location.altitude == null || altitude == null)
-			return flatDistance
-
-		val altitudeDistance = location.altitude - altitude
-		return kotlin.math.sqrt(flatDistance * flatDistance + altitudeDistance * altitudeDistance)
+		return if (location.altitude == null || altitude == null)
+			distanceFlat(location, unit)
+		else
+			distance(latitude, longitude, altitude, location.latitude, location.longitude, location.altitude, unit)
 	}
 
-	fun roundTo(meters: Double): Location = roundTo(meters, meters)
+	/**
+	 * Creates new location with rounded latitude to [precisionLatitudeInMeters] and longitude to [precisionLongitudeInMeters]
+	 *
+	 * @param precisionLatitudeInMeters Round latitude coordinate to meters
+	 * @param precisionLongitudeInMeters Round longitude coordinate to meters
+	 * @return New location containing rounded latitude and longitude and the rest of the original location data
+	 */
+	fun roundTo(precisionLatitudeInMeters: Double, precisionLongitudeInMeters: Double = precisionLatitudeInMeters): Location {
+		val accLatitude = latitudeAccuracy(precisionLatitudeInMeters)
+		val roundedLatitude = (latitude - latitude % accLatitude).round(6)
 
-	fun roundTo(metersHorizontal: Double, metersVertical: Double): Location {
-		val accLatitude = latitudeAccuracy(metersVertical)
-		val accLongitude = longitudeAccuracy(metersHorizontal, latitude)
+		val accLongitude = longitudeAccuracy(precisionLongitudeInMeters, roundedLatitude)
+		val roundedLongitude = (longitude - longitude % accLongitude).round(6)
 		return Location(time,
-				(latitude - latitude % accLatitude).round(6),
-				(longitude - longitude % accLongitude.round(6)),
+				roundedLatitude,
+				roundedLongitude,
 				altitude,
 				horizontalAccuracy,
 				verticalAccuracy,
@@ -120,6 +99,55 @@ data class Location(
 	companion object {
 		const val EARTH_CIRCUMFERENCE: Int = 40075000
 		const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE
+
+		fun distance(firstLatitude: Double,
+		             firstLongitude: Double,
+		             secondLatitude: Double,
+		             secondLongitude: Double,
+		             unit: LengthUnit): Double {
+			val lat1Rad = firstLatitude.deg2rad()
+			val lat2Rad = secondLatitude.deg2rad()
+			val latDistance = (secondLatitude - firstLatitude).deg2rad()
+			val lonDistance = (secondLongitude - firstLongitude).deg2rad()
+
+			val sinLatDistance = kotlin.math.sin(latDistance / 2)
+			val sinLonDistance = kotlin.math.sin(lonDistance / 2)
+
+			val a = sinLatDistance * sinLatDistance +
+					kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
+					sinLonDistance * sinLonDistance
+			val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+
+			val distance = EARTH_CIRCUMFERENCE * c
+			return when (unit) {
+				LengthUnit.Meter -> distance
+				LengthUnit.Kilometer -> distance / 1000
+				LengthUnit.Mile -> distance / 1.609
+				LengthUnit.NauticalMile -> distance / 1.852
+			}
+		}
+
+		/**
+		 * Returns approximate distance between 2 3D coordinates.
+		 * This function uses Pythagorean theorem for altitude
+		 */
+		fun distance(firstLatitude: Double,
+		             firstLongitude: Double,
+		             firstAltitude: Double,
+		             secondLatitude: Double,
+		             secondLongitude: Double,
+		             secondAltitude: Double,
+		             unit: LengthUnit): Double {
+			val latLonDistance = distance(firstLatitude, firstLongitude, secondLatitude, secondLongitude, unit)
+			val altitudeDifference = (secondAltitude - firstAltitude)
+			return sqrt(altitudeDifference * altitudeDifference + latLonDistance * latLonDistance)
+		}
+
+		private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
+
+		private fun longitudeAccuracy(precisionInMeters: Double, latitude: Double) = precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
+
+		private fun latitudeAccuracy(precisionInMeters: Double) = (METER_DEGREE_LATITUDE * precisionInMeters).round(6)
 	}
 }
 
