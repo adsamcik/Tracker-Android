@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.app
 
 import android.animation.ObjectAnimator
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -11,7 +12,6 @@ import android.os.Build
 import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.adsamcik.signalcollector.R
@@ -181,20 +181,32 @@ object Assist {
 	/**
 	 * Checks if play services are available
 	 *
-	 * @param context context
+	 * @param activity context
 	 * @return true if available
 	 */
-	fun checkPlayServices(context: Context): Boolean {
+	fun checkPlayServices(activity: Activity): Boolean {
 		val playServicesResolutionRequest = 9000
 		val api = GoogleApiAvailability.getInstance()
-		val resultCode = api.isGooglePlayServicesAvailable(context)
+		val resultCode = api.isGooglePlayServicesAvailable(activity)
 		if (resultCode != ConnectionResult.SUCCESS) {
 			if (api.isUserResolvableError(resultCode))
-				api.getErrorDialog(context as AppCompatActivity, resultCode, playServicesResolutionRequest).show()
+				api.getErrorDialog(activity, resultCode, playServicesResolutionRequest).show()
 
 			return false
 		}
 		return true
+	}
+
+	/**
+	 * Checks if play services are available
+	 *
+	 * @param context context
+	 * @return true if available
+	 */
+	fun checkPlayServices(context: Context): Boolean {
+		val api = GoogleApiAvailability.getInstance()
+		val resultCode = api.isGooglePlayServicesAvailable(context)
+		return resultCode == ConnectionResult.SUCCESS
 	}
 
 	/**
