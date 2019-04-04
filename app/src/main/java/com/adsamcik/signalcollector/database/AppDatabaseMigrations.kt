@@ -61,6 +61,10 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
 			execSQL("CREATE INDEX `index_wifi_data_longitude` ON wifi_data (`longitude`)")
 			execSQL("CREATE INDEX `index_wifi_data_latitude` ON wifi_data (`latitude`)")
 			execSQL("CREATE INDEX `index_wifi_data_last_seen` ON wifi_data (`last_seen`)")
+
+			execSQL("CREATE  INDEX index_location_data_time ON location_data (time)")
+			execSQL("CREATE  INDEX index_location_data_lat ON location_data (lat)")
+			execSQL("CREATE  INDEX index_location_data_lon ON location_data (lon)")
 		}
 	}
 }
