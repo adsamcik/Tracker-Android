@@ -31,8 +31,6 @@ class MigrationTest {
 		// db has schema version 2. insert some data using SQL queries.
 		// You cannot use DAO classes because they expect the latest schema.
 
-		db.execSQL("CREATE TABLE IF NOT EXISTS `location_data` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL NOT NULL, `hor_acc` REAL NOT NULL, `activity` INTEGER NOT NULL, `confidence` INTEGER NOT NULL)")
-
 		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (1, '1552026583', '27.30459', '68.39764', -36.2, 26.6, 3, 38)")
 		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (2, '1522659716', 52.5094874, 16.7474972, -97.4, 67.7, 3, 69)")
 		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (3, '1528243933', 19.1780491, -96.1288426, -34.0, 31.3, 3, 6)")
@@ -76,9 +74,6 @@ class MigrationTest {
 	@Throws(IOException::class)
 	fun migrate3To4() {
 		val db = helper.createDatabase(TEST_DB, 3)
-
-		db.execSQL("CREATE TABLE IF NOT EXISTS wifi_data (`id` TEXT NOT NULL, `location_id` INTEGER, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `isPasspoint` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`location_id`) REFERENCES `location_data`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL)")
-		// Prepare for the next version.
 		db.close()
 
 
@@ -92,8 +87,6 @@ class MigrationTest {
 	fun migrate4To5() {
 		val db = helper.createDatabase(TEST_DB, 4)
 
-		db.execSQL("CREATE TABLE IF NOT EXISTS `wifi_data` (`id` TEXT NOT NULL, `longitude` REAL NOT NULL, `latitude` REAL NOT NULL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `isPasspoint` INTEGER NOT NULL, PRIMARY KEY(`id`))")
-		db.execSQL("CREATE TABLE IF NOT EXISTS `tracking_session` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `steps` INTEGER NOT NULL)")
 
 		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (1, 200, 300, 10, 1000, 50)")
 		db.execSQL("INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (2, 400, 600, 20, 2000, 100)")
@@ -125,6 +118,38 @@ class MigrationTest {
 			with(cursorCount) {
 				Assert.assertTrue(moveToNext())
 				Assert.assertEquals(2, getInt(0))
+			}
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate5To6() {
+		val db = helper.createDatabase(TEST_DB, 5)
+
+		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (1, '1552026583', 27.30459, 68.39764, -36.2, 26.6, 3, 38)")
+		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (2, '1522659716', 52.5094874, 16.7474972, -97.4, 67.7, 3, 69)")
+		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (3, '1528243933', 19.1780491, -96.1288426, -34.0, 31.3, 3, 6)")
+		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (4, '1544682291', 50.7036309, 18.995304, 0.0, 0.0, 3, 64)")
+		db.execSQL("insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (5, '1529254903', 53.5830905, 9.7537598, 45.7, 73.3, 3, 86)")
+
+		db.close()
+
+
+
+
+		helper.runMigrationsAndValidate(TEST_DB, 6, true, MIGRATION_5_6).apply {
+			val cursor = query("SELECT * FROM location_data WHERE id == 3")
+
+			with(cursor) {
+				val hasNext = moveToNext()
+				assertTrue(hasNext)
+				assertEquals(3, getInt(0))
+				assertEquals(1528243933, getLong(1))
+				assertEquals(19.1780491, getDouble(2), 0.00001)
+				assertEquals(-96.1288426, getDouble(3), 0.00001)
+				assertEquals(-34.0, getDouble(4), 0.00001)
+				assertEquals(31.3f, getFloat(5), 0.00001f)
 			}
 		}
 	}
