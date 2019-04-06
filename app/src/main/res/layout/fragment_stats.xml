@@ -11,10 +11,10 @@
         android:layout_height="wrap_content"
         android:clipToPadding="false"
         android:focusable="false"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager "
         android:listSelector="@android:color/transparent"
         android:paddingTop="@dimen/status_bar_height"
         android:paddingBottom="@dimen/navbar_height_new_padding"
         android:scrollbars="vertical"
-        android:verticalScrollbarPosition="left"/>
+        android:verticalScrollbarPosition="left"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager "/>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

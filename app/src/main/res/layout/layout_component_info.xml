@@ -7,31 +7,31 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/background_component_info"
+    android:elevation="4dp"
     android:orientation="vertical"
     android:padding="16dp"
     app:layout_flexGrow="1"
     app:layout_flexShrink="1"
     app:layout_maxWidth="220dp"
-    app:layout_minWidth="100dp"
-    android:elevation="4dp">
+    app:layout_minWidth="100dp">
 
 
     <TextView
         android:id="@+id/tracker_item_title"
         android:layout_width="wrap_content"
         android:layout_height="32dp"
-        android:drawablePadding="8dp"
         android:drawableStart="@drawable/ic_network_wifi_24dp"
+        android:drawablePadding="8dp"
         android:gravity="center_vertical"
         android:textSize="@dimen/primary_text_size"
         tools:text="Wifi"/>
 
     <View
         style="@style/Divider"
-        android:tag="divider"
         android:layout_height="2dp"
-        android:layout_marginBottom="8dp"
         android:layout_marginTop="8dp"
-        android:alpha="1"/>
+        android:layout_marginBottom="8dp"
+        android:alpha="1"
+        android:tag="divider"/>
 
 </LinearLayout>

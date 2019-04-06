@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.game
 
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.signalcollector.database.dao.CellDataDao
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.dao.ExplorerChallengeDao

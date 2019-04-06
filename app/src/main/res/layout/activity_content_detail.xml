@@ -24,8 +24,8 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/button_back"
             android:padding="16dp"
-            app:srcCompat="@drawable/ic_arrow_back_black_24dp"
-            android:tint="?titleColor"/>
+            android:tint="?titleColor"
+            app:srcCompat="@drawable/ic_arrow_back_black_24dp"/>
 
         <TextView
             android:id="@+id/content_detail_title"

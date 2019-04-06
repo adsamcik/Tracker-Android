@@ -32,6 +32,5 @@
     <string name="tips_map_overlay_description">If you are signed in and have access to the map, you can pull this up to change maps overlay layer.</string>
 
 
-
     <string name="tips_map_date_long_press_range_selection">Long press on a date and drag to select date range</string>
 </resources>

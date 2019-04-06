@@ -99,8 +99,8 @@
             <com.adsamcik.signalcollector.preference.FloatValueSliderPreference
                 android:defaultValue="@string/settings_map_quality_default"
                 android:key="@string/settings_map_quality_key"
-                android:title="@string/settings_map_quality_title"
                 android:summary="@string/settings_map_quality_summary"
+                android:title="@string/settings_map_quality_title"
                 app:icon="@drawable/ic_outline_hd_24dp"
                 app:items="@array/settings_map_quality_values"
                 app:stringFormat="%.2fx"/>
@@ -116,9 +116,9 @@
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
             <Preference
+                android:description="@string/settings_map_clear_heat_cache_description"
                 android:key="@string/settings_map_clear_heat_cache_key"
-                android:title="@string/settings_map_clear_heat_cache_title"
-                android:description="@string/settings_map_clear_heat_cache_description"/>
+                android:title="@string/settings_map_clear_heat_cache_title"/>
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
 

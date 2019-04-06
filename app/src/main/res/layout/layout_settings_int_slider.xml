@@ -15,19 +15,19 @@
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:layout_marginTop="16dp"
-        tools:src="@drawable/ic_outline_bug_report_24px"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toTopOf="parent"/>
+        app:layout_constraintTop_toTopOf="parent"
+        tools:src="@drawable/ic_outline_bug_report_24px"/>
 
     <TextView
         android:id="@android:id/title"
         style="@style/Base.TextAppearance.AppCompat.Subhead"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:paddingBottom="8dp"
         android:layout_marginStart="32dp"
-        app:layout_constraintStart_toEndOf="@android:id/icon"
+        android:paddingBottom="8dp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@android:id/icon"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Title"/>
 
@@ -37,8 +37,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        app:layout_constraintStart_toStartOf="@android:id/title"
         app:layout_constraintEnd_toEndOf="@android:id/title"
+        app:layout_constraintStart_toStartOf="@android:id/title"
         app:layout_constraintTop_toBottomOf="@android:id/title"
         tools:text="Slider value"/>
 
