@@ -8,7 +8,7 @@ import androidx.annotation.IntegerRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.widget.FloatValueSlider
+import com.adsamcik.slider.implementations.FloatValueSlider
 
 /**
  * Custom Preference implementation of the FloatValueSlider from Slider library.
