@@ -7,7 +7,7 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
 import com.adsamcik.signalcollector.misc.Probability
 import com.adsamcik.signalcollector.misc.extension.rescale
 
-abstract class ChallengeBuilder<T>(private val definition: ChallengeDefinition) where T : Challenge<*> {
+abstract class ChallengeBuilder(private val definition: ChallengeDefinition) {
 	protected var difficultyMultiplier: Double = 1.0
 	protected var duration: Long = 0L
 
@@ -39,12 +39,12 @@ abstract class ChallengeBuilder<T>(private val definition: ChallengeDefinition) 
 
 	abstract fun selectChallengeSpecificParameters()
 
-	fun build(context: Context, startAt: Long): T {
+	fun build(context: Context, startAt: Long): Challenge {
 		selectChallengeSpecificParameters()
 		selectLength()
 		loadResources(context)
 		return buildChallenge(context, startAt)
 	}
 
-	protected abstract fun buildChallenge(context: Context, startAt: Long): T
+	protected abstract fun buildChallenge(context: Context, startAt: Long): Challenge
 }

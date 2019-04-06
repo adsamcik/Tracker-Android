@@ -32,22 +32,30 @@ fun Double.round(decimals: Int): Double {
 /**
  * Rescales value in [range] to a proportionally same value between 0.0 and 1.0
  */
-fun Double.normalize(range: ClosedRange<Double>): Double {
+fun Double.normalize(range: ClosedFloatingPointRange<Double>): Double {
 	return (this - range.start) / (range.endInclusive - range.start)
 }
 
 /**
  * Rescales value in [originalRange] to a proportionally same value in [newRange]
  */
-fun Double.rescale(originalRange: ClosedRange<Double>, newRange: ClosedRange<Double>): Double {
+fun Double.rescale(originalRange: ClosedFloatingPointRange<Double>, newRange: ClosedFloatingPointRange<Double>): Double {
 	return this.normalize(originalRange).rescale(newRange)
 }
 
 /**
  * Rescales value between 0.0 and 1.0 to a proportionally same value in [newRange]
  */
-fun Double.rescale(newRange: ClosedRange<Double>): Double {
+fun Double.rescale(newRange: ClosedFloatingPointRange<Double>): Double {
 	return this * (newRange.endInclusive - newRange.start) + newRange.start
+}
+
+fun Int.rescale(originalRange: ClosedRange<Int>, newRange: ClosedRange<Int>): Int {
+	val thisDouble = this.toDouble()
+	val originalRangeDouble = originalRange.start.toDouble()..originalRange.endInclusive.toDouble()
+	val newRangeDouble = newRange.start.toDouble()..newRange.endInclusive.toDouble()
+	val normalized = thisDouble.rescale(originalRangeDouble, newRangeDouble)
+	return normalized.roundToInt()
 }
 
 /**

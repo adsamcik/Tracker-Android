@@ -2,13 +2,14 @@ package com.adsamcik.signalcollector.game.challenge.builder
 
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.progress.ExplorerChallengeProgressData
 import com.adsamcik.signalcollector.misc.Probability
 import com.adsamcik.signalcollector.misc.extension.additiveInverse
 import com.adsamcik.signalcollector.misc.extension.rescale
 
-class ExplorerChallengeBuilder(val definition: ExplorerChallengeDefinition) : ChallengeBuilder<ExplorerChallengeEntity>(definition) {
+class ExplorerChallengeBuilder(val definition: ExplorerChallengeDefinition) : ChallengeBuilder(definition) {
 	private var requiredLocationCount: Int = 0
 
 	private fun selectLocationCount() {
@@ -23,7 +24,7 @@ class ExplorerChallengeBuilder(val definition: ExplorerChallengeDefinition) : Ch
 		selectLocationCount()
 	}
 
-	override fun buildChallenge(context: Context, startAt: Long): ExplorerChallengeEntity {
+	override fun buildChallenge(context: Context, startAt: Long): Challenge {
 		return ExplorerChallengeEntity(context, name, description, difficulty, startAt, startAt + duration, requiredLocationCount, ExplorerChallengeProgressData())
 	}
 

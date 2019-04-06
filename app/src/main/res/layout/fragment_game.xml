@@ -4,41 +4,41 @@
                                                        android:layout_width="match_parent"
                                                        android:layout_height="match_parent">
 
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:tools="http://schemas.android.com/tools"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"
-                  android:orientation="vertical"
-                  android:paddingTop="@dimen/status_bar_height"
-        android:id="@+id/activities_root">
+    <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+                                                  xmlns:tools="http://schemas.android.com/tools"
+                                                  android:id="@+id/activities_root"
+                                                  android:layout_width="match_parent"
+                                                  android:layout_height="match_parent"
+                                                  android:orientation="vertical"
+                                                  android:paddingTop="@dimen/status_bar_height">
 
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="@dimen/edge_margin">
 
-            <LinearLayout
+            <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <TextView
+                <androidx.appcompat.widget.AppCompatTextView
                     style="@style/Base.TextAppearance.AppCompat.Caption"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingBottom="8dp"
-                    android:paddingEnd="@dimen/edge_margin"
                     android:paddingStart="@dimen/edge_margin"
                     android:paddingTop="8dp"
+                    android:paddingEnd="@dimen/edge_margin"
+                    android:paddingBottom="8dp"
                     android:text="@string/challenge_list_title"/>
 
-                <ListView
-                    android:id="@+id/listview_challenges"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recyclerview_challenges"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     tools:listitem="@layout/layout_challenge_small"/>
-            </LinearLayout>
+            </androidx.appcompat.widget.LinearLayoutCompat>
         </androidx.cardview.widget.CardView>
 
-    </LinearLayout>
+    </androidx.appcompat.widget.LinearLayoutCompat>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

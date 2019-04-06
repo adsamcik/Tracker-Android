@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.data.progress.ExplorerChallengeProgressData
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import kotlin.math.roundToInt
 
 @Entity(tableName = "explorer_challenge")
 class ExplorerChallengeEntity(context: Context,
@@ -18,7 +19,9 @@ class ExplorerChallengeEntity(context: Context,
                               endTime: Long,
                               @ColumnInfo(name = "req_loc_count")
                               private val requiredLocationCount: Int,
-                              progressData: ExplorerChallengeProgressData) : Challenge<ExplorerChallengeProgressData>(difficulty, name, description, startTime, endTime, progressData) {
+                              progressData: ExplorerChallengeProgressData) : ChallengeInstance<ExplorerChallengeProgressData>(difficulty, name, description, startTime, endTime, progressData) {
+	override val progress: Int
+		get() = (progressData.locationCount / requiredLocationCount.toDouble()).roundToInt().coerceAtMost(100)
 
 	private val dao = ChallengeDatabase.getAppDatabase(context).explorerDao()
 
@@ -26,7 +29,7 @@ class ExplorerChallengeEntity(context: Context,
 	var id: Int = 0
 
 	override val description: String
-		get() = description.format(progressData.locationCount)
+		get() = descriptionTemplate.format(requiredLocationCount)
 
 	override fun batchProcess(session: TrackerSession) {
 		val newLocationCount = dao.newLocationsBetween(session.start, session.end)
