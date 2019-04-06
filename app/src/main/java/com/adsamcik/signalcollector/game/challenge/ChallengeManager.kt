@@ -1,9 +1,9 @@
 package com.adsamcik.signalcollector.game.challenge
 
 import android.content.Context
-import com.adsamcik.signalcollector.game.challenge.data.Challenge
-import com.adsamcik.signalcollector.game.challenge.definition.ChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.definition.ExplorerChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
+import com.adsamcik.signalcollector.game.challenge.data.definition.ChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
 import kotlin.random.Random
 
 /**
@@ -17,7 +17,6 @@ object ChallengeManager {
 	 * Returns immutable list of active challenges
 	 */
 	val activeChallenges: List<Challenge> = mutableActiveChallenges
-
 
 
 	fun selectChallenge(context: Context): Challenge {

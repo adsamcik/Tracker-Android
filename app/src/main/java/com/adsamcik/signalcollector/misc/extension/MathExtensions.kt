@@ -29,6 +29,37 @@ fun Double.round(decimals: Int): Double {
 	return kotlin.math.round(this * multiplier) / multiplier
 }
 
+/**
+ * Rescales value in [range] to a proportionally same value between 0.0 and 1.0
+ */
+fun Double.normalize(range: ClosedRange<Double>): Double {
+	return (this - range.start) / (range.endInclusive - range.start)
+}
+
+/**
+ * Rescales value in [originalRange] to a proportionally same value in [newRange]
+ */
+fun Double.rescale(originalRange: ClosedRange<Double>, newRange: ClosedRange<Double>): Double {
+	return this.normalize(originalRange).rescale(newRange)
+}
+
+/**
+ * Rescales value between 0.0 and 1.0 to a proportionally same value in [newRange]
+ */
+fun Double.rescale(newRange: ClosedRange<Double>): Double {
+	return this * (newRange.endInclusive - newRange.start) + newRange.start
+}
+
+/**
+ * Returns additive inverse of this value
+ *
+ * eg. 4 in 2 to 5 => 3
+ * (3 has the same distance to 5 as 4 does to 2)
+ */
+fun Double.additiveInverse(range: ClosedRange<Double>): Double {
+	return range.endInclusive - (this - range.start)
+}
+
 fun Int.isPowerOfTwo(): Boolean = (this != 0) && ((this and (this - 1)) == 0)
 
 object MathExtensions {

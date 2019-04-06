@@ -17,14 +17,13 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.adapter.IViewChange
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulties
-import com.adsamcik.signalcollector.game.challenge.data.Challenge
+import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.mock.useMock
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 class FragmentGame : Fragment(), IOnDemandView {
 	private lateinit var listViewChallenges: ListView
@@ -108,7 +107,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 
 			val challenge = mDataSource[i]
 			(fragmentView!!.findViewById<View>(R.id.challenge_title) as TextView).text = challenge.name
-			(fragmentView.findViewById<View>(R.id.challenge_description) as TextView).text = challenge.description
+			(fragmentView.findViewById<View>(R.id.challenge_description) as TextView).text = challenge.descriptionTemplate
 
 			val textViewDifficulty = fragmentView.findViewById<TextView>(R.id.challenge_difficulty)
 			if (challenge.difficultyString == null)

@@ -40,7 +40,7 @@ class BottomSheetMenu(root: CoordinatorLayout) {
 
 		menuItems = ArrayList()
 		val typedValue = TypedValue()
-		//inverse text color returned weird values
+		//additiveInverse text color returned weird values
 		context.theme.resolveAttribute(R.attr.titleColor, typedValue, true)
 		textColor = typedValue.data
 	}

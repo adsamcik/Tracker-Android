@@ -32,13 +32,17 @@ abstract class AppDatabase : RoomDatabase() {
 	companion object {
 		private var instance_: AppDatabase? = null
 
+		private fun createInstance(context: Context): AppDatabase {
+			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
+					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+					.build()
+
+			instance_ = instance
+			return instance
+		}
+
 		fun getAppDatabase(context: Context): AppDatabase {
-			if (instance_ == null) {
-				instance_ = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-						.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-						.build()
-			}
-			return instance_ as AppDatabase
+			return instance_ ?: createInstance(context)
 		}
 
 		fun getTestDatabase(context: Context): AppDatabase {
