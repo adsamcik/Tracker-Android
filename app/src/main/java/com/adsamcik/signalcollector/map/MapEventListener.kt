@@ -13,53 +13,61 @@ class MapEventListener(val map: GoogleMap) {
 	private val onCameraMoveCancelledListeners: MutableList<GoogleMap.OnCameraMoveCanceledListener> = mutableListOf()
 
 	operator fun plusAssign(listener: GoogleMap.OnCameraIdleListener) {
-		if (onCameraIdleListeners.isEmpty())
+		if (onCameraIdleListeners.isEmpty()) {
 			map.setOnCameraIdleListener { onCameraIdleListeners.forEach { it.onCameraIdle() } }
+		}
 		onCameraIdleListeners.add(listener)
 	}
 
 	operator fun minusAssign(listener: GoogleMap.OnCameraIdleListener) {
 		onCameraIdleListeners.remove(listener)
-		if (onCameraIdleListeners.isEmpty())
+		if (onCameraIdleListeners.isEmpty()) {
 			map.setOnCameraIdleListener(null)
+		}
 	}
 
 
 	operator fun plusAssign(listener: GoogleMap.OnCameraMoveListener) {
-		if (onCameraMoveListeners.isEmpty())
+		if (onCameraMoveListeners.isEmpty()) {
 			map.setOnCameraMoveListener { onCameraMoveListeners.forEach { it.onCameraMove() } }
+		}
 		onCameraMoveListeners.add(listener)
 	}
 
 	operator fun minusAssign(listener: GoogleMap.OnCameraMoveListener) {
 		onCameraMoveListeners.remove(listener)
-		if (onCameraMoveListeners.isEmpty())
+		if (onCameraMoveListeners.isEmpty()) {
 			map.setOnCameraMoveListener(null)
+		}
 	}
 
 
 	operator fun plusAssign(listener: GoogleMap.OnCameraMoveStartedListener) {
-		if (onCameraMoveStartedListeners.isEmpty())
+		if (onCameraMoveStartedListeners.isEmpty()) {
 			map.setOnCameraMoveStartedListener { reason -> onCameraMoveStartedListeners.forEach { it.onCameraMoveStarted(reason) } }
+		}
 		onCameraMoveStartedListeners.add(listener)
 	}
 
 	operator fun minusAssign(listener: GoogleMap.OnCameraMoveStartedListener) {
 		onCameraMoveStartedListeners.remove(listener)
-		if (onCameraMoveStartedListeners.isEmpty())
+		if (onCameraMoveStartedListeners.isEmpty()) {
 			map.setOnCameraMoveStartedListener(null)
+		}
 	}
 
 
 	operator fun plusAssign(listener: GoogleMap.OnCameraMoveCanceledListener) {
-		if (onCameraMoveCancelledListeners.isEmpty())
+		if (onCameraMoveCancelledListeners.isEmpty()) {
 			map.setOnCameraMoveCanceledListener { onCameraMoveCancelledListeners.forEach { it.onCameraMoveCanceled() } }
+		}
 		onCameraMoveCancelledListeners.add(listener)
 	}
 
 	operator fun minusAssign(listener: GoogleMap.OnCameraMoveCanceledListener) {
 		onCameraMoveCancelledListeners.remove(listener)
-		if (onCameraMoveCancelledListeners.isEmpty())
+		if (onCameraMoveCancelledListeners.isEmpty()) {
 			map.setOnCameraMoveStartedListener(null)
+		}
 	}
 }

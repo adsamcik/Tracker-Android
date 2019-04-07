@@ -476,8 +476,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 	companion object {
 		private const val PERMISSION_LOCATION_CODE = 200
-
-		private const val TAG = "SignalsMap"
 	}
 
 }
