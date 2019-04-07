@@ -101,10 +101,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 * s permission available atm
 	 */
 	private fun checkLocationPermission(context: Context, request: Boolean): Boolean {
-		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 			return true
-		else if (request && Build.VERSION.SDK_INT >= 23)
-			activity!!.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_LOCATION_CODE)
+		} else if (request && Build.VERSION.SDK_INT >= 23) {
+			activity?.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_LOCATION_CODE)
+		}
 		return false
 	}
 
@@ -113,8 +114,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			locationListener?.unsubscribeFromLocationUpdates(activity)
 		}
 
+		val keyboardManager = keyboardManager
 		if (keyboardManager != null) {
-			val keyboardManager = keyboardManager!!
 			keyboardManager.hideKeyboard()
 			keyboardManager.removeKeyboardListener(keyboardListener)
 			keyboardInitialized.set(false)
@@ -127,7 +128,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		if (this.mapFragment == null) {
 			val mapFragment = SupportMapFragment.newInstance()
 			mapFragment.getMapAsync(this)
-			fragmentManager!!.transaction {
+
+			val fragmentManager = fragmentManager
+					?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
+
+			fragmentManager.transaction {
 				replace(R.id.container_map, mapFragment)
 			}
 			this.mapFragment = mapFragment
@@ -178,8 +183,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	override fun onDestroyView() {
 		super.onDestroyView()
 		mapFragment = null
-		if (colorManager != null)
-			ColorSupervisor.recycleColorManager(colorManager!!)
+
+		val colorManager = colorManager
+		if (colorManager != null) {
+			ColorSupervisor.recycleColorManager(colorManager)
+		}
 	}
 
 	/**
@@ -206,11 +214,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					}
 				}
 				false -> {
+					val baseBottomMarginPx = 32.dpAsPx
 					if (position == NavBarPosition.BOTTOM) {
-						map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + 32.dpAsPx
+						map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
 						map?.setPadding(0, 0, 0, navbarHeight.y)
 					} else {
-						map_ui_parent.marginBottom = searchOriginalMargin + 32.dpAsPx
+						map_ui_parent.marginBottom = searchOriginalMargin + baseBottomMarginPx
 						map?.setPadding(0, 0, 0, 0)
 					}
 				}
@@ -218,8 +227,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 			//Update map_menu_button position after UI has been redrawn
 			map_menu_button.post {
-				if (map_menu_button != null)
+				if (map_menu_button != null) {
 					map_menu_button.moveToState(map_menu_button.state, false)
+				}
 			}
 		}
 	}
@@ -231,15 +241,18 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 * Relies on detecting bigger layout size changes.
 	 */
 	private fun initializeKeyboardDetection() {
-		if (keyboardInitialized.get())
-			keyboardManager!!.onDisplaySizeChanged()
-		else {
+		if (keyboardInitialized.get()) {
+			val keyboardManager = keyboardManager
+					?: throw NullPointerException("KeyboardManager should never be null when keyboardInitialized is true")
+			keyboardManager.onDisplaySizeChanged()
+		} else {
+			var keyboardManager = keyboardManager
 			if (keyboardManager == null) {
 				searchOriginalMargin = (map_ui_parent.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams).bottomMargin
 				keyboardManager = KeyboardManager(view!!.rootView)
 			}
 
-			keyboardManager!!.addKeyboardListener(keyboardListener)
+			keyboardManager.addKeyboardListener(keyboardListener)
 			keyboardInitialized.set(true)
 		}
 	}
@@ -269,12 +282,16 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		}
 
 		button_map_date_range.setOnClickListener {
+			val fragmentManager = fragmentManager
+					?: throw NullPointerException("FragmentManager must not be null")
+
 			DateTimeRangeDialog().apply {
 				arguments = Bundle().apply {
 					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
 						val dateRange = this@FragmentMap.dateRange
-						if (dateRange != null)
+						if (dateRange != null) {
 							setDateParams(dateRange.start, dateRange.endInclusive)
+						}
 
 						setDisplayOptions(ACTIVATE_DATE_PICKER)
 						setCanPickDateRange(true)
@@ -284,15 +301,17 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					this@FragmentMap.dateRange = range
 					mapController?.setDateRange(range)
 				}
-			}.show(fragmentManager!!, "Map date range dialog")
+			}.show(fragmentManager, "Map date range dialog")
 		}
 
 		button_map_my_location.setOnClickListener {
 			locationListener?.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
 
-		colorManager!!.watchView(ColorView(map_menu_button, 2, recursive = false, rootIsBackground = false))
-		colorManager!!.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
+		val colorManager = colorManager
+				?: throw NullPointerException("ColorManager should be already initialized")
+		colorManager.watchView(ColorView(map_menu_button, 2, recursive = false, rootIsBackground = false))
+		colorManager.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
 	}
 
 	/**
