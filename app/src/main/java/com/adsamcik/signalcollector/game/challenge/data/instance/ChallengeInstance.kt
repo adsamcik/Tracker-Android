@@ -1,13 +1,33 @@
 package com.adsamcik.signalcollector.game.challenge.data.instance
 
-import androidx.room.ColumnInfo
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
-import com.adsamcik.signalcollector.game.challenge.data.progress.ChallengeProgressData
+import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryExtra
+import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
-abstract class ChallengeInstance<ProgressData : ChallengeProgressData>(difficulty: ChallengeDifficulty,
-                                                                       name: String,
-                                                                       descriptionTemplate: String,
-                                                                       startTime: Long,
-                                                                       endTime: Long,
-                                                                       @ColumnInfo(name = "progress_data")
-                                                                       val progressData: ProgressData) : Challenge(difficulty, name, descriptionTemplate, startTime, endTime)
+abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
+		val data: ChallengeEntry,
+		val title: String,
+		protected val descriptionTemplate: String,
+		val extra: ExtraData) {
+
+	val startTime: Long get() = data.startTime
+
+	val endTime: Long get() = data.endTime
+
+	val difficulty: ChallengeDifficulty get() = data.difficulty
+
+	/**
+	 * Duration of the challenge
+	 */
+	val duration: Long get() = data.endTime - data.startTime
+
+	abstract val description: String
+
+	abstract val progress: Int
+
+	/**
+	 * Runs a batch process on a specified session
+	 */
+	abstract fun batchProcess(session: TrackerSession)
+}

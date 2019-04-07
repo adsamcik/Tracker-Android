@@ -9,11 +9,11 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.adapter.IViewChange
-import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
+import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
 import com.adsamcik.signalcollector.misc.extension.formatAsDuration
 import kotlinx.android.synthetic.main.layout_challenge_small.view.*
 
-class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challenge>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
+class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
 
 	class ViewHolder(itemView: View,
 	                 val titleTextView: AppCompatTextView,
@@ -25,7 +25,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 
 	private val mInflater: LayoutInflater = mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
 
-	fun updateData(challenges: Array<Challenge>) {
+	fun updateData(challenges: Array<ChallengeInstance<*>>) {
 		this.mDataSource = challenges
 		notifyDataSetChanged()
 	}
@@ -41,7 +41,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		val challenge = mDataSource[position]
-		holder.titleTextView.text = challenge.name
+		holder.titleTextView.text = challenge.title
 		holder.descriptionTextView.text = challenge.description
 		holder.difficultyTextView.text = challenge.difficulty.name.replace('_', ' ').toLowerCase()
 

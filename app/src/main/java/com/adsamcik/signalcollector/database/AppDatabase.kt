@@ -29,6 +29,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun mapHeatDao(): MapHeatDao
 
+	abstract fun challengeDao(): ChallengeDao
+
 	companion object {
 		private var instance_: AppDatabase? = null
 

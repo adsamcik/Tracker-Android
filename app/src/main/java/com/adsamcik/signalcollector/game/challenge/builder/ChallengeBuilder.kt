@@ -3,16 +3,18 @@ package com.adsamcik.signalcollector.game.challenge.builder
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.data.definition.ChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
+import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
+import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
+import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.Probability
 import com.adsamcik.signalcollector.misc.extension.rescale
 
-abstract class ChallengeBuilder(private val definition: ChallengeDefinition) {
+abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private val definition: ChallengeDefinition<ChallengeType>) {
 	protected var difficultyMultiplier: Double = 1.0
 	protected var duration: Long = 0L
 
 	protected lateinit var description: String
-	protected lateinit var name: String
+	protected lateinit var title: String
 
 	protected open val difficulty: ChallengeDifficulty
 		get() = when {
@@ -31,20 +33,34 @@ abstract class ChallengeBuilder(private val definition: ChallengeDefinition) {
 		difficultyMultiplier *= durationMultiplier.rescale(min..max, 0.25..2.0)
 	}
 
-	fun loadResources(context: Context) {
+	private fun loadResources(context: Context) {
 		val resources = context.resources
-		name = resources.getString(definition.nameRes)
+		title = resources.getString(definition.titleRes)
 		description = resources.getString(definition.descriptionRes)
 	}
 
 	abstract fun selectChallengeSpecificParameters()
 
-	fun build(context: Context, startAt: Long): Challenge {
+	private fun createEntry(context: Context, startAt: Long): ChallengeEntry {
+		val entryDao = ChallengeDatabase.getAppDatabase(context).entryDao
+		val entry = ChallengeEntry(definition.name, startAt, startAt + duration, difficulty)
+		entryDao.insertSetId(entry)
+
+		if(entry.id == 0L)
+			throw Error("Id was 0 after insertion. Something is wrong.")
+
+		return entry
+	}
+
+	fun build(context: Context, startAt: Long): ChallengeType {
 		selectChallengeSpecificParameters()
 		selectLength()
 		loadResources(context)
-		return buildChallenge(context, startAt)
+
+		val entry = createEntry(context, startAt)
+
+		return buildChallenge(context, entry)
 	}
 
-	protected abstract fun buildChallenge(context: Context, startAt: Long): Challenge
+	protected abstract fun buildChallenge(context: Context, entry: ChallengeEntry): ChallengeType
 }

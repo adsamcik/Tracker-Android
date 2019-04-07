@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.game
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
-import com.adsamcik.signalcollector.game.challenge.database.dao.ExplorerChallengeDao
 import com.adsamcik.signalcollector.tracker.data.CellInfo
 import com.adsamcik.signalcollector.tracker.data.CellType
 import org.junit.Assert

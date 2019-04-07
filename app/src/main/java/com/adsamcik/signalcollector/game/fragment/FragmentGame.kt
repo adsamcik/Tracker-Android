@@ -16,6 +16,7 @@ import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
+import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers

@@ -2,18 +2,18 @@ package com.adsamcik.signalcollector.game.challenge.data.definition
 
 import android.content.Context
 import androidx.annotation.StringRes
-import com.adsamcik.signalcollector.game.challenge.data.instance.Challenge
-import kotlin.reflect.KClass
+import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
 
 /**
  * Definition containing basic data for each challenge
  */
-abstract class ChallengeDefinition(@StringRes val nameRes: Int,
-                                   @StringRes val descriptionRes: Int,
-                                   val defaultDuration: Long) {
+abstract class ChallengeDefinition<ChallengeType : ChallengeInstance<*>>(
+		@StringRes val titleRes: Int,
+		@StringRes val descriptionRes: Int,
+		val defaultDuration: Long) {
 
-	abstract val type: KClass<*>
+	abstract val name: String
 
-	abstract fun createInstance(context: Context, startAt: Long): Challenge
+	abstract fun createInstance(context: Context, startAt: Long): ChallengeType
 
 }

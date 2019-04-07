@@ -5,20 +5,17 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.signalcollector.database.data.*
-import com.adsamcik.signalcollector.game.challenge.database.dao.ExplorerChallengeDao
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.game.challenge.database.dao.ChallengeEntryDao
+import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.database.data.extra.ExplorerChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
 
-@Database(entities = [DatabaseLocation::class,
-	TrackerSession::class,
-	DatabaseWifiData::class,
-	DatabaseCellData::class,
-	DatabaseMapMaxHeat::class],
-		version = 6)
-@TypeConverters(CellTypeTypeConverter::class)
+@Database(entities = [ChallengeEntry::class, ExplorerChallengeEntry::class],
+		version = 1)
+@TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
 
-	abstract fun explorerDao(): ExplorerChallengeDao
+	abstract val entryDao: ChallengeEntryDao
 
 	companion object {
 		private var instance_: ChallengeDatabase? = null
