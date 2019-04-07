@@ -25,7 +25,7 @@ object Probability {
 	 *
 	 * Two numbers are returned because they are calculated using Box–Muller method https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform which has very little overhead in calculating 2nd value
 	 */
-	fun normal(from: Double, until: Double): Pair<Double, Double> {
+	fun normal(from: Double, until: Double): Array<Double> {
 		val u = uniform()
 		val v = uniform()
 
@@ -34,15 +34,15 @@ object Probability {
 		val x = lnSqrt * cos(twoPiV)
 		val y = lnSqrt * sin(twoPiV)
 
-		return Pair(x.rescale(from..until), y.rescale(from..until))
+		return arrayOf(x.rescale(from..until), y.rescale(from..until))
 	}
 
 
 	/**
 	 * @see normal
 	 */
-	fun normal(from: Int, until: Int): Pair<Int, Int> {
+	fun normal(from: Int, until: Int): Array<Int> {
 		val normalDouble = normal(from.toDouble(), until.toDouble())
-		return Pair(normalDouble.first.toInt(), normalDouble.second.toInt())
+		return normalDouble.map { it.toInt() }.toTypedArray()
 	}
 }
