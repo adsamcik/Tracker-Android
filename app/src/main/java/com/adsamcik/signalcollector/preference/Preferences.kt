@@ -20,8 +20,7 @@ object Preferences {
 	 * @return Shared preferences
 	 */
 	fun getPref(c: Context): SharedPreferences {
-		if (sharedPreferences == null)
-			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(c.applicationContext)
-		return sharedPreferences!!
+		return this.sharedPreferences
+				?: PreferenceManager.getDefaultSharedPreferences(c.applicationContext).apply { this@Preferences.sharedPreferences = this }
 	}
 }

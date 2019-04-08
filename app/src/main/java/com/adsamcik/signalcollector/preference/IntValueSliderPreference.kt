@@ -32,8 +32,11 @@ class IntValueSliderPreference : Preference {
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
 		val attributes = context.obtainStyledAttributes(attrs, R.styleable.IntValueSliderPreference)
 		mValuesResource = attributes.getResourceId(R.styleable.IntValueSliderPreference_items, 0)
-		if (attributes.hasValue(R.styleable.IntValueSliderPreference_stringFormat))
-			mTextViewString = attributes.getString(R.styleable.IntValueSliderPreference_stringFormat)!!
+
+		val stringFormat = attributes.getString(R.styleable.IntValueSliderPreference_stringFormat)
+		if (stringFormat != null) {
+			mTextViewString = stringFormat
+		}
 
 		attributes.recycle()
 	}
@@ -50,12 +53,14 @@ class IntValueSliderPreference : Preference {
 	}
 
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
-		return a.getString(index)!!.toInt()
+		val valueString = a.getString(index)
+		return valueString?.toInt() ?: 0
 	}
 
 	override fun onSetInitialValue(defaultValue: Any?) {
-		if (defaultValue != null)
+		if (defaultValue != null) {
 			mInitialValue = defaultValue as Int
+		}
 	}
 
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {

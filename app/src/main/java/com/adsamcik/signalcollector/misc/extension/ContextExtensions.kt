@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.telephony.TelephonyManager
+import android.view.LayoutInflater
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.RequiresApi
@@ -199,5 +200,12 @@ inline val Context.shortcutManager: ShortcutManager @RequiresApi(25) get() = get
  */
 inline val Context.sensorManager: SensorManager get() = getSystemServiceTyped(Context.SENSOR_SERVICE)
 
-
+/**
+ * Shortcut to get [NotificationManager]. This property does not cache the service.
+ */
 inline val Context.notificationManager: NotificationManager get() = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)
+
+/**
+ * Shortcut to get [LayoutInflater]. This property does not cache the service.
+ */
+inline val Context.layoutInflater: LayoutInflater get() = getSystemServiceTyped(Context.LAYOUT_INFLATER_SERVICE)

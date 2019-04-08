@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.TypedValue
-import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -14,6 +13,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.misc.extension.layoutInflater
 
 /**
  * Component that shows custom data with title and items.
@@ -21,9 +21,9 @@ import com.adsamcik.signalcollector.misc.extension.dpAsPx
  *
  */
 class InfoComponent : FrameLayout {
-	private var titleTextView: TextView? = null
+	private lateinit var titleTextView: TextView
 
-	private var root: ViewGroup? = null
+	private lateinit var root: ViewGroup
 
 	private var items: MutableMap<String, TextView> = mutableMapOf()
 
@@ -49,7 +49,7 @@ class InfoComponent : FrameLayout {
 	}
 
 	private fun initialize(context: Context) {
-		val inflater = context.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+		val inflater = context.layoutInflater
 		inflater.inflate(R.layout.layout_component_info, this)
 		root = this.getChildAt(0) as ViewGroup
 
@@ -70,11 +70,13 @@ class InfoComponent : FrameLayout {
 	 * Sets title of an [InfoComponent]
 	 */
 	fun setTitle(drawable: Drawable?, title: String?) {
-		if (title != null)
-			titleTextView!!.text = title
+		if (title != null) {
+			titleTextView.text = title
+		}
 
-		if (drawable != null)
-			titleTextView!!.setCompoundDrawables(drawable, null, null, null)
+		if (drawable != null) {
+			titleTextView.setCompoundDrawables(drawable, null, null, null)
+		}
 	}
 
 	private fun createTextView(text: String): TextView {
@@ -84,7 +86,7 @@ class InfoComponent : FrameLayout {
 		textView.layoutParams = lp
 		textView.text = text
 
-		root!!.addView(textView)
+		root.addView(textView)
 
 		return textView
 	}
@@ -128,6 +130,9 @@ class InfoComponent : FrameLayout {
 		items[identifier] = textView
 	}
 
+	private fun getItem(identifier: String) = items[identifier]
+			?: throw IndexOutOfBoundsException("identifier $identifier is not present in the map")
+
 	/**
 	 * Updates text with passed [identifier] to the value of [text]
 	 *
@@ -135,7 +140,8 @@ class InfoComponent : FrameLayout {
 	 * @param text text
 	 */
 	fun setText(identifier: String, text: String) {
-		items[identifier]!!.text = text
+		val item = getItem(identifier)
+		item.text = text
 	}
 
 	/**
@@ -145,7 +151,8 @@ class InfoComponent : FrameLayout {
 	 * @param visibility One of [View.VISIBLE], [View.INVISIBLE], or [View.GONE].
 	 */
 	fun setVisibility(identifier: String, visibility: Int) {
-		items[identifier]!!.visibility = visibility
+		val item = getItem(identifier)
+		item.visibility = visibility
 	}
 
 	/**

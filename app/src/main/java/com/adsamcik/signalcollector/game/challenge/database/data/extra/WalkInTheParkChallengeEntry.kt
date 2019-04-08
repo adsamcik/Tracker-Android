@@ -8,6 +8,4 @@ class WalkInTheParkChallengeEntry(entryId: Long,
                                   @ColumnInfo(name = "required_distance")
                                   val requiredDistanceInM: Float,
                                   @ColumnInfo(name = "distance")
-                                  var distanceInM: Float) : ChallengeEntryExtra(entryId, isCompleted) {
-
-}
+                                  var distanceInM: Float) : ChallengeEntryExtra(entryId, isCompleted)
