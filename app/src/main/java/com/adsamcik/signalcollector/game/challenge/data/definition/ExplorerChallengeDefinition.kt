@@ -9,8 +9,8 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallen
 class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstance>(
 		R.string.challenge_explorer_title,
 		R.string.challenge_explorer_description,
-		3 * Constants.DAY_IN_MILLISECONDS) {
-	val defaultLocationCount: Int = 500
+		Constants.WEEK_IN_MILLISECONDS) {
+	val defaultLocationCount: Int = 1000
 
 	override val name: String
 		get() = "Explorer"

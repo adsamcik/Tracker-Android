@@ -16,7 +16,7 @@ import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
-import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
+import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -37,25 +37,27 @@ class FragmentGame : Fragment(), IOnDemandView {
 		refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
 		refreshLayout.setColorSchemeResources(R.color.color_primary)
 		refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
-		refreshLayout.setOnRefreshListener { this.updateData() }
+		refreshLayout.setOnRefreshListener { this.updateData(ChallengeManager.activeChallenges.value) }
 
 		//updateData()
 
 		val context = context!!
-		ChallengeManager.initialize(context)
 		recyclerViewChallenges.adapter = ChallengeAdapter(context, arrayOf())
 		recyclerViewChallenges.layoutManager = LinearLayoutManager(context)
 		colorManager = ColorSupervisor.createColorManager(context)
 		colorManager.watchAdapterView(ColorView(recyclerViewChallenges, 1, recursive = true, rootIsBackground = false))
 
-		updateData()
+		ChallengeManager.activeChallenges.observe(this) { updateData(it) }
+
+		ChallengeManager.initialize(context)
 
 		return rootView
 	}
 
-	private fun updateData() {
+	private fun updateData(challengeList: List<ChallengeInstance<*>>) {
+		val challengeArray = challengeList.toTypedArray()
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-			(recyclerViewChallenges.adapter as ChallengeAdapter).updateData(ChallengeManager.activeChallenges.toTypedArray())
+			(recyclerViewChallenges.adapter as ChallengeAdapter).updateData(challengeArray)
 			refreshLayout.isRefreshing = false
 		}
 	}

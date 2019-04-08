@@ -5,7 +5,6 @@ import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChall
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.extra.ExplorerChallengeEntry
-import com.adsamcik.signalcollector.misc.Probability
 import com.adsamcik.signalcollector.misc.extension.additiveInverse
 import com.adsamcik.signalcollector.misc.extension.rescale
 
@@ -13,11 +12,11 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 	private var requiredLocationCount: Int = 0
 
 	private fun selectLocationCount() {
-		val min = 0.2
-		val max = 5.0
-		val (countMultiplier, _) = Probability.normal(min, max)
+		val min = 0.8 - 0.4 * (1.0 - durationMultiplierNormalized)
+		val max = 1.25 + 4.75 * durationMultiplierNormalized
+		val countMultiplier = normalRandom(min..max)
 		requiredLocationCount = (definition.defaultLocationCount * countMultiplier).toInt()
-		this.difficultyMultiplier *= countMultiplier.additiveInverse(min..max).rescale(min..max, 0.25..2.0)
+		this.difficultyMultiplier *= countMultiplier.additiveInverse(min..max).rescale(min..max, 0.4..2.5)
 	}
 
 	override fun selectChallengeSpecificParameters() {

@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.extra.ExplorerChallengeEntry
+import com.adsamcik.signalcollector.misc.extension.rescale
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import kotlin.math.roundToInt
 
@@ -16,7 +17,7 @@ class ExplorerChallengeInstance(context: Context,
 	: ChallengeInstance<ExplorerChallengeEntry>(entry, title, descriptionTemplate, data) {
 
 	override val progress: Int
-		get() = (extra.locationCount / extra.requiredLocationCount.toDouble()).roundToInt().coerceAtMost(100)
+		get() = (extra.locationCount / extra.requiredLocationCount.toDouble()).rescale(0.0..100.0).toInt()
 
 	private val dao = AppDatabase.getAppDatabase(context).challengeDao()
 

@@ -7,11 +7,20 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstan
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.Probability
+import com.adsamcik.signalcollector.misc.extension.normalize
 import com.adsamcik.signalcollector.misc.extension.rescale
 
 abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private val definition: ChallengeDefinition<ChallengeType>) {
 	protected var difficultyMultiplier: Double = 1.0
+
 	protected var duration: Long = 0L
+		private set
+
+	protected var durationMultiplier: Double = 0.0
+		private set
+
+	protected var durationMultiplierNormalized: Double = 0.0
+		private set
 
 	protected lateinit var description: String
 	protected lateinit var title: String
@@ -19,18 +28,20 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 	protected open val difficulty: ChallengeDifficulty
 		get() = when {
 			difficultyMultiplier < 0.5 -> ChallengeDifficulty.VERY_EASY
-			difficultyMultiplier < 0.9 -> ChallengeDifficulty.EASY
-			difficultyMultiplier < 1.1 -> ChallengeDifficulty.MEDIUM
-			difficultyMultiplier < 1.5 -> ChallengeDifficulty.HARD
+			difficultyMultiplier < 0.8 -> ChallengeDifficulty.EASY
+			difficultyMultiplier < 1.25 -> ChallengeDifficulty.MEDIUM
+			difficultyMultiplier < 2 -> ChallengeDifficulty.HARD
 			else -> ChallengeDifficulty.VERY_HARD
 		}
 
-	open fun selectLength() {
-		val max = 1.6
-		val min = 0.4
-		val (durationMultiplier, _) = Probability.normal(min, max)
+	protected fun normalRandom(range: ClosedFloatingPointRange<Double>) = Probability.normal().first().coerceIn(0.0, 1.0).rescale(range)
+
+	open fun selectDuration() {
+		val range = MIN_DURATION_MULTIPLIER..MAX_DURATION_MULTIPLIER
+		durationMultiplier = normalRandom(range)
+		durationMultiplierNormalized = durationMultiplier.normalize(range)
+
 		duration = (definition.defaultDuration * durationMultiplier).toLong()
-		difficultyMultiplier *= durationMultiplier.rescale(min..max, 0.25..2.0)
 	}
 
 	private fun loadResources(context: Context) {
@@ -46,15 +57,15 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 		val entry = ChallengeEntry(definition.name, startAt, startAt + duration, difficulty)
 		entryDao.insertSetId(entry)
 
-		if(entry.id == 0L)
+		if (entry.id == 0L)
 			throw Error("Id was 0 after insertion. Something is wrong.")
 
 		return entry
 	}
 
 	fun build(context: Context, startAt: Long): ChallengeType {
+		selectDuration()
 		selectChallengeSpecificParameters()
-		selectLength()
 		loadResources(context)
 
 		val entry = createEntry(context, startAt)
@@ -63,4 +74,9 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 	}
 
 	protected abstract fun buildChallenge(context: Context, entry: ChallengeEntry): ChallengeType
+
+	companion object {
+		const val MAX_DURATION_MULTIPLIER = 3.0
+		const val MIN_DURATION_MULTIPLIER = 0.25
+	}
 }

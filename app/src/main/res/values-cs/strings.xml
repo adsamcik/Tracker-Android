@@ -40,8 +40,6 @@
     <string name="challenge_medium">Střední</string>
     <string name="challenge_memory_lane_description">Navštivte %1$s již nalezených míst pěšky</string>
     <string name="challenge_memory_lane_title">Nostalgická cesta</string>
-    <string name="challenge_peaceful_forest_description">"Vydejte se ven a najděte %1$s nových míst bez Wi-Fi sítí. "</string>
-    <string name="challenge_peaceful_forest_title">Poklidný les</string>
     <string name="challenge_progress">%1$d%%</string>
     <string name="challenge_scattered_data_description">Najděte %1$s kusů dat v nových Wi-Fi sítích</string>
     <string name="challenge_scattered_data_title">Roztroušená data</string>
@@ -289,4 +287,6 @@
     <string name="notification_location">%1$s° S %2$s° V</string>
     <string name="info_session_collections">%d sběrů</string>
     <string name="info_session_distance">%s vzdálenost</string>
+    <string name="challenge_walk_in_the_park_description">Ujděte pěšky %s</string>
+    <string name="challenge_walk_in_the_park_title">V nohách mám už tisíc mil</string>
 </resources>
