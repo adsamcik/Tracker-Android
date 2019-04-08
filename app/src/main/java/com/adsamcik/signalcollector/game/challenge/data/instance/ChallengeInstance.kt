@@ -26,8 +26,22 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 
 	abstract val progress: Int
 
+	protected abstract fun checkCompletionConditions(): Boolean
+
 	/**
 	 * Runs a batch process on a specified session
 	 */
-	abstract fun batchProcess(session: TrackerSession)
+	abstract fun processSession(session: TrackerSession)
+
+	fun batchProcess(sessionList: List<TrackerSession>) {
+		if (extra.isCompleted) return
+
+		sessionList.forEach {
+			processSession(it)
+			if (checkCompletionConditions()) {
+				extra.isCompleted = true
+				return@forEach
+			}
+		}
+	}
 }

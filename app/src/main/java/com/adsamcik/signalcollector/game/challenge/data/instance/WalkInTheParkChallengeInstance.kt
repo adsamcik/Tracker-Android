@@ -16,10 +16,10 @@ class WalkInTheParkChallengeInstance(data: ChallengeEntry,
 	override val progress: Int
 		get() = ((extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble())).rescale(0.0..100.0).toInt()
 
-	override fun batchProcess(session: TrackerSession) {
+	override fun checkCompletionConditions() = extra.distanceInM >= extra.requiredDistanceInM
+
+	override fun processSession(session: TrackerSession) {
 		extra.distanceInM += session.distanceOnFootInM
-		if (extra.distanceInM >= extra.requiredDistanceInM)
-			extra.isCompleted = true
 	}
 
 }

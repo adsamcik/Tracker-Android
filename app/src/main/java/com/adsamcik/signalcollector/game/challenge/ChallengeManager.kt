@@ -46,8 +46,9 @@ object ChallengeManager {
 	fun activateRandomChallenge(context: Context): ChallengeInstance<*>? {
 		val possibleChallenges = enabledChallengeList.filterNot { definition -> _mutableActiveChallengeList.any { definition.name == it.data.name } }
 
-		if (possibleChallenges.isEmpty())
+		if (possibleChallenges.isEmpty()) {
 			return null
+		}
 
 		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
 		val selectedChallenge = possibleChallenges[selectedChallengeIndex]

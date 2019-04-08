@@ -27,11 +27,12 @@ class ExplorerChallengeInstance(context: Context,
 	override val description: String
 		get() = descriptionTemplate.format(extra.requiredLocationCount)
 
-	override fun batchProcess(session: TrackerSession) {
+	override fun checkCompletionConditions() = extra.locationCount >= extra.requiredLocationCount
+
+	override fun processSession(session: TrackerSession) {
 		val newLocationCount = dao.newLocationsBetween(session.start, session.end)
 		extra.locationCount += newLocationCount
-		if (extra.locationCount >= extra.requiredLocationCount)
-			extra.isCompleted = true
+
 	}
 
 }
