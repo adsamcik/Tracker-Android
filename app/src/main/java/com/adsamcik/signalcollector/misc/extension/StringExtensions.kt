@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.misc.extension
 
 import android.content.Context
+import android.content.res.Resources
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.misc.LengthSystem
@@ -103,46 +104,38 @@ fun Long.formatAsShortDateTime(): String {
 	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
 }
 
-fun Float.formatAsDistance(digits: Int, unit: LengthSystem): String {
-	return this.toDouble().formatAsDistance(digits, unit)
+fun Resources.formatDistance(value: Float, digits: Int, unit: LengthSystem): String {
+	return formatDistance(value.toDouble(), digits, unit)
 }
 
-fun Double.formatAsDistance(digits: Int, unit: LengthSystem): String {
+fun Resources.formatDistance(meters: Double, digits: Int, unit: LengthSystem): String {
 	return when (unit) {
 		LengthSystem.Metric -> {
-			if (this >= 10000.0)
-				"${(this / 1000.0).formatReadable(digits)} km"
+			if (meters >= 1000.0)
+				getString(R.string.kilometer_abbr, (meters / 1000.0).formatReadable(digits))
 			else
-				"${this.formatReadable(digits)} m"
+				getString(R.string.meter_abbr, meters.formatReadable(digits))
 		}
 		LengthSystem.Imperial -> {
-			val feet = 3.280839895 * this
+			val feet = 3.280839895 * meters
 
 			if (feet >= 5280) {
 				val miles = feet / 5280
-				"${miles.formatReadable(digits)} mile"
+				getString(R.string.mile_abbr, miles.formatReadable(digits))
 			} else
-				"${feet.formatReadable(digits)} feet"
+				getString(R.string.feet_abbr, feet.formatReadable(digits))
+		}
+		LengthSystem.AncientRoman -> {
+			val passus = meters / 1.48
+
+			if (passus >= 1000.0)
+				getString(R.string.millepassus_abbr, (passus / 1000.0).formatReadable(digits))
+			else
+				getString(R.string.passus_abbr, passus.formatReadable(digits))
 		}
 	}
 }
 
-fun Int.formatAsDistance(digits: Int, unit: LengthSystem): String {
-	return when (unit) {
-		LengthSystem.Metric -> {
-			if (this >= 10000)
-				"${(this / 1000.0).formatReadable(digits)} km"
-			else
-				"${this.formatReadable()} m"
-		}
-		LengthSystem.Imperial -> {
-			val feet = 3.280839895 * this
-
-			if (feet >= 5280) {
-				val miles = feet / 5280
-				"${miles.formatReadable(digits)} mile"
-			} else
-				"${feet.formatReadable(digits)} feet"
-		}
-	}
+fun Resources.formatDistance(value: Int, digits: Int, unit: LengthSystem): String {
+	return formatDistance(value.toDouble(), digits, unit)
 }

@@ -289,4 +289,16 @@
     <string name="info_session_distance">%s vzdálenost</string>
     <string name="challenge_walk_in_the_park_description">Ujděte pěšky %s</string>
     <string name="challenge_walk_in_the_park_title">V nohách mám už tisíc mil</string>
+    <string name="settings_length_system_title">Délkový systém</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrický</item>
+        <item>Imperiální (USA)</item>
+        <item>Římské míry</item>
+    </string-array>
+    <string name="meter_abbr">%s m</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="millepassus_abbr">%s římských mil</string>
+    <string name="passus_abbr">%s kroků</string>
 </resources>

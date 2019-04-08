@@ -16,6 +16,8 @@ import kotlin.random.Random
  */
 object ChallengeManager {
 	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkDistanceChallengeDefinition())
+
+	//do not hold this indefinitely
 	private val _mutableActiveChallengeList: MutableList<ChallengeInstance<*>> = mutableListOf()
 
 	private const val MAX_CHALLENGE_COUNT = 3

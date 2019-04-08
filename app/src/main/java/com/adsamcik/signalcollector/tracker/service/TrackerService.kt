@@ -36,10 +36,9 @@ import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
-import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.misc.extension.LocationExtensions
-import com.adsamcik.signalcollector.misc.extension.formatAsDistance
+import com.adsamcik.signalcollector.misc.extension.formatDistance
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
@@ -294,25 +293,26 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val df = DecimalFormat.getNumberInstance()
 		df.roundingMode = RoundingMode.HALF_UP
 
-		val delimeter = ", "
+		val lengthSystem = Preferences.getLengthSystem(this)
+		val delimiter = ", "
 
 		sb.append(resources.getString(R.string.notification_location,
 				Location.convert(location.latitude, Location.FORMAT_DEGREES),
 				Location.convert(location.longitude, Location.FORMAT_DEGREES)
 		))
-				.append(delimeter)
-				.append(resources.getString(R.string.info_altitude, location.altitude.toInt().formatAsDistance(2, LengthSystem.Metric)))
-				.append(delimeter)
+				.append(delimiter)
+				.append(resources.getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
+				.append(delimiter)
 
 		val activity = d.activity
 		if (activity != null) {
 			sb.append(resources.getString(R.string.notification_activity,
-					activity.getGroupedActivityName(this))).append(delimeter)
+					activity.getGroupedActivityName(this))).append(delimiter)
 		}
 
 		val wifi = d.wifi
 		if (wifi != null) {
-			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(delimeter)
+			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(delimiter)
 		}
 
 		val cell = d.cell
@@ -322,7 +322,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 					.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm))
 					.append(' ')
 					.append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount))
-					.append(delimeter)
+					.append(delimiter)
 		}
 
 		sb.setLength(sb.length - 2)

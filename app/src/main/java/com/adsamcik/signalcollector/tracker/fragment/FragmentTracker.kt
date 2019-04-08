@@ -25,7 +25,6 @@ import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.app.widget.InfoComponent
-import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.SnackMaker
 import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.mock.useMock
@@ -277,7 +276,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun updateData(session: TrackerSession, rawData: RawData) {
-		val context = context!!
+		val context = getNonNullContext()
 		val res = context.resources
 
 		textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(rawData.time)))
@@ -322,16 +321,19 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateLocationUI(location: Location?) {
 		if (location != null) {
+			val context = getNonNullContext()
+			val resources = context.resources
+			val lengthSystem = Preferences.getLengthSystem(context)
 			if (location.horizontalAccuracy != null) {
 				horizontal_accuracy.visibility = VISIBLE
-				horizontal_accuracy.text = getString(R.string.info_accuracy, location.horizontalAccuracy.formatAsDistance(0, LengthSystem.Metric))
+				horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(location.horizontalAccuracy, 0, lengthSystem))
 			} else
 				horizontal_accuracy.visibility = GONE
 
 			//todo add vertical accuracy
 
 			if (location.altitude != null) {
-				altitude.text = getString(R.string.info_altitude, location.altitude.toInt().formatAsDistance(2, LengthSystem.Metric))
+				altitude.text = getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem))
 				altitude.visibility = VISIBLE
 			} else
 				altitude.visibility = GONE
@@ -359,26 +361,30 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateWifiUI(time: Long, wifiData: WifiData?) {
 		val res = resources
-		when {
-			wifiData != null -> {
-				val component = initializeWifiInfo()
-				component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, wifiData.inRange.size))
-				component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
-				lastWifiTime = time
-			}
-			lastWifiTime - time < Constants.MINUTE_IN_MILLISECONDS && wifiInfo != null ->
-				wifiInfo!!.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
-			else -> {
-				wifiInfo?.detach()
-				wifiInfo = null
+		val wifiInfo = wifiInfo
+
+		if (wifiData != null) {
+			val component = initializeWifiInfo()
+			component.setText(WIFI_COMPONENT_COUNT, res.getString(R.string.main_wifi_count, wifiData.inRange.size))
+			component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
+			lastWifiTime = time
+		} else if (wifiInfo != null) {
+			if (lastWifiTime - time < Constants.MINUTE_IN_MILLISECONDS)
+				wifiInfo.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
+			else {
+				wifiInfo.detach()
+				this.wifiInfo = null
 			}
 		}
 	}
 
 	private fun updateSessionUI(session: TrackerSession) {
-		val res = resources
-		session_collections.text = res.getString(R.string.info_session_collections, session.collections)
-		session_distance.text = res.getString(R.string.info_session_distance, session.distanceInM.formatAsDistance(1, LengthSystem.Metric))
+		val resources = resources
+		session_collections.text = resources.getString(R.string.info_session_collections, session.collections)
+
+		val lengthSystem = Preferences.getLengthSystem(getNonNullContext())
+
+		session_distance.text = resources.getString(R.string.info_session_distance, resources.formatDistance(session.distanceInM, 1, lengthSystem))
 
 	}
 

@@ -8,12 +8,12 @@
         <item quantity="other">%d collections</item>
     </plurals>
 
-    <string name="main_latitude">%1$s latitude</string>
-    <string name="main_longitude">%1$s longitude</string>
+    <string name="main_latitude">%s latitude</string>
+    <string name="main_longitude">%s longitude</string>
 
-    <string name="main_last_update">%1$s</string>
+    <string name="main_last_update">%s</string>
     <string name="main_wifi_updated">found %1$d m before collection</string>
-    <string name="main_wifi_count">%1$d in range</string>
+    <string name="main_wifi_count">%d in range</string>
     <string name="main_cell_count">Cell in range %1$d</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
 
@@ -83,6 +83,14 @@
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
+
+    <!-- Strings as parameters for better readability -->
+    <string name="meter_abbr">%s m</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="passus_abbr">%s pace</string>
+    <string name="millepassus_abbr">%s roman mi</string>
 
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>

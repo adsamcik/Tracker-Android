@@ -129,25 +129,7 @@ fun Context.appVersion(): Long {
 		packageInfo.versionCode.toLong()
 }
 
-/**
- * Creates new transaction for a [FragmentManager].
- * Transaction is committed using commit.
- *
- * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
- */
-inline fun FragmentManager.transaction(func: FragmentTransaction.() -> FragmentTransaction) {
-	beginTransaction().func().commit()
-}
 
-/**
- * Creates new transaction for a [FragmentManager].
- * Transaction is committed using commitAllowingStateLoss.
- *
- * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
- */
-inline fun FragmentManager.transactionStateLoss(func: FragmentTransaction.() -> FragmentTransaction) {
-	beginTransaction().func().commitAllowingStateLoss()
-}
 
 /**
  * Returns typed system service so no cast is necessary.

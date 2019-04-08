@@ -239,6 +239,14 @@
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">
 
+        <androidx.preference.ListPreference
+            android:defaultValue="@string/settings_length_system_default"
+            android:entries="@array/settings_length_system_names"
+            android:entryValues="@array/settings_length_system_values"
+            android:key="@string/settings_length_system_key"
+            android:summary="%s"
+            android:title="@string/settings_length_system_title"/>
+
         <androidx.preference.CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/show_tips_key"

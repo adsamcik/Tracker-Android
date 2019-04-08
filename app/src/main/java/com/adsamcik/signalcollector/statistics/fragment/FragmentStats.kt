@@ -20,8 +20,8 @@ import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.misc.LengthSystem
 import com.adsamcik.signalcollector.misc.extension.*
+import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.tracker.data.LengthUnit
@@ -83,7 +83,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		adapter!!.clear()
 
-		val r = activity.resources
+		val resources = activity.resources
 
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			swipeRefreshLayout.isRefreshing = true
@@ -111,25 +111,27 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			DatabaseMaintenance().run(activity)
 
+			val lengthSystem = Preferences.getLengthSystem(activity)
+
 			val sumSessionData = sessionDao.getSummary()
-			val summaryStats = TableStat(r.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
-					StatData(r.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
-					StatData(r.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
-					StatData(r.getString(R.string.stats_distance_total), sumSessionData.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
-					StatData(r.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
-					StatData(r.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
-					StatData(r.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
-					StatData(r.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
-					StatData(r.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
+			val summaryStats = TableStat(resources.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
+					StatData(resources.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
+					StatData(resources.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
+					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, lengthSystem)),
+					StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
 			))
 
 			val lastMonthSummary = sessionDao.getSummary(weekAgo, now)
 
-			val weeklyStats = TableStat(r.getString(R.string.stats_weekly_title), showPosition = false, data = listOf(
-					StatData(r.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(appContext)),
-					StatData(r.getString(R.string.stats_distance_total), lastMonthSummary.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
-					StatData(r.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
-					StatData(r.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
+			val weeklyStats = TableStat(resources.getString(R.string.stats_weekly_title), showPosition = false, data = listOf(
+					StatData(resources.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(appContext)),
+					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(lastMonthSummary.distanceInM, 1, lengthSystem)),
+					StatData(resources.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
+					StatData(resources.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
 			))
 
 			val sumStatsArray = arrayOf(summaryStats, weeklyStats)
@@ -141,11 +143,11 @@ class FragmentStats : Fragment(), IOnDemandView {
 			}
 			sessionDao.getBetween(dayAgoCalendar.timeInMillis, now).map {
 				arrayOf(TableStat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", false, listOf(
-						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
-						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
-						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable()),
-						StatData(r.getString(R.string.stats_distance_on_foot), it.distanceOnFootInM.formatAsDistance(2, LengthSystem.Metric)),
-						StatData(r.getString(R.string.stats_distance_in_vehicle), it.distanceInVehicleInM.formatAsDistance(1, LengthSystem.Metric))
+						StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(it.distanceInM, 1, lengthSystem)),
+						StatData(resources.getString(R.string.stats_collections), it.collections.formatReadable()),
+						StatData(resources.getString(R.string.stats_steps), it.steps.formatReadable()),
+						StatData(resources.getString(R.string.stats_distance_on_foot), resources.formatDistance(it.distanceOnFootInM, 2, lengthSystem)),
+						StatData(resources.getString(R.string.stats_distance_in_vehicle), resources.formatDistance(it.distanceInVehicleInM, 1, lengthSystem))
 				)))
 			}.let {
 				handleResponse(it, AppendBehaviour.Any)
@@ -157,11 +159,11 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			sessionDao.getSummaryByDays(monthAgoCalendar.timeInMillis, dayAgoCalendar.timeInMillis).map {
 				arrayOf(TableStat(it.time.formatAsDate(), false, listOf(
-						StatData(r.getString(R.string.stats_distance_total), it.distanceInM.formatAsDistance(1, LengthSystem.Metric)),
-						StatData(r.getString(R.string.stats_collections), it.collections.formatReadable()),
-						StatData(r.getString(R.string.stats_steps), it.steps.formatReadable()),
-						StatData(r.getString(R.string.stats_distance_on_foot), it.distanceOnFootInM.formatAsDistance(2, LengthSystem.Metric)),
-						StatData(r.getString(R.string.stats_distance_in_vehicle), it.distanceInVehicleInM.formatAsDistance(1, LengthSystem.Metric))
+						StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(it.distanceInM, 1, lengthSystem)),
+						StatData(resources.getString(R.string.stats_collections), it.collections.formatReadable()),
+						StatData(resources.getString(R.string.stats_steps), it.steps.formatReadable()),
+						StatData(resources.getString(R.string.stats_distance_on_foot), resources.formatDistance(it.distanceOnFootInM, 2, lengthSystem)),
+						StatData(resources.getString(R.string.stats_distance_in_vehicle), resources.formatDistance(it.distanceInVehicleInM, 1, lengthSystem))
 				)))
 			}.let {
 				handleResponse(it, AppendBehaviour.Any)

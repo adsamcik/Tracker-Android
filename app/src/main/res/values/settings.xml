@@ -262,5 +262,19 @@
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
 
+    <string name="settings_length_system_title">Length system</string>
+    <string name="settings_length_system_key" translatable="false">lengthSystem</string>
+    <string name="settings_length_system_default" translatable="false">Metric</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+    </string-array>
+    <string-array name="settings_length_system_names">
+        <item>Metric</item>
+        <item>Imperial (USC)</item>
+        <item>Ancient Roman</item>
+    </string-array>
+
     <string name="settings_app_version_key" translatable="false">appVersion</string>
 </resources>

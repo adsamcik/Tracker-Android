@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.misc.extension.formatAsDistance
+import com.adsamcik.signalcollector.misc.extension.formatDistance
 import com.adsamcik.signalcollector.misc.extension.rescale
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
@@ -18,7 +18,11 @@ class WalkDistanceChallengeInstance(context: Context,
 	private val context = context.applicationContext
 
 	override val description: String
-		get() = descriptionTemplate.format(extra.requiredDistanceInM.formatAsDistance(1, Preferences.getLengthSystem(context)))
+		get() {
+			val lengthSystem = Preferences.getLengthSystem(context)
+			val resources = context.resources
+			return descriptionTemplate.format(resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem))
+		}
 
 	override val progress: Int
 		get() = ((extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble())).rescale(0.0..100.0).toInt()
