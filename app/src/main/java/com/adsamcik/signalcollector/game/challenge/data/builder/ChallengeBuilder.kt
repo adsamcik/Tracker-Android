@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.game.challenge.builder
+package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty

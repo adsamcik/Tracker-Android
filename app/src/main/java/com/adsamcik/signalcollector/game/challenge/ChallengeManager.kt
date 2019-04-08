@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.game.challenge
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.data.definition.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.data.definition.WalkInTheParkChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
 import com.adsamcik.signalcollector.misc.NonNullLiveData
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
@@ -15,7 +15,7 @@ import kotlin.random.Random
  * Singleton class that manages saving and loading of challenges from cache storage or network
  */
 object ChallengeManager {
-	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkInTheParkChallengeDefinition())
+	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkDistanceChallengeDefinition())
 	private val _mutableActiveChallengeList: MutableList<ChallengeInstance<*>> = mutableListOf()
 
 	private const val MAX_CHALLENGE_COUNT = 3

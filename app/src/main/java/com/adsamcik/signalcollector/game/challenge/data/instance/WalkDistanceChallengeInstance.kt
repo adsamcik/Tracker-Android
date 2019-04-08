@@ -1,15 +1,15 @@
 package com.adsamcik.signalcollector.game.challenge.data.instance
 
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.game.challenge.database.data.extra.WalkInTheParkChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.signalcollector.misc.extension.rescale
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
-class WalkInTheParkChallengeInstance(data: ChallengeEntry,
-                                     title: String,
-                                     descriptionTemplate: String,
-                                     extra: WalkInTheParkChallengeEntry)
-	: ChallengeInstance<WalkInTheParkChallengeEntry>(data, title, descriptionTemplate, extra) {
+class WalkDistanceChallengeInstance(data: ChallengeEntry,
+                                    title: String,
+                                    descriptionTemplate: String,
+                                    extra: WalkDistanceChallengeEntity)
+	: ChallengeInstance<WalkDistanceChallengeEntity>(data, title, descriptionTemplate, extra) {
 
 	override val description: String
 		get() = descriptionTemplate.format(extra.requiredDistanceInM)

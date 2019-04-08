@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.definition
 import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.game.challenge.builder.ExplorerChallengeBuilder
+import com.adsamcik.signalcollector.game.challenge.data.builder.ExplorerChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 
 class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstance>(

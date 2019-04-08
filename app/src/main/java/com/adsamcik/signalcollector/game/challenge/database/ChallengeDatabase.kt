@@ -7,10 +7,10 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.adsamcik.signalcollector.game.challenge.database.dao.ChallengeEntryDao
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.game.challenge.database.data.extra.ExplorerChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
 
-@Database(entities = [ChallengeEntry::class, ExplorerChallengeEntry::class],
+@Database(entities = [ChallengeEntry::class, ExplorerChallengeEntity::class],
 		version = 1)
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {

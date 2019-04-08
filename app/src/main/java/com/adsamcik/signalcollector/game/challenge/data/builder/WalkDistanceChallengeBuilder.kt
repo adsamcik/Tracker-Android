@@ -1,14 +1,14 @@
-package com.adsamcik.signalcollector.game.challenge.builder
+package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
-import com.adsamcik.signalcollector.game.challenge.data.definition.WalkInTheParkChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.data.instance.WalkInTheParkChallengeInstance
+import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.game.challenge.database.data.extra.WalkInTheParkChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.signalcollector.misc.extension.additiveInverse
 import com.adsamcik.signalcollector.misc.extension.rescale
 
-class WalkInTheParkChallengeBuilder(private val definition: WalkInTheParkChallengeDefinition) : ChallengeBuilder<WalkInTheParkChallengeInstance>(definition) {
+class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) : ChallengeBuilder<WalkDistanceChallengeInstance>(definition) {
 
 	private var distanceRequired: Float = 0f
 
@@ -24,8 +24,8 @@ class WalkInTheParkChallengeBuilder(private val definition: WalkInTheParkChallen
 		selectRequiredDistance()
 	}
 
-	override fun buildChallenge(context: Context, entry: ChallengeEntry): WalkInTheParkChallengeInstance {
-		return WalkInTheParkChallengeInstance(entry, title, description, WalkInTheParkChallengeEntry(entry.id, false, distanceRequired, 0f))
+	override fun buildChallenge(context: Context, entry: ChallengeEntry): WalkDistanceChallengeInstance {
+		return WalkDistanceChallengeInstance(entry, title, description, WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
 	}
 
 }

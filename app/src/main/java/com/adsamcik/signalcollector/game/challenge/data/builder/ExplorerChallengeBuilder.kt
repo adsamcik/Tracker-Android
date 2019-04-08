@@ -1,10 +1,10 @@
-package com.adsamcik.signalcollector.game.challenge.builder
+package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.game.challenge.database.data.extra.ExplorerChallengeEntry
+import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.misc.extension.additiveInverse
 import com.adsamcik.signalcollector.misc.extension.rescale
 
@@ -24,7 +24,7 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 	}
 
 	override fun buildChallenge(context: Context, entry: ChallengeEntry): ExplorerChallengeInstance {
-		return ExplorerChallengeInstance(context, entry, title, description, ExplorerChallengeEntry(entry.id, false, requiredLocationCount, 0))
+		return ExplorerChallengeInstance(context, entry, title, description, ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0))
 	}
 
 }
