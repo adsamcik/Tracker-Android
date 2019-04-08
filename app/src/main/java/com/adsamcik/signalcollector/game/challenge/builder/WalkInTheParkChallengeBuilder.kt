@@ -10,13 +10,13 @@ import com.adsamcik.signalcollector.misc.extension.rescale
 
 class WalkInTheParkChallengeBuilder(private val definition: WalkInTheParkChallengeDefinition) : ChallengeBuilder<WalkInTheParkChallengeInstance>(definition) {
 
-	private var distanceRequired: Int = 0
+	private var distanceRequired: Float = 0f
 
 	private fun selectRequiredDistance() {
 		val min = 0.8 - 0.4 * (1 - durationMultiplierNormalized)
 		val max = 1.0 + 2.3 * durationMultiplierNormalized
 		val countMultiplier = normalRandom(min..max)
-		distanceRequired = (definition.defaultDistanceInM * countMultiplier).toInt()
+		distanceRequired = (definition.defaultDistanceInM * countMultiplier).toFloat()
 		this.difficultyMultiplier *= countMultiplier.additiveInverse(min..max).rescale(min..max, 0.4..2.2)
 	}
 
@@ -25,7 +25,7 @@ class WalkInTheParkChallengeBuilder(private val definition: WalkInTheParkChallen
 	}
 
 	override fun buildChallenge(context: Context, entry: ChallengeEntry): WalkInTheParkChallengeInstance {
-		return WalkInTheParkChallengeInstance(entry, title, description, WalkInTheParkChallengeEntry(entry.id, false, distanceRequired, 0))
+		return WalkInTheParkChallengeInstance(entry, title, description, WalkInTheParkChallengeEntry(entry.id, false, distanceRequired, 0f))
 	}
 
 }

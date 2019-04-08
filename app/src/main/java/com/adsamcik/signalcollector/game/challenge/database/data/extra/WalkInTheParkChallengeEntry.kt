@@ -6,8 +6,8 @@ import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryE
 class WalkInTheParkChallengeEntry(entryId: Long,
                                   isCompleted: Boolean,
                                   @ColumnInfo(name = "required_distance")
-                                  val requiredDistanceInM: Int,
+                                  val requiredDistanceInM: Float,
                                   @ColumnInfo(name = "distance")
-                                  var distanceInM: Int) : ChallengeEntryExtra(entryId, isCompleted) {
+                                  var distanceInM: Float) : ChallengeEntryExtra(entryId, isCompleted) {
 
 }

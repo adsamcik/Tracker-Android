@@ -17,7 +17,9 @@ class WalkInTheParkChallengeInstance(data: ChallengeEntry,
 		get() = ((extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble())).rescale(0.0..100.0).toInt()
 
 	override fun batchProcess(session: TrackerSession) {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		extra.distanceInM += session.distanceOnFootInM
+		if (extra.distanceInM >= extra.requiredDistanceInM)
+			extra.isCompleted = true
 	}
 
 }
