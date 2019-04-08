@@ -110,29 +110,42 @@ fun Resources.formatDistance(value: Float, digits: Int, unit: LengthSystem): Str
 
 fun Resources.formatDistance(meters: Double, digits: Int, unit: LengthSystem): String {
 	return when (unit) {
-		LengthSystem.Metric -> {
-			if (meters >= 1000.0)
-				getString(R.string.kilometer_abbr, (meters / 1000.0).formatReadable(digits))
-			else
-				getString(R.string.meter_abbr, meters.formatReadable(digits))
-		}
+		LengthSystem.Metric -> formatMetric(meters, digits)
 		LengthSystem.Imperial -> {
 			val feet = 3.280839895 * meters
-
-			if (feet >= 5280) {
-				val miles = feet / 5280
-				getString(R.string.mile_abbr, miles.formatReadable(digits))
-			} else
-				getString(R.string.feet_abbr, feet.formatReadable(digits))
+			formatImperial(feet, digits)
 		}
 		LengthSystem.AncientRoman -> {
 			val passus = meters / 1.48
-
-			if (passus >= 1000.0)
-				getString(R.string.millepassus_abbr, (passus / 1000.0).formatReadable(digits))
-			else
-				getString(R.string.passus_abbr, passus.formatReadable(digits))
+			formatAncientRome(passus, digits)
 		}
+	}
+}
+
+private fun Resources.formatMetric(meters: Double, digits: Int): String {
+	return if (meters >= 1000.0) {
+		val kilometers = meters
+		getString(R.string.kilometer_abbr, kilometers.formatReadable(digits))
+	} else {
+		getString(R.string.meter_abbr, meters.formatReadable(digits))
+	}
+}
+
+private fun Resources.formatImperial(feet: Double, digits: Int): String {
+	return if (feet >= 5280.0) {
+		val miles = feet / 5280.0
+		getString(R.string.mile_abbr, miles.formatReadable(digits))
+	} else {
+		getString(R.string.feet_abbr, feet.formatReadable(digits))
+	}
+}
+
+private fun Resources.formatAncientRome(passus: Double, digits: Int): String {
+	return if (passus >= 1000.0) {
+		val millepassus = passus / 1000.0
+		getString(R.string.millepassus_abbr, millepassus.formatReadable(digits))
+	} else {
+		getString(R.string.passus_abbr, passus.formatReadable(digits))
 	}
 }
 

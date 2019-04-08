@@ -327,16 +327,18 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			if (location.horizontalAccuracy != null) {
 				horizontal_accuracy.visibility = VISIBLE
 				horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(location.horizontalAccuracy, 0, lengthSystem))
-			} else
+			} else {
 				horizontal_accuracy.visibility = GONE
+			}
 
 			//todo add vertical accuracy
 
 			if (location.altitude != null) {
 				altitude.text = getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem))
 				altitude.visibility = VISIBLE
-			} else
+			} else {
 				altitude.visibility = GONE
+			}
 		} else {
 			horizontal_accuracy.visibility = GONE
 			altitude.visibility = GONE
@@ -369,9 +371,9 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			component.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
 			lastWifiTime = time
 		} else if (wifiInfo != null) {
-			if (lastWifiTime - time < Constants.MINUTE_IN_MILLISECONDS)
+			if (lastWifiTime - time < Constants.MINUTE_IN_MILLISECONDS) {
 				wifiInfo.setText(WIFI_COMPONENT_DISTANCE, res.getString(R.string.main_wifi_updated, TrackerService.distanceToWifi.roundToInt()))
-			else {
+			} else {
 				wifiInfo.detach()
 				this.wifiInfo = null
 			}
