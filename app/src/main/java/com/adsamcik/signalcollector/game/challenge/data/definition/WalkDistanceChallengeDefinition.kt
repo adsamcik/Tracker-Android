@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.definition
 import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeType
 import com.adsamcik.signalcollector.game.challenge.data.builder.WalkDistanceChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
 
@@ -11,8 +12,7 @@ class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChalleng
 
 	val defaultDistanceInM: Int = 18000
 
-	override val name: String
-		get() = "WalkInThePark"
+	override val type: ChallengeType = ChallengeType.WalkDistance
 
 	override fun createInstance(context: Context, startAt: Long): WalkDistanceChallengeInstance {
 		return WalkDistanceChallengeBuilder(this).build(context, startAt)

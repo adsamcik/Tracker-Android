@@ -33,13 +33,14 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 	 */
 	abstract fun processSession(session: TrackerSession)
 
-	fun batchProcess(sessionList: List<TrackerSession>) {
+	fun batchProcess(sessionList: List<TrackerSession>, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
 		if (extra.isCompleted) return
 
 		sessionList.forEach {
 			processSession(it)
 			if (checkCompletionConditions()) {
 				extra.isCompleted = true
+				onChallengeCompletedListener.invoke(this)
 				return@forEach
 			}
 		}

@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.definition
 import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeType
 import com.adsamcik.signalcollector.game.challenge.data.builder.ExplorerChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 
@@ -12,8 +13,7 @@ class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstanc
 		Constants.WEEK_IN_MILLISECONDS) {
 	val defaultLocationCount: Int = 1000
 
-	override val name: String
-		get() = "Explorer"
+	override val type: ChallengeType = ChallengeType.Explorer
 
 	override fun createInstance(context: Context, startAt: Long): ExplorerChallengeInstance {
 		return ExplorerChallengeBuilder(this).build(context, startAt)

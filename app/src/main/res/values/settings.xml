@@ -10,6 +10,7 @@
     <string name="settings_style_title">Style</string>
     <string name="settings_data_title">Data</string>
     <string name="settings_export_title">Export</string>
+    <string name="settings_game_title">Games</string>
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
@@ -172,6 +173,12 @@
     <string name="settings_delete_tracked_data_title">Delete tracked data</string>
     <string name="settings_delete_tracked_data_summary">Delete tracked data that has not yet been uploaded</string>
     <string name="settings_delete_tracked_data_key" translatable="false">deleteTrackedData</string>
+
+    <!-- GAMES -->
+
+    <string name="settings_game_challenge_enable_title">Enable challenges</string>
+    <string name="settings_game_challenge_enable_key" translatable="false">enableChallenges</string>
+    <string name="settings_game_challenge_enable_default" translatable="false">true</string>
 
     <!-- EXPORT -->
 

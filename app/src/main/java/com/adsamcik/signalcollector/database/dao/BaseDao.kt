@@ -11,8 +11,8 @@ interface BaseDao<T> {
 	 * @param obj the object to be inserted.
 	 * @return The SQLite row id
 	 */
-	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	abstract fun insert(obj: T): Long
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	fun insert(obj: T): Long
 
 	/**
 	 * Insert an array of objects in the database.
@@ -20,8 +20,8 @@ interface BaseDao<T> {
 	 * @param obj the objects to be inserted.
 	 * @return The SQLite row ids
 	 */
-	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	abstract fun insert(obj: Collection<T>): List<Long>
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	fun insert(obj: Collection<T>): List<Long>
 
 	/**
 	 * Update an object from the database.
@@ -29,7 +29,7 @@ interface BaseDao<T> {
 	 * @param obj the object to be updated
 	 */
 	@Update
-	abstract fun update(obj: T)
+	fun update(obj: T)
 
 	/**
 	 * Update an array of objects from the database.
@@ -37,7 +37,7 @@ interface BaseDao<T> {
 	 * @param obj the object to be updated
 	 */
 	@Update
-	abstract fun update(obj: Collection<T>)
+	fun update(obj: Collection<T>)
 
 	/**
 	 * Delete an object from the database
@@ -45,7 +45,15 @@ interface BaseDao<T> {
 	 * @param obj the object to be deleted
 	 */
 	@Delete
-	abstract fun delete(obj: T)
+	fun delete(obj: T)
+
+	/**
+	 * Delete an object from the database
+	 *
+	 * @param obj the object to be deleted
+	 */
+	@Delete
+	fun delete(obj: Collection<T>)
 }
 
 @Dao

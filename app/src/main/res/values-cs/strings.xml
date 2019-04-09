@@ -309,4 +309,6 @@
     <string name="wifi_new_title">Nové Wi-Fi</string>
 
     <string name="yes">Ano</string>
+    <string name="settings_game_title">Hry</string>
+    <string name="settings_game_challenge_enable_title">Povolit herní výzvy</string>
 </resources>

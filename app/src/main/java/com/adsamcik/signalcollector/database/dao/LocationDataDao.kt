@@ -8,12 +8,9 @@ import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMini
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 
 @Dao
-interface LocationDataDao {
+interface LocationDataDao : BaseDao<DatabaseLocation> {
 	@Query("SELECT * from location_data")
 	fun getAll(): List<DatabaseLocation>
-
-	@Insert(onConflict = OnConflictStrategy.ABORT)
-	fun insert(locationData: DatabaseLocation): Long
 
 	@Query("DELETE from location_data")
 	fun deleteAll()

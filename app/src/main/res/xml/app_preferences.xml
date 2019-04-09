@@ -194,6 +194,17 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceScreen
+        android:title="@string/settings_game_title"
+        app:icon="@drawable/ic_outline_games_24dp">
+
+        <androidx.preference.SwitchPreferenceCompat
+            android:defaultValue="settings_game_challenge_enable_default"
+            android:key="@string/settings_game_challenge_enable_key"
+            android:title="@string/settings_game_challenge_enable_title"/>
+
+    </androidx.preference.PreferenceScreen>
+
+    <androidx.preference.PreferenceScreen
         android:title="@string/settings_debug_title"
         app:icon="@drawable/ic_outline_developer_mode_24px">
 

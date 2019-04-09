@@ -26,6 +26,9 @@ import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
+import androidx.work.Constraints
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.activity.service.ActivityService
@@ -36,6 +39,8 @@ import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
+import com.adsamcik.signalcollector.game.challenge.worker.ChallengeWorker
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.formatDistance
@@ -54,6 +59,7 @@ import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.text.DecimalFormat
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -422,6 +428,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 					R.drawable.ic_pause_circle_filled_black_24dp,
 					Shortcuts.ShortcutType.STOP_COLLECTION)
 		}
+
+		//Challenge cancel
+		WorkManager.getInstance().cancelAllWorkByTag("ChallengeQueue")
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -470,7 +479,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val sensorManager = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
 
-
 		//Save data to database
 		session.end = System.currentTimeMillis()
 
@@ -481,7 +489,23 @@ class TrackerService : LifecycleService(), SensorEventListener {
 				sessionDao.delete(session)
 			else
 				sessionDao.update(session)
+
+			ChallengeDatabase.getAppDatabase(applicationContext).sessionDao.insert(session)
 		}
+
+		//Challenges
+
+		val workManager = WorkManager.getInstance()
+
+		workManager.cancelAllWorkByTag("ChallengeQueue")
+		val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
+				.setInitialDelay(1, TimeUnit.HOURS)
+				.addTag("ChallengeQueue")
+				.setConstraints(Constraints.Builder()
+						.setRequiresBatteryNotLow(true)
+						.build()
+				).build()
+		workManager.enqueue(workRequest)
 	}
 
 	override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {

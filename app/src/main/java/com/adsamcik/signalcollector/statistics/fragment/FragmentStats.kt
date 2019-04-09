@@ -35,7 +35,7 @@ import java.util.*
 class FragmentStats : Fragment(), IOnDemandView {
 	private lateinit var fragmentView: View
 
-	private var adapter: ChangeTableAdapter? = null
+	private lateinit var adapter: ChangeTableAdapter
 
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
@@ -77,11 +77,11 @@ class FragmentStats : Fragment(), IOnDemandView {
 	}
 
 	private fun updateStats() {
-		val activity = activity
-		val appContext = activity!!.applicationContext
+		val activity = activity!!
+		val appContext = activity.applicationContext
 		val isRefresh = swipeRefreshLayout.isRefreshing
 
-		adapter!!.clear()
+		adapter.clear()
 
 		val resources = activity.resources
 
@@ -196,14 +196,14 @@ class FragmentStats : Fragment(), IOnDemandView {
 	private fun handleResponse(value: Array<TableStat>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			addStatsTable(value, appendBehavior)
-			adapter!!.sort()
+			adapter.sort()
 		}
 	}
 
 	private fun handleResponse(list: List<Array<TableStat>>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			list.forEach { addStatsTable(it, appendBehavior) }
-			adapter!!.sort()
+			adapter.sort()
 		}
 	}
 
@@ -242,7 +242,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 					.asSequence()
 					.map { data[it] }
 					.forEach { table.addData(it.id, it.value) }
-			adapter!!.add(table)
+			adapter.add(table)
 		}
 	}
 

@@ -6,16 +6,7 @@ import com.adsamcik.signalcollector.statistics.data.TrackerSessionTimeSummary
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
 @Dao
-interface SessionDataDao {
-	@Insert
-	fun insert(session: TrackerSession): Long
-
-	@Update
-	fun update(session: TrackerSession)
-
-	@Delete
-	fun delete(session: TrackerSession)
-
+interface SessionDataDao : BaseDao<TrackerSession> {
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>
 

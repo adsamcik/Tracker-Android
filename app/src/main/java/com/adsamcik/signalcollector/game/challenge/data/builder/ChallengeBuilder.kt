@@ -54,7 +54,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 
 	private fun createEntry(context: Context, startAt: Long): ChallengeEntry {
 		val entryDao = ChallengeDatabase.getAppDatabase(context).entryDao
-		val entry = ChallengeEntry(definition.name, startAt, startAt + duration, difficulty)
+		val entry = ChallengeEntry(definition.type, startAt, startAt + duration, difficulty)
 		entryDao.insertSetId(entry)
 
 		if (entry.id == 0L)
