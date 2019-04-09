@@ -31,9 +31,9 @@
     <string name="challenge_crowded_title">Přelidněno?</string>
     <string name="challenge_easy">Jednoduché</string>
     <string name="challenge_error_name">Aktualizujte na poslední verzi aplikace</string>
-    <string name="challenge_hard">Obtížné</string>
     <string name="challenge_explorer_description">Nasbírejte %1$s nových míst bez překročení rychlosti %2$s km/h</string>
     <string name="challenge_explorer_title">Zákona dbalý průzkumník</string>
+    <string name="challenge_hard">Obtížné</string>
     <string name="challenge_list_title">Herní výzvy</string>
     <string name="challenge_long_journey_description">Nasbírejte %1$s míst v jednom dni</string>
     <string name="challenge_long_journey_title">Dlouhá cesta</string>
@@ -45,6 +45,8 @@
     <string name="challenge_scattered_data_title">Roztroušená data</string>
     <string name="challenge_very_easy">Velmi jednoduché</string>
     <string name="challenge_very_hard">Velmi obtížné</string>
+    <string name="challenge_walk_in_the_park_description">Ujděte pěšky %s</string>
+    <string name="challenge_walk_in_the_park_title">V nohách mám už tisíc mil</string>
 
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat</string>
     <string name="channel_activity_watcher_name">Sledovač aktivity</string>
@@ -58,6 +60,8 @@
     <string name="clear">Vyčistit</string>
 
     <string name="collections_title">Záznamů</string>
+
+    <string name="day_short">%d d</string>
 
     <string name="description_map_search">Tlačítko pro vyhledávání</string>
     <string name="description_my_location">Tlačítko pro aktuální polohu</string>
@@ -88,8 +92,16 @@
 
     <string name="export_share_button">Sdílet (Export)</string>
 
+    <string name="feet_abbr">%s ft</string>
+
+    <string name="hour_short">%d h</string>
+
     <string name="info_accuracy">%s přesnost</string>
     <string name="info_altitude">%s n. m.</string>
+    <string name="info_session_collections">%d sběrů</string>
+    <string name="info_session_distance">%s vzdálenost</string>
+
+    <string name="kilometer_abbr">%s km</string>
 
     <string name="location">Umístění</string>
 
@@ -126,6 +138,14 @@
     <string name="map_search_no_geocoder">Bohužel vaše zařízení nemá službu pro překlad adres na souřadnice</string>
     <string name="map_search_no_text">Hledat nic není moc užitečné</string>
 
+    <string name="meter_abbr">%s m</string>
+
+    <string name="mile_abbr">%s mi</string>
+
+    <string name="millepassus">%s římských mil</string>
+
+    <string name="minute_short">%d m</string>
+
     <string name="next_part">pokračovat</string>
 
     <string name="no">Ne</string>
@@ -142,6 +162,7 @@
     <string name="notification_challenge_done_title">%1$s herní výzva splněna</string>
     <string name="notification_challenge_unknown_description">Vaše verze Signals je pravděpodobně neaktuální.</string>
     <string name="notification_challenge_unknown_title">Neznámá výzva splněna</string>
+    <string name="notification_location">%1$s° S %2$s° V</string>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop">Zastavit</string>
     <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
@@ -153,6 +174,10 @@
     <string name="open_source_licenses">Licence otevřeného softwaru</string>
 
     <string name="other">Ostatní</string>
+
+    <string name="passus">%s kroků</string>
+
+    <string name="second_short">%d s</string>
 
     <string name="select_all">Vybrat vše</string>
 
@@ -197,8 +222,16 @@
     <string name="settings_export_kml_title">Jako KML soubor</string>
     <string name="settings_export_title">Exportovat nasbíraná data</string>
     <string name="settings_hello_world_title">Vítej světe!</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrický</item>
+        <item>Imperiální (USA)</item>
+        <item>Římské míry</item>
+    </string-array>
+    <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
     <string name="settings_location_enabled_title">Záznam polohy</string>
+    <string name="settings_map_clear_heat_cache_description">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
+    <string name="settings_map_clear_heat_cache_title">Smazat ofsetové hodnoty teplotní mapy</string>
     <string name="settings_map_default_layer_title">Výchozí vrstva</string>
     <string name="settings_map_quality_summary">Relativně k výchozímu rozlišení</string>
     <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
@@ -216,6 +249,7 @@
     <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
     <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
     <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
+    <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
     <string name="settings_tracking_title">Sběr dat</string>
     <string name="settings_wifi_enabled_title">Sběr Wi-Fi</string>
 
@@ -232,8 +266,18 @@
 
     <string name="start">Start</string>
 
-
+    <string name="stats_cell_count">Počet mobilních vysílačů</string>
+    <string name="stats_collections">Počet sběrů</string>
+    <string name="stats_distance_in_vehicle">Vzdálenost ve vozidle</string>
+    <string name="stats_distance_on_foot">Vzdálenost pěšky</string>
+    <string name="stats_distance_total">Vzdálenost</string>
+    <string name="stats_location_count">Počet poloh</string>
+    <string name="stats_session_count">Počet relací</string>
+    <string name="stats_steps">Počet kroků</string>
+    <string name="stats_sum_title">Souhrn</string>
+    <string name="stats_time">Čas stráven sběrem</string>
     <string name="stats_weekly_title">Posledních 7 dnů</string>
+    <string name="stats_wifi_count">Počet Wi-Fi</string>
 
     <string name="stop">Stop</string>
 
@@ -265,40 +309,4 @@
     <string name="wifi_new_title">Nové Wi-Fi</string>
 
     <string name="yes">Ano</string>
-
-    <string name="stats_cell_count">Počet mobilních vysílačů</string>
-    <string name="stats_distance_total">Vzdálenost</string>
-    <string name="stats_distance_in_vehicle">Vzdálenost ve vozidle</string>
-    <string name="stats_distance_on_foot">Vzdálenost pěšky</string>
-    <string name="stats_location_count">Počet poloh</string>
-    <string name="stats_session_count">Počet relací</string>
-    <string name="stats_steps">Počet kroků</string>
-    <string name="stats_sum_title">Souhrn</string>
-    <string name="stats_time">Čas stráven sběrem</string>
-    <string name="stats_wifi_count">Počet Wi-Fi</string>
-    <string name="stats_collections">Počet sběrů</string>
-    <string name="day_short">%d d</string>
-    <string name="hour_short">%d h</string>
-    <string name="minute_short">%d m</string>
-    <string name="second_short">%d s</string>
-    <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
-    <string name="settings_map_clear_heat_cache_title">Smazat ofsetové hodnoty teplotní mapy</string>
-    <string name="settings_map_clear_heat_cache_description">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
-    <string name="notification_location">%1$s° S %2$s° V</string>
-    <string name="info_session_collections">%d sběrů</string>
-    <string name="info_session_distance">%s vzdálenost</string>
-    <string name="challenge_walk_in_the_park_description">Ujděte pěšky %s</string>
-    <string name="challenge_walk_in_the_park_title">V nohách mám už tisíc mil</string>
-    <string name="settings_length_system_title">Délkový systém</string>
-    <string-array name="settings_length_system_names">
-        <item>Metrický</item>
-        <item>Imperiální (USA)</item>
-        <item>Římské míry</item>
-    </string-array>
-    <string name="meter_abbr">%s m</string>
-    <string name="kilometer_abbr">%s km</string>
-    <string name="mile_abbr">%s mi</string>
-    <string name="feet_abbr">%s ft</string>
-    <string name="millepassus_abbr">%s římských mil</string>
-    <string name="passus_abbr">%s kroků</string>
 </resources>

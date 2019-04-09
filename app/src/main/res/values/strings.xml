@@ -89,8 +89,8 @@
     <string name="kilometer_abbr">%s km</string>
     <string name="mile_abbr">%s mi</string>
     <string name="feet_abbr">%s ft</string>
-    <string name="passus_abbr">%s pace</string>
-    <string name="millepassus_abbr">%s roman mi</string>
+    <string name="passus">%s pace</string>
+    <string name="millepassus">%s roman mile</string>
 
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>

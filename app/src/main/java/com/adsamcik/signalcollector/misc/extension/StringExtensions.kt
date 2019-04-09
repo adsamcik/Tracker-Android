@@ -143,9 +143,9 @@ private fun Resources.formatImperial(feet: Double, digits: Int): String {
 private fun Resources.formatAncientRome(passus: Double, digits: Int): String {
 	return if (passus >= 1000.0) {
 		val millepassus = passus / 1000.0
-		getString(R.string.millepassus_abbr, millepassus.formatReadable(digits))
+		getString(R.string.millepassus, millepassus.formatReadable(digits))
 	} else {
-		getString(R.string.passus_abbr, passus.formatReadable(digits))
+		getString(R.string.passus, passus.formatReadable(digits))
 	}
 }
 
