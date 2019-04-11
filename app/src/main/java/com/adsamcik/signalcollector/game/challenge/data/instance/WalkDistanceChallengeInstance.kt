@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.game.challenge.data.instance
 
 import android.content.Context
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.extension.formatDistance
@@ -24,8 +25,8 @@ class WalkDistanceChallengeInstance(context: Context,
 			return descriptionTemplate.format(resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem))
 		}
 
-	override val progress: Int
-		get() = ((extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble())).rescale(0.0..100.0).toInt()
+	override val progress: Double
+		get() = extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble()
 
 	override fun checkCompletionConditions() = extra.distanceInM >= extra.requiredDistanceInM
 

@@ -1,9 +1,11 @@
 package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
+import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.extension.additiveInverse
 import com.adsamcik.signalcollector.misc.extension.rescale
@@ -28,4 +30,7 @@ class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallenge
 		return WalkDistanceChallengeInstance(context, entry, title, description, WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
 	}
 
+	override fun persistExtra(database: ChallengeDatabase, challenge: WalkDistanceChallengeInstance) {
+		database.walkDistanceDao.insert(challenge.extra)
+	}
 }

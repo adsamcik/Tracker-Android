@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 import android.content.Context
 import androidx.room.PrimaryKey
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.misc.extension.rescale
@@ -15,10 +16,10 @@ class ExplorerChallengeInstance(context: Context,
                                 data: ExplorerChallengeEntity)
 	: ChallengeInstance<ExplorerChallengeEntity>(entry, title, descriptionTemplate, data) {
 
-	override val progress: Int
-		get() = (extra.locationCount / extra.requiredLocationCount.toDouble()).rescale(0.0..100.0).toInt()
+	override val progress: Double
+		get() = extra.locationCount / extra.requiredLocationCount.toDouble()
 
-	private val dao = AppDatabase.getAppDatabase(context).challengeDao()
+	private val dao = AppDatabase.getDatabase(context).challengeDao()
 
 	@PrimaryKey
 	var id: Int = 0
@@ -31,7 +32,6 @@ class ExplorerChallengeInstance(context: Context,
 	override fun processSession(session: TrackerSession) {
 		val newLocationCount = dao.newLocationsBetween(session.start, session.end)
 		extra.locationCount += newLocationCount
-
 	}
 
 }

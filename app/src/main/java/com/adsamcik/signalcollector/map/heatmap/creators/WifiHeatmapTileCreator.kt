@@ -5,7 +5,7 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 
 class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
-	private val dao = AppDatabase.getAppDatabase(context).wifiDao()
+	private val dao = AppDatabase.getDatabase(context).wifiDao()
 
 	override val weightNormalizationValue: Double = 0.0
 

@@ -148,7 +148,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		setOnClickListener(R.string.settings_map_clear_heat_cache_key) {
 			createConfirmDialog(it.title.toString()) {
 				GlobalScope.launch {
-					AppDatabase.getAppDatabase(applicationContext).mapHeatDao().clear()
+					AppDatabase.getDatabase(applicationContext).mapHeatDao().clear()
 				}
 			}
 		}

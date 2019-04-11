@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.misc.extension.notificationManager
 
 class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
 	override fun doWork(): Result {
-		val database = ChallengeDatabase.getAppDatabase(applicationContext)
+		val database = ChallengeDatabase.getDatabase(applicationContext)
 		val sessionDao = database.sessionDao
 
 		val sessionList = sessionDao.getAll()

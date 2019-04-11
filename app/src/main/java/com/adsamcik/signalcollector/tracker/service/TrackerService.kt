@@ -226,7 +226,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private fun saveData(data: RawData) {
 		GlobalScope.launch {
 			val appContext = applicationContext
-			val database = AppDatabase.getAppDatabase(appContext)
+			val database = AppDatabase.getDatabase(appContext)
 
 			val location = data.location
 			var locationId: Long? = null
@@ -364,7 +364,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		//Database initialization
 		GlobalScope.launch {
-			val sessionDao = AppDatabase.getAppDatabase(applicationContext).sessionDao()
+			val sessionDao = AppDatabase.getDatabase(applicationContext).sessionDao()
 			session.id = sessionDao.insert(session)
 		}
 
@@ -483,14 +483,14 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		session.end = System.currentTimeMillis()
 
 		GlobalScope.launch {
-			val sessionDao = AppDatabase.getAppDatabase(applicationContext).sessionDao()
+			val sessionDao = AppDatabase.getDatabase(applicationContext).sessionDao()
 
 			if (session.collections <= 1)
 				sessionDao.delete(session)
 			else
 				sessionDao.update(session)
 
-			ChallengeDatabase.getAppDatabase(applicationContext).sessionDao.insert(session)
+			ChallengeDatabase.getDatabase(applicationContext).sessionDao.insert(session)
 		}
 
 		//Challenges

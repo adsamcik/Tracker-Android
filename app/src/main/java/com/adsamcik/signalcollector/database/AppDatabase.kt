@@ -43,7 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
 			return instance
 		}
 
-		fun getAppDatabase(context: Context): AppDatabase {
+		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)
 		}
 

@@ -1,11 +1,9 @@
 package com.adsamcik.signalcollector.game.challenge.database.dao
 
-import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.database.dao.BaseDao
-import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 
 @Dao

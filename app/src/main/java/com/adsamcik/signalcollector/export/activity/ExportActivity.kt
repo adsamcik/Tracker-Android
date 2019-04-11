@@ -99,7 +99,7 @@ class ExportActivity : DetailActivity() {
 
 		button_export.setOnClickListener {
 
-			val database = AppDatabase.getAppDatabase(applicationContext)
+			val database = AppDatabase.getDatabase(applicationContext)
 			val locationDao = database.locationDao()
 
 			val from = this.range.start

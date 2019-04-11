@@ -1,9 +1,7 @@
-package com.adsamcik.signalcollector.game.challenge.data.builder
+package com.adsamcik.signalcollector.game.challenge.data
 
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
-import com.adsamcik.signalcollector.game.challenge.data.definition.ChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.Probability
@@ -52,8 +50,8 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 
 	abstract fun selectChallengeSpecificParameters()
 
-	private fun createEntry(context: Context, startAt: Long): ChallengeEntry {
-		val entryDao = ChallengeDatabase.getAppDatabase(context).entryDao
+	private fun createEntry(database: ChallengeDatabase, startAt: Long): ChallengeEntry {
+		val entryDao = database.entryDao
 		val entry = ChallengeEntry(definition.type, startAt, startAt + duration, difficulty)
 		entryDao.insertSetId(entry)
 
@@ -64,16 +62,20 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 	}
 
 	fun build(context: Context, startAt: Long): ChallengeType {
+		val database = ChallengeDatabase.getDatabase(context)
+
 		selectDuration()
 		selectChallengeSpecificParameters()
 		loadResources(context)
 
-		val entry = createEntry(context, startAt)
+		val entry = createEntry(database, startAt)
 
-		return buildChallenge(context, entry)
+		return buildChallenge(context, entry).also { persistExtra(database, it) }
 	}
 
 	protected abstract fun buildChallenge(context: Context, entry: ChallengeEntry): ChallengeType
+
+	protected abstract fun persistExtra(database: ChallengeDatabase, challenge: ChallengeType)
 
 	companion object {
 		const val MAX_DURATION_MULTIPLIER = 3.0

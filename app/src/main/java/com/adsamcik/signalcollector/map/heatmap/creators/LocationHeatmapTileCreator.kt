@@ -7,7 +7,7 @@ import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMini
 import com.adsamcik.signalcollector.preference.Preferences
 
 class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator {
-	private val dao = AppDatabase.getAppDatabase(context).locationDao()
+	private val dao = AppDatabase.getDatabase(context).locationDao()
 
 	override val weightNormalizationValue: Double
 

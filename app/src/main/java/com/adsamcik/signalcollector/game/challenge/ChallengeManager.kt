@@ -2,10 +2,10 @@ package com.adsamcik.signalcollector.game.challenge
 
 import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeType
-import com.adsamcik.signalcollector.game.challenge.data.definition.ChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.data.instance.ChallengeInstance
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
@@ -37,7 +37,7 @@ object ChallengeManager {
 
 	private fun initFromDb(context: Context): List<ChallengeInstance<*>> {
 		val resources = context.resources
-		val database = ChallengeDatabase.getAppDatabase(context)
+		val database = ChallengeDatabase.getDatabase(context)
 		val active = database.entryDao.getActiveEntry(System.currentTimeMillis())
 		return active.map {
 			when (it.type) {

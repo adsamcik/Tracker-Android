@@ -36,7 +36,7 @@
                     android:id="@+id/recyclerview_challenges"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    tools:listitem="@layout/layout_challenge_small"/>
+                    tools:listitem="@layout/layout_challenge_list_item"/>
             </androidx.appcompat.widget.LinearLayoutCompat>
         </androidx.cardview.widget.CardView>
 

@@ -96,7 +96,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 		//refreshingCount = 2
 		//new stat loading
 		GlobalScope.launch {
-			val database = AppDatabase.getAppDatabase(activity)
+			val database = AppDatabase.getDatabase(activity)
 			val sessionDao = database.sessionDao()
 			val wifiDao = database.wifiDao()
 			val cellDao = database.cellDao()

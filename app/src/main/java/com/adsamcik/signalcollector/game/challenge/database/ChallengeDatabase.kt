@@ -39,7 +39,7 @@ abstract class ChallengeDatabase : RoomDatabase() {
 			return instance
 		}
 
-		fun getAppDatabase(context: Context): ChallengeDatabase {
+		fun getDatabase(context: Context): ChallengeDatabase {
 			return instance_ ?: createInstance(context)
 		}
 

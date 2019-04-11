@@ -36,7 +36,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
-	private val heatDao = AppDatabase.getAppDatabase(context).mapHeatDao()
+	private val heatDao = AppDatabase.getDatabase(context).mapHeatDao()
 
 	private lateinit var maxHeat: DatabaseMapMaxHeat
 	private val heatLock = ReentrantLock()

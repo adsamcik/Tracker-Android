@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.game.challenge.data.instance
+package com.adsamcik.signalcollector.game.challenge.data
 
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
@@ -24,7 +24,7 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 
 	abstract val description: String
 
-	abstract val progress: Int
+	abstract val progress: Double
 
 	protected abstract fun checkCompletionConditions(): Boolean
 
