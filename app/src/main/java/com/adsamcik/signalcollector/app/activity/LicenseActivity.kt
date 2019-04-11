@@ -27,24 +27,6 @@ class LicenseActivity : DetailActivity() {
 		super.onCreate(savedInstanceState)
 		val parent = createLinearScrollableContentParent(true)
 
-		val gsonString = "Gson"
-		addButton(parent, gsonString).setOnClickListener {
-			val notice = Notice(gsonString, "https://github.com/google/gson", "Copyright 2008 Google Inc", ApacheSoftwareLicense20())
-			LicensesDialog.Builder(this)
-					.setNotices(notice)
-					.build()
-					.show()
-		}
-
-		val okhttpString = "OkHttp"
-		addButton(parent, okhttpString).setOnClickListener {
-			val notice = Notice(okhttpString, "https://github.com/square/okhttp", "Copyright 2016 Square, Inc.", ApacheSoftwareLicense20())
-			LicensesDialog.Builder(this)
-					.setNotices(notice)
-					.build()
-					.show()
-		}
-
 		val licenseDialogString = "LicensesDialog"
 		addButton(parent, licenseDialogString).setOnClickListener {
 			val notice = Notice(licenseDialogString, "https://github.com/PSDev/LicensesDialog", "Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20())
@@ -116,14 +98,6 @@ class LicenseActivity : DetailActivity() {
 					resolveLicense(readLicense(license)))
 
 		return when (lowerName) {
-			"appintro" -> Notice("AppIntro",
-					"https://github.com/apl-devs/AppIntro",
-					"Copyright 2015 Paolo Rotolo\nCopyright 2016 Maximilian Narr",
-					resolveLicense(readLicense(license)))
-			"persistentcookiejar" -> Notice("PersistentCookieJar",
-					"https://github.com/franmontiel/PersistentCookieJar",
-					"Copyright 2016 Francisco José Montiel Navarro",
-					resolveLicense(readLicense(license)))
 			"slider" -> Notice("Slider",
 					"https://github.com/adsamcik/Slider",
 					"Copyright 2018 Adsamcik",
