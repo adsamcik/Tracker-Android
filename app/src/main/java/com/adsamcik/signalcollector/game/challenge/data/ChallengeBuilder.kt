@@ -35,7 +35,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 	protected fun normalRandom(range: ClosedFloatingPointRange<Double>) = Probability.normal().first().coerceIn(0.0, 1.0).rescale(range)
 
 	open fun selectDuration() {
-		val range = MIN_DURATION_MULTIPLIER..MAX_DURATION_MULTIPLIER
+		val range = definition.minDurationMultiplier..definition.maxDurationMultiplier
 		durationMultiplier = normalRandom(range)
 		durationMultiplierNormalized = durationMultiplier.normalize(range)
 
@@ -76,9 +76,4 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 	protected abstract fun buildChallenge(context: Context, entry: ChallengeEntry): ChallengeType
 
 	protected abstract fun persistExtra(database: ChallengeDatabase, challenge: ChallengeType)
-
-	companion object {
-		const val MAX_DURATION_MULTIPLIER = 3.0
-		const val MIN_DURATION_MULTIPLIER = 0.25
-	}
 }
