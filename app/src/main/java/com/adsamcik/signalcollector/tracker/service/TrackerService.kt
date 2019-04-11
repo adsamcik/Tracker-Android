@@ -497,15 +497,20 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		val workManager = WorkManager.getInstance()
 
-		workManager.cancelAllWorkByTag("ChallengeQueue")
-		val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
-				.setInitialDelay(1, TimeUnit.HOURS)
-				.addTag("ChallengeQueue")
-				.setConstraints(Constraints.Builder()
-						.setRequiresBatteryNotLow(true)
-						.build()
-				).build()
-		workManager.enqueue(workRequest)
+		val resources = resources
+		val challengeEnabledKey = resources.getString(R.string.settings_game_challenge_enable_key)
+		val challengeEnabledDefault = resources.getString(R.string.settings_game_challenge_enable_default).toBoolean()
+
+		if (Preferences.getPref(this).getBoolean(challengeEnabledKey, challengeEnabledDefault)) {
+			val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
+					.setInitialDelay(1, TimeUnit.HOURS)
+					.addTag("ChallengeQueue")
+					.setConstraints(Constraints.Builder()
+							.setRequiresBatteryNotLow(true)
+							.build()
+					).build()
+			workManager.enqueue(workRequest)
+		}
 	}
 
 	override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
