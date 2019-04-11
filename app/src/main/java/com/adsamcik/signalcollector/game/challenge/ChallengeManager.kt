@@ -4,6 +4,7 @@ import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.definition.StepChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeLoader
@@ -18,7 +19,7 @@ import kotlin.random.Random
  * Singleton class that manages saving and loading of challenges from cache storage or network
  */
 object ChallengeManager {
-	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkDistanceChallengeDefinition())
+	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkDistanceChallengeDefinition(), StepChallengeDefinition())
 
 	//todo do not hold this indefinitely
 	private val _mutableActiveChallengeList: MutableList<ChallengeInstance<*>> = mutableListOf()
