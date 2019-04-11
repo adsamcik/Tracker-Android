@@ -64,19 +64,12 @@ import kotlin.math.abs
 import kotlin.math.max
 
 class TrackerService : LifecycleService(), SensorEventListener {
-	private var wifiScanTime: Long = 0
-	private var wifiScanData: Array<ScanResult>? = null
-	private var wifiReceiver: WifiReceiver? = null
-	private var wifiLastScanRequest: Long = 0
-	private var wifiScanRequested: Boolean = false
-
 	private lateinit var notificationManager: NotificationManager
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
 
 
 	private val telephonyManager: TelephonyManager by lazy { getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE) }
-	private val wifiManager: WifiManager by lazy { getSystemServiceTyped<WifiManager>(Context.WIFI_SERVICE) }
 
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1f
@@ -96,9 +89,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private val session = TrackerSession(System.currentTimeMillis())
 
 	private var lastStepCount = -1
-
-	private lateinit var keyWifiEnabled: String
-	private var defaultWifiEnabled: Boolean = false
 
 	private lateinit var keyCellEnabled: String
 	private var defaultCellEnabled: Boolean = false
@@ -181,47 +171,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		wakeLock.release()
 	}
 
-	private fun setWifi(locationResult: LocationResult, location: Location, previousLocation: Location?, distance: Float, rawData: RawData) {
-		synchronized(wifiScanTime) {
-			if (wifiScanData != null) {
-				val locations = locationResult.locations
-				if (locations.size == 2) {
-					val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
-					val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
-
-					val first = nearestLocation[firstIndex]
-					val second = nearestLocation[(firstIndex + 1).rem(2)]
-					setWifi(first, second, first.distanceTo(second), rawData)
-				} else if (previousLocation != null) {
-					setWifi(previousLocation, location, distance, rawData)
-				}
-
-				wifiScanData = null
-				wifiScanTime = -1L
-			}
-
-			val now = System.currentTimeMillis()
-			if (Build.VERSION.SDK_INT >= 28) {
-				if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 20 && (wifiScanTime == -1L || now - wifiScanTime > Constants.SECOND_IN_MILLISECONDS * 15)) {
-					wifiScanRequested = wifiManager.startScan()
-					wifiLastScanRequest = now
-				}
-			} else if (!wifiScanRequested) {
-				wifiManager.startScan()
-				wifiLastScanRequest = now
-			}
-		}
-	}
-
-	private fun setWifi(firstLocation: Location, secondLocation: Location, distanceBetweenFirstAndSecond: Float, rawData: RawData) {
-		val timeDelta = (wifiScanTime - firstLocation.time).toDouble() / (secondLocation.time - firstLocation.time).toDouble()
-		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
-		if (wifiDistance <= UPDATE_MAX_DISTANCE_TO_WIFI) {
-			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation, secondLocation, timeDelta)
-			rawData.setWifi(interpolatedLocation, wifiScanTime, wifiScanData)
-			distanceToWifi = distanceBetweenFirstAndSecond
-		}
-	}
 
 	private fun saveData(data: RawData) {
 		GlobalScope.launch {
@@ -349,12 +298,10 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		//Initialize keys and defaults
 		keyCellEnabled = resources.getString(R.string.settings_cell_enabled_key)
 		keyLocationEnabled = resources.getString(R.string.settings_location_enabled_key)
-		keyWifiEnabled = resources.getString(R.string.settings_wifi_enabled_key)
 		keyRequiredLocationAccuracy = resources.getString(R.string.settings_tracking_required_accuracy_key)
 
 		defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default).toBoolean()
 		defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default).toBoolean()
-		defaultWifiEnabled = resources.getString(R.string.settings_wifi_enabled_default).toBoolean()
 		defaultRequiredLocationAccuracy = resources.getInteger(R.integer.settings_tracking_required_accuracy_default)
 
 		//Get managers
@@ -400,16 +347,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			return
 		}
 
-		//Wifi tracking setup
-		if (sp.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
-			//Let's not waste precious scan requests
-			if (Build.VERSION.SDK_INT < 28) {
-				wifiScanRequested = wifiManager.startScan()
-				wifiLastScanRequest = System.currentTimeMillis()
-			}
-			wifiReceiver = WifiReceiver()
-			registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
-		}
 
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
 			val sensorManager = getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
@@ -467,9 +404,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		ActivityService.removeActivityRequest(this, this::class)
 
 		LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(locationCallback)
-
-		if (wifiReceiver != null)
-			unregisterReceiver(wifiReceiver)
 
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.initializeShortcuts(this)
@@ -533,23 +467,10 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		}
 	}
 
-	private inner class WifiReceiver : BroadcastReceiver() {
-		override fun onReceive(context: Context, intent: Intent) {
-			synchronized(wifiScanTime) {
-				wifiScanRequested = false
-				wifiScanTime = System.currentTimeMillis()
-				val result = wifiManager.scanResults
-				wifiScanData = result.toTypedArray()
-			}
-		}
-	}
-
 	companion object {
 		//Constants
 		private const val TAG = "SignalsTracker"
 		private const val NOTIFICATION_ID_SERVICE = -7643
-
-		private const val UPDATE_MAX_DISTANCE_TO_WIFI = 40
 
 		/**
 		 * LiveData containing information about whether the service is currently running
