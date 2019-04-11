@@ -4,7 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryExtra
 
-@Entity(tableName = "explorer", inheritSuperIndices = true)
+@Entity(tableName = "challenge_explorer", inheritSuperIndices = true)
 class ExplorerChallengeEntity(entryId: Long,
                               isCompleted: Boolean,
                               @ColumnInfo(name = "required_location_count")

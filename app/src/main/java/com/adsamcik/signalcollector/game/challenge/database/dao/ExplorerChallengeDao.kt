@@ -8,9 +8,9 @@ import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallenge
 @Dao
 interface ExplorerChallengeDao : BaseDao<ExplorerChallengeEntity> {
 
-	@Query("SELECT * FROM explorer WHERE id == :id")
+	@Query("SELECT * FROM challenge_explorer WHERE id == :id")
 	fun get(id: Long): ExplorerChallengeEntity
 
-	@Query("SELECT * FROM explorer WHERE entry_id == :entryId")
+	@Query("SELECT * FROM challenge_explorer WHERE entry_id == :entryId")
 	fun getByEntry(entryId: Long): ExplorerChallengeEntity
 }

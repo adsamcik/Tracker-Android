@@ -7,9 +7,9 @@ import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChall
 
 @Dao
 interface WalkDistanceChallengeDao : BaseDao<WalkDistanceChallengeEntity> {
-	@Query("SELECT * FROM walk_distance WHERE id == :id")
+	@Query("SELECT * FROM challenge_walk_distance WHERE id == :id")
 	fun get(id: Long): WalkDistanceChallengeEntity
 
-	@Query("SELECT * FROM walk_distance WHERE entry_id == :entryId")
+	@Query("SELECT * FROM challenge_walk_distance WHERE entry_id == :entryId")
 	fun getByEntry(entryId: Long): WalkDistanceChallengeEntity
 }

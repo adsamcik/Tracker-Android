@@ -22,6 +22,9 @@
     <string name="challenge_walk_in_the_park_title">Be the man who walks a thousand miles</string>
     <string name="challenge_walk_in_the_park_description">Move %s on foot</string>
 
+    <string name="challenge_step_title">Walk on with hope in your heart</string>
+    <string name="challenge_step_description">Take %s steps</string>
+
     <string name="challenge_awful_explorer_title">Awful explorer</string>
     <string name="challenge_awful_explorer_description">Don\'t find a single new location in %1$s concurrent collections</string>
 

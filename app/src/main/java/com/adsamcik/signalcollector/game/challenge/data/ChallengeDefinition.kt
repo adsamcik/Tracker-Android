@@ -2,8 +2,6 @@ package com.adsamcik.signalcollector.game.challenge.data
 
 import android.content.Context
 import androidx.annotation.StringRes
-import com.adsamcik.signalcollector.game.challenge.data.ChallengeBuilder.Companion.MAX_DURATION_MULTIPLIER
-import com.adsamcik.signalcollector.game.challenge.data.ChallengeBuilder.Companion.MIN_DURATION_MULTIPLIER
 
 /**
  * Definition containing basic data for each challenge

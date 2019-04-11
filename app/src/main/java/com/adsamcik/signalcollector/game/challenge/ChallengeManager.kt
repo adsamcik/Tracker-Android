@@ -1,14 +1,12 @@
 package com.adsamcik.signalcollector.game.challenge
 
 import android.content.Context
-import com.adsamcik.signalcollector.game.challenge.data.ChallengeType
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
-import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
-import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
-import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
+import com.adsamcik.signalcollector.game.challenge.database.ChallengeLoader
 import com.adsamcik.signalcollector.misc.NonNullLiveData
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
@@ -39,31 +37,7 @@ object ChallengeManager {
 		val resources = context.resources
 		val database = ChallengeDatabase.getDatabase(context)
 		val active = database.entryDao.getActiveEntry(System.currentTimeMillis())
-		return active.map {
-			when (it.type) {
-				ChallengeType.Explorer -> {
-					val entity = database.explorerDao.getByEntry(it.id)
-					val definition = ExplorerChallengeDefinition()
-					ExplorerChallengeInstance(context,
-							it,
-							resources.getString(definition.titleRes),
-							resources.getString(definition.descriptionRes),
-							entity
-					)
-				}
-				ChallengeType.WalkDistance -> {
-					val entity = database.walkDistanceDao.getByEntry(it.id)
-					val definition = WalkDistanceChallengeDefinition()
-					WalkDistanceChallengeInstance(context,
-							it,
-							resources.getString(definition.titleRes),
-							resources.getString(definition.descriptionRes),
-							entity
-					)
-				}
-			}
-		}
-
+		return active.map { ChallengeLoader.loadChallenge(context, resources, database, it) }
 	}
 
 	fun initialize(context: Context) {

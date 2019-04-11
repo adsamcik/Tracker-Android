@@ -45,7 +45,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 		holder.descriptionTextView.text = challenge.description
 		holder.difficultyTextView.text = challenge.difficulty.name.replace('_', ' ').toLowerCase()
 
-		holder.progressBar.progress = challenge.progress
+		holder.progressBar.progress = (challenge.progress * 100.0).toInt()
 		holder.timeTextView.text = (challenge.endTime - System.currentTimeMillis()).formatAsDuration(holder.itemView.context)
 
 		//val color = ColorUtils.setAlphaComponent(ContextCompat.getColor(context!!, R.color.background_success), (challenge.progress * 25.5).roundToInt())

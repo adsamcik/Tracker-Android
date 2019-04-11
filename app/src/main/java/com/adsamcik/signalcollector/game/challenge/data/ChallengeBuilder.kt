@@ -32,6 +32,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 			else -> ChallengeDifficulty.VERY_HARD
 		}
 
+	//todo improve this. It is not quite normal distribution due to clamping of values to 0 and 1. It is kinda ok, because the probability is around 2% iirc but still.
 	protected fun normalRandom(range: ClosedFloatingPointRange<Double>) = Probability.normal().first().coerceIn(0.0, 1.0).rescale(range)
 
 	open fun selectDuration() {

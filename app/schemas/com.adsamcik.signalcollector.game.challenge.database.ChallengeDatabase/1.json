@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "aeb3b815f0f2e38ff1ee2ef293412304",
+    "identityHash": "9b565096023ac996c945073af0d042f7",
     "entities": [
       {
         "tableName": "tracker_session",
@@ -111,7 +111,7 @@
         "foreignKeys": []
       },
       {
-        "tableName": "explorer",
+        "tableName": "challenge_explorer",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`required_location_count` INTEGER NOT NULL, `location_count` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `entry_id` INTEGER NOT NULL, `completed` INTEGER NOT NULL)",
         "fields": [
           {
@@ -155,7 +155,7 @@
         "foreignKeys": []
       },
       {
-        "tableName": "walk_distance",
+        "tableName": "challenge_walk_distance",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`required_distance` REAL NOT NULL, `distance` REAL NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `entry_id` INTEGER NOT NULL, `completed` INTEGER NOT NULL)",
         "fields": [
           {
@@ -197,12 +197,56 @@
         },
         "indices": [],
         "foreignKeys": []
+      },
+      {
+        "tableName": "challenge_step",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`requiredStepCount` INTEGER NOT NULL, `stepCount` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `entry_id` INTEGER NOT NULL, `completed` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "requiredStepCount",
+            "columnName": "requiredStepCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepCount",
+            "columnName": "stepCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entryId",
+            "columnName": "entry_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "id"
+          ],
+          "autoGenerate": true
+        },
+        "indices": [],
+        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"aeb3b815f0f2e38ff1ee2ef293412304\")"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"9b565096023ac996c945073af0d042f7\")"
     ]
   }
 }
