@@ -112,17 +112,12 @@ class ActivityService : IntentService("ActivityService") {
 		 */
 		fun requestActivity(context: Context, tClass: KClass<*>): Boolean {
 			val preferences = Preferences.getPref(context)
-			val resources = context.resources
-			val key = resources.getString(R.string.settings_activity_freq_key)
-			val default = resources.getString(R.string.settings_activity_freq_default).toInt()
-			return requestActivityInternal(context, tClass, preferences.getInt(key, default), false)
+			val preference = preferences.getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
+			return requestActivityInternal(context, tClass, preference, false)
 		}
 
 		fun requestAutoTracking(context: Context, tClass: KClass<*>) {
-			val resources = context.resources
-			val keyUpdateFrequency = resources.getString(R.string.settings_activity_freq_key)
-			val defaultUpdateFrequency = resources.getString(R.string.settings_activity_freq_default).toInt()
-			val updateRate = Preferences.getPref(context).getInt(keyUpdateFrequency, defaultUpdateFrequency)
+			val updateRate = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 			requestAutoTracking(context, tClass, updateRate)
 		}
 
@@ -136,11 +131,8 @@ class ActivityService : IntentService("ActivityService") {
 		 */
 		fun requestAutoTracking(context: Context, tClass: KClass<*>, updateRate: Int): Boolean {
 			val preferences = Preferences.getPref(context)
-			val resources = context.resources
-			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
-			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
 
-			if (preferences.getInt(keyAutoTracking, defaultAutoTracking) > 0) {
+			if (preferences.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default) > 0) {
 				if (requestActivityInternal(context, tClass, updateRate, true)) {
 					mBackgroundTracking = true
 					return true
@@ -247,20 +239,15 @@ class ActivityService : IntentService("ActivityService") {
 		 * @return true if background tracking can be activated
 		 */
 		private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
-			val resources = context.resources
-			val keyStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_key)
-			val defaultStopUntilRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
+			val preferences = Preferences.getPref(context)
 
 			if (groupedActivity == GroupedActivity.UNKNOWN ||
 					groupedActivity == GroupedActivity.STILL ||
 					TrackerService.isServiceRunning.value ||
-					Preferences.getPref(context).getBoolean(keyStopUntilRecharge, defaultStopUntilRecharge))
+					preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default))
 				return false
 
-			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
-			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
-
-			val preference = Preferences.getPref(context).getInt(keyAutoTracking, defaultAutoTracking)
+			val preference = preferences.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
 			val prefActivity = GroupedActivity.values()[preference]
 			return prefActivity != GroupedActivity.STILL && (prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
 		}
@@ -275,10 +262,7 @@ class ActivityService : IntentService("ActivityService") {
 			if (groupedActivity == GroupedActivity.STILL)
 				return false
 
-			val resources = context.resources
-			val keyAutoTracking = resources.getString(R.string.settings_tracking_activity_key)
-			val defaultAutoTracking = resources.getString(R.string.settings_tracking_activity_default).toInt()
-			val preference = Preferences.getPref(context).getInt(keyAutoTracking, defaultAutoTracking)
+			val preference = Preferences.getPref(context).getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
 			val prefActivity = GroupedActivity.values()[preference]
 			return prefActivity == GroupedActivity.IN_VEHICLE ||
 					(prefActivity == GroupedActivity.ON_FOOT &&

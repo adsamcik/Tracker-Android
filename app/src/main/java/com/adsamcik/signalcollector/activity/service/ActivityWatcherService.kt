@@ -23,9 +23,6 @@ import kotlin.concurrent.scheduleAtFixedRate
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
 class ActivityWatcherService : LifecycleService() {
-	private val keyUpdateFreq = getString(R.string.settings_activity_freq_key)
-	private val defaultUpdateFreq = getString(R.string.settings_activity_freq_default).toInt()
-
 	private var activityInfo = ActivityService.lastActivity
 
 	private val timer: Timer = Timer()
@@ -37,7 +34,7 @@ class ActivityWatcherService : LifecycleService() {
 
 		instance = this
 
-		val updatePreferenceInSeconds = Preferences.getPref(this).getInt(keyUpdateFreq, defaultUpdateFreq)
+		val updatePreferenceInSeconds = Preferences.getPref(this).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 		ActivityService.requestAutoTracking(this, this::class, updatePreferenceInSeconds)
@@ -92,23 +89,11 @@ class ActivityWatcherService : LifecycleService() {
 
 		private var instance: ActivityWatcherService? = null
 
-		fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(context).let {
-			context.resources.let { resources ->
-				it.getBoolean(resources.getString(R.string.settings_activity_watcher_key), resources.getString(R.string.settings_activity_watcher_default).toBoolean())
-			}
-		}
+		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(context).getBooleanRes(R.string.settings_activity_watcher_key, R.string.settings_activity_watcher_default)
 
-		fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(context).let {
-			context.resources.let { resources ->
-				it.getInt(resources.getString(R.string.settings_tracking_activity_key), resources.getString(R.string.settings_tracking_activity_default).toInt())
-			}
-		}
+		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(context).getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
 
-		fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(context).let {
-			context.resources.let { resources ->
-				it.getInt(resources.getString(R.string.settings_activity_freq_key), resources.getString(R.string.settings_activity_freq_default).toInt())
-			}
-		}
+		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 
 		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
 			poke(context, watcherPreference = value)

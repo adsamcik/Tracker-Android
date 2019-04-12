@@ -2,6 +2,7 @@
 <resources>
     <string name="show_tips_title">Show tips</string>
     <string name="show_tips_key" translatable="false">tipsEnabled</string>
+    <string name="show_tips_default" translatable="false">true</string>
 
     <string name="next_part">continue</string>
     <string name="skip_tips">skip</string>

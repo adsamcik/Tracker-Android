@@ -17,7 +17,7 @@ class PreLocationTrackerComponent(context: Context) : PreTrackerComponent {
 	}
 
 	override fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo): Boolean {
-
+		TODO()
 	}
 
 

@@ -5,7 +5,6 @@ import android.graphics.PointF
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.annotation.StringDef
-import androidx.core.content.edit
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.DraggableImageButton
@@ -50,8 +49,7 @@ object Tips {
 	 */
 	fun showTips(activity: FragmentActivity, @TipKey key: String, onDoneListener: (() -> Unit)?) {
 		val preferences = Preferences.getPref(activity)
-		val tipsPreferenceKey = activity.getString(R.string.show_tips_key)
-		if (preferences.getBoolean(tipsPreferenceKey, true) && !preferences.getBoolean(getTipsPreferenceKey(key), false)) {
+		if (preferences.getBooleanRes(R.string.show_tips_key, R.string.show_tips_default) && !preferences.getBoolean(getTipsPreferenceKey(key), false)) {
 			when (key) {
 				HOME_TIPS -> showHomeTips(activity, onDoneListener)
 				MAP_TIPS -> showMapTips(activity, onDoneListener)

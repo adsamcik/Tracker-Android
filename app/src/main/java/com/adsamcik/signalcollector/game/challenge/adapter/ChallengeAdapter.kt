@@ -48,7 +48,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 		holder.progressBar.progress = (challenge.progress * 100.0).toInt()
 		holder.timeTextView.text = (challenge.endTime - System.currentTimeMillis()).formatAsDuration(holder.itemView.context)
 
-		//val color = ColorUtils.setAlphaComponent(ContextCompat.getColor(context!!, R.color.background_success), (challenge.progress * 25.5).roundToInt())
+		//val color = ColorUtils.setAlphaComponent(ContextCompat.getColorRes(context!!, R.color.background_success), (challenge.progress * 25.5).roundToInt())
 		//fragmentView.setBackgroundColor(color)
 
 		onViewChangedListener?.invoke(holder.itemView)

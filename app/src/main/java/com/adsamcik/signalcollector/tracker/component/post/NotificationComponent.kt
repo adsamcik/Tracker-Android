@@ -30,6 +30,10 @@ class NotificationComponent(context: Context) : PostTrackerComponent {
 		notify(generateNotification(context, location, null))
 	}
 
+	fun foregroundServiceNotification(context: Context): Pair<Int, Notification> {
+		return NOTIFICATION_ID to generateNotification(context)
+	}
+
 	private fun notify(notification: Notification) = notificationManager.notify(NOTIFICATION_ID, notification)
 
 	private fun generateNotification(context: Context, location: Location? = null, data: CollectionData? = null): Notification {

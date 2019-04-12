@@ -1,9 +1,7 @@
 package com.adsamcik.signalcollector.tracker.service
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,8 +14,6 @@ import android.location.Location
 import android.os.Looper
 import android.os.PowerManager
 import android.telephony.TelephonyManager
-import androidx.core.app.NotificationCompat
-import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
@@ -30,27 +26,23 @@ import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.worker.ChallengeWorker
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.misc.extension.formatDistance
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
-import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
-import java.math.RoundingMode
-import java.text.DecimalFormat
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
@@ -91,6 +83,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private var defaultRequiredLocationAccuracy: Int = 0
 
 
+	private lateinit var notificationComponent: NotificationComponent
+
+
 	/**
 	 * Collects data from necessary places and sensors and creates new MutableCollectionData instance
 	 */
@@ -112,7 +107,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val preferences = Preferences.getPref(this)
 
 		//if we don't know the accuracy the location is worthless
-		if (!location.hasAccuracy() || location.accuracy > preferences.getInt(keyRequiredLocationAccuracy, defaultRequiredLocationAccuracy)) {
+		if (!location.hasAccuracy() || location.accuracy > preferences.getIntRes(keyRequiredLocationAccuracy, defaultRequiredLocationAccuracy)) {
 			wakeLock.release()
 			return
 		}
@@ -149,7 +144,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			rawData.setLocation(location).setActivity(activityInfo)
 
 
-		notificationManager.notify(NOTIFICATION_ID_SERVICE, generateNotification(location, rawData))
+		notificationComponent.onNewData(this, location, rawData)
 
 		saveData(rawData)
 		trackerEcho.postValue(Pair(session, rawData))
@@ -163,8 +158,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	}
 
 
-
-
 	override fun onCreate() {
 		super.onCreate()
 
@@ -173,15 +166,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val resources = resources
 
 		val packageManager = packageManager
-
-		//Initialize keys and defaults
-		keyCellEnabled = resources.getString(R.string.settings_cell_enabled_key)
-		keyLocationEnabled = resources.getString(R.string.settings_location_enabled_key)
-		keyRequiredLocationAccuracy = resources.getString(R.string.settings_tracking_required_accuracy_key)
-
-		defaultCellEnabled = resources.getString(R.string.settings_cell_enabled_default).toBoolean()
-		defaultLocationEnabled = resources.getString(R.string.settings_location_enabled_default).toBoolean()
-		defaultRequiredLocationAccuracy = resources.getInteger(R.integer.settings_tracking_required_accuracy_default)
 
 		//Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
@@ -195,8 +179,8 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		//Enable location update
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-			minUpdateDelayInSeconds = sp.getInt(resources.getString(R.string.settings_tracking_min_time_key), resources.getInteger(R.integer.settings_tracking_min_time_default))
-			minDistanceInMeters = sp.getInt(resources.getString(R.string.settings_tracking_min_distance_key), resources.getInteger(R.integer.settings_tracking_min_distance_default)).toFloat()
+			minUpdateDelayInSeconds = sp.getIntRes(resources.getString(R.string.settings_tracking_min_time_key), resources.getInteger(R.integer.settings_tracking_min_time_default))
+			minDistanceInMeters = sp.getIntRes(resources.getString(R.string.settings_tracking_min_distance_key), resources.getInteger(R.integer.settings_tracking_min_distance_default)).toFloat()
 
 			val client = LocationServices.getFusedLocationProviderClient(this)
 			val request = LocationRequest.create().apply {
@@ -252,7 +236,9 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		super.onStartCommand(intent, flags, startId)
 
 		isBackgroundActivated = intent.getBooleanExtra("backTrack", false)
-		startForeground(NOTIFICATION_ID_SERVICE, generateNotification())
+
+		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
+		startForeground(notificationId, notification)
 
 		if (isBackgroundActivated) {
 			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)

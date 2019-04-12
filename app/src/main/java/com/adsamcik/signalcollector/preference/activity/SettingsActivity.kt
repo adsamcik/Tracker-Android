@@ -161,10 +161,11 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			startActivity<LicenseActivity> { }
 		}
 
-		val devKey = getString(R.string.settings_debug_key)
+		val devKeyRes = R.string.settings_debug_key
+		val devDefaultRes = R.string.settings_debug_default
 		val debugTitle = getString(R.string.settings_debug_title)
 
-		caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = Preferences.getPref(this).getBoolean(devKey, false)
+		caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = Preferences.getPref(this).getBooleanRes(devKeyRes, devDefaultRes)
 
 		caller.findPreference(R.string.show_tips_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			if (newValue as Boolean) {
@@ -182,7 +183,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		version.setOnPreferenceClickListener {
 			val preferences = Preferences.getPref(this)
 
-			if (preferences.getBoolean(devKey, false)) {
+			if (preferences.getBooleanRes(devKeyRes, devDefaultRes)) {
 				showToast(getString(R.string.settings_debug_already_available))
 				return@setOnPreferenceClickListener false
 			}
@@ -190,11 +191,11 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			clickCount++
 			if (clickCount >= 7) {
 				preferences.edit {
-					putBoolean(devKey, true)
+					setBoolean(devKeyRes, true)
 				}
 				showToast(getString(R.string.settings_debug_available))
 				caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = true
-				caller.findPreferenceTyped<SwitchPreferenceCompat>(devKey).isChecked = true
+				caller.findPreferenceTyped<SwitchPreferenceCompat>(devKeyRes).isChecked = true
 			} else if (clickCount >= 4) {
 				val remainingClickCount = 7 - clickCount
 				showToast(resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount, remainingClickCount))
@@ -259,7 +260,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		/*val alertDialogBuilder = AlertDialog.Builder(this)
 		alertDialogBuilder
-				.setTitle(getString(R.string.dev_browse_files))
+				.setTitle(getStringRes(R.string.dev_browse_files))
 				.setItems(fileNames) { _, which ->
 					val intent = Intent(this, DebugFileActivity::class.java)
 					intent.putExtra("directory", directory.path)

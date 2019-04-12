@@ -235,6 +235,7 @@
     <string name="settings_debug_available">You now have access to developer options</string>
     <string name="settings_debug_enabled">Dev options enabled</string>
     <string name="settings_debug_key" translatable="false">showDevSettings</string>
+    <string name="settings_debug_default" translatable="false">false</string>
     <plurals name="settings_debug_available_in">
         <item quantity="one">%d tap left to enable developer options</item>
         <item quantity="other">%d taps left to enable developer options</item>

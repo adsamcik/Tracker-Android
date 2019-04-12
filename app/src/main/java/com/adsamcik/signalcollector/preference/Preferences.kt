@@ -1,7 +1,15 @@
 package com.adsamcik.signalcollector.preference
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Resources
+import androidx.annotation.ColorRes
+import androidx.annotation.DimenRes
+import androidx.annotation.IntegerRes
+import androidx.annotation.StringRes
+import androidx.core.content.edit
+import androidx.core.content.res.ResourcesCompat
 import androidx.preference.PreferenceManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.misc.LengthSystem
@@ -11,26 +19,140 @@ import com.adsamcik.signalcollector.misc.LengthSystem
  * Object that simplifies access to some preferences
  * It contains many preferences as constant values so they don't have to be stored in SharedPreferences which creates unnecessary lookup
  */
-object Preferences {
-	private var sharedPreferences: SharedPreferences? = null
+@Suppress("UNUSED")
+open class Preferences {
+	protected val resources: Resources
+	protected val sharedPreferences: SharedPreferences
 
-	/**
-	 * Get shared preferences
-	 * This function should never crash. Initializes preferences if needed.
-	 *
-	 * @param context Non-null context
-	 * @return Shared preferences
-	 */
-	fun getPref(context: Context): SharedPreferences {
-		return this.sharedPreferences
-				?: PreferenceManager.getDefaultSharedPreferences(context.applicationContext).apply { this@Preferences.sharedPreferences = this }
+	constructor(context: Context) {
+		resources = context.resources
+		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+	}
+
+	constructor(preferences: Preferences) {
+		resources = preferences.resources
+		sharedPreferences = preferences.sharedPreferences
+	}
+
+	fun getStringRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): String {
+		val key = getKey(keyRes)
+		val default = resources.getString(defaultRes)
+		return getString(key, default)
+	}
+
+	fun getStringRes(@StringRes keyRes: Int): String? {
+		val key = getKey(keyRes)
+		return getString(key)
+	}
+
+	fun getString(key: String, default: String): String {
+		return sharedPreferences.getString(key, default) ?: default
+	}
+
+	fun getString(key: String): String? {
+		return sharedPreferences.getString(key, null)
+	}
+
+	fun getIntRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Int {
+		val key = getKey(keyRes)
+		val default = resources.getInteger(defaultRes)
+		return getInt(key, default)
+	}
+
+	fun getIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
+		val key = getKey(keyRes)
+		val default = resources.getString(defaultRes).toInt()
+		return getInt(key, default)
+	}
+
+	fun getInt(key: String, default: Int = 0): Int {
+		return sharedPreferences.getInt(key, default)
+	}
+
+	fun getBooleanRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): Boolean {
+		val key = getKey(keyRes)
+		//This is fine, because getString is never null (@NonNull annotation)
+		val default = resources.getString(defaultRes).toBoolean()
+		return getBoolean(key, default)
+	}
+
+	fun getBoolean(key: String, default: Boolean = false): Boolean {
+		return sharedPreferences.getBoolean(key, default)
+	}
+
+	fun getColorRes(@StringRes keyRes: Int, @ColorRes defaultRes: Int, theme: Resources.Theme? = null): Int {
+		val key = getKey(keyRes)
+		val color = ResourcesCompat.getColor(resources, defaultRes, theme)
+		return getInt(key, color)
+	}
+
+	fun getLongRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Long {
+		val key = getKey(keyRes)
+		val default = resources.getInteger(defaultRes).toLong()
+		return getLong(key, default)
+	}
+
+	fun getLongResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Long {
+		val key = getKey(keyRes)
+		val default = resources.getString(defaultRes).toLong()
+		return getLong(key, default)
+	}
+
+	fun getLong(key: String, default: Long = 0L): Long {
+		return sharedPreferences.getLong(key, default)
 	}
 
 
-	fun getLengthSystem(context: Context): LengthSystem {
-		val resources = context.resources
-		val preference = getPref(context).getString(resources.getString(R.string.settings_length_system_key), resources.getString(R.string.settings_length_system_default))
-				?: throw NullPointerException("Length system string cannot be null!")
-		return LengthSystem.valueOf(preference)
+	fun getFloatResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Float {
+		val key = getKey(keyRes)
+		val default = resources.getString(defaultRes).toFloat()
+		return getFloat(key, default)
+	}
+
+	fun getFloatRes(@StringRes keyRes: Int, @DimenRes defaultRes: Int): Float {
+		val key = getKey(keyRes)
+		val default = ResourcesCompat.getFloat(resources, defaultRes)
+		return getFloat(key, default)
+	}
+
+	fun getFloat(key: String, default: Float): Float {
+		return sharedPreferences.getFloat(key, default)
+	}
+
+
+	@SuppressLint("CommitPrefEdits")
+	open fun edit(func: MutablePreferences.() -> Unit) {
+		sharedPreferences.edit { func.invoke(MutablePreferences(this@Preferences)) }
+	}
+
+	protected fun getKey(@StringRes keyRes: Int): String {
+		return resources.getString(keyRes)
+	}
+
+
+	companion object {
+		private var preferences: MutablePreferences? = null
+
+		/**
+		 * Get shared preferences
+		 * This function should never crash. Initializes preferences if needed.
+		 *
+		 * @param context Non-null context
+		 * @return Shared preferences
+		 */
+		@Synchronized
+		fun getPref(context: Context): Preferences {
+			return getMutablePref(context)
+		}
+
+		private fun getMutablePref(context: Context): MutablePreferences {
+			return this.preferences
+					?: MutablePreferences(context).apply { preferences = this }
+		}
+
+		fun getLengthSystem(context: Context): LengthSystem {
+			val preference = getPref(context).getStringRes(R.string.settings_length_system_key, R.string.settings_length_system_default)
+			return LengthSystem.valueOf(preference)
+		}
 	}
 }

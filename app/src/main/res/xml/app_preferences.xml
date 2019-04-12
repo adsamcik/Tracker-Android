@@ -259,7 +259,7 @@
             android:title="@string/settings_length_system_title"/>
 
         <androidx.preference.CheckBoxPreference
-            android:defaultValue="true"
+            android:defaultValue="R.string.show_tips_default"
             android:key="@string/show_tips_key"
             android:title="@string/show_tips_title"/>
 

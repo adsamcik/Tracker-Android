@@ -254,7 +254,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			longitude.visibility = GONE
 			latitude.visibility = GONE
 		}
-		//archived_data.text = getString(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
+		//archived_data.text = getStringRes(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
 	}
 
 	private fun updateExtendedInfo(collectionData: MutableCollectionData) {

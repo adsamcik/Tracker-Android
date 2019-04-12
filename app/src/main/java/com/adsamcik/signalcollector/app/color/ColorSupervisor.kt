@@ -11,8 +11,6 @@ import androidx.core.graphics.ColorUtils
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.extension.getColor
-import com.adsamcik.signalcollector.misc.extension.getString
 import com.adsamcik.signalcollector.misc.extension.timeInMillis
 import com.adsamcik.signalcollector.preference.Preferences
 import java.text.SimpleDateFormat
@@ -417,24 +415,24 @@ object ColorSupervisor {
 	 */
 	fun initializeFromPreferences(context: Context) {
 		val preferences = Preferences.getPref(context)
-		val mode = preferences.getString(context, R.string.settings_style_mode_key, R.string.settings_style_mode_default).toInt()
+		val mode = preferences.getIntResString(R.string.settings_style_mode_key, R.string.settings_style_mode_default)
 
 		stopUpdate()
 
 		synchronized(colorList) {
 			colorList.clear()
 
-			val day = preferences.getColor(context, R.string.settings_color_day_key, R.color.settings_color_day_default)
+			val day = preferences.getColorRes(R.string.settings_color_day_key, R.color.settings_color_day_default)
 
 			if (mode == 0) {
 				addColors(day)
 			} else {
-				val night = preferences.getColor(context, R.string.settings_color_night_key, R.color.settings_color_night_default)
+				val night = preferences.getColorRes(R.string.settings_color_night_key, R.color.settings_color_night_default)
 				if (mode == 1)
 					addColors(day, night)
 				else {
-					val morning = preferences.getColor(context, R.string.settings_color_morning_key, R.color.settings_color_morning_default)
-					val evening = preferences.getColor(context, R.string.settings_color_evening_key, R.color.settings_color_evening_default)
+					val morning = preferences.getColorRes(R.string.settings_color_morning_key, R.color.settings_color_morning_default)
+					val evening = preferences.getColorRes(R.string.settings_color_evening_key, R.color.settings_color_evening_default)
 					addColors(morning, day, evening, night)
 				}
 			}

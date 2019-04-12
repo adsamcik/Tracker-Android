@@ -64,23 +64,15 @@ object TrackerLocker {
 	fun initializeFromPersistence(context: Context) {
 		val preferences = Preferences.getPref(context)
 
-		val resources = context.resources
-
-		val keyDisabledTime = resources.getString(R.string.settings_disabled_time_key)
-		val defaultDisabledTime = resources.getString(R.string.settings_disabled_time_default).toLong()
-
-		val keyDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_key)
-		val defaultDisabledRecharge = resources.getString(R.string.settings_disabled_recharge_default).toBoolean()
-
-		setTimeLock(context, preferences.getLong(keyDisabledTime, defaultDisabledTime))
-		setRechargeLock(context, preferences.getBoolean(keyDisabledRecharge, defaultDisabledRecharge))
+		setTimeLock(context, preferences.getLongResString(R.string.settings_disabled_time_key, R.string.settings_disabled_time_default))
+		setRechargeLock(context, preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default))
 	}
 
 	private fun setRechargeLock(context: Context, lock: Boolean) {
 		val keyDisabledRecharge = context.getString(R.string.settings_disabled_recharge_key)
 		synchronized(this) {
 			Preferences.getPref(context).edit {
-				putBoolean(keyDisabledRecharge, lock)
+				setBoolean(keyDisabledRecharge, lock)
 			}
 
 			lockedUntilRecharge = lock
@@ -90,10 +82,9 @@ object TrackerLocker {
 	}
 
 	private fun setTimeLock(context: Context, time: Long) {
-		val keyDisabledTime = context.getString(R.string.settings_disabled_time_key)
 		synchronized(this) {
 			Preferences.getPref(context).edit {
-				putLong(keyDisabledTime, time)
+				setLong(R.string.settings_disabled_time_key, time)
 			}
 
 			lockedUntil = time

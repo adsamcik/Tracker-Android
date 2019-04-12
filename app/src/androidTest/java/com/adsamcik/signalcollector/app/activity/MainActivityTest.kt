@@ -50,7 +50,7 @@ class MainActivityTest {
 		sleep()
 
 		if (spotlightView.exists()) {
-			onView(withText(mActivityTestRule.activity.getString(R.string.skip_tips))).check(matches(isDisplayed())).perform(click())
+			onView(withText(mActivityTestRule.activity.getStringRes(R.string.skip_tips))).check(matches(isDisplayed())).perform(click())
 			sleep()
 		}
 

@@ -121,11 +121,13 @@ inline fun <reified T : Any> Context.stopService() {
 inline fun <reified T : Any> Context.newIntent(): Intent =
 		Intent(this, T::class.java)
 
+
 fun Context.appVersion(): Long {
 	val packageInfo = packageManager.getPackageInfo(packageName, 0)
 	return if (Build.VERSION.SDK_INT >= 28)
 		packageInfo.longVersionCode
 	else
+		@Suppress("DEPRECATION")
 		packageInfo.versionCode.toLong()
 }
 
