@@ -63,8 +63,9 @@ class NotificationComponent(context: Context) : PostTrackerComponent {
 			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
 			val stopForMinutesAction = PendingIntent.getBroadcast(context, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
 			builder.addAction(R.drawable.ic_stop_black_24dp, resources.getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)
-		} else
+		} else {
 			builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, resources.getString(R.string.notification_stop), stop)
+		}
 
 		when {
 			location == null -> builder.setContentTitle(resources.getString(R.string.notification_looking_for_gps))

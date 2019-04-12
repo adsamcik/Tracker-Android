@@ -23,8 +23,9 @@ class TrackerDataComponent(context: Context) {
 			val location = data.location
 			var locationId: Long? = null
 			val activity = data.activity
-			if (location != null && activity != null)
+			if (location != null && activity != null) {
 				locationId = database.locationDao().insert(location.toDatabase(activity))
+			}
 
 			val cellData = data.cell
 			val cellDao = database.cellDao()

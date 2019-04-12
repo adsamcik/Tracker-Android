@@ -25,20 +25,21 @@ fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(t
  *
  * @param title Title used for the search
  */
-fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): Preference? {
+fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): Preference {
 	return preferenceScreen?.findDirectPreferenceByTitle(title)
+			?: throw PreferenceNotFoundException("Preference with title $title not found")
 }
 
 
 /**
  * Finds a {@link Preference} based on its key.
  *
- * @param title The title of the preference to retrieve.
+ * @param key The title of the preference to retrieve.
  * @return The {@link Preference} with the key, or null.
  * @see PreferenceGroup#findPreference(CharSequence)
  */
-fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSequence): T {
-	return findPreference(title)!!
+fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(key: CharSequence): T {
+	return findPreference(key) ?: throw PreferenceNotFoundException("Preference with title $key not found")
 }
 
 /**
@@ -49,8 +50,8 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(title: CharSeq
  * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
-	@Suppress("UNCHECKED_CAST")
-	return findPreference(getString(titleId))!!
+	return findPreference(getString(titleId))
+			?: throw PreferenceNotFoundException("Preference with title id $titleId not found")
 }
 
 /**
@@ -61,8 +62,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes tit
  * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference {
-	@Suppress("UNCHECKED_CAST")
-	return findPreference(getString(titleId))!!
+	return findPreferenceTyped(titleId)
 }
 
 /**
@@ -82,27 +82,10 @@ fun PreferenceGroup.findDirectPreferenceByTitle(title: CharSequence): Preference
 	return null
 }
 
-/**
- * Utility method to get integer from SharedPreferences which has default values saved as String resource
- */
-fun SharedPreferences.getInt(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): Int {
-	val resources = context.resources
-	return getInt(resources.getString(key), resources.getString(defaultResource).toInt())
-}
-
-/**
- * Utility method to get string from SharedPreferences which has default values saved as String resource
- */
-fun SharedPreferences.getString(context: Context, @StringRes key: Int, @StringRes defaultResource: Int): String {
-	val resources = context.resources
-	return getString(resources.getString(key), resources.getString(defaultResource))!!
-}
-
-/**
- * Utility method to get color from SharedPreferences which has default values saved as Integer resource
- */
-@ColorInt
-fun SharedPreferences.getColor(context: Context, @StringRes key: Int, @ColorRes defaultResource: Int): Int {
-	val defaultColor = ContextCompat.getColor(context, defaultResource)
-	return getInt(context.getString(key), defaultColor)
+class PreferenceNotFoundException : Exception {
+	constructor() : super()
+	constructor(message: String?) : super(message)
+	constructor(message: String?, cause: Throwable?) : super(message, cause)
+	constructor(cause: Throwable?) : super(cause)
+	constructor(message: String?, cause: Throwable?, enableSuppression: Boolean, writableStackTrace: Boolean) : super(message, cause, enableSuppression, writableStackTrace)
 }
