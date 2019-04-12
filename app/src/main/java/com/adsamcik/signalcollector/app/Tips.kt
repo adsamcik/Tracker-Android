@@ -192,7 +192,7 @@ object Tips {
 					.setAnimation(AccelerateDecelerateInterpolator())
 					.setOnSpotlightEndedListener {
 						Preferences.getPref(this).edit {
-							putBoolean(getTipsPreferenceKey(MAP_TIPS), true)
+							setBoolean(getTipsPreferenceKey(MAP_TIPS), true)
 						}
 						isActive = false
 						onDoneListener?.invoke()

@@ -12,7 +12,6 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat.getDrawable
-import androidx.core.content.edit
 import androidx.core.view.children
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
@@ -156,10 +155,8 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 				} else if (!Assist.canTrack(activity)) {
 					SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_nothing_to_track)
 				} else {
-					val keyDisableTillRecharge = getString(R.string.settings_disabled_recharge_key)
-
 					Preferences.getPref(activity).edit {
-						putBoolean(keyDisableTillRecharge, false)
+						setBoolean(R.string.settings_disabled_recharge_key, false)
 					}
 
 					activity.startForegroundService<TrackerService> {

@@ -21,7 +21,6 @@ import androidx.work.Constraints
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Assist
@@ -33,7 +32,10 @@ import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.tracker.component.data.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
+import com.adsamcik.signalcollector.tracker.component.post.PostTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.pre.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
@@ -44,7 +46,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
-import kotlin.math.max
 
 class TrackerService : LifecycleService(), SensorEventListener {
 	private lateinit var notificationManager: NotificationManager
@@ -54,7 +55,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 	private val telephonyManager: TelephonyManager by lazy { getSystemServiceTyped<TelephonyManager>(Context.TELEPHONY_SERVICE) }
 
-	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1f
 
 	/**
@@ -79,11 +79,12 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	private lateinit var keyLocationEnabled: String
 	private var defaultLocationEnabled: Boolean = false
 
-	private lateinit var keyRequiredLocationAccuracy: String
-	private var defaultRequiredLocationAccuracy: Int = 0
-
 
 	private lateinit var notificationComponent: NotificationComponent
+
+	private val preComponentList = mutableListOf<PreTrackerComponent>()
+	private val dataComponentList = mutableListOf<DataTrackerComponent>()
+	private val postComponentList = mutableListOf<PostTrackerComponent>()
 
 
 	/**
@@ -95,6 +96,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val distance = if (previousLocation == null) 0f else location.distanceTo(previousLocation)
 		if (location.isFromMockProvider) {
 			prevMocked = true
+			this.previousLocation = null
 			return
 		} else if (prevMocked && previousLocation != null) {
 			prevMocked = false
@@ -106,31 +108,19 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 		val preferences = Preferences.getPref(this)
 
+		val activityInfo = ActivityService.lastActivity
+
 		//if we don't know the accuracy the location is worthless
-		if (!location.hasAccuracy() || location.accuracy > preferences.getIntRes(keyRequiredLocationAccuracy, defaultRequiredLocationAccuracy)) {
+		if (!preComponentList.all { it.onNewLocation(locationResult, previousLocation, distance, activityInfo) }) {
 			wakeLock.release()
 			return
 		}
 
-		val activityInfo = ActivityService.lastActivity
-
-		session.apply {
-			distanceInM += distance
-			collections++
-
-			if (previousLocation != null &&
-					(location.time - previousLocation.time < max(Constants.SECOND_IN_MILLISECONDS * 20, minUpdateDelayInSeconds * 2 * Constants.SECOND_IN_MILLISECONDS) ||
-							distance <= minDistanceInMeters * 2f)) {
-				when (activityInfo.groupedActivity) {
-					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
-					GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
-					else -> {
-					}
-				}
-			}
-		}
-
 		val rawData = MutableCollectionData(location.time)
+
+		dataComponentList.forEach {
+			it.onLocationUpdated(locationResult, previousLocation, distance,, rawData)
+		}
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
 			setWifi(locationResult, location, previousLocation, distance, rawData)

@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.tracker.component.data
 import android.content.Context
 import android.location.Location
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.misc.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.component.PreferenceDataTrackerComponent
@@ -17,7 +18,7 @@ class CellTrackerComponent(val context: Context) : PreferenceDataTrackerComponen
 
 	private val telephonyManager = context.telephonyManager
 
-	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, collectionData: MutableCollectionData) {
+	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
 		if (!Assist.isAirplaneModeEnabled(context)) {
 			collectionData.addCell(telephonyManager)
 		}
