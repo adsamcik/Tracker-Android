@@ -4,10 +4,8 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -15,9 +13,6 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.hardware.SensorManager.SENSOR_DELAY_NORMAL
 import android.location.Location
-import android.net.wifi.ScanResult
-import android.net.wifi.WifiManager
-import android.os.Build
 import android.os.Looper
 import android.os.PowerManager
 import android.telephony.TelephonyManager
@@ -37,17 +32,14 @@ import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseCellData
-import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.worker.ChallengeWorker
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.formatDistance
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.data.RawData
+import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
@@ -60,7 +52,6 @@ import java.lang.ref.WeakReference
 import java.math.RoundingMode
 import java.text.DecimalFormat
 import java.util.concurrent.TimeUnit
-import kotlin.math.abs
 import kotlin.math.max
 
 class TrackerService : LifecycleService(), SensorEventListener {
@@ -101,7 +92,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 
 
 	/**
-	 * Collects data from necessary places and sensors and creates new RawData instance
+	 * Collects data from necessary places and sensors and creates new MutableCollectionData instance
 	 */
 	private fun updateData(locationResult: LocationResult) {
 		val previousLocation = previousLocation
@@ -144,7 +135,7 @@ class TrackerService : LifecycleService(), SensorEventListener {
 			}
 		}
 
-		val rawData = RawData(location.time)
+		val rawData = MutableCollectionData(location.time)
 
 		if (preferences.getBoolean(keyWifiEnabled, defaultWifiEnabled)) {
 			setWifi(locationResult, location, previousLocation, distance, rawData)
@@ -172,118 +163,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	}
 
 
-	private fun saveData(data: RawData) {
-		GlobalScope.launch {
-			val appContext = applicationContext
-			val database = AppDatabase.getDatabase(appContext)
-
-			val location = data.location
-			var locationId: Long? = null
-			val activity = data.activity
-			if (location != null && activity != null)
-				locationId = database.locationDao().insert(location.toDatabase(activity))
-
-			val cellData = data.cell
-			val cellDao = database.cellDao()
-			cellData?.registeredCells?.map { DatabaseCellData(locationId, data.time, data.time, it) }?.let { cellDao.upsert(it) }
-
-			val wifiData = data.wifi
-			if (wifiData != null) {
-				val wifiDao = database.wifiDao()
-
-				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(wifiData.location)
-				wifiData.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
-			}
-		}
-	}
-
-	/**
-	 * Generates tracking notification
-	 */
-	private fun generateNotification(location: Location? = null, d: RawData? = null): Notification {
-		val intent = Intent(this, LaunchActivity::class.java)
-
-		val builder = NotificationCompat.Builder(this, getString(R.string.channel_track_id))
-				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals)  // the done icon
-				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
-				.setWhen(System.currentTimeMillis())  // the time stamp
-				.setColor(ContextCompat.getColor(this, R.color.color_accent))
-				.setContentIntent(TaskStackBuilder.create(this).run {
-					addNextIntentWithParentStack(intent)
-					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
-				})
-
-		val stopIntent = Intent(this, TrackerNotificationReceiver::class.java)
-		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, if (isBackgroundActivated) TrackerNotificationReceiver.LOCK_RECHARGE_ACTION else TrackerNotificationReceiver.STOP_TRACKING_ACTION)
-		val stop = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
-		if (isBackgroundActivated) {
-			builder.addAction(R.drawable.ic_battery_alert_black_24dp, getString(R.string.notification_stop_til_recharge), stop)
-
-			val stopForMinutes = 30
-			val stopForMinutesIntent = Intent(this, TrackerNotificationReceiver::class.java)
-			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, TrackerNotificationReceiver.STOP_MINUTES_EXTRA)
-			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
-			val stopForMinutesAction = PendingIntent.getBroadcast(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
-			builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)
-		} else
-			builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, getString(R.string.notification_stop), stop)
-
-		if (location == null)
-			builder.setContentTitle(getString(R.string.notification_looking_for_gps))
-		else {
-			builder.setContentTitle(getString(R.string.notification_tracking_active))
-			builder.setContentText(buildNotificationText(location, d!!))
-		}
-
-		return builder.build()
-	}
-
-	/**
-	 * Builds text for tracking notification
-	 */
-	private fun buildNotificationText(location: Location, d: RawData): String {
-		val resources = resources
-		val sb = StringBuilder()
-		val df = DecimalFormat.getNumberInstance()
-		df.roundingMode = RoundingMode.HALF_UP
-
-		val lengthSystem = Preferences.getLengthSystem(this)
-		val delimiter = ", "
-
-		sb.append(resources.getString(R.string.notification_location,
-				Location.convert(location.latitude, Location.FORMAT_DEGREES),
-				Location.convert(location.longitude, Location.FORMAT_DEGREES)
-		))
-				.append(delimiter)
-				.append(resources.getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
-				.append(delimiter)
-
-		val activity = d.activity
-		if (activity != null) {
-			sb.append(resources.getString(R.string.notification_activity,
-					activity.getGroupedActivityName(this))).append(delimiter)
-		}
-
-		val wifi = d.wifi
-		if (wifi != null) {
-			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(delimiter)
-		}
-
-		val cell = d.cell
-		if (cell != null && cell.registeredCells.isNotEmpty()) {
-			val mainCell = cell.registeredCells[0]
-			sb
-					.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm))
-					.append(' ')
-					.append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount))
-					.append(delimiter)
-		}
-
-		sb.setLength(sb.length - 2)
-
-		return sb.toString()
-	}
 
 
 	override fun onCreate() {
@@ -305,7 +184,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		defaultRequiredLocationAccuracy = resources.getInteger(R.integer.settings_tracking_required_accuracy_default)
 
 		//Get managers
-		notificationManager = getSystemServiceTyped(Context.NOTIFICATION_SERVICE)
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
@@ -470,7 +348,6 @@ class TrackerService : LifecycleService(), SensorEventListener {
 	companion object {
 		//Constants
 		private const val TAG = "SignalsTracker"
-		private const val NOTIFICATION_ID_SERVICE = -7643
 
 		/**
 		 * LiveData containing information about whether the service is currently running
@@ -478,10 +355,10 @@ class TrackerService : LifecycleService(), SensorEventListener {
 		val isServiceRunning: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
 
 		/**
-		 * RawData from previous collection
+		 * MutableCollectionData from previous collection
 		 */
 		//todo look at how to improve this
-		var trackerEcho: MutableLiveData<Pair<TrackerSession, RawData>> = MutableLiveData()
+		var trackerEcho: MutableLiveData<Pair<TrackerSession, MutableCollectionData>> = MutableLiveData()
 
 		/**
 		 * Extra information about distance for tracker

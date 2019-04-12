@@ -177,7 +177,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun mock() {
-		val rawData = RawData(System.currentTimeMillis())
+		val rawData = MutableCollectionData(System.currentTimeMillis())
 		val location = Location(rawData.time, 15.0, 15.0, 123.0, 6f, 3f, 10f, 15f)
 		rawData.location = location
 		rawData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
@@ -257,8 +257,8 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		//archived_data.text = getString(R.string.main_archived_data, Assist.humanReadableByteCount(LongTermStore.sizeOfStoredFiles(context!!), true))
 	}
 
-	private fun updateExtendedInfo(rawData: RawData) {
-		val location = rawData.location
+	private fun updateExtendedInfo(collectionData: MutableCollectionData) {
+		val location = collectionData.location
 		if (location != null) {
 			longitude.text = getString(R.string.main_longitude, Assist.coordinateToString(location.longitude))
 			latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
@@ -275,21 +275,21 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		}
 	}
 
-	private fun updateData(session: TrackerSession, rawData: RawData) {
+	private fun updateData(session: TrackerSession, collectionData: MutableCollectionData) {
 		val context = getNonNullContext()
 		val res = context.resources
 
-		textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(rawData.time)))
+		textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(collectionData.time)))
 
-		updateActivityUI(rawData.activity)
-		updateLocationUI(rawData.location)
+		updateActivityUI(collectionData.activity)
+		updateLocationUI(collectionData.location)
 		updateSessionUI(session)
-		updateCellUI(rawData.cell)
-		updateWifiUI(rawData.time, rawData.wifi)
+		updateCellUI(collectionData.cell)
+		updateWifiUI(collectionData.time, collectionData.wifi)
 
 
 		if (bar_info_top_extended.visibility == VISIBLE) {
-			updateExtendedInfo(rawData)
+			updateExtendedInfo(collectionData)
 		}
 	}
 

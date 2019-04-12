@@ -7,7 +7,7 @@ import androidx.fragment.app.FragmentTransaction
 
 /**
  * Creates new transaction for a [FragmentManager].
- * Transaction is committed using commit.
+ * Transaction is committed using apply.
  *
  * @param func Specify all actions you want to do in this transaction (eg. replace(id, fragment))
  */

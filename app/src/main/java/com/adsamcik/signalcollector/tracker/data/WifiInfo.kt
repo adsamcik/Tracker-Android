@@ -10,7 +10,7 @@ import com.squareup.moshi.JsonClass
 
 /**
  * Class containing Wi-Fi information.
- * It is used in RawData
+ * It is used in MutableCollectionData
  */
 @JsonClass(generateAdapter = true)
 data class WifiInfo(

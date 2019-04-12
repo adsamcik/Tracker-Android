@@ -15,31 +15,12 @@ import java.util.*
  * but they have not been modified in any way.
  */
 @JsonClass(generateAdapter = true)
-data class RawData(
-		/**
-		 * Time of collection in milliseconds since midnight, January 1, 1970 UTC (UNIX time)
-		 */
-		val time: Long = 0,
-
-		/**
-		 * Current location
-		 */
-		var location: Location? = null,
-
-		/**
-		 * Current resolved activity
-		 */
-		var activity: ActivityInfo? = null,
-
-		/**
-		 * Data about cells
-		 */
-		var cell: CellData? = null,
-
-		/**
-		 * Data about Wi-Fi
-		 */
-		var wifi: WifiData? = null) {
+data class MutableCollectionData(
+		override val time: Long = System.currentTimeMillis(),
+		override var location: Location? = null,
+		override var activity: ActivityInfo? = null,
+		override var cell: CellData? = null,
+		override var wifi: WifiData? = null): CollectionData {
 
 
 	/**
@@ -48,7 +29,7 @@ data class RawData(
 	 * @param location location
 	 * @return this
 	 */
-	fun setLocation(location: android.location.Location): RawData {
+	fun setLocation(location: android.location.Location): MutableCollectionData {
 		this.location = Location(location)
 		return this
 	}
@@ -60,7 +41,7 @@ data class RawData(
 	 * @param time time of collection
 	 * @return this
 	 */
-	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?): RawData {
+	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?): MutableCollectionData {
 		if (data != null && time > 0) {
 			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }.toTypedArray()
 			this.wifi = WifiData(location, time, scannedWifi)
@@ -74,7 +55,7 @@ data class RawData(
 	 * @param activity activity
 	 * @return this
 	 */
-	fun setActivity(activity: ActivityInfo): RawData {
+	fun setActivity(activity: ActivityInfo): MutableCollectionData {
 		this.activity = activity
 		return this
 	}

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.component
+package com.adsamcik.signalcollector.tracker.component.data
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -12,13 +12,13 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.data.RawData
+import com.adsamcik.signalcollector.tracker.component.PreferenceDataTrackerComponent
+import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs
 
-class WifiTrackerComponent(context: Context) : TrackerComponent(context) {
+class WifiTrackerComponent(context: Context) : PreferenceDataTrackerComponent() {
 	override val enabledKeyRes: Int
 		get() = R.string.settings_wifi_enabled_key
 	override val enabledDefaultRes: Int
@@ -47,7 +47,7 @@ class WifiTrackerComponent(context: Context) : TrackerComponent(context) {
 		}
 	}
 
-	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, rawData: RawData) {
+	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, collectionData: MutableCollectionData) {
 		if (wifiScanData != null) {
 			val location = locationResult.lastLocation
 			val locations = locationResult.locations
@@ -57,9 +57,9 @@ class WifiTrackerComponent(context: Context) : TrackerComponent(context) {
 
 				val first = nearestLocation[firstIndex]
 				val second = nearestLocation[(firstIndex + 1).rem(2)]
-				setWifi(first, second, first.distanceTo(second), rawData)
+				setWifi(first, second, first.distanceTo(second), collectionData)
 			} else if (previousLocation != null) {
-				setWifi(previousLocation, location, distance, rawData)
+				setWifi(previousLocation, location, distance, collectionData)
 			}
 
 			wifiScanData = null
@@ -83,12 +83,12 @@ class WifiTrackerComponent(context: Context) : TrackerComponent(context) {
 		}
 	}
 
-	private fun setWifi(firstLocation: Location, secondLocation: Location, distanceBetweenFirstAndSecond: Float, rawData: RawData) {
+	private fun setWifi(firstLocation: Location, secondLocation: Location, distanceBetweenFirstAndSecond: Float, collectionData: MutableCollectionData) {
 		val timeDelta = (wifiScanTime - firstLocation.time).toDouble() / (secondLocation.time - firstLocation.time).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
 		if (wifiDistance <= MAX_DISTANCE_TO_WIFI) {
 			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation, secondLocation, timeDelta)
-			rawData.setWifi(interpolatedLocation, wifiScanTime, wifiScanData)
+			collectionData.setWifi(interpolatedLocation, wifiScanTime, wifiScanData)
 			TrackerService.distanceToWifi = distanceBetweenFirstAndSecond
 		}
 	}
