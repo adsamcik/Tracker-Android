@@ -122,7 +122,7 @@ open class Preferences {
 
 	@SuppressLint("CommitPrefEdits")
 	open fun edit(func: MutablePreferences.() -> Unit) {
-		sharedPreferences.edit { func.invoke(MutablePreferences(this@Preferences)) }
+		MutablePreferences(this).edit(func)
 	}
 
 	protected fun getKey(@StringRes keyRes: Int): String {

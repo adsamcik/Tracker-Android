@@ -14,6 +14,7 @@ class SessionTrackerComponent(startTime: Long) : DataTrackerComponent {
 	private var minUpdateDelayInSeconds = -1
 
 	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+		val location = locationResult.lastLocation
 		session.apply {
 			distanceInM += distance
 			collections++
