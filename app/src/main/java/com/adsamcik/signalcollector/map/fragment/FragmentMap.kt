@@ -460,7 +460,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			//payload.setOffsetsDp(Offset(0, 24))
 			map_menu_button.addPayload(payload)
 			if (mapLayers.isNotEmpty()) {
-				map_menu_button.visibility = View.VISIBLE
+				map_menu_button.visibility = VISIBLE
 				colorManager!!.notifyChangeOn(map_menu_button)
 			}
 		}

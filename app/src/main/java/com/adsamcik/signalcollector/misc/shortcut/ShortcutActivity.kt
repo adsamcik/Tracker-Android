@@ -21,9 +21,8 @@ class ShortcutActivity : AppCompatActivity() {
 		if (intent.action == Shortcuts.ACTION) {
 			val value = intent.getIntExtra(Shortcuts.ACTION_STRING, -1)
 			if (value >= 0 && value < ShortcutType.values().size) {
-				val type = ShortcutType.values()[value]
 
-				when (type) {
+				when (ShortcutType.values()[value]) {
 					Shortcuts.ShortcutType.START_COLLECTION -> {
 						startForegroundService<TrackerService> {
 							putExtra("backTrack", false)

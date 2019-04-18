@@ -6,7 +6,6 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -103,21 +102,21 @@ class MigrationTest {
 
 			with(cursor) {
 				val hasNext = moveToNext()
-				Assert.assertTrue(hasNext)
-				Assert.assertEquals(2, getInt(0))
-				Assert.assertEquals(400, getInt(1))
-				Assert.assertEquals(600, getInt(2))
-				Assert.assertEquals(20, getInt(3))
-				Assert.assertEquals(2000, getInt(4))
-				Assert.assertEquals(0, getInt(5))
-				Assert.assertEquals(0, getInt(6))
-				Assert.assertEquals(100, getInt(7))
+				assertTrue(hasNext)
+				assertEquals(2, getInt(0))
+				assertEquals(400, getInt(1))
+				assertEquals(600, getInt(2))
+				assertEquals(20, getInt(3))
+				assertEquals(2000, getInt(4))
+				assertEquals(0, getInt(5))
+				assertEquals(0, getInt(6))
+				assertEquals(100, getInt(7))
 			}
 
 			val cursorCount = query("SELECT COUNT(*) FROM tracker_session")
 			with(cursorCount) {
-				Assert.assertTrue(moveToNext())
-				Assert.assertEquals(2, getInt(0))
+				assertTrue(moveToNext())
+				assertEquals(2, getInt(0))
 			}
 		}
 	}

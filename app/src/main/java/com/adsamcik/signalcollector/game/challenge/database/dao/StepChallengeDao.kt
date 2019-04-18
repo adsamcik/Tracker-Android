@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.game.challenge.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.signalcollector.database.dao.BaseDao
-import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.entity.StepChallengeEntity
 
 @Dao

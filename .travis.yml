@@ -21,8 +21,7 @@ cache:
     - $HOME/.android/build-cache
 
 android:
-    update_sdk: true
-    components:
+  components:
         - tools
         - platform-tools
         - tools

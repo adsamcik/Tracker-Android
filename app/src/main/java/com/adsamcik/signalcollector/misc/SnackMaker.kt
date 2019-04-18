@@ -31,7 +31,7 @@ class SnackMaker(view: View) {
 	 * @param message Message
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun showSnackbar(message: String, @SnackDuration duration: Int = Snackbar.LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+	fun showSnackbar(message: String, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
 		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}
 
@@ -96,7 +96,7 @@ class SnackMaker(view: View) {
 	}
 
 	private fun show(view: View, recipe: SnackbarRecipe): Snackbar {
-		return Snackbar.make(view, recipe.message, recipe.duration).apply {
+		return make(view, recipe.message, recipe.duration).apply {
 			if (recipe.action != null && recipe.onActionClick != null)
 				setAction(recipe.action, recipe.onActionClick)
 

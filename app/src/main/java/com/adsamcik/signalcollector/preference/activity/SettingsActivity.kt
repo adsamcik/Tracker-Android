@@ -15,7 +15,6 @@ import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
@@ -35,7 +34,6 @@ import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.*
 
 /**
@@ -194,7 +192,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 					setBoolean(devKeyRes, true)
 				}
 				showToast(getString(R.string.settings_debug_available))
-				caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = true
+				caller.findDirectPreferenceByTitle(debugTitle).isVisible = true
 				caller.findPreferenceTyped<SwitchPreferenceCompat>(devKeyRes).isChecked = true
 			} else if (clickCount >= 4) {
 				val remainingClickCount = 7 - clickCount
@@ -306,7 +304,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		val dayKey = getString(R.string.settings_color_day_key)
 		val day = caller.findPreferenceTyped<ColorPreferenceCompat>(dayKey)
 
-		val onStyleChange = androidx.preference.Preference.OnPreferenceChangeListener { _, newValue ->
+		val onStyleChange = Preference.OnPreferenceChangeListener { _, newValue ->
 			val newValueInt = (newValue as String).toInt()
 			night.isVisible = newValueInt >= 1
 

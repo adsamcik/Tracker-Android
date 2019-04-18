@@ -25,7 +25,7 @@ object Probability {
 	fun uniform(): Double = random.nextDouble()
 
 	/**
-	 * Returns two random numbers with normal distribution between [from] (inclusive) and [until] (exclusive)
+	 * Returns two random numbers with normal distribution with mean [mean] and standard deviation [standardDeviation]
 	 *
 	 * Two numbers are returned because they are calculated using Box–Muller method https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform which has very little overhead in calculating 2nd value
 	 */

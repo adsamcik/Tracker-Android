@@ -46,7 +46,7 @@ fun Calendar.date(): Calendar {
  */
 fun Calendar.dateUTC(): Calendar {
 	val calendar = cloneCalendar()
-	calendar.timeZone = java.util.TimeZone.getTimeZone("UTC")
+	calendar.timeZone = TimeZone.getTimeZone("UTC")
 	calendar.roundToDate()
 	return calendar
 }

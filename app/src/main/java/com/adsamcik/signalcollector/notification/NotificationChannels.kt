@@ -23,7 +23,7 @@ object NotificationChannels {
 	}
 
 	private fun createChannel(context: Context, @StringRes idId: Int, @StringRes nameId: Int, @StringRes descriptionId: Int, useVibration: Boolean, importance: Int) {
-		val mNotificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+		val mNotificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 		val mChannel = NotificationChannel(context.getString(idId), context.getString(nameId), importance)
 		// Configure the notification channel.
 		mChannel.description = context.getString(descriptionId)

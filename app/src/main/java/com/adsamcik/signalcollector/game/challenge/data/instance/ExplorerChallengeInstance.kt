@@ -4,9 +4,8 @@ import android.content.Context
 import androidx.room.PrimaryKey
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
-import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
-import com.adsamcik.signalcollector.misc.extension.rescale
+import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
 class ExplorerChallengeInstance(context: Context,

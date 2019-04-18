@@ -16,7 +16,7 @@ open class ConditionVariable<T>(default: T) {
 	protected val waiterLock: ReentrantLock = ReentrantLock()
 	protected val valueLock: ReentrantReadWriteLock = ReentrantReadWriteLock()
 
-	protected val waiters: MutableList<Pair<ConditionChecker<T>, JobFunction>> = mutableListOf<Pair<ConditionChecker<T>, JobFunction>>()
+	protected val waiters: MutableList<Pair<ConditionChecker<T>, JobFunction>> = mutableListOf()
 
 	protected var unsafeValue: T = default
 

@@ -21,8 +21,6 @@ import android.view.inputmethod.InputMethodManager
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentTransaction
 
 /**
  * Starts new activity for result
@@ -47,7 +45,7 @@ inline fun <reified T : Any> Activity.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> androidx.fragment.app.Fragment.startActivity(
+inline fun <reified T : Any> Fragment.startActivity(
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}) {
 	context!!.startActivity<T>(options, init)

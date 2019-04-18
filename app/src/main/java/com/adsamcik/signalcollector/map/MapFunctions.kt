@@ -13,8 +13,8 @@ object MapFunctions {
 	}
 
 	fun toLat(y: Double, zoom: Int): Double {
-		val n = kotlin.math.PI - 2.0 * kotlin.math.PI * y / getTileCount(zoom)
-		return 180.0 / kotlin.math.PI * kotlin.math.atan(0.5 * (kotlin.math.exp(n) - Math.exp(-n)))
+		val n = PI - 2.0 * PI * y / getTileCount(zoom)
+		return 180.0 / PI * atan(0.5 * (exp(n) - Math.exp(-n)))
 	}
 
 	fun toTileX(lon: Double, tileCount: Int): Double {

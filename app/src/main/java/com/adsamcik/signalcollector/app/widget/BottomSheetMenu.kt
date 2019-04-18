@@ -69,10 +69,10 @@ class BottomSheetMenu(root: CoordinatorLayout) {
 	 * Special behavior to help user understand what this menu is about. It shows the whole menu for a moment before collapsing
 	 */
 	fun showHide(delayInMS: Int) {
-		bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+		bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
 		GlobalScope.launch(Dispatchers.Default, CoroutineStart.DEFAULT) {
 			delay(delayInMS.toLong())
-			bottomSheetBehavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
+			bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 		}
 	}
 }

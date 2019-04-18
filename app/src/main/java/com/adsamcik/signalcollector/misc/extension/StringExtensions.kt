@@ -124,8 +124,7 @@ fun Resources.formatDistance(meters: Double, digits: Int, unit: LengthSystem): S
 
 private fun Resources.formatMetric(meters: Double, digits: Int): String {
 	return if (meters >= 1000.0) {
-		val kilometers = meters
-		getString(R.string.kilometer_abbr, kilometers.formatReadable(digits))
+		getString(R.string.kilometer_abbr, meters.formatReadable(digits))
 	} else {
 		getString(R.string.meter_abbr, meters.formatReadable(digits))
 	}

@@ -5,7 +5,6 @@ import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.extension.formatDistance
-import com.adsamcik.signalcollector.misc.extension.rescale
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 
