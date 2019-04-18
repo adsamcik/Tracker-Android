@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.preference
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Resources
@@ -8,11 +7,11 @@ import androidx.annotation.ColorRes
 import androidx.annotation.DimenRes
 import androidx.annotation.IntegerRes
 import androidx.annotation.StringRes
-import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.preference.PreferenceManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.misc.LengthSystem
+import com.adsamcik.signalcollector.preference.listener.PreferenceListener
 
 
 /**
@@ -115,12 +114,11 @@ open class Preferences {
 		return getFloat(key, default)
 	}
 
-	fun getFloat(key: String, default: Float): Float {
+	fun getFloat(key: String, default: Float = 0f): Float {
 		return sharedPreferences.getFloat(key, default)
 	}
 
 
-	@SuppressLint("CommitPrefEdits")
 	open fun edit(func: MutablePreferences.() -> Unit) {
 		MutablePreferences(this).edit(func)
 	}
@@ -146,8 +144,11 @@ open class Preferences {
 		}
 
 		private fun getMutablePref(context: Context): MutablePreferences {
-			return this.preferences
-					?: MutablePreferences(context).apply { preferences = this }
+			return preferences
+					?: MutablePreferences(context).also {
+						preferences = it
+						PreferenceListener.initialize(it.sharedPreferences)
+					}
 		}
 
 		fun getLengthSystem(context: Context): LengthSystem {

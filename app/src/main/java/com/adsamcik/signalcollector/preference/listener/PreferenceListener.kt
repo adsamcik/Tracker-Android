@@ -1,5 +1,13 @@
 package com.adsamcik.signalcollector.preference.listener
 
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.annotation.IntegerRes
+import androidx.annotation.StringRes
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Observer
+import com.adsamcik.signalcollector.preference.Preferences
+
 @Suppress("WeakerAccess", "UNUSED")
 object PreferenceListener {
 	private val intListener = PreferenceListenerType<Int>()
@@ -8,86 +16,103 @@ object PreferenceListener {
 	private val floatListener = PreferenceListenerType<Float>()
 	private val stringListener = PreferenceListenerType<String>()
 
-	fun invokeAnyListener(key: String, value: Any) {
-		when(value) {
-			is String -> invokeListener(key, value)
-			is Boolean -> invokeListener(key, value)
-			is Int -> invokeListener(key, value)
-			is Long -> invokeListener(key, value)
-			is Float -> invokeListener(key, value)
+	private var isInitialized = false
+
+	private val onSharedPreferenceChangeListener = { sharedPreferences: SharedPreferences, key: String -> invokeAnyListener(key, sharedPreferences) }
+
+	//todo evaluate whether unregister might not be desired at some point
+	fun initialize(preferences: SharedPreferences) {
+		if (isInitialized) return
+		isInitialized = true
+		preferences.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener)
+	}
+
+	private fun invokeAnyListener(key: String, preferences: SharedPreferences) {
+		val value = preferences.all[key] ?: return
+		invokeAnyListener(key, value)
+	}
+
+	private fun invokeAnyListener(key: String, value: Any) {
+		when (value) {
+			is String -> stringListener.invoke(key, value)
+			is Boolean -> boolListener.invoke(key, value)
+			is Int -> intListener.invoke(key, value)
+			is Long -> longListener.invoke(key, value)
+			is Float -> floatListener.invoke(key, value)
 			else -> throw NotImplementedError("${value.javaClass.name} not supported!")
 		}
 	}
 
-	fun invokeListener(key: String, value: Int) {
-		intListener.invoke(key, value)
+	@JvmName("observeInt")
+	fun observe(context: Context, @StringRes keyRes: Int, listener: Observer<Int>, @StringRes defaultRes: Int, owner: LifecycleOwner? = null) {
+		Preferences.getPref(context).getIntResString(keyRes, defaultRes).run { listener.onChanged(this) }
+		observe(context, intListener, keyRes, listener, owner)
 	}
 
-	fun invokeListener(key: String, value: Long) {
-		longListener.invoke(key, value)
+	@JvmName("observeIntRes")
+	fun observeIntRes(context: Context, @StringRes keyRes: Int, listener: Observer<Int>, @IntegerRes defaultRes: Int, owner: LifecycleOwner? = null) {
+		Preferences.getPref(context).getIntRes(keyRes, defaultRes).run { listener.onChanged(this) }
+		observe(context, intListener, keyRes, listener, owner)
 	}
 
-	fun invokeListener(key: String, value: Boolean) {
-		boolListener.invoke(key, value)
+	@JvmName("observeLong")
+	fun observe(context: Context, @StringRes keyRes: Int, listener: Observer<Long>, @StringRes defaultRes: Int, owner: LifecycleOwner? = null) {
+		Preferences.getPref(context).getLongResString(keyRes, defaultRes).run { listener.onChanged(this) }
+		observe(context, longListener, keyRes, listener, owner)
 	}
 
-	fun invokeListener(key: String, value: String) {
-		stringListener.invoke(key, value)
+	@JvmName("observeFloat")
+	fun observe(context: Context, @StringRes keyRes: Int, listener: Observer<Float>, @StringRes defaultRes: Int, owner: LifecycleOwner? = null) {
+		Preferences.getPref(context).getFloatResString(keyRes, defaultRes).run { listener.onChanged(this) }
+		observe(context, floatListener, keyRes, listener, owner)
 	}
 
-	fun invokeListener(key: String, value: Float) {
-		floatListener.invoke(key, value)
+	@JvmName("observeBoolean")
+	fun observe(context: Context, @StringRes keyRes: Int, owner: LifecycleOwner? = null, @StringRes defaultRes: Int, listener: Observer<Boolean>) {
+		Preferences.getPref(context).getBooleanRes(keyRes, defaultRes).run { listener.onChanged(this) }
+		observe(context, boolListener, keyRes, listener, owner)
 	}
 
-	@JvmName("addIntListener")
-	fun addListener(key: String, listener: OnPreferenceChanged<Int>) {
-		intListener.addListener(key, listener)
+	@JvmName("observeString")
+	fun observe(context: Context, @StringRes keyRes: Int, listener: Observer<String>, @StringRes defaultRes: Int, owner: LifecycleOwner? = null) {
+		Preferences.getPref(context).getStringRes(keyRes, defaultRes).run { listener.onChanged(this) }
+		observe(context, stringListener, keyRes, listener, owner)
 	}
 
-	@JvmName("addLongListener")
-	fun addListener(key: String, listener: OnPreferenceChanged<Long>) {
-		longListener.addListener(key, listener)
+	@JvmName("removeIntObserver")
+	fun removeObserver(context: Context, @StringRes keyRes: Int, listener: Observer<Int>) {
+		removeObserver(context, intListener, keyRes, listener)
 	}
 
-	@JvmName("addFloatListener")
-	fun addListener(key: String, listener: OnPreferenceChanged<Float>) {
-		floatListener.addListener(key, listener)
+	@JvmName("removeLongObserver")
+	fun removeObserver(context: Context, @StringRes keyRes: Int, listener: Observer<Long>) {
+		removeObserver(context, longListener, keyRes, listener)
 	}
 
-	@JvmName("addBooleanListener")
-	fun addListener(key: String, listener: OnPreferenceChanged<Boolean>) {
-		boolListener.addListener(key, listener)
+	@JvmName("removeFloatObserver")
+	fun removeObserver(context: Context, @StringRes keyRes: Int, listener: Observer<Float>) {
+		removeObserver(context, floatListener, keyRes, listener)
 	}
 
-	@JvmName("addStringListener")
-	fun addListener(key: String, listener: OnPreferenceChanged<String>) {
-		stringListener.addListener(key, listener)
+	@JvmName("removeBooleanObserver")
+	fun removeObserver(context: Context, @StringRes keyRes: Int, listener: Observer<Boolean>) {
+		removeObserver(context, boolListener, keyRes, listener)
 	}
 
-	@JvmName("removeIntListener")
-	fun removeListener(key: String, listener: OnPreferenceChanged<Int>) {
-		intListener.removeListener(key, listener)
+	@JvmName("removeStringObserver")
+	fun removeObserver(context: Context, @StringRes keyRes: Int, listener: Observer<String>) {
+		removeObserver(context, stringListener, keyRes, listener)
 	}
 
-	@JvmName("removeLongListener")
-	fun removeListener(key: String, listener: OnPreferenceChanged<Long>) {
-		longListener.removeListener(key, listener)
+	private fun <T> removeObserver(context: Context, type: PreferenceListenerType<T>, @StringRes keyRes: Int, observer: Observer<T>) {
+		val key = context.getString(keyRes)
+		type.removeObserver(key, observer)
 	}
 
-	@JvmName("removeFloatListener")
-	fun removeListener(key: String, listener: OnPreferenceChanged<Float>) {
-		floatListener.removeListener(key, listener)
+	private fun <T> observe(context: Context, type: PreferenceListenerType<T>, @StringRes keyRes: Int, observer: Observer<T>, owner: LifecycleOwner? = null) {
+		val key = context.getString(keyRes)
+		if (owner != null) type.observe(key, observer, owner)
+		else type.observe(key, observer)
 	}
-
-	@JvmName("removeBooleanListener")
-	fun removeListener(key: String, listener: OnPreferenceChanged<Boolean>) {
-		boolListener.removeListener(key, listener)
-	}
-
-	@JvmName("removeStringListener")
-	fun removeListener(key: String, listener: OnPreferenceChanged<String>) {
-		stringListener.removeListener(key, listener)
-	}
-
 
 }

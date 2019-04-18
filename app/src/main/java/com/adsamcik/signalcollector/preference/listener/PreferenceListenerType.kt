@@ -1,33 +1,42 @@
 package com.adsamcik.signalcollector.preference.listener
 
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 class PreferenceListenerType<T> {
 	private val lock = ReentrantLock()
-	private val map = mutableMapOf<String, PreferenceListenerGroup<T>>()
+	private val map = mutableMapOf<String, MutableLiveData<T>>()
 
 	fun invoke(key: String, value: T) {
-		lock.withLock { map[key]?.onChange(value) }
+		lock.withLock { map[key]?.postValue(value) }
 	}
 
-	fun addListener(key: String, listener: OnPreferenceChanged<T>) {
+	fun observe(key: String, observer: Observer<in T>) {
 		lock.withLock {
-			getListenerGroup(key).addListener(listener)
+			getListenerGroup(key).observeForever(observer)
 		}
 	}
 
-	fun removeListener(key: String, listener: OnPreferenceChanged<T>) {
+	fun observe(key: String, observer: Observer<in T>, owner: LifecycleOwner) {
+		lock.withLock {
+			getListenerGroup(key).observe(owner, observer)
+		}
+	}
+
+	fun removeObserver(key: String, observer: Observer<in T>) {
 		lock.withLock {
 			val listenerGroup = getListenerGroup(key)
-			listenerGroup.removeListener(listener)
+			listenerGroup.removeObserver(observer)
 
-			if (listenerGroup.isEmpty)
+			if (listenerGroup.hasObservers())
 				map.remove(key)
 		}
 	}
 
-	private fun getListenerGroup(key: String): PreferenceListenerGroup<T> = map[key]
-			?: PreferenceListenerGroup<T>().also { map[key] = it }
+	private fun getListenerGroup(key: String): MutableLiveData<T> = map[key]
+			?: MutableLiveData<T>().also { map[key] = it }
 
 }
