@@ -165,7 +165,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		val devDefaultRes = R.string.settings_debug_default
 		val debugTitle = getString(R.string.settings_debug_title)
 
-		caller.findDirectPreferenceByTitle(debugTitle)!!.isVisible = Preferences.getPref(this).getBooleanRes(devKeyRes, devDefaultRes)
+		caller.findDirectPreferenceByTitle(debugTitle).isVisible = Preferences.getPref(this).getBooleanRes(devKeyRes, devDefaultRes)
 
 		caller.findPreference(R.string.show_tips_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			if (newValue as Boolean) {
@@ -246,30 +246,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 				.setMessage(resources.getString(R.string.alert_confirm, action.toLowerCase()))
 
 		alertDialogBuilder.show()
-	}
-
-	private fun createFileAlertDialog(directory: File, verifyFunction: ((File) -> Boolean)?) {
-		val files = directory.listFiles()
-		val fileNames = files
-				.filter { verifyFunction == null || verifyFunction.invoke(it) }
-				.map { it.name + "|  " + Assist.humanReadableByteCount(it.length(), true) }
-				.sortedBy { x -> x }
-				.toTypedArray()
-
-		throw NotImplementedError()
-
-		/*val alertDialogBuilder = AlertDialog.Builder(this)
-		alertDialogBuilder
-				.setTitle(getStringRes(R.string.dev_browse_files))
-				.setItems(fileNames) { _, which ->
-					val intent = Intent(this, DebugFileActivity::class.java)
-					intent.putExtra("directory", directory.path)
-					intent.putExtra("fileName", fileNames[which].substring(0, fileNames[which].lastIndexOf('|')))
-					startActivity(intent)
-				}
-				.setNegativeButton(R.string.cancel) { _, _ -> }
-
-		alertDialogBuilder.show()*/
 	}
 
 

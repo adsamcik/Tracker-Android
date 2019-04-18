@@ -103,8 +103,8 @@ object ColorSupervisor {
 	 */
 	fun createColorManager(context: Context): ColorManager {
 		if (darkTextColor == 0) {
-			darkTextColor = ContextCompat.getColor(context, android.R.color.primary_text_light)
-			lightTextColor = ContextCompat.getColor(context, android.R.color.primary_text_dark)
+			darkTextColor = ContextCompat.getColor(context, R.color.text_primary)
+			lightTextColor = ContextCompat.getColor(context, R.color.text_primary_dark)
 		}
 
 		val colorManager = ColorManager()

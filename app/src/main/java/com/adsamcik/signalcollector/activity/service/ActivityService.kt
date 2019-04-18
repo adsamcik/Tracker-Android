@@ -175,7 +175,7 @@ class ActivityService : IntentService("ActivityService") {
 					setMinUpdateRate(context, ari.updateDelay)
 				}
 			} else {
-				Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.simpleName + ")"))
+				Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
 			}
 
 			if (mActiveRequests.size() == 0) {

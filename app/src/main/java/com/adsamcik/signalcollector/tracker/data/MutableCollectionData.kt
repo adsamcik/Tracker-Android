@@ -20,7 +20,7 @@ data class MutableCollectionData(
 		override var location: Location? = null,
 		override var activity: ActivityInfo? = null,
 		override var cell: CellData? = null,
-		override var wifi: WifiData? = null): CollectionData {
+		override var wifi: WifiData? = null) : CollectionData {
 
 
 	/**
@@ -43,8 +43,8 @@ data class MutableCollectionData(
 	 */
 	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?): MutableCollectionData {
 		if (data != null && time > 0) {
-			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }.toTypedArray()
-			this.wifi = WifiData(location, time, scannedWifi)
+			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }
+			this.wifi = WifiData(Location(location), time, scannedWifi)
 		}
 		return this
 	}
@@ -65,7 +65,7 @@ data class MutableCollectionData(
 //Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
 		@SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo
 		val nOp = telephonyManager.networkOperator
-		if (!nOp.isEmpty()) {
+		if (nOp.isNotEmpty()) {
 			val mcc = java.lang.Short.parseShort(nOp.substring(0, 3))
 			val mnc = java.lang.Short.parseShort(nOp.substring(3))
 
