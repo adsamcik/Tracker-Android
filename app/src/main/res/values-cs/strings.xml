@@ -131,7 +131,7 @@
     <string name="main_latitude">%1$s zeměpisné šířky</string>
     <string name="main_longitude">%1$s zeměpisné délky</string>
     <string name="main_wifi_count">%1$d v dosahu</string>
-    <string name="main_wifi_updated">Nalezeno %d m před záznamem</string>
+    <string name="main_wifi_updated">Nalezeno %s před záznamem</string>
 
     <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
     <string name="map_search">Vyhledávání</string>
@@ -311,4 +311,6 @@
     <string name="yes">Ano</string>
     <string name="settings_game_title">Hry</string>
     <string name="settings_game_challenge_enable_title">Povolit herní výzvy</string>
+    <string name="challenge_step_title">Pokračuj a běž dál s nadějí ve svém srdci.</string>
+    <string name="challenge_step_description">Udělej %s kroků</string>
 </resources>

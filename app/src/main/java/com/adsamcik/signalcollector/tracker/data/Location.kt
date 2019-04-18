@@ -57,7 +57,7 @@ data class Location(
 	/// <param name="unit">unit type</param>
 	/// <returns></returns>
 	fun distanceFlat(location: Location, unit: LengthUnit): Double {
-		return Location.distance(latitude, longitude, location.latitude, location.longitude, unit)
+		return distance(latitude, longitude, location.latitude, location.longitude, unit)
 	}
 
 	/// <summary>
@@ -116,7 +116,7 @@ data class Location(
 			val a = sinLatDistance * sinLatDistance +
 					kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
 					sinLonDistance * sinLonDistance
-			val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+			val c = 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
 
 			val distance = EARTH_CIRCUMFERENCE * c
 			return when (unit) {
