@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 import android.content.Context
 import androidx.room.PrimaryKey
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
@@ -18,7 +19,7 @@ class ExplorerChallengeInstance(context: Context,
 	override val progress: Double
 		get() = extra.locationCount / extra.requiredLocationCount.toDouble()
 
-	private val dao = AppDatabase.getDatabase(context).challengeDao()
+	private val dao = AppDatabase.getDatabase(context).locationDao()
 
 	@PrimaryKey
 	var id: Int = 0
@@ -28,9 +29,18 @@ class ExplorerChallengeInstance(context: Context,
 
 	override fun checkCompletionConditions() = extra.locationCount >= extra.requiredLocationCount
 
-	override fun processSession(session: TrackerSession) {
-		val newLocationCount = dao.newLocationsBetween(session.start, session.end)
-		extra.locationCount += newLocationCount
+	private fun countUnique(locations: List<DatabaseLocation>, time: Long): Int {
+		val accuracyInM = 20.0
+		val newList = locations.map {
+			val rounded = it.location.roundTo(accuracyInM)
+			rounded.latitude to rounded.longitude
+		}.distinctBy { it }
+		return dao.new(newList, time, accuracyInM).size
 	}
 
+
+	override fun processSession(session: TrackerSession) {
+		val locationList = dao.getAllBetween(session.start, session.end)
+		extra.locationCount += countUnique(locationList, session.start)
+	}
 }

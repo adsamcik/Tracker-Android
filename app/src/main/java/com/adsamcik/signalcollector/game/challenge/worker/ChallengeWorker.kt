@@ -22,7 +22,7 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 					.setContentTitle("Completed challenge ${it.data.type.name}")
 					.build())
 		}
-
+8
 		sessionDao.delete(sessionList)
 		return Result.success()
 	}

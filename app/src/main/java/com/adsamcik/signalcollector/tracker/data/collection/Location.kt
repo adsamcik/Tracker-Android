@@ -145,9 +145,9 @@ data class Location(
 
 		private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
 
-		private fun longitudeAccuracy(precisionInMeters: Double, latitude: Double) = precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
+		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double) = precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
 
-		private fun latitudeAccuracy(precisionInMeters: Double) = (METER_DEGREE_LATITUDE * precisionInMeters).round(6)
+		fun latitudeAccuracy(precisionInMeters: Double) = (METER_DEGREE_LATITUDE * precisionInMeters).round(6)
 	}
 }
 
