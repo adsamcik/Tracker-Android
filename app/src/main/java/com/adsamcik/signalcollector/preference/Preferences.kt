@@ -64,6 +64,14 @@ open class Preferences {
 		return getInt(key, default)
 	}
 
+	fun getStringAsIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
+		return getStringRes(keyRes, defaultRes).toInt()
+	}
+
+	fun getStringAsInt(key: String, default: Int = 0): Int {
+		return getString(key, default.toString()).toInt()
+	}
+
 	fun getInt(key: String, default: Int = 0): Int {
 		return sharedPreferences.getInt(key, default)
 	}

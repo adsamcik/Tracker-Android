@@ -415,7 +415,7 @@ object ColorSupervisor {
 	 */
 	fun initializeFromPreferences(context: Context) {
 		val preferences = Preferences.getPref(context)
-		val mode = preferences.getIntResString(R.string.settings_style_mode_key, R.string.settings_style_mode_default)
+		val mode = preferences.getStringAsIntResString(R.string.settings_style_mode_key, R.string.settings_style_mode_default)
 
 		stopUpdate()
 
