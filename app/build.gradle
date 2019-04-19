@@ -53,6 +53,10 @@ android {
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
     }
 
+    packagingOptions {
+        pickFirst("META-INF/atomicfu.kotlin_module")
+    }
+
 }
 
 dokka {
