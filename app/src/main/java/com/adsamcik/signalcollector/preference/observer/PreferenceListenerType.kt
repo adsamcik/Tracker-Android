@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.preference.listener
+package com.adsamcik.signalcollector.preference.observer
 
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.MutableLiveData

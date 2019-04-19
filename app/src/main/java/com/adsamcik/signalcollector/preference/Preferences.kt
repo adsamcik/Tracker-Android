@@ -11,7 +11,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.preference.PreferenceManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.misc.LengthSystem
-import com.adsamcik.signalcollector.preference.listener.PreferenceListener
+import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 
 
 /**
@@ -155,7 +155,7 @@ open class Preferences {
 			return preferences
 					?: MutablePreferences(context).also {
 						preferences = it
-						PreferenceListener.initialize(it.sharedPreferences)
+						PreferenceObserver.initialize(it.sharedPreferences)
 					}
 		}
 

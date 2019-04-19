@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.preference.fragment
 import android.os.Bundle
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.preference.listener.PreferenceListener
+import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 
 
 class FragmentSettings : PreferenceFragmentCompat() {
@@ -11,7 +11,7 @@ class FragmentSettings : PreferenceFragmentCompat() {
 		// Load the Preferences from the XML file
 		setPreferencesFromResource(R.xml.app_preferences, rootKey)
 
-		PreferenceListener.initialize(preferenceManager.sharedPreferences)
+		PreferenceObserver.initialize(preferenceManager.sharedPreferences)
 	}
 
 	companion object {

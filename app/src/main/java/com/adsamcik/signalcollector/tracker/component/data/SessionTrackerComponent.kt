@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.preference.listener.PreferenceListener
+import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.google.android.gms.location.LocationResult
@@ -63,8 +63,8 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 	}
 
 	override fun onDisable(context: Context) {
-		PreferenceListener.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
-		PreferenceListener.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
+		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
+		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
 
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
@@ -72,8 +72,8 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 
 	override fun onEnable(context: Context) {
 		session = TrackerSession(System.currentTimeMillis())
-		PreferenceListener.observeIntRes(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver, R.integer.settings_tracking_min_distance_default)
-		PreferenceListener.observeIntRes(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver, R.integer.settings_tracking_min_time_default)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver, R.integer.settings_tracking_min_distance_default)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver, R.integer.settings_tracking_min_time_default)
 
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {

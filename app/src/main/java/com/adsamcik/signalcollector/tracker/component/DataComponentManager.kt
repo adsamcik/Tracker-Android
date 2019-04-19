@@ -5,7 +5,7 @@ import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.preference.listener.PreferenceListener
+import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.data.*
 import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.google.android.gms.location.LocationResult
@@ -24,26 +24,26 @@ class DataComponentManager(context: Context) {
 
 		dataComponentList.forEach { it.onEnable(appContext) }
 
-		PreferenceListener.observe(appContext,
+		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_location_enabled_key,
 				listener = locationTrackerObserver,
 				defaultRes = R.string.settings_location_enabled_default)
 
-		PreferenceListener.observe(appContext,
+		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_wifi_enabled_key,
 				listener = wifiTrackerObserver,
 				defaultRes = R.string.settings_wifi_enabled_default)
 
-		PreferenceListener.observe(appContext,
+		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_cell_enabled_key,
 				listener = cellTrackerObserver,
 				defaultRes = R.string.settings_cell_enabled_default)
 	}
 
 	fun onDisable() {
-		PreferenceListener.removeObserver(appContext, R.string.settings_location_enabled_key, locationTrackerObserver)
-		PreferenceListener.removeObserver(appContext, R.string.settings_wifi_enabled_key, wifiTrackerObserver)
-		PreferenceListener.removeObserver(appContext, R.string.settings_cell_enabled_key, cellTrackerObserver)
+		PreferenceObserver.removeObserver(appContext, R.string.settings_location_enabled_key, locationTrackerObserver)
+		PreferenceObserver.removeObserver(appContext, R.string.settings_wifi_enabled_key, wifiTrackerObserver)
+		PreferenceObserver.removeObserver(appContext, R.string.settings_cell_enabled_key, cellTrackerObserver)
 		dataComponentList.forEach { it.onDisable(appContext) }
 		dataComponentList.clear()
 	}
