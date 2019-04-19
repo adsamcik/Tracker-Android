@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.data.*
 import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import com.google.android.gms.location.LocationResult
 
 class DataComponentManager(context: Context) {
@@ -18,9 +19,13 @@ class DataComponentManager(context: Context) {
 	private val wifiTrackerObserver = Observer<Boolean> { onChange(it) { WifiTrackerComponent() } }
 	private val cellTrackerObserver = Observer<Boolean> { onChange(it) { CellTrackerComponent() } }
 
+	private lateinit var sessionComponent: SessionTrackerComponent
+	val session: TrackerSession = sessionComponent.session
+
 
 	fun onEnable() {
-		dataComponentList.add(SessionTrackerComponent())
+		sessionComponent = SessionTrackerComponent()
+		dataComponentList.add(sessionComponent)
 
 		dataComponentList.forEach { it.onEnable(appContext) }
 

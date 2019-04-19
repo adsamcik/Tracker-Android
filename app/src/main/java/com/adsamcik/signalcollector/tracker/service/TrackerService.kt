@@ -53,7 +53,6 @@ class TrackerService : LifecycleService() {
 	private lateinit var locationCallback: LocationCallback
 
 	private lateinit var notificationComponent: NotificationComponent
-	private lateinit var sessionComponent: SessionTrackerComponent
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private lateinit var dataComponentManager: DataComponentManager
@@ -87,7 +86,7 @@ class TrackerService : LifecycleService() {
 		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, rawData)
 
 		postComponentList.forEach {
-			it.onNewData(this, sessionComponent.session, location, rawData)
+			it.onNewData(this, dataComponentManager.session, location, rawData)
 		}
 
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
@@ -113,7 +112,7 @@ class TrackerService : LifecycleService() {
 		dataComponentManager = DataComponentManager(this).apply { onEnable() }
 
 		postComponentList.apply {
-			NotificationComponent(this@TrackerService).also {
+			NotificationComponent().also {
 				notificationComponent = it
 				add(it)
 			}
