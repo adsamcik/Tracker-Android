@@ -61,3 +61,14 @@ inline fun <T> Collection<T>.nearestLong(distance: (T) -> Long): T? {
 
 	return nearestItem
 }
+
+
+inline fun <T> MutableList<T>.remove(condition: (T) -> Boolean): Boolean {
+	for (i in 0 until size) {
+		if (condition(get(i))) {
+			removeAt(i)
+			return true
+		}
+	}
+	return false
+}

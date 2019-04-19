@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.IntegerRes
 import androidx.annotation.StringRes
+import androidx.core.content.edit
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.preference.Preferences
@@ -20,10 +21,7 @@ object PreferenceListener {
 
 	private val onSharedPreferenceChangeListener = { sharedPreferences: SharedPreferences, key: String -> invokeAnyListener(key, sharedPreferences) }
 
-	//todo evaluate whether unregister might not be desired at some point
 	fun initialize(preferences: SharedPreferences) {
-		if (isInitialized) return
-		isInitialized = true
 		preferences.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener)
 	}
 

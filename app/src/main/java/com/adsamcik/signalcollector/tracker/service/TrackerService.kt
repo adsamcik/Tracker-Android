@@ -24,7 +24,8 @@ import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.component.data.*
+import com.adsamcik.signalcollector.tracker.component.DataComponentManager
+import com.adsamcik.signalcollector.tracker.component.data.SessionTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.post.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
@@ -55,7 +56,7 @@ class TrackerService : LifecycleService() {
 	private lateinit var sessionComponent: SessionTrackerComponent
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
-	private val dataComponentList = mutableListOf<DataTrackerComponent>()
+	private lateinit var dataComponentManager: DataComponentManager
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
 
 
@@ -83,10 +84,7 @@ class TrackerService : LifecycleService() {
 
 		val rawData = MutableCollectionData(location.time)
 
-		dataComponentList.forEach {
-			it.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, rawData)
-		}
-
+		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, rawData)
 
 		postComponentList.forEach {
 			it.onNewData(this, sessionComponent.session, location, rawData)
@@ -108,16 +106,9 @@ class TrackerService : LifecycleService() {
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
-		preComponentList.apply {
-			add(PreLocationTrackerComponent(this@TrackerService))
-		}
+		preComponentList.apply { add(PreLocationTrackerComponent(this@TrackerService)) }
 
-		dataComponentList.apply {
-			add(LocationTrackerComponent())
-			add(SessionTrackerComponent())
-			add(WifiTrackerComponent())
-			add(CellTrackerComponent())
-		}
+		dataComponentManager = DataComponentManager(this).apply { onEnable() }
 
 		postComponentList.apply {
 			NotificationComponent(this@TrackerService).also {
@@ -126,9 +117,6 @@ class TrackerService : LifecycleService() {
 			}
 			add(TrackerDataComponent(this@TrackerService))
 		}
-
-		//initialize components
-		dataComponentList.forEach { if (it is PreferenceDataTrackerComponent) it.onEnable(this, this) }
 
 		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
@@ -221,6 +209,8 @@ class TrackerService : LifecycleService() {
 					R.drawable.ic_play_circle_filled_black_24dp,
 					Shortcuts.ShortcutType.START_COLLECTION)
 		}
+
+		dataComponentManager.onDisable()
 
 		//Challenges
 

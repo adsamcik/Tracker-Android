@@ -7,7 +7,6 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
@@ -63,7 +62,7 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 		}
 	}
 
-	override fun onDisable(context: Context, owner: LifecycleOwner) {
+	override fun onDisable(context: Context) {
 		PreferenceListener.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
 		PreferenceListener.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
 
@@ -71,7 +70,7 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 		sensorManager.unregisterListener(this)
 	}
 
-	override fun onEnable(context: Context, owner: LifecycleOwner) {
+	override fun onEnable(context: Context) {
 		session = TrackerSession(System.currentTimeMillis())
 		PreferenceListener.observeIntRes(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver, R.integer.settings_tracking_min_distance_default)
 		PreferenceListener.observeIntRes(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver, R.integer.settings_tracking_min_time_default)

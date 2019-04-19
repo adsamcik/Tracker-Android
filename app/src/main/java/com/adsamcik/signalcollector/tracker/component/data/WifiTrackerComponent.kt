@@ -8,7 +8,6 @@ import android.location.Location
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
-import androidx.lifecycle.LifecycleOwner
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.app.Constants
@@ -18,12 +17,7 @@ import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs
 
-class WifiTrackerComponent : PreferenceDataTrackerComponent() {
-	override val enabledKeyRes: Int
-		get() = R.string.settings_wifi_enabled_key
-	override val enabledDefaultRes: Int
-		get() = R.string.settings_wifi_enabled_default
-
+class WifiTrackerComponent : DataTrackerComponent {
 	private lateinit var wifiManager: WifiManager
 	private var wifiReceiver: WifiReceiver = WifiReceiver()
 
@@ -79,8 +73,7 @@ class WifiTrackerComponent : PreferenceDataTrackerComponent() {
 		}
 	}
 
-	override fun onEnable(context: Context, owner: LifecycleOwner) {
-		super.onEnable(context, owner)
+	override fun onEnable(context: Context) {
 		wifiManager = context.getSystemServiceTyped(Context.WIFI_SERVICE)
 
 		//Let's not waste precious scan requests on Pie and newer
@@ -95,8 +88,7 @@ class WifiTrackerComponent : PreferenceDataTrackerComponent() {
 		}
 	}
 
-	override fun onDisable(context: Context, owner: LifecycleOwner) {
-		super.onDisable(context, owner)
+	override fun onDisable(context: Context) {
 		context.unregisterReceiver(wifiReceiver)
 	}
 
