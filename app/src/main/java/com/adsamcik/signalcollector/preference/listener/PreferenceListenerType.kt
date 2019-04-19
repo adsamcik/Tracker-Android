@@ -31,8 +31,7 @@ class PreferenceListenerType<T> {
 			val listenerGroup = getListenerGroup(key)
 			listenerGroup.removeObserver(observer)
 
-			if (listenerGroup.hasObservers())
-				map.remove(key)
+			if (listenerGroup.hasObservers()) map.remove(key)
 		}
 	}
 

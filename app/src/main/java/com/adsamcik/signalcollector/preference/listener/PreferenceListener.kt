@@ -111,8 +111,7 @@ object PreferenceListener {
 
 	private fun <T> observe(context: Context, type: PreferenceListenerType<T>, @StringRes keyRes: Int, observer: Observer<T>, owner: LifecycleOwner? = null) {
 		val key = context.getString(keyRes)
-		if (owner != null) type.observe(key, observer, owner)
-		else type.observe(key, observer)
+		if (owner != null) type.observe(key, observer, owner) else type.observe(key, observer)
 	}
 
 }
