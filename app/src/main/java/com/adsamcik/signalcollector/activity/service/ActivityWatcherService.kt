@@ -107,8 +107,11 @@ class ActivityWatcherService : LifecycleService() {
 			poke(context, updateInterval = value)
 		}
 
+
 		/**
 		 * Pokes [ActivityWatcherService] which checks if it should run
+		 *
+		 * Note: This method cannot use preference observer, because it needs context.
 		 *
 		 * @param context context
 		 */
