@@ -20,7 +20,8 @@ class DataComponentManager(context: Context) {
 	private val cellTrackerObserver = Observer<Boolean> { onChange(it) { CellTrackerComponent() } }
 
 	private lateinit var sessionComponent: SessionTrackerComponent
-	val session: TrackerSession = sessionComponent.session
+	val session: TrackerSession
+		get() = sessionComponent.session
 
 
 	fun onEnable() {
@@ -74,5 +75,6 @@ class DataComponentManager(context: Context) {
 	private inline fun <reified T> removeInstance() where T : DataTrackerComponent {
 		val index = dataComponentList.indexOfFirst { it::class == T::class }
 		dataComponentList[index].onDisable(appContext)
+		dataComponentList.removeAt(index)
 	}
 }

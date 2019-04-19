@@ -80,18 +80,20 @@ class TrackerService : LifecycleService() {
 			return
 		}
 
-		val rawData = MutableCollectionData(location.time)
+		val collectionData = MutableCollectionData(location.time)
 
-		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, rawData)
+		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, collectionData)
 
 		postComponentList.forEach {
-			it.onNewData(this, dataComponentManager.session, location, rawData)
+			it.onNewData(this, dataComponentManager.session, location, collectionData)
 		}
 
 		if (isBackgroundActivated && powerManager.isPowerSaveMode)
 			stopSelf()
 
 		this.previousLocation = location
+
+		trackerEcho.postValue(CollectionDataEcho(location, collectionData, dataComponentManager.session))
 
 		wakeLock.release()
 	}
@@ -211,6 +213,8 @@ class TrackerService : LifecycleService() {
 		}
 
 		dataComponentManager.onDisable()
+		preComponentList.forEach { it.onDisable(this) }
+		postComponentList.forEach { it.onEnable(this) }
 
 		//Challenges
 

@@ -57,11 +57,10 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 					}
 				}
 			}
-		}
 
-		GlobalScope.launch {
-			if (session.collections <= 1) sessionDao.delete(session)
-			else sessionDao.update(session)
+			GlobalScope.launch {
+				sessionDao.update(this@apply)
+			}
 		}
 	}
 
@@ -85,6 +84,12 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 		}
 
 		sessionDao = AppDatabase.getDatabase(context).sessionDao()
+
+		mutableSession = MutableTrackerSession(System.currentTimeMillis())
+
+		GlobalScope.launch {
+			sessionDao.insert(mutableSession).also { mutableSession.id = it }
+		}
 	}
 
 	override fun onSensorChanged(event: SensorEvent) {

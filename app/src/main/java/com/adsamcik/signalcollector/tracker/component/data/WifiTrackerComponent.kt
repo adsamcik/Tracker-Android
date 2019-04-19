@@ -83,7 +83,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 		}
 
 		wifiReceiver = WifiReceiver().also {
-			context.registerReceiver(wifiReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
+			context.registerReceiver(it, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
 		}
 	}
 
