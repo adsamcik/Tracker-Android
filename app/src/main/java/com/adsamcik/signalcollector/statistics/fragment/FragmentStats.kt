@@ -176,23 +176,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 		//}
 	}
 
-	private fun calculateDistance(locations: List<DatabaseLocation>): Double {
-		var totalDistance = 0.0
-		val count = locations.size
-		var last = locations[0]
-		for (i in 1 until count) {
-			val current = locations[i]
-
-			if (current.location.time - last.location.time < Constants.MINUTE_IN_MILLISECONDS) {
-				totalDistance += last.location.distanceFlat(current.location, LengthUnit.Kilometer)
-			}
-
-			last = current
-		}
-
-		return totalDistance
-	}
-
 	private fun handleResponse(value: Array<TableStat>, appendBehavior: AppendBehaviour) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 			addStatsTable(value, appendBehavior)
@@ -206,20 +189,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 			adapter.sort()
 		}
 	}
-
-	private fun generateMockData() {
-		addStatsTable(generateMockStatList(), AppendBehaviour.Any)
-	}
-
-	private fun generateMockStatList(): Array<TableStat> {
-		val list = ArrayList<TableStat>()
-		for (i in 1..10) {
-			list.add(generateMockStat(i))
-		}
-		return list.toTypedArray()
-	}
-
-	private fun generateMockStat(index: Int) = TableStat("Mock $index", false, generateStatData(index))
 
 	private fun generateStatData(index: Int): List<StatData> {
 		val list = ArrayList<StatData>()
