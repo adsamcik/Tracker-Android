@@ -203,8 +203,7 @@ class ActivityService : IntentService("ActivityService") {
 			var min = Integer.MAX_VALUE
 			for (i in 0 until mActiveRequests.size()) {
 				val ari = mActiveRequests.valueAt(i)
-				if (ari.updateDelay < min)
-					min = ari.updateDelay
+				if (ari.updateDelay < min) min = ari.updateDelay
 				backgroundTracking = backgroundTracking or ari.isBackgroundTracking
 			}
 			return ActivityRequestInfo(min, backgroundTracking)
@@ -239,17 +238,18 @@ class ActivityService : IntentService("ActivityService") {
 		 * @return true if background tracking can be activated
 		 */
 		private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
-			val preferences = Preferences.getPref(context)
+			with(Preferences.getPref(context)) {
+				if (groupedActivity == GroupedActivity.UNKNOWN ||
+						groupedActivity == GroupedActivity.STILL ||
+						TrackerService.isServiceRunning.value ||
+						getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default)) {
+					return false
+				}
 
-			if (groupedActivity == GroupedActivity.UNKNOWN ||
-					groupedActivity == GroupedActivity.STILL ||
-					TrackerService.isServiceRunning.value ||
-					preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default))
-				return false
-
-			val preference = preferences.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
-			val prefActivity = GroupedActivity.values()[preference]
-			return prefActivity != GroupedActivity.STILL && (prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
+				val preference = getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
+				val prefActivity = GroupedActivity.values()[preference]
+				return prefActivity != GroupedActivity.STILL && (prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
+			}
 		}
 
 		/**

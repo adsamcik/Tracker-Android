@@ -132,11 +132,10 @@ class TrackerService : LifecycleService() {
 
 		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
-			Shortcuts.initializeShortcuts(this)
 			Shortcuts.updateShortcut(this,
 					Shortcuts.TRACKING_ID,
-					getString(R.string.shortcut_stop_tracking),
-					getString(R.string.shortcut_stop_tracking_long),
+					R.string.shortcut_stop_tracking,
+					R.string.shortcut_stop_tracking_long,
 					R.drawable.ic_pause_circle_filled_black_24dp,
 					Shortcuts.ShortcutType.STOP_COLLECTION)
 		}
@@ -215,8 +214,12 @@ class TrackerService : LifecycleService() {
 		LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(locationCallback)
 
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
-			Shortcuts.initializeShortcuts(this)
-			Shortcuts.updateShortcut(this, Shortcuts.TRACKING_ID, getString(R.string.shortcut_start_tracking), getString(R.string.shortcut_start_tracking_long), R.drawable.ic_play_circle_filled_black_24dp, Shortcuts.ShortcutType.START_COLLECTION)
+			Shortcuts.updateShortcut(this,
+					Shortcuts.TRACKING_ID,
+					R.string.shortcut_start_tracking,
+					R.string.shortcut_start_tracking_long,
+					R.drawable.ic_play_circle_filled_black_24dp,
+					Shortcuts.ShortcutType.START_COLLECTION)
 		}
 
 		//Challenges
