@@ -58,10 +58,8 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 		}
 
 		GlobalScope.launch {
-			if (session.collections <= 1)
-				sessionDao.delete(session)
-			else
-				sessionDao.update(session)
+			if (session.collections <= 1) sessionDao.delete(session)
+			else sessionDao.update(session)
 		}
 	}
 
@@ -94,10 +92,8 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 			val stepCount = event.values.first().toInt()
 			if (lastStepCount >= 0) {
 				//in case sensor would overflow and reset to 0 at some point
-				if (lastStepCount > stepCount)
-					session.steps += stepCount
-				else
-					session.steps += stepCount - lastStepCount
+				if (lastStepCount > stepCount) session.steps += stepCount
+				else session.steps += stepCount - lastStepCount
 			}
 
 			lastStepCount = stepCount
