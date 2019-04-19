@@ -183,7 +183,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		collectionData.wifi = WifiData(location, System.currentTimeMillis(), listOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		collectionData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
 
-		val session = TrackerSession(System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), 56, 5410f, 15f, 5000f, 154)
+		val session = TrackerSession(0, System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), 56, 5410f, 15f, 5000f, 154)
 
 		updateData(CollectionDataEcho(location, collectionData, session))
 	}
