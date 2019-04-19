@@ -138,10 +138,9 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 			handleResponse(sumStatsArray, AppendBehaviour.First)
 
-			val dayAgoCalendar = Calendar.getInstance().apply {
-				add(Calendar.DAY_OF_MONTH, -1)
-			}
-			sessionDao.getBetween(dayAgoCalendar.timeInMillis, now).map {
+			val startOfTheDay = Calendar.getInstance().apply { roundToDate() }
+
+			sessionDao.getBetween(startOfTheDay.timeInMillis, now).map {
 				arrayOf(TableStat("${it.start.formatAsShortDateTime()} - ${it.end.formatAsShortDateTime()}", false, listOf(
 						StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(it.distanceInM, 1, lengthSystem)),
 						StatData(resources.getString(R.string.stats_collections), it.collections.formatReadable()),
@@ -154,10 +153,11 @@ class FragmentStats : Fragment(), IOnDemandView {
 			}
 
 			val monthAgoCalendar = Calendar.getInstance().apply {
+				roundToDate()
 				add(Calendar.MONTH, -1)
 			}
 
-			sessionDao.getSummaryByDays(monthAgoCalendar.timeInMillis, dayAgoCalendar.timeInMillis).map {
+			sessionDao.getSummaryByDays(monthAgoCalendar.timeInMillis, startOfTheDay.timeInMillis).map {
 				arrayOf(TableStat(it.time.formatAsDate(), false, listOf(
 						StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(it.distanceInM, 1, lengthSystem)),
 						StatData(resources.getString(R.string.stats_collections), it.collections.formatReadable()),
