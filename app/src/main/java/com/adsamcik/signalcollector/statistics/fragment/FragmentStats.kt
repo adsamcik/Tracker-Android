@@ -24,7 +24,7 @@ import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
-import com.adsamcik.signalcollector.tracker.data.LengthUnit
+import com.adsamcik.signalcollector.tracker.data.collection.LengthUnit
 import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers

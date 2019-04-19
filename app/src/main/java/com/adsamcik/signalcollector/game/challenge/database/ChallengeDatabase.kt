@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.game.challenge.database.dao.StepChallengeDao
 import com.adsamcik.signalcollector.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 
 @Database(entities = [TrackerSession::class, ChallengeEntry::class, ExplorerChallengeEntity::class, WalkDistanceChallengeEntity::class, StepChallengeEntity::class],
 		version = 1)

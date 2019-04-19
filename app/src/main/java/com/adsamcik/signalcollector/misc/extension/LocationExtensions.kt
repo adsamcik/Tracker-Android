@@ -66,7 +66,7 @@ object LocationExtensions {
 	}
 
 	fun countPixelSize(latitude: Double, zoom: Int): Double {
-		return com.adsamcik.signalcollector.tracker.data.Location.EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
+		return com.adsamcik.signalcollector.tracker.data.collection.Location.EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
 	}
 }
 

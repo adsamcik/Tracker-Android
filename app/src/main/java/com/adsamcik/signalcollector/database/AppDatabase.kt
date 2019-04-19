@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.adsamcik.signalcollector.database.dao.*
 import com.adsamcik.signalcollector.database.data.*
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 
 
 @Database(entities = [DatabaseLocation::class,

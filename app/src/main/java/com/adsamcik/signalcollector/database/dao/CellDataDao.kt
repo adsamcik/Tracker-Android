@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
-import com.adsamcik.signalcollector.tracker.data.CellType
+import com.adsamcik.signalcollector.tracker.data.collection.CellType
 
 @Dao
 interface CellDataDao : BaseDao<DatabaseCellData> {

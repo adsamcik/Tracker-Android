@@ -8,8 +8,8 @@ import com.adsamcik.signalcollector.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.database.dao.WifiDataDao
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
-import com.adsamcik.signalcollector.tracker.data.CollectionData
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
@@ -48,7 +48,7 @@ class TrackerDataComponent : PostTrackerComponent {
 			if (wifiData != null) {
 				val wifiDao = wifiDao!!
 
-				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.Location(wifiData.location)
+				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.collection.Location(wifiData.location)
 				wifiData.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
 			}
 		}

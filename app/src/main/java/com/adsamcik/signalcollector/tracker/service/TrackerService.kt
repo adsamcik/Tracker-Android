@@ -25,14 +25,13 @@ import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager
-import com.adsamcik.signalcollector.tracker.component.data.SessionTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.post.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
 import com.adsamcik.signalcollector.tracker.component.pre.PreLocationTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.pre.PreTrackerComponent
-import com.adsamcik.signalcollector.tracker.data.CollectionDataEcho
-import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
@@ -216,7 +215,7 @@ class TrackerService : LifecycleService() {
 		//Challenges
 
 		GlobalScope.launch {
-			ChallengeDatabase.getDatabase(this@TrackerService).sessionDao.insert(sessionComponent.session)
+			ChallengeDatabase.getDatabase(this@TrackerService).sessionDao.insert(dataComponentManager.session)
 		}
 
 		val workManager = WorkManager.getInstance()

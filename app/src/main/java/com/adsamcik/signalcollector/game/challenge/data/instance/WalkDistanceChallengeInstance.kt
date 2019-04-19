@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChall
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.misc.extension.formatDistance
 import com.adsamcik.signalcollector.preference.Preferences
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 
 class WalkDistanceChallengeInstance(context: Context,
                                     data: ChallengeEntry,

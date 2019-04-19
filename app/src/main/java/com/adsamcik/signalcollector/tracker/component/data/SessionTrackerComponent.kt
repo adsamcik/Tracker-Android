@@ -16,16 +16,19 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
-import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.google.android.gms.location.LocationResult
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
 class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
-	lateinit var session: TrackerSession
-		private set
+	private var mutableSession: MutableTrackerSession = MutableTrackerSession(System.currentTimeMillis())
+
+	val session: TrackerSession
+		get() = mutableSession
 
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
@@ -39,7 +42,7 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 
 	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
 		val location = locationResult.lastLocation
-		session.apply {
+		mutableSession.apply {
 			distanceInM += distance
 			collections++
 			end = System.currentTimeMillis()
@@ -71,7 +74,6 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 	}
 
 	override fun onEnable(context: Context) {
-		session = TrackerSession(System.currentTimeMillis())
 		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver, R.integer.settings_tracking_min_distance_default)
 		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver, R.integer.settings_tracking_min_time_default)
 
@@ -92,9 +94,9 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 			if (lastStepCount >= 0) {
 				//in case sensor would overflow and reset to 0 at some point
 				if (lastStepCount > stepCount) {
-					session.steps += stepCount
+					mutableSession.steps += stepCount
 				} else {
-					session.steps += stepCount - lastStepCount
+					mutableSession.steps += stepCount - lastStepCount
 				}
 			}
 

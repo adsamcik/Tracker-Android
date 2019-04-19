@@ -4,8 +4,8 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.adsamcik.signalcollector.tracker.data.Location
-import com.adsamcik.signalcollector.tracker.data.WifiInfo
+import com.adsamcik.signalcollector.tracker.data.collection.Location
+import com.adsamcik.signalcollector.tracker.data.collection.WifiInfo
 
 @Entity(tableName = "wifi_data", indices = [Index("longitude"), Index("latitude"), Index("last_seen")])
 data class DatabaseWifiData(

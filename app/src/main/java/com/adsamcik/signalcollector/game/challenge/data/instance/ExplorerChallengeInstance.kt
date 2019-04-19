@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 
 class ExplorerChallengeInstance(context: Context,
                                 entry: ChallengeEntry,

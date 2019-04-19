@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.database.data
 
 import androidx.room.*
-import com.adsamcik.signalcollector.tracker.data.CellInfo
-import com.adsamcik.signalcollector.tracker.data.CellType
+import com.adsamcik.signalcollector.tracker.data.collection.CellInfo
+import com.adsamcik.signalcollector.tracker.data.collection.CellType
 
 @Entity(tableName = "cell_data", foreignKeys = [ForeignKey(entity = DatabaseLocation::class,
 		parentColumns = ["id"],

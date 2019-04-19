@@ -29,7 +29,8 @@ import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.mock.useMock
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
-import com.adsamcik.signalcollector.tracker.data.*
+import com.adsamcik.signalcollector.tracker.data.collection.*
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity

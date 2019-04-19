@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.misc.extension.LocationExtensions
 import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs
 

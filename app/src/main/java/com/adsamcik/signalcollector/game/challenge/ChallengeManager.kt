@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeLoader
 import com.adsamcik.signalcollector.misc.NonNullLiveData
 import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.tracker.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlin.random.Random

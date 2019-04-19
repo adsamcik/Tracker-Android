@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.data
+package com.adsamcik.signalcollector.tracker.data.collection
 
 import android.annotation.SuppressLint
 import android.net.wifi.ScanResult

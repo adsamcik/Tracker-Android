@@ -6,7 +6,7 @@ import android.telephony.TelephonyManager
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.misc.extension.telephonyManager
-import com.adsamcik.signalcollector.tracker.data.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 
 class CellTrackerComponent : DataTrackerComponent {
