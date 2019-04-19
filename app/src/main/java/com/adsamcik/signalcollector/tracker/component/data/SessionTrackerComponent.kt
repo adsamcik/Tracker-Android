@@ -70,6 +70,12 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
+
+		mutableSession.apply {
+			end = System.currentTimeMillis()
+		}
+
+		GlobalScope.launch { sessionDao.update(mutableSession) }
 	}
 
 	override fun onEnable(context: Context) {
