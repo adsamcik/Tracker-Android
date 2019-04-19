@@ -117,7 +117,7 @@ class TrackerService : LifecycleService() {
 				notificationComponent = it
 				add(it)
 			}
-			add(TrackerDataComponent(this@TrackerService))
+			add(TrackerDataComponent())
 		}.forEach { it.onEnable(this) }
 
 		//Shortcut setup
