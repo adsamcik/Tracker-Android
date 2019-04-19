@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.tracker.data.TrackerSession
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
-class TrackerDataComponent(context: Context): PostTrackerComponent {
+class TrackerDataComponent(context: Context) : PostTrackerComponent {
 	val database = AppDatabase.getDatabase(context)
 
 	private val data: MutableCollectionData = requestNewData()

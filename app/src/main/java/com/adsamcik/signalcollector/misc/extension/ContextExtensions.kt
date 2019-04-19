@@ -130,7 +130,6 @@ fun Context.appVersion(): Long {
 }
 
 
-
 /**
  * Returns typed system service so no cast is necessary.
  * Uses getSystemService(name) system method. Typed method in Android does name lookup (so it might be tiny bit slower) and is available from API 23.

@@ -34,7 +34,8 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  * @see PreferenceGroup#findPreference(CharSequence)
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(key: CharSequence): T {
-	return findPreference(key) ?: throw PreferenceNotFoundException("Preference with title $key not found")
+	return findPreference(key)
+			?: throw PreferenceNotFoundException("Preference with title $key not found")
 }
 
 /**

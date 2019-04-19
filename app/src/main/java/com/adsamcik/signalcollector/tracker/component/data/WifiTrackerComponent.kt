@@ -8,7 +8,6 @@ import android.location.Location
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.misc.extension.LocationExtensions

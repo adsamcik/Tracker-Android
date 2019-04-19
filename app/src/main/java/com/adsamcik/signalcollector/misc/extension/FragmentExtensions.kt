@@ -25,4 +25,4 @@ inline fun FragmentManager.transactionStateLoss(func: FragmentTransaction.() -> 
 	beginTransaction().func().commitAllowingStateLoss()
 }
 
-fun Fragment.getNonNullContext() : Context = context ?: throw NullPointerException("Context is null")
+fun Fragment.getNonNullContext(): Context = context ?: throw NullPointerException("Context is null")

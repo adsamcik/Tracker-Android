@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.tracker.component.data
 
-import android.content.Context
 import android.location.Location
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.tracker.component.TrackerComponent

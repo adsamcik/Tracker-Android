@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.database.dao
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Query
 import com.adsamcik.signalcollector.statistics.data.TrackerSessionSummary
 import com.adsamcik.signalcollector.statistics.data.TrackerSessionTimeSummary
 import com.adsamcik.signalcollector.tracker.data.TrackerSession
