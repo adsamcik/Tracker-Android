@@ -106,7 +106,9 @@ class TrackerService : LifecycleService() {
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
-		preComponentList.apply { add(PreLocationTrackerComponent(this@TrackerService)) }
+		preComponentList.apply {
+			add(PreLocationTrackerComponent())
+		}.forEach { it.onEnable(this) }
 
 		dataComponentManager = DataComponentManager(this).apply { onEnable() }
 
@@ -116,7 +118,7 @@ class TrackerService : LifecycleService() {
 				add(it)
 			}
 			add(TrackerDataComponent(this@TrackerService))
-		}
+		}.forEach { it.onEnable(this) }
 
 		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {

@@ -26,17 +26,17 @@ class DataComponentManager(context: Context) {
 
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_location_enabled_key,
-				listener = locationTrackerObserver,
+				observer = locationTrackerObserver,
 				defaultRes = R.string.settings_location_enabled_default)
 
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_wifi_enabled_key,
-				listener = wifiTrackerObserver,
+				observer = wifiTrackerObserver,
 				defaultRes = R.string.settings_wifi_enabled_default)
 
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_cell_enabled_key,
-				listener = cellTrackerObserver,
+				observer = cellTrackerObserver,
 				defaultRes = R.string.settings_cell_enabled_default)
 	}
 
