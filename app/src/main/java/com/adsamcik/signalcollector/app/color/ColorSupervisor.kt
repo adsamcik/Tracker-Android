@@ -92,10 +92,7 @@ object ColorSupervisor {
 	 */
 	@ColorInt
 	fun backgroundColorFor(backgroundIsForeground: Boolean): Int {
-		return if (backgroundIsForeground)
-			currentForegroundColor
-		else
-			currentBaseColor
+		return if (backgroundIsForeground) currentForegroundColor else currentBaseColor
 	}
 
 	/**

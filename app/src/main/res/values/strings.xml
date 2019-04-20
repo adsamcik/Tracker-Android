@@ -32,6 +32,7 @@
     <string name="stats_session_count">Session count</string>
     <string name="stats_wifi_count">Wi-Fi count</string>
     <string name="stats_cell_count">Cell count</string>
+    <string name="stats_details">Details</string>
 
     <string name="stats_weekly_title">Last 7 days</string>
 

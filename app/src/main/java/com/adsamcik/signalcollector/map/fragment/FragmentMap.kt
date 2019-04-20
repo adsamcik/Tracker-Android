@@ -371,7 +371,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		this.map = map
 
-		colorManager!!.addListener { luminance, _ ->
+		colorManager!!.addListener { luminance, _, _ ->
 			//-32
 			if (luminance >= 0) {
 				if (isMapLight.get())

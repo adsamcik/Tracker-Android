@@ -22,7 +22,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 //Cannot be annotated with ColorInt yet
-typealias ColorListener = (luminance: Byte, backgroundColor: Int) -> Unit
+typealias ColorListener = (luminance: Byte, foregroundColor: Int, backgroundColor: Int) -> Unit
 
 /**
  * ColorManager class that handles color updates of views in a given Activity or Fragment
@@ -179,7 +179,7 @@ class ColorManager {
 	fun addListener(colorListener: ColorListener) {
 		synchronized(colorChangeListeners) {
 			colorChangeListeners.add(colorListener)
-			colorListener.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(false))
+			colorListener.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(true), backgroundColorFor(false))
 		}
 	}
 
@@ -205,7 +205,7 @@ class ColorManager {
 		}
 
 		synchronized(colorChangeListeners) {
-			colorChangeListeners.forEach { it.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(false)) }
+			colorChangeListeners.forEach { it.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(true), backgroundColorFor(false)) }
 		}
 	}
 

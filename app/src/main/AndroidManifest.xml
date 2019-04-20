@@ -26,7 +26,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
-
     <application
         android:allowBackup="true"
         android:fullBackupContent="true"
@@ -34,8 +33,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/AppThemeLight"
-        tools:replace="android:allowBackup"
-        tools:ignore="GoogleAppIndexingWarning">
+        tools:ignore="GoogleAppIndexingWarning"
+        tools:replace="android:allowBackup">
+        <activity android:name=".statistics.activity.StatsDetailActivity">
+        </activity>
+
         <meta-data
             android:name="android.max_aspect"
             android:value="10"/>
@@ -51,7 +53,7 @@
         </provider>
 
         <activity
-            android:name="com.adsamcik.signalcollector.app.activity.LaunchActivity"
+            android:name=".app.activity.LaunchActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
             <intent-filter>
@@ -61,12 +63,12 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.adsamcik.signalcollector.misc.shortcut.ShortcutActivity"
+            android:name=".misc.shortcut.ShortcutActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
         </activity>
         <activity
-            android:name="com.adsamcik.signalcollector.app.activity.MainActivity"
+            android:name=".app.activity.MainActivity"
             android:exported="true"
             android:launchMode="singleInstance"
             android:resizeableActivity="true"
@@ -89,13 +91,13 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.adsamcik.signalcollector.app.activity.LicenseActivity"
+            android:name=".app.activity.LicenseActivity"
             android:screenOrientation="portrait"/>
         <activity
             android:name=".preference.activity.SettingsActivity"
-            android:parentActivityName="com.adsamcik.signalcollector.app.activity.MainActivity"/>
+            android:parentActivityName=".app.activity.MainActivity"/>
 
-        <receiver android:name="com.adsamcik.signalcollector.app.receiver.BootReceiver">
+        <receiver android:name=".app.receiver.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
@@ -105,7 +107,7 @@
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </receiver>
-        <receiver android:name="com.adsamcik.signalcollector.app.receiver.OnAppUpdateReceiver">
+        <receiver android:name=".app.receiver.OnAppUpdateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
