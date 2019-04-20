@@ -15,7 +15,10 @@ class DataComponentManager(context: Context) {
 	private val appContext = context.applicationContext
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
-	private val locationTrackerObserver = Observer<Boolean> { onChange(it) { LocationTrackerComponent() } }
+	private val locationTrackerObserver = Observer<Boolean> {
+		onChange(it) { LocationTrackerComponent() }
+		onChange(it) { ActivityTrackerComponent() }
+	}
 	private val wifiTrackerObserver = Observer<Boolean> { onChange(it) { WifiTrackerComponent() } }
 	private val cellTrackerObserver = Observer<Boolean> { onChange(it) { CellTrackerComponent() } }
 
