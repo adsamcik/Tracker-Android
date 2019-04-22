@@ -35,7 +35,7 @@ class ExplorerChallengeInstance(context: Context,
 			val rounded = it.location.roundTo(accuracyInM)
 			rounded.latitude to rounded.longitude
 		}.distinctBy { it }
-		return dao.new(newList, time, accuracyInM).size
+		return dao.newLocations(newList, time, accuracyInM).size
 	}
 
 

@@ -9,7 +9,10 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
+import androidx.appcompat.widget.AppCompatImageView
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.alpha
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.app.adapter.IViewChange
 import com.adsamcik.signalcollector.app.color.ColorSupervisor.backgroundColorFor
@@ -244,21 +247,18 @@ class ColorManager {
 
 	private fun updateStyleForeground(view: View, @ColorInt fgColor: Int) {
 		when (view) {
-			is TextView -> {
-				view.setTextColor(fgColor)
-				view.setHintTextColor(brightenColor(fgColor, 1))
-				view.compoundDrawables.forEach {
-					it?.setTint(fgColor)
-				}
+			is TextView, is AppCompatTextView -> {
+				view as TextView
+				val alpha = view.currentTextColor.alpha
+				val newTextColor = ColorUtils.setAlphaComponent(fgColor, alpha)
+				view.setTextColor(newTextColor)
+				view.setHintTextColor(brightenColor(newTextColor, 1))
+				view.compoundDrawables.forEach { it?.setTint(fgColor) }
 			}
-			is AppCompatTextView -> {
-				view.setTextColor(fgColor)
-				view.setHintTextColor(brightenColor(fgColor, 1))
-				view.compoundDrawables.forEach {
-					it?.setTint(fgColor)
-				}
+			is ImageView, is AppCompatImageView -> {
+				view as ImageView
+				view.setColorFilter(fgColor)
 			}
-			is ImageView -> view.setColorFilter(fgColor)
 		}
 	}
 

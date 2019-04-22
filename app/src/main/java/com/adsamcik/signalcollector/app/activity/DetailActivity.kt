@@ -5,11 +5,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import androidx.annotation.CallSuper
+import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
+import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
 /**
@@ -17,15 +20,26 @@ import kotlinx.android.synthetic.main.activity_content_detail.*
  * Custom AppBar was implemented to provide complete control over that piece of layout.
  */
 abstract class DetailActivity : AppCompatActivity() {
-	protected var colorManager: ColorManager? = null
+	//todo this control over bar layer is kinda awkward, improve it
+	protected var titleBarLayer = 1
+	protected lateinit var colorManager: ColorManager
 
+	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_content_detail)
+
 		back_button.setOnClickListener { onBackPressed() }
 
-		colorManager = ColorSupervisor.createColorManager(this)
-		colorManager!!.watchView(ColorView(back_button.parent as View, 1, recursive = true, rootIsBackground = true))
+		val titleBarRoot = back_button.parent as View
+		if (titleBarLayer <= 0)
+			titleBarRoot.elevation = 0f
+		else
+			titleBarRoot.elevation = (titleBarLayer * 4.dpAsPx).toFloat()
+
+		colorManager = ColorSupervisor.createColorManager(this).also {
+			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))
+		}
 	}
 
 	override fun onBackPressed() {
@@ -81,9 +95,8 @@ abstract class DetailActivity : AppCompatActivity() {
 	 * @param addContentPadding Should default content padding be set?
 	 */
 	protected fun createLinearContentParent(addContentPadding: Boolean): LinearLayout {
-		val root = findViewById<LinearLayout>(R.id.content_detail_root)
 		val contentParent = createLinearContentLayout(false, addContentPadding)
-		root.addView(contentParent)
+		content_detail_root.addView(contentParent)
 		return contentParent
 	}
 
@@ -93,7 +106,6 @@ abstract class DetailActivity : AppCompatActivity() {
 	 * @param addContentPadding Should default content padding be set?
 	 */
 	protected fun createLinearScrollableContentParent(addContentPadding: Boolean): LinearLayout {
-		val root = findViewById<LinearLayout>(R.id.content_detail_root)
 		val scrollView = ScrollView(this)
 		val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
 		scrollView.layoutParams = lp
@@ -102,7 +114,7 @@ abstract class DetailActivity : AppCompatActivity() {
 
 		scrollView.addView(contentParent)
 
-		root.addView(scrollView)
+		content_detail_root.addView(scrollView)
 		return contentParent
 	}
 
@@ -112,7 +124,6 @@ abstract class DetailActivity : AppCompatActivity() {
 	 * @param addContentPadding Should default content padding be set?
 	 */
 	protected fun <T : ViewGroup> createScrollableContentParent(addContentPadding: Boolean, tClass: Class<T>): T {
-		val root = findViewById<LinearLayout>(R.id.content_detail_root)
 		val scrollView = ScrollView(this)
 		val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
 		scrollView.layoutParams = lp
@@ -121,14 +132,16 @@ abstract class DetailActivity : AppCompatActivity() {
 
 		scrollView.addView(contentParent)
 
-		root.addView(scrollView)
+		content_detail_root.addView(scrollView)
 		return contentParent
 	}
 
+	protected fun inflateContent(@LayoutRes resource: Int) {
+		layoutInflater.inflate(resource, content_detail_root, true)
+	}
+
 	override fun onDestroy() {
-		if (colorManager != null)
-			ColorSupervisor.recycleColorManager(colorManager!!)
-		colorManager = null
+		ColorSupervisor.recycleColorManager(colorManager)
 		super.onDestroy()
 	}
 

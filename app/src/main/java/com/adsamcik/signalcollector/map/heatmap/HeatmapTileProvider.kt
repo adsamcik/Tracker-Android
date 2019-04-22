@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCrea
 import com.adsamcik.signalcollector.map.heatmap.creators.WifiHeatmapTileCreator
 import com.adsamcik.signalcollector.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.misc.Int2
-import com.adsamcik.signalcollector.misc.extension.date
+import com.adsamcik.signalcollector.misc.extension.toDate
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import java.util.*
@@ -60,7 +60,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	var range: ClosedRange<Calendar>? = null
 		set(value) {
 			field = if (value != null) {
-				value.start.date()..value.endInclusive.date().apply {
+				value.start.toDate()..value.endInclusive.toDate().apply {
 					add(Calendar.DAY_OF_MONTH, 1)
 				}
 			} else

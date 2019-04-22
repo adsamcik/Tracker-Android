@@ -75,7 +75,7 @@ class TrackerService : LifecycleService() {
 		val activityInfo = ActivityService.lastActivity
 
 		//if we don't know the accuracy the location is worthless
-		if (!preComponentList.all { it.onNewLocation(locationResult, previousLocation, distance, activityInfo) }) {
+		if (!preComponentList.all { it.onNewLocation(locationResult, previousLocation, distance) }) {
 			wakeLock.release()
 			return
 		}

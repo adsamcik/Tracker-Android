@@ -18,6 +18,9 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	@Query("SELECT * from location_data where time >= :from and time <= :to")
 	fun getAllBetween(from: Long, to: Long): List<DatabaseLocation>
 
+	@Query("SELECT * from location_data where time >= :from and time <= :to ORDER BY time")
+	fun getAllBetweenOrdered(from: Long, to: Long): List<DatabaseLocation>
+
 	@Query("SELECT * from location_data where time >= :from")
 	fun getAllSince(from: Long): List<DatabaseLocation>
 
@@ -35,7 +38,7 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 
 
 	@Transaction
-	fun new(list: List<Pair<Double, Double>>, time: Long, accuracy: Double): List<Pair<Double, Double>> {
+	fun newLocations(list: List<Pair<Double, Double>>, time: Long, accuracy: Double): List<Pair<Double, Double>> {
 		return list.filter {
 			val halfAccuracyLatitude = Location.latitudeAccuracy(accuracy) / 2.0
 			val halfAccuracyLongitude = Location.longitudeAccuracy(accuracy, it.first) / 2.0

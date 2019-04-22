@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.database.dao
 
+import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.signalcollector.statistics.data.TrackerSessionSummary
@@ -8,6 +9,10 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 
 @Dao
 interface SessionDataDao : BaseDao<TrackerSession> {
+
+	@Query("SELECT * FROM tracker_session WHERE id = :id")
+	fun get(id: Long): LiveData<TrackerSession>
+
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>
 

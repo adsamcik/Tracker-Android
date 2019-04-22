@@ -4,7 +4,6 @@ import android.content.Context
 import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 import com.google.android.gms.location.LocationResult
 
@@ -24,7 +23,7 @@ class PreLocationTrackerComponent : PreTrackerComponent {
 		PreferenceObserver.removeObserver(context, R.string.settings_tracking_required_accuracy_key, observer)
 	}
 
-	override fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo): Boolean {
+	override fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, distance: Float): Boolean {
 		val location = locationResult.lastLocation
 
 		if (!location.hasAccuracy()) return false

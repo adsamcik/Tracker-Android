@@ -33,7 +33,7 @@ fun Calendar.roundToDate() {
 /**
  * Creates a new instance of this calendar which is rounded to date using [roundToDate]
  */
-fun Calendar.date(): Calendar {
+fun Calendar.toDate(): Calendar {
 	val calendar = cloneCalendar()
 	calendar.roundToDate()
 	return calendar
@@ -44,7 +44,7 @@ fun Calendar.date(): Calendar {
  *
  * @return Today as a day in unix time
  */
-fun Calendar.dateUTC(): Calendar {
+fun Calendar.toDateUTC(): Calendar {
 	val calendar = cloneCalendar()
 	calendar.timeZone = TimeZone.getTimeZone("UTC")
 	calendar.roundToDate()
@@ -61,9 +61,6 @@ fun Calendar.cloneCalendar(): Calendar {
 /**
  * Returns time since midnight in milliseconds
  */
-fun Calendar.timeInMillis(): Long {
-	val calendar = cloneCalendar()
-	return calendar.get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +
-			calendar.get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS +
-			calendar.get(Calendar.SECOND) * Constants.SECOND_IN_MILLISECONDS
-}
+fun Calendar.toTimeSinceMidnight(): Long = get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +
+		get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS +
+		get(Calendar.SECOND) * Constants.SECOND_IN_MILLISECONDS

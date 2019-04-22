@@ -11,7 +11,7 @@ import androidx.core.graphics.ColorUtils
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.extension.timeInMillis
+import com.adsamcik.signalcollector.misc.extension.toTimeSinceMidnight
 import com.adsamcik.signalcollector.preference.Preferences
 import java.text.SimpleDateFormat
 import java.util.*
@@ -297,12 +297,12 @@ object ColorSupervisor {
 	}
 
 	private fun calculateTimeOfDay2(): Calendar {
-		val time = Calendar.getInstance().timeInMillis()
+		val time = Calendar.getInstance().toTimeSinceMidnight()
 		val sunset = sunsetRise.nextSunset()
 		val sunrise = sunsetRise.nextSunrise()
 
 		return when {
-			(time > sunset.timeInMillis()) or (time < sunrise.timeInMillis()) -> {
+			(time > sunset.toTimeSinceMidnight()) or (time < sunrise.toTimeSinceMidnight()) -> {
 				currentIndex = 1
 				sunrise
 
@@ -316,12 +316,12 @@ object ColorSupervisor {
 	}
 
 	private fun calculateTimeOfDay4(): Triple<Long, Long, Long> {
-		val time = Calendar.getInstance().timeInMillis()
+		val time = Calendar.getInstance().toTimeSinceMidnight()
 		val changeLength: Long
 		val progress: Long
 
-		val sunsetTime = sunsetRise.nextSunset().timeInMillis()
-		val sunriseTime = sunsetRise.nextSunrise().timeInMillis()
+		val sunsetTime = sunsetRise.nextSunset().toTimeSinceMidnight()
+		val sunriseTime = sunsetRise.nextSunrise().toTimeSinceMidnight()
 
 		val dayTime = (sunsetTime - sunriseTime) / 2 + sunriseTime
 		val nightTime = ((Constants.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Constants.DAY_IN_MILLISECONDS)
