@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.cardlist.CardItemDecoration
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
@@ -74,41 +75,52 @@ class StatsDetailActivity : DetailActivity() {
 		recycler.layoutManager = LinearLayoutManager(this)
 
 		val startDate = Date(session.start)
+		val endDate = Date(session.end)
 		val startCalendar = startDate.toCalendar()
+		val endCalendar = endDate.toCalendar()
 		val title = createTitle(startCalendar, "run")
 
-		SimpleDateFormat("E", Locale.getDefault()).format(startDate)
+
 		findViewById<AppCompatTextView>(R.id.title).text = title
 
-		date_time.text = Date(session.start).toString()
+		date_time.text = formatRange(startCalendar, endCalendar)
 	}
 
+	//todo improve localization support
 	private fun formatRange(start: Calendar, end: Calendar): String {
 		val today = Calendar.getInstance().toDate()
-		val startDate = start.toDate()
-		val endDate = end.toDate()
-		TODO()
+		val startDate = start.time
+		val endDate = end.time
 
-		if (startDate == endDate) {
-			val pattern = if (startDate.get(Calendar.YEAR) == today.get(Calendar.YEAR))
+		val timePattern = "hh:mm"
+
+		return if ((startDate.time / Constants.DAY_IN_MILLISECONDS) == (endDate.time / Constants.DAY_IN_MILLISECONDS)) {
+			val dateFormat = SimpleDateFormat("d MMMM", Locale.getDefault())
+			val timeFormat = SimpleDateFormat(timePattern, Locale.getDefault())
+			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"
+		} else {
+			val datePattern = if (start.get(Calendar.YEAR) == today.get(Calendar.YEAR))
 				"d MMMM"
 			else
 				"d MMMM yyyy"
 
-			return SimpleDateFormat(pattern, Locale.getDefault()).format(start.time)
-		} else
-			SimpleDateFormat()
+			val format = SimpleDateFormat("$datePattern $timePattern", Locale.getDefault())
+			"${format.format(startDate)} - ${format.format(endDate)}"
+		}
 	}
 
 	//Todo replace with new activity object once ready
 	private fun createTitle(date: Calendar, activity: String): String {
 		val hour = date[Calendar.HOUR_OF_DAY]
+		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(date.time).capitalize()
 		return if (hour < 6 || hour > 22)
-			getString(R.string.stats_night, activity)
+			getString(R.string.stats_night, day, activity)
 		else if (hour < 12)
-			getString(R.string.stats_morning, activity)
+			getString(R.string.stats_morning, day, activity)
+		else if (hour < 17)
+			getString(R.string.stats_afternoon, day, activity)
 		else
-			getString(R.string.stats_evening, activity)
+			getString(R.string.stats_evening, day, activity)
 	}
 
 
