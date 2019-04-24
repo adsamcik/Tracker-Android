@@ -62,28 +62,36 @@ data class MutableCollectionData(
 
 	@Suppress("DEPRECATION")
 	fun addCell(telephonyManager: TelephonyManager) {
-//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
-		@SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo ?: return
-		val nOp = telephonyManager.networkOperator
-		if (nOp.isNotEmpty()) {
-			val mcc = nOp.substring(0, 3)
-			val mnc = nOp.substring(3)
+		val networkOperator = telephonyManager.networkOperator
+		if (networkOperator.isNotEmpty()) {
+			val mcc = networkOperator.substring(0, 3)
+			val mnc = networkOperator.substring(3)
 
 			val registeredOperator = RegisteredOperator(mcc, mnc, telephonyManager.networkOperatorName)
 
-			val registeredCells = ArrayList<CellInfo>(if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1)
+			addCell(telephonyManager, registeredOperator)
+		}
+	}
 
-			for (ci in cellInfo) {
-				if (ci.isRegistered) {
-					convertToCellInfo(ci, registeredOperator).let {
-						if (it != null) registeredCells.add(it)
-					}
+	private fun addCell(telephonyManager: TelephonyManager, registeredOperator: RegisteredOperator) {
+		//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
+		@SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo ?: return
+
+		val phoneCount = if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1
+		val registeredCells = ArrayList<CellInfo>(phoneCount)
+
+		for (ci in cellInfo) {
+			if (ci.isRegistered) {
+				convertToCellInfo(ci, registeredOperator)?.let {
+					if (registeredCells.size == phoneCount - 1)
+						return
+					registeredCells.add(it)
 				}
 			}
-
-
-			this.cell = CellData(registeredCells.toTypedArray(), cellInfo.size)
 		}
+
+
+		this.cell = CellData(registeredCells.toTypedArray(), cellInfo.size)
 	}
 
 	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: RegisteredOperator): CellInfo? {
@@ -97,17 +105,17 @@ data class MutableCollectionData(
 				if (registeredOperator.sameNetwork(cellInfo))
 					CellInfo.newInstance(cellInfo, registeredOperator.name)
 				else
-					CellInfo.newInstance(cellInfo, null as String?)
+					CellInfo.newInstance(cellInfo, null)
 			is CellInfoWcdma ->
 				if (registeredOperator.sameNetwork(cellInfo))
 					CellInfo.newInstance(cellInfo, registeredOperator.name)
 				else
-					CellInfo.newInstance(cellInfo, null as String?)
+					CellInfo.newInstance(cellInfo, null)
 			is CellInfoCdma ->
 				if (registeredOperator.sameNetwork(cellInfo))
 					CellInfo.newInstance(cellInfo, registeredOperator.name)
 				else
-					CellInfo.newInstance(cellInfo, null as String?)
+					CellInfo.newInstance(cellInfo, null)
 			else -> {
 				Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
 				null
@@ -115,11 +123,12 @@ data class MutableCollectionData(
 		}
 	}
 
-	private data class RegisteredOperator(val mcc: String, val mnc: String, val name: String) {
+	private class RegisteredOperator(val mcc: String, val mnc: String, val name: String) {
 		fun sameNetwork(info: CellInfoLte): Boolean {
 			val identity = info.cellIdentity
-			return if (Build.VERSION.SDK_INT >= 28) identity.mncString == mnc && identity.mccString == mcc
-			else {
+			return if (Build.VERSION.SDK_INT >= 28) {
+				identity.mncString == mnc && identity.mccString == mcc
+			} else {
 				@Suppress("deprecation")
 				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
 			}
@@ -132,8 +141,9 @@ data class MutableCollectionData(
 
 		fun sameNetwork(info: CellInfoGsm): Boolean {
 			val identity = info.cellIdentity
-			return if (Build.VERSION.SDK_INT >= 28) identity.mncString == mnc && identity.mccString == mcc
-			else {
+			return if (Build.VERSION.SDK_INT >= 28) {
+				identity.mncString == mnc && identity.mccString == mcc
+			} else {
 				@Suppress("deprecation")
 				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
 			}
@@ -141,8 +151,9 @@ data class MutableCollectionData(
 
 		fun sameNetwork(info: CellInfoWcdma): Boolean {
 			val identity = info.cellIdentity
-			return if (Build.VERSION.SDK_INT >= 28) identity.mncString == mnc && identity.mccString == mcc
-			else {
+			return if (Build.VERSION.SDK_INT >= 28) {
+				identity.mncString == mnc && identity.mccString == mcc
+			} else {
 				@Suppress("deprecation")
 				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
 			}

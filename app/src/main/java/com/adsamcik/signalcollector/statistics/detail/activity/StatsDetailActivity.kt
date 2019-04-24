@@ -111,10 +111,15 @@ class StatsDetailActivity : DetailActivity() {
 	private fun createTitle(date: Calendar, activity: String): String {
 		val hour = date[Calendar.HOUR_OF_DAY]
 		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(date.time).capitalize()
-		return if (hour < 6 || hour > 22) getString(R.string.stats_night, day, activity)
-		else if (hour < 12) getString(R.string.stats_morning, day, activity)
-		else if (hour < 17) getString(R.string.stats_afternoon, day, activity)
-		else getString(R.string.stats_evening, day, activity)
+		return if (hour < 6 || hour > 22) {
+			getString(R.string.stats_night, day, activity)
+		} else if (hour < 12) {
+			getString(R.string.stats_morning, day, activity)
+		} else if (hour < 17) {
+			getString(R.string.stats_afternoon, day, activity)
+		} else {
+			getString(R.string.stats_evening, day, activity)
+		}
 	}
 
 
