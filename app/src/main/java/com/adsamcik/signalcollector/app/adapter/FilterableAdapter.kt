@@ -80,7 +80,7 @@ abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.
 		mRawCollection.add(item)
 		if (filter(item, filterObject)) {
 			mDisplayCollection.add(item)
-			GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+			GlobalScope.launch(Dispatchers.Main) {
 				notifyDataSetChanged()
 			}
 		}
