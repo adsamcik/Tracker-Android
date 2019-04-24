@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.utility
 
 import com.adsamcik.signalcollector.misc.extension.contains
-import com.adsamcik.signalcollector.misc.extension.date
+import com.adsamcik.signalcollector.misc.extension.toDate
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +21,7 @@ class ExtensionTests {
 	@Test
 	fun roundToDateTest() {
 		val cal = Calendar.getInstance()
-		val calRound = cal.date()
+		val calRound = cal.toDate()
 
 		assertEquals(cal[Calendar.DAY_OF_MONTH], calRound[Calendar.DAY_OF_MONTH])
 		assertEquals(cal[Calendar.MONTH], calRound[Calendar.MONTH])
