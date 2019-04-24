@@ -34,7 +34,7 @@ class TrackerLockerTest {
 		testObserver
 				.awaitValue(500, TimeUnit.MILLISECONDS)
 				.assertValue(true)
-				.awaitNextValue(5, TimeUnit.SECONDS)
+				.awaitNextValue(10, TimeUnit.SECONDS)
 				.assertValue(false)
 	}
 
