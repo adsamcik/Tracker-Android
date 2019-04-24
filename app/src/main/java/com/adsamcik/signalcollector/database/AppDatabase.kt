@@ -45,6 +45,11 @@ abstract class AppDatabase : RoomDatabase() {
 			return instance_ ?: createInstance(context)
 		}
 
+		fun closeDatabase() {
+			instance_?.close()
+			instance_ = null
+		}
+
 		fun getTestDatabase(context: Context): AppDatabase {
 			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java).build()
 		}
