@@ -48,7 +48,7 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 			end = System.currentTimeMillis()
 
 			if (previousLocation != null &&
-					(location.time - previousLocation.time < max(Constants.SECOND_IN_MILLISECONDS * 20, minUpdateDelayInSeconds * 2 * Constants.SECOND_IN_MILLISECONDS) ||
+					(location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos < max(Constants.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Constants.SECOND_IN_NANOSECONDS) ||
 							distance <= minDistanceInMeters * 2f)) {
 				when (activity.groupedActivity) {
 					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance

@@ -8,6 +8,7 @@ import android.location.Location
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.SystemClock
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.misc.extension.LocationExtensions
@@ -20,7 +21,8 @@ class WifiTrackerComponent : DataTrackerComponent {
 	private lateinit var wifiManager: WifiManager
 	private var wifiReceiver: WifiReceiver = WifiReceiver()
 
-	private var wifiScanTime: Long = 0
+	private var wifiScanTime: Long = -1L
+	private var wifiScanTimeRelative: Long = -1L
 	private var wifiScanData: Array<ScanResult>? = null
 	private var wifiLastScanRequest: Long = 0
 	private var wifiScanRequested: Boolean = false
@@ -42,14 +44,15 @@ class WifiTrackerComponent : DataTrackerComponent {
 
 			wifiScanData = null
 			wifiScanTime = -1L
+			wifiScanTimeRelative = -1L
 		}
 		requestScan()
 	}
 
 	private fun requestScan() {
-		val now = System.currentTimeMillis()
+		val now = SystemClock.elapsedRealtime()
 		if (Build.VERSION.SDK_INT >= 28) {
-			if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 15 && (wifiScanTime == -1L || now - wifiScanTime > Constants.SECOND_IN_MILLISECONDS * 10)) {
+			if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 15 && (wifiScanTime == -1L || now - wifiScanTimeRelative > Constants.SECOND_IN_MILLISECONDS * 10)) {
 				@Suppress("deprecation")
 				wifiScanRequested = wifiManager.startScan()
 				wifiLastScanRequest = now
@@ -79,7 +82,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 		if (Build.VERSION.SDK_INT < 28) {
 			@Suppress("deprecation")
 			wifiScanRequested = wifiManager.startScan()
-			wifiLastScanRequest = System.currentTimeMillis()
+			wifiLastScanRequest = SystemClock.elapsedRealtime()
 		}
 
 		wifiReceiver = WifiReceiver().also {
@@ -96,6 +99,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 			synchronized(wifiScanTime) {
 				wifiScanRequested = false
 				wifiScanTime = System.currentTimeMillis()
+				wifiScanTimeRelative = SystemClock.elapsedRealtime()
 				val result = wifiManager.scanResults
 				wifiScanData = result.toTypedArray()
 			}

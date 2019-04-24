@@ -69,6 +69,12 @@ class TrackerService : LifecycleService() {
 			this.previousLocation = null
 			return
 		}
+		//location.time is bugged... basically they subtract timezone from UTC.
+		//I guess they get somewhere time in UTC and think it is timezone so they subtract timezone time
+		//Awesome right?
+		/*else if (location.time < dataComponentManager.session.start) {
+			return
+		}*/
 
 		wakeLock.acquire(Constants.MINUTE_IN_MILLISECONDS)
 
@@ -80,7 +86,7 @@ class TrackerService : LifecycleService() {
 			return
 		}
 
-		val collectionData = MutableCollectionData(location.time)
+		val collectionData = MutableCollectionData(System.currentTimeMillis())
 
 		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, collectionData)
 

@@ -6,7 +6,9 @@ package com.adsamcik.signalcollector.app
  */
 object Constants {
 	//Time constants
+	const val MILLISECONDS_IN_NANOSECONDS: Long = 1000000L
 	const val SECOND_IN_MILLISECONDS: Long = 1000L
+	const val SECOND_IN_NANOSECONDS: Long = SECOND_IN_MILLISECONDS * MILLISECONDS_IN_NANOSECONDS
 	const val MINUTE_IN_MILLISECONDS: Long = 60 * SECOND_IN_MILLISECONDS
 	const val HOUR_IN_MILLISECONDS: Long = 60 * MINUTE_IN_MILLISECONDS
 	const val DAY_IN_MILLISECONDS: Long = 24 * HOUR_IN_MILLISECONDS
