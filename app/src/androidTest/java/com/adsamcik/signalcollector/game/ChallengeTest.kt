@@ -7,10 +7,5 @@ import org.junit.Before
 
 
 class ChallengeTest {
-	private lateinit var cellDao: ChallengeDao
 
-	@Before
-	fun setup() {
-		cellDao = AppDatabase.getTestDatabase(ApplicationProvider.getApplicationContext<Context>()).challengeDao()
-	}
 }
