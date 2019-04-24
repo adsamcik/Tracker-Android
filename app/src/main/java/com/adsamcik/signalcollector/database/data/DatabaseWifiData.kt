@@ -20,5 +20,5 @@ data class DatabaseWifiData(
 		var frequency: Int = 0,
 		var level: Int = 0) {
 
-	constructor(location: Location, wifiData: WifiInfo) : this(wifiData.BSSID, location.longitude, location.latitude, location.altitude, location.time, location.time, wifiData.SSID, wifiData.capabilities, wifiData.frequency, wifiData.level)
+	constructor(location: Location, wifiData: WifiInfo) : this(wifiData.bssid, location.longitude, location.latitude, location.altitude, location.time, location.time, wifiData.ssid, wifiData.capabilities, wifiData.frequency, wifiData.level)
 }

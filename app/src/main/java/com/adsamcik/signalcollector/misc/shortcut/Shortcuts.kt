@@ -41,14 +41,14 @@ object Shortcuts {
 					R.string.shortcut_start_tracking,
 					R.string.shortcut_start_tracking_long,
 					R.drawable.ic_play_circle_filled_black_24dp,
-					Shortcuts.ShortcutType.START_COLLECTION))
+					Shortcuts.ShortcutAction.START_COLLECTION))
 		} else {
 			shortcuts.add(createShortcut(context,
 					TRACKING_ID,
 					R.string.shortcut_stop_tracking,
 					R.string.shortcut_stop_tracking_long,
 					R.drawable.ic_pause_circle_filled_black_24dp,
-					Shortcuts.ShortcutType.STOP_COLLECTION))
+					Shortcuts.ShortcutAction.STOP_COLLECTION))
 		}
 
 		shortcutManager.dynamicShortcuts = shortcuts
@@ -60,7 +60,7 @@ object Shortcuts {
 	                           @StringRes shortLabelRes: Int,
 	                           @StringRes longLabelRes: Int,
 	                           @DrawableRes iconResource: Int,
-	                           action: ShortcutType): ShortcutInfo {
+	                           action: ShortcutAction): ShortcutInfo {
 		with(context) {
 			val shortLabel = getString(shortLabelRes)
 			val longLabel = getString(longLabelRes)
@@ -82,14 +82,14 @@ object Shortcuts {
 	 * @param shortLabelRes Short label of the shortcut. The recommended maximum length is 10 characters. [ShortcutInfo.Builder.setShortLabel]
 	 * @param longLabelRes Long label of the shortcut. The recommend maximum length is 25 characters. [ShortcutInfo.Builder.setLongLabel]
 	 * @param iconResource Drawable resource id for the icon
-	 * @param shortcutType Shortcut type defined in [ShortcutType]. Action needs to be defined in [ShortcutActivity].
+	 * @param shortcutAction Shortcut type defined in [ShortcutAction]. Action needs to be defined in [ShortcutActivity].
 	 */
 	fun updateShortcut(context: Context,
 	                   id: String,
 	                   @StringRes shortLabelRes: Int,
 	                   @StringRes longLabelRes: Int,
 	                   @DrawableRes iconResource: Int,
-	                   shortcutType: ShortcutType) {
+	                   shortcutAction: ShortcutAction) {
 		initializeShortcuts(context)
 		val shortcutManager = context.shortcutManager
 		val shortcuts = shortcutManager.dynamicShortcuts
@@ -97,7 +97,7 @@ object Shortcuts {
 		val index = shortcuts.indexOfFirst { it.id == id }
 
 		if (index != -1)
-			shortcuts[index] = createShortcut(context, id, shortLabelRes, longLabelRes, iconResource, shortcutType)
+			shortcuts[index] = createShortcut(context, id, shortLabelRes, longLabelRes, iconResource, shortcutAction)
 
 		shortcutManager.updateShortcuts(shortcuts)
 	}
@@ -106,7 +106,7 @@ object Shortcuts {
 	/**
 	 * Supported shortcut types
 	 */
-	enum class ShortcutType {
+	enum class ShortcutAction {
 		START_COLLECTION,
 		STOP_COLLECTION
 	}

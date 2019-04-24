@@ -32,10 +32,8 @@ abstract class DetailActivity : AppCompatActivity() {
 		back_button.setOnClickListener { onBackPressed() }
 
 		val titleBarRoot = back_button.parent as View
-		if (titleBarLayer <= 0)
-			titleBarRoot.elevation = 0f
-		else
-			titleBarRoot.elevation = (titleBarLayer * 4.dpAsPx).toFloat()
+		if (titleBarLayer <= 0) titleBarRoot.elevation = 0f
+		else titleBarRoot.elevation = (titleBarLayer * 4.dpAsPx).toFloat()
 
 		colorManager = ColorSupervisor.createColorManager(this).also {
 			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))

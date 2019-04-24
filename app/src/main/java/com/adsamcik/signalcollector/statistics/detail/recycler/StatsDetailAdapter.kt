@@ -22,7 +22,7 @@ class StatsDetailAdapter : RecyclerView.Adapter<ViewHolder<StatisticDetailData>>
 	}
 
 	fun registerType(type: StatisticDetailType, creator: StatisticDetailViewHolderCreator) {
-		if (typeMap.containsKey(type.ordinal)) throw RuntimeException("Type $type already registered")
+		if (typeMap.containsKey(type.ordinal)) throw AlreadyRegisteredException("Type $type already registered")
 		typeMap[type.ordinal] = creator
 	}
 
@@ -32,4 +32,5 @@ class StatsDetailAdapter : RecyclerView.Adapter<ViewHolder<StatisticDetailData>>
 	}
 
 	class NotRegisteredException(message: String) : Exception(message)
+	class AlreadyRegisteredException(message: String) : Exception(message)
 }

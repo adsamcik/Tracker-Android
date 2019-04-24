@@ -4,7 +4,6 @@ import android.net.wifi.ScanResult
 import android.net.wifi.ScanResult.*
 import android.net.wifi.WifiManager
 import android.os.Build
-import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.squareup.moshi.JsonClass
 
@@ -17,14 +16,12 @@ data class WifiInfo(
 		/**
 		 * Unique wifi identification
 		 */
-		@ColumnInfo(name = "bssid")
-		var BSSID: String,
+		var bssid: String,
 
 		/**
 		 * Wifi name
 		 */
-		@ColumnInfo(name = "ssid")
-		var SSID: String,
+		var ssid: String,
 
 		/**
 		 * Capabilities of the network
@@ -78,8 +75,8 @@ data class WifiInfo(
 	constructor() : this("", "", "")
 
 	constructor(sr: ScanResult) : this() {
-		this.BSSID = sr.BSSID
-		this.SSID = sr.SSID
+		this.bssid = sr.BSSID
+		this.ssid = sr.SSID
 		this.capabilities = sr.capabilities
 		if (Build.VERSION.SDK_INT > 22) {
 			this.centerFreq0 = sr.centerFreq0

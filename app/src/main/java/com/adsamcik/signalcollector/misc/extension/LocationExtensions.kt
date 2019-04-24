@@ -23,10 +23,9 @@ object LocationExtensions {
 		if (timeFrom > timeTo)
 			throw IllegalArgumentException("Time from cannot be larger than time to")
 
-		if (estimateTime <= timeFrom)
-			return locationFrom
-		else if (estimateTime >= timeTo)
-			return locationTo
+		if (estimateTime <= timeFrom) return locationFrom
+		else if (estimateTime >= timeTo) return locationTo
+
 		val diff = (estimateTime - timeFrom).toDouble() / (timeTo - timeFrom).toDouble()
 		return interpolateLocation(locationFrom, locationTo, diff)
 	}
@@ -44,12 +43,11 @@ object LocationExtensions {
 		estimate.longitude = from.longitude + (to.longitude - from.longitude) * delta
 
 		if (from.hasAltitude()) {
-			if (to.hasAltitude())
-				estimate.altitude = from.altitude + (to.altitude - from.altitude) * delta
-			else
-				estimate.altitude = from.altitude
-		} else if (to.hasAltitude())
+			if (to.hasAltitude()) estimate.altitude = from.altitude + (to.altitude - from.altitude) * delta
+			else estimate.altitude = from.altitude
+		} else if (to.hasAltitude()) {
 			estimate.altitude = to.altitude
+		}
 
 		estimate.time = from.time + (to.time - from.time * delta).toLong()
 

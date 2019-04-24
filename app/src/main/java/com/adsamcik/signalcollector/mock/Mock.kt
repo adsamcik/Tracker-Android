@@ -16,7 +16,7 @@ val isTestMode: Boolean
 		return try {
 			Class.forName("com.adsamcik.signalcollector.app.activities.AppTest")
 			true
-		} catch (e: Exception) {
+		} catch (e: ClassNotFoundException) {
 			false
 		}
 	}

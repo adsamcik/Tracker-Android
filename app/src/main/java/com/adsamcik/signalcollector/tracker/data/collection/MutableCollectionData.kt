@@ -63,46 +63,88 @@ data class MutableCollectionData(
 	@Suppress("DEPRECATION")
 	fun addCell(telephonyManager: TelephonyManager) {
 //Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
-		@SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo
+		@SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo ?: return
 		val nOp = telephonyManager.networkOperator
 		if (nOp.isNotEmpty()) {
-			val mcc = java.lang.Short.parseShort(nOp.substring(0, 3))
-			val mnc = java.lang.Short.parseShort(nOp.substring(3))
+			val mcc = nOp.substring(0, 3)
+			val mnc = nOp.substring(3)
 
-			if (cellInfo != null) {
-				val registeredCells = ArrayList<CellInfo>(if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1)
-				for (ci in cellInfo) {
-					if (ci.isRegistered) {
-						var cd: CellInfo? = null
-						when (ci) {
-							is CellInfoLte -> cd =
-									if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-										CellInfo.newInstance(ci, telephonyManager.networkOperatorName)
-									else
-										CellInfo.newInstance(ci, null as String?)
-							is CellInfoGsm -> cd =
-									if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-										CellInfo.newInstance(ci, telephonyManager.networkOperatorName)
-									else
-										CellInfo.newInstance(ci, null as String?)
-							is CellInfoWcdma -> cd =
-									if (ci.cellIdentity.mnc == mnc.toInt() && ci.cellIdentity.mcc == mcc.toInt())
-										CellInfo.newInstance(ci, telephonyManager.networkOperatorName)
-									else
-										CellInfo.newInstance(ci, null as String?)
-							is CellInfoCdma -> /*if (cic.getCellIdentity().getMnc() == mnc && cic.getCellIdentity().getMcc() == mcc)
-                addCell(CellInfo.newInstance(cic, telephonyManager.getNetworkOperatorName()));
-                else*/
-								cd = CellInfo.newInstance(ci, null as String?)
-							else -> Crashlytics.logException(Throwable("UNKNOWN CELL TYPE"))
-						}
+			val registeredOperator = RegisteredOperator(mcc, mnc, telephonyManager.networkOperatorName)
 
-						if (cd != null)
-							registeredCells.add(cd)
+			val registeredCells = ArrayList<CellInfo>(if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1)
+
+			for (ci in cellInfo) {
+				if (ci.isRegistered) {
+					convertToCellInfo(ci, registeredOperator).let {
+						if (it != null) registeredCells.add(it)
 					}
 				}
+			}
 
-				this.cell = CellData(registeredCells.toTypedArray(), cellInfo.size)
+
+			this.cell = CellData(registeredCells.toTypedArray(), cellInfo.size)
+		}
+	}
+
+	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: RegisteredOperator): CellInfo? {
+		return when (cellInfo) {
+			is CellInfoLte ->
+				if (registeredOperator.sameNetwork(cellInfo))
+					CellInfo.newInstance(cellInfo, registeredOperator.name)
+				else
+					CellInfo.newInstance(cellInfo, null)
+			is CellInfoGsm ->
+				if (registeredOperator.sameNetwork(cellInfo))
+					CellInfo.newInstance(cellInfo, registeredOperator.name)
+				else
+					CellInfo.newInstance(cellInfo, null as String?)
+			is CellInfoWcdma ->
+				if (registeredOperator.sameNetwork(cellInfo))
+					CellInfo.newInstance(cellInfo, registeredOperator.name)
+				else
+					CellInfo.newInstance(cellInfo, null as String?)
+			is CellInfoCdma ->
+				if (registeredOperator.sameNetwork(cellInfo))
+					CellInfo.newInstance(cellInfo, registeredOperator.name)
+				else
+					CellInfo.newInstance(cellInfo, null as String?)
+			else -> {
+				Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
+				null
+			}
+		}
+	}
+
+	private data class RegisteredOperator(val mcc: String, val mnc: String, val name: String) {
+		fun sameNetwork(info: CellInfoLte): Boolean {
+			val identity = info.cellIdentity
+			return if (Build.VERSION.SDK_INT >= 28) identity.mncString == mnc && identity.mccString == mcc
+			else {
+				@Suppress("deprecation")
+				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
+			}
+		}
+
+		fun sameNetwork(info: CellInfoCdma): Boolean {
+			//todo add cdma network matching (can be done if only 1 cell is registered)
+			return false
+		}
+
+		fun sameNetwork(info: CellInfoGsm): Boolean {
+			val identity = info.cellIdentity
+			return if (Build.VERSION.SDK_INT >= 28) identity.mncString == mnc && identity.mccString == mcc
+			else {
+				@Suppress("deprecation")
+				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
+			}
+		}
+
+		fun sameNetwork(info: CellInfoWcdma): Boolean {
+			val identity = info.cellIdentity
+			return if (Build.VERSION.SDK_INT >= 28) identity.mncString == mnc && identity.mccString == mcc
+			else {
+				@Suppress("deprecation")
+				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
 			}
 		}
 	}

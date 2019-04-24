@@ -127,7 +127,7 @@ class TrackerService : LifecycleService() {
 					R.string.shortcut_stop_tracking,
 					R.string.shortcut_stop_tracking_long,
 					R.drawable.ic_pause_circle_filled_black_24dp,
-					Shortcuts.ShortcutType.STOP_COLLECTION)
+					Shortcuts.ShortcutAction.STOP_COLLECTION)
 		}
 
 		//Challenge cancel
@@ -209,7 +209,7 @@ class TrackerService : LifecycleService() {
 					R.string.shortcut_start_tracking,
 					R.string.shortcut_start_tracking_long,
 					R.drawable.ic_play_circle_filled_black_24dp,
-					Shortcuts.ShortcutType.START_COLLECTION)
+					Shortcuts.ShortcutAction.START_COLLECTION)
 		}
 
 		dataComponentManager.onDisable()
