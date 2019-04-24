@@ -6,7 +6,6 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.adsamcik.cardlist.CardItemDecoration
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.DetailActivity
@@ -15,11 +14,17 @@ import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
+import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticsDetailDecorator
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatsDetailAdapter
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.InformationViewHolderCreator
-import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationData
+import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHolderCreator
+import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationStatisticsData
+import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import kotlinx.android.synthetic.main.activity_stats_detail.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -57,21 +62,31 @@ class StatsDetailActivity : DetailActivity() {
 		val lengthSystem = Preferences.getLengthSystem(this)
 		recycler.adapter = StatsDetailAdapter().apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
+			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 
 			val data = mutableListOf(
-					InformationData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
-					InformationData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_steps, session.steps.formatReadable()),
-					InformationData(R.drawable.ic_baseline_commute_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
-					InformationData(R.drawable.ic_directions_car_white_24dp, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
+					InformationStatisticsData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
+					InformationStatisticsData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_steps, session.steps.formatReadable()),
+					InformationStatisticsData(R.drawable.ic_baseline_commute_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
+					InformationStatisticsData(R.drawable.ic_directions_car_white_24dp, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
 			addData(data)
 			//todo add Wi-Fi and Cell
 			//todo add map
+
+			GlobalScope.launch {
+				val database = AppDatabase.getDatabase(this@StatsDetailActivity)
+				val locations = database.locationDao().getAllBetween(session.start, session.end)
+				if (locations.isNotEmpty()) {
+					val dataList = listOf(MapStatisticsData(locations))
+					GlobalScope.launch(Dispatchers.Main) { addData(dataList) }
+				}
+			}
 		}
 
 		colorManager.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
 
-		recycler.addItemDecoration(CardItemDecoration())
+		recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 8.dpAsPx))
 		recycler.layoutManager = LinearLayoutManager(this)
 
 		val startDate = Date(session.start)

@@ -4,6 +4,6 @@ import androidx.annotation.DrawableRes
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 
-class InformationData(@DrawableRes val iconRes: Int, val titleRes: Int, val value: String) : StatisticDetailData {
+class InformationStatisticsData(@DrawableRes val iconRes: Int, val titleRes: Int, val value: String) : StatisticDetailData {
 	override val type: StatisticDetailType = StatisticDetailType.Information
 }
