@@ -1,8 +1,9 @@
 package com.adsamcik.signalcollector.export
 
+import android.content.Context
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import java.io.File
 
 interface IExport {
-	fun export(locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult
+	fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult
 }

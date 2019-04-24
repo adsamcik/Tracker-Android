@@ -194,6 +194,10 @@
     <string name="settings_export_kml_key" translatable="false">kmlExport</string>
     <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
 
+    <string name="settings_export_sqlite_title">Raw database file</string>
+    <string name="settings_export_sqlite_key" translatable="false">sqliteExport</string>
+    <string name="settings_export_sqlite_summary">Export raw SQLite3 database file</string>
+
     <string name="settings_export_dialog_from">From</string>
     <string name="settings_export_dialog_to">To</string>
 

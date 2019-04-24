@@ -177,6 +177,12 @@
                 android:key="@string/settings_export_kml_key"
                 android:summary="@string/settings_export_kml_summary"
                 android:title="@string/settings_export_kml_title"/>
+
+            <androidx.preference.Preference
+                android:key="@string/settings_export_sqlite_key"
+                android:summary="@string/settings_export_sqlite_summary"
+                android:title="@string/settings_export_sqlite_title"
+                />
         </androidx.preference.PreferenceScreen>
 
         <androidx.preference.PreferenceCategory>

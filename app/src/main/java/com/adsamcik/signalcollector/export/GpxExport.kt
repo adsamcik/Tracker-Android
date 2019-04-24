@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.export
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
@@ -12,7 +13,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class GpxExport : IExport {
-	override fun export(locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
+	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.gpx")
 		serialize(targetFile, locationData)
 

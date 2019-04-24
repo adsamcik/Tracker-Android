@@ -114,8 +114,9 @@ class ExportActivity : DetailActivity() {
 					return@launch
 				}
 
+				//todo add support for custom file name
 				val exportFile = "FileName"
-				val result = exporter.export(locations, sharableDir, exportFile)
+				val result = exporter.export(this@ExportActivity, locations, sharableDir, exportFile)
 
 				if (result.isSuccessful) {
 					val fileUri = FileProvider.getUriForFile(

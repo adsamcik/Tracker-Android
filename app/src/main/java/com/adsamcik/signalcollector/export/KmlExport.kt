@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.export
 
 import android.annotation.SuppressLint
+import android.content.Context
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.tracker.data.collection.Location
 import java.io.File
@@ -10,7 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class KmlExport : IExport {
-	override fun export(locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
+	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.kml")
 		serialize(targetFile, locationData)
 

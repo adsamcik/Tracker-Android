@@ -22,6 +22,7 @@ import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity
+import com.adsamcik.signalcollector.export.DatabaseExport
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
 import com.adsamcik.signalcollector.export.activity.ExportActivity
@@ -40,6 +41,7 @@ import java.util.*
  * Settings Activity contains local settings and hosts debugging features
  * It is based upon Android's [Preference].
  */
+//todo Consider putting UI in code
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
 	lateinit var fragment: FragmentSettings
 
@@ -138,6 +140,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		setOnClickListener(R.string.settings_export_kml_key) {
 			startActivity<ExportActivity> {
 				putExtra(ExportActivity.EXPORTER_KEY, KmlExport::class.java)
+			}
+		}
+
+		setOnClickListener(R.string.settings_export_sqlite_key) {
+			startActivity<ExportActivity> {
+				putExtra(ExportActivity.EXPORTER_KEY, DatabaseExport::class.java)
 			}
 		}
 	}
