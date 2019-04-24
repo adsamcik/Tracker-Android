@@ -30,7 +30,7 @@ object TrackerLocker {
 
 	//Locking order is in the order of variable definitions
 
-	private var lockedUntil: Long = 0
+	private var lockedUntilTime: Long = 0
 	private var lockedUntilRecharge = false
 
 	/**
@@ -44,7 +44,7 @@ object TrackerLocker {
 	/**
 	 * Returns true if time lock is active
 	 */
-	val isTimeLocked: Boolean get() = System.currentTimeMillis() < lockedUntil
+	val isTimeLocked: Boolean get() = System.currentTimeMillis() < lockedUntilTime
 
 	/**
 	 * Returns true if tracking is locked until recharge
@@ -86,7 +86,7 @@ object TrackerLocker {
 				setLong(R.string.settings_disabled_time_key, time)
 			}
 
-			lockedUntil = time
+			lockedUntilTime = time
 
 			refreshLockState(context)
 		}
@@ -137,12 +137,13 @@ object TrackerLocker {
 	 * Cannot be locked for less than a second
 	 */
 	fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
-		if (lockTimeInMillis < Constants.SECOND_IN_MILLISECONDS || lockTimeInMillis <= this.lockedUntil)
+		val lockUntilTime = System.currentTimeMillis() + lockTimeInMillis
+		if (lockTimeInMillis < Constants.SECOND_IN_MILLISECONDS || lockUntilTime <= this.lockedUntilTime)
 			return
 
-		setTimeLock(context, System.currentTimeMillis() + lockTimeInMillis)
+		setTimeLock(context, lockUntilTime)
 		context.alarmManager.set(AlarmManager.RTC_WAKEUP,
-				lockedUntil, getTimeUnlockBroadcastIntent(context))
+				lockUntilTime, getTimeUnlockBroadcastIntent(context))
 	}
 
 	/**
