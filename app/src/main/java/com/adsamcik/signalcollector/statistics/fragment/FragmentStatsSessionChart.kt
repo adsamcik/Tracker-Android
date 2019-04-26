@@ -11,10 +11,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProviders
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.color.ColorManager
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.misc.extension.observe
 import com.adsamcik.signalcollector.statistics.data.ChartStat
@@ -23,8 +21,6 @@ import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 
 
 class FragmentStatsSessionChart : AppCompatDialogFragment() {
