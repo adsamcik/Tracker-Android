@@ -14,9 +14,7 @@ import kotlinx.android.synthetic.main.spinner_item.view.*
  * Implementation of the [BaseFilterableAdapter] using a MapLayer and CoordinateBounds
  */
 class MapFilterableAdapter(context: Context, @LayoutRes resource: Int, stringMethod: (MapLayer) -> String) : SimpleFilterableAdapter<MapLayer, CoordinateBounds>(context, resource, stringMethod) {
-	override fun getTitleView(root: View): AppCompatTextView {
-		return root.text_view
-	}
+	override fun getTitleView(root: View): AppCompatTextView = root.text_view
 
 	override fun filter(item: MapLayer, filterObject: CoordinateBounds?): Boolean {
 		return if (filterObject != null && item.name != "wifi")
