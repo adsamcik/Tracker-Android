@@ -23,26 +23,24 @@ data class CoordinateBounds(private var topBound: Double = MapLayer.MIN_LATITUDE
 		if (collection.isEmpty()) return
 		val first = collection.first()
 		//todo improve this
-		if (first.latitude > topBound)
-			topBound = first.latitude
-		if (first.latitude < bottomBound)
-			bottomBound = first.latitude
+		if (first.latitude > topBound) topBound = first.latitude
+		if (first.latitude < bottomBound) bottomBound = first.latitude
 
-		if (first.longitude > rightBound)
-			rightBound = first.longitude
-		if (first.longitude < leftBound)
-			leftBound = first.longitude
+		if (first.longitude > rightBound) rightBound = first.longitude
+		if (first.longitude < leftBound) leftBound = first.longitude
 
 		collection.forEach {
-			if (it.latitude > topBound)
+			if (it.latitude > topBound) {
 				topBound = it.latitude
-			else if (it.latitude < bottomBound)
+			} else if (it.latitude < bottomBound) {
 				bottomBound = it.latitude
+			}
 
-			if (it.longitude > rightBound)
+			if (it.longitude > rightBound) {
 				rightBound = it.longitude
-			else if (it.longitude < leftBound)
+			} else if (it.longitude < leftBound) {
 				leftBound = it.longitude
+			}
 		}
 	}
 
