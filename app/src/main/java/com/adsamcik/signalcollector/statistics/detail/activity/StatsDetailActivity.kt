@@ -17,7 +17,6 @@ import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
-import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticsDetailDecorator
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatsDetailAdapter
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.InformationViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHolderCreator
@@ -76,9 +75,9 @@ class StatsDetailActivity : DetailActivity() {
 
 			val data = mutableListOf(
 					InformationStatisticsData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
-					InformationStatisticsData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_steps, session.steps.formatReadable()),
-					InformationStatisticsData(R.drawable.ic_baseline_commute_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
-					InformationStatisticsData(R.drawable.ic_directions_car_white_24dp, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
+					InformationStatisticsData(R.drawable.shoe_print, R.string.stats_steps, session.steps.formatReadable()),
+					InformationStatisticsData(R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
+					InformationStatisticsData(R.drawable.ic_baseline_commute_24px, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
 			addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 			//todo add Wi-Fi and Cell
