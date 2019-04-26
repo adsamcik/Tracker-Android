@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.app.activity
 
+import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.Button
@@ -34,6 +35,22 @@ class LicenseActivity : DetailActivity() {
 					.setNotices(notice)
 					.build()
 					.show()
+		}
+
+		val materialCommunityIconTitle = "Material Design Community Icons"
+		addButton(parent, materialCommunityIconTitle).setOnClickListener {
+			val notice = Notice(materialCommunityIconTitle, "http://materialdesignicons.com/", "Copyright (c) 2014, Austin Andrews", object : License() {
+				override fun getUrl(): String = "https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
+
+				override fun getName(): String = "SIL OPEN FONT LICENSE Version 1.1"
+
+				override fun readSummaryTextFromResources(context: Context?): String = getContent(context, R.raw.material_community_icon_license)
+
+				override fun getVersion(): String = "1.1"
+				override fun readFullTextFromResources(context: Context?): String = getContent(context, R.raw.material_community_icon_license)
+
+			})
+			LicensesDialog.Builder(this).setNotices(notice).build().show()
 		}
 
 		val isMeta = resources.openRawResource(R.raw.third_party_license_metadata)
