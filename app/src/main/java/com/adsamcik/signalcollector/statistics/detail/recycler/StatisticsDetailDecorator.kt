@@ -10,9 +10,6 @@ class StatisticsDetailDecorator(private val verticalMargin: Int = 16.dpAsPx, pri
 	                            parent: RecyclerView, state: RecyclerView.State) {
 
 		with(outRect) {
-			if (parent.getChildAdapterPosition(view) == 0) {
-				top = verticalMargin
-			}
 			left = horizontalMargin
 			right = horizontalMargin
 			bottom = verticalMargin

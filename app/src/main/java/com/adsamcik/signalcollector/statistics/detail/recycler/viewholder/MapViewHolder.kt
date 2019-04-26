@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 
-import android.view.View
 import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -9,7 +8,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.PolylineOptions
 
-class MapViewHolder(view: View, val map: MapView) : ViewHolder<MapStatisticsData>(view) {
+class MapViewHolder(val map: MapView) : ViewHolder<MapStatisticsData>(map) {
 	override fun bind(value: MapStatisticsData) {
 		map.onCreate(null)
 		map.getMapAsync {

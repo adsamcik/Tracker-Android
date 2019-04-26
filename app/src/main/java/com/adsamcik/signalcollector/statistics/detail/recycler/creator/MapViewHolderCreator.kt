@@ -9,6 +9,7 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.viewholder.MapVie
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.MapsInitializer
 
 class MapViewHolderCreator : StatisticDetailViewHolderCreator {
 	override fun createViewHolder(parent: ViewGroup): ViewHolder<StatisticDetailData> {
@@ -27,7 +28,7 @@ class MapViewHolderCreator : StatisticDetailViewHolderCreator {
 			isClickable = false
 		}
 		@Suppress("unchecked_cast")
-		return MapViewHolder(mapView, mapView) as ViewHolder<StatisticDetailData>
+		return MapViewHolder(mapView) as ViewHolder<StatisticDetailData>
 	}
 
 }

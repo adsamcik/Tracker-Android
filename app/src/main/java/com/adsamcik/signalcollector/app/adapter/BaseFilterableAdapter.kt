@@ -1,12 +1,7 @@
 package com.adsamcik.signalcollector.app.adapter
 
 
-import android.content.Context
 import android.os.Looper
-import android.view.LayoutInflater
-import android.view.ViewGroup
-import android.widget.TextView
-import androidx.annotation.LayoutRes
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -16,58 +11,36 @@ import kotlinx.coroutines.launch
 /**
  * Abstract class that contains basic implementation to allow filtering.
  */
-abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.ViewHolder> {
+abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : RecyclerView.ViewHolder>
+(stringMethod: (DataType) -> String,
+ initialCollection: MutableList<DataType>) : RecyclerView.Adapter<ViewHolder>() {
 
 	/**
 	 * Collection contains raw elements before filtering
 	 */
-	private var mRawCollection: MutableList<T>
+	private var mRawCollection: MutableList<DataType> = initialCollection
 
 	/**
-	 * Collection contains elements that will FilterableAdapter primarily display
+	 * Collection contains elements that will BaseFilterableAdapter primarily display
 	 */
-	private var mDisplayCollection: ArrayList<T> = ArrayList(0)
+	private var mDisplayCollection: ArrayList<DataType> = ArrayList(0)
 
 	/**
 	 * Used to convert objects to titles
 	 */
-	protected var mStringify: (T) -> String
+	protected var mStringify: (DataType) -> String = stringMethod
 
-	protected var filterObject: F? = null
-
-	private val mInflater: LayoutInflater
+	protected var filterObject: FilterType? = null
 
 	var onItemClickListener: ((position: Int) -> Unit)? = null
-
-	@LayoutRes
-	private val res: Int
 
 	val filteredCount: Int
 		get() = mDisplayCollection.size
 
 
-	constructor(context: Context, @LayoutRes resource: Int, stringMethod: (T) -> String) {
-		mRawCollection = ArrayList()
-
+	init {
 		if (Looper.myLooper() == null)
 			Looper.prepare()
-
-		this.mStringify = stringMethod
-
-		mInflater = LayoutInflater.from(context)
-		res = resource
-	}
-
-	constructor(context: Context, @LayoutRes resource: Int, stringMethod: (T) -> String, initialCollection: MutableList<T>) {
-		mRawCollection = initialCollection
-
-		if (Looper.myLooper() == null)
-			Looper.prepare()
-
-		this.mStringify = stringMethod
-
-		mInflater = LayoutInflater.from(context)
-		res = resource
 	}
 
 	/**
@@ -76,7 +49,7 @@ abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.
 	 * @param item     object that will be added to adapter
 	 */
 	@Synchronized
-	fun add(item: T) {
+	fun add(item: DataType) {
 		mRawCollection.add(item)
 		if (filter(item, filterObject)) {
 			mDisplayCollection.add(item)
@@ -92,7 +65,7 @@ abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.
 	 * @param items Collection of items
 	 */
 	@Synchronized
-	fun addAll(items: Collection<T>) {
+	fun addAll(items: Collection<DataType>) {
 		var anyPassed = false
 		mRawCollection.addAll(items)
 		for (item in items) {
@@ -130,22 +103,10 @@ abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.
 		return mStringify.invoke(mDisplayCollection[position])
 	}
 
-	fun getItem(position: Int): T = mRawCollection[position]
+	fun getItem(position: Int): DataType = mRawCollection[position]
 
 	override fun getItemId(position: Int): Long {
 		return position.toLong()
-	}
-
-	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-		val view = mInflater.inflate(res, parent, false)
-		val viewHolder = ViewHolder(view as TextView)
-
-		view.setOnClickListener { onItemClickListener?.invoke(viewHolder.adapterPosition) }
-		return viewHolder
-	}
-
-	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-		holder.text.text = getItemName(position)
 	}
 
 	/**
@@ -155,7 +116,7 @@ abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.
 	 *
 	 * @param filterObject Object used for filtering
 	 */
-	fun filter(filterObject: F?) {
+	fun filter(filterObject: FilterType?) {
 		this.filterObject = filterObject
 		mDisplayCollection = ArrayList(mRawCollection.size)
 		mRawCollection
@@ -171,7 +132,5 @@ abstract class FilterableAdapter<T, F> : RecyclerView.Adapter<FilterableAdapter.
 	 * @param filterObject Object used for filtering
 	 * @return True if object should be included
 	 */
-	protected abstract fun filter(item: T, filterObject: F?): Boolean
-
-	data class ViewHolder(val text: TextView) : RecyclerView.ViewHolder(text)
+	protected abstract fun filter(item: DataType, filterObject: FilterType?): Boolean
 }

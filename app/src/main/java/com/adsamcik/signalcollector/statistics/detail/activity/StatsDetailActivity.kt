@@ -6,6 +6,8 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.adsamcik.recycler.AppendPriority
+import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.app.activity.DetailActivity
@@ -13,6 +15,7 @@ import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.misc.extension.*
 import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticsDetailDecorator
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatsDetailAdapter
@@ -21,6 +24,7 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHo
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationStatisticsData
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.google.android.gms.maps.MapsInitializer
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -34,6 +38,8 @@ class StatsDetailActivity : DetailActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		titleBarLayer = 0
 		super.onCreate(savedInstanceState)
+
+		MapsInitializer.initialize(this)
 
 		inflateContent(R.layout.activity_stats_detail)
 
@@ -60,6 +66,10 @@ class StatsDetailActivity : DetailActivity() {
 	private fun initializeSessionData(session: TrackerSession) {
 		val resources = resources
 		val lengthSystem = Preferences.getLengthSystem(this)
+
+		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
+		recycler.layoutManager = LinearLayoutManager(this)
+
 		recycler.adapter = StatsDetailAdapter().apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
@@ -70,24 +80,22 @@ class StatsDetailActivity : DetailActivity() {
 					InformationStatisticsData(R.drawable.ic_baseline_commute_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
 					InformationStatisticsData(R.drawable.ic_directions_car_white_24dp, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
-			addData(data)
+			addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 			//todo add Wi-Fi and Cell
-			//todo add map
 
 			GlobalScope.launch {
 				val database = AppDatabase.getDatabase(this@StatsDetailActivity)
 				val locations = database.locationDao().getAllBetween(session.start, session.end)
 				if (locations.isNotEmpty()) {
-					val dataList = listOf(MapStatisticsData(locations))
-					GlobalScope.launch(Dispatchers.Main) { addData(dataList) }
+					val sortableData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority.Start)
+					GlobalScope.launch(Dispatchers.Main) {
+						add(sortableData)
+					}
 				}
 			}
 		}
 
 		colorManager.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
-
-		recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 8.dpAsPx))
-		recycler.layoutManager = LinearLayoutManager(this)
 
 		val startDate = Date(session.start)
 		val endDate = Date(session.end)

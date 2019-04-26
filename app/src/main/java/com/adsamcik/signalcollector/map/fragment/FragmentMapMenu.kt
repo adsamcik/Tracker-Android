@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.map.CoordinateBounds
 import com.adsamcik.signalcollector.map.MapLayer
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
+import com.adsamcik.signalcollector.misc.extension.getNonNullContext
 import com.adsamcik.signalcollector.mock.useMock
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
@@ -26,7 +27,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
 	override fun onStart() {
 		super.onStart()
-		val adapter = MapFilterableAdapter(context!!, R.layout.spinner_item) { it.name }
+		val adapter = MapFilterableAdapter(getNonNullContext(), R.layout.spinner_item) { it.name }
 
 		if (useMock) {
 			adapter.addAll(arrayListOf(MapLayer("WiFi"),

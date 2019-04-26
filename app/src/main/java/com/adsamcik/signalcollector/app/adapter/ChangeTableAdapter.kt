@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.app.adapter
 
 import android.view.View
 import androidx.annotation.StyleRes
-import com.adsamcik.cardlist.CardListAdapter
-import com.adsamcik.cardlist.table.TableCard
-import com.adsamcik.cardlist.table.TableCardCreator
+import com.adsamcik.recycler.card.CardListAdapter
+import com.adsamcik.recycler.card.table.TableCard
+import com.adsamcik.recycler.card.table.TableCardCreator
 
 /**
  * ChangeTableAdapter was created to extend TableAdapter with IViewChange interface for proper color updating

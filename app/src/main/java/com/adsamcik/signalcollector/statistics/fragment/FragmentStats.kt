@@ -7,10 +7,10 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.adsamcik.cardlist.AppendBehaviour
-import com.adsamcik.cardlist.CardItemDecoration
-import com.adsamcik.cardlist.table.TableCard
 import com.adsamcik.draggable.IOnDemandView
+import com.adsamcik.recycler.AppendPriority
+import com.adsamcik.recycler.card.CardItemDecoration
+import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.adapter.ChangeTableAdapter
 import com.adsamcik.signalcollector.app.color.ColorManager
@@ -134,8 +134,8 @@ class FragmentStats : Fragment(), IOnDemandView {
 			))
 
 
-			handleResponse(summaryStats, AppendBehaviour.First)
-			handleResponse(weeklyStats, AppendBehaviour.First)
+			handleResponse(summaryStats, AppendPriority.Start)
+			handleResponse(weeklyStats, AppendPriority.Start)
 
 			val startOfTheDay = Calendar.getInstance().apply { roundToDate() }
 
@@ -156,7 +156,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 				))
 			}.let {
 				it.forEach { statData ->
-					handleResponse(statData, AppendBehaviour.Any)
+					handleResponse(statData, AppendPriority.Any)
 				}
 			}
 
@@ -167,22 +167,21 @@ class FragmentStats : Fragment(), IOnDemandView {
 		//}
 	}
 
-	private fun handleResponse(value: TableStat, appendBehavior: AppendBehaviour) {
+	private fun handleResponse(value: TableStat, appendPriority: AppendPriority) {
 		GlobalScope.launch(Dispatchers.Main) {
-			addStatsTable(value, appendBehavior)
-			adapter.sort()
+			addStatsTable(value, appendPriority)
 		}
 	}
 
-	private fun handleResponse(list: List<TableStat>, appendBehavior: AppendBehaviour) {
+	private fun handleResponse(list: List<TableStat>, appendPriority: AppendPriority) {
 		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-			list.forEach { addStatsTable(it, appendBehavior) }
-			adapter.sort()
+			//todo add in batch to less events are called
+			list.forEach { addStatsTable(it, appendPriority) }
 		}
 	}
 
 	private fun addSessionData(session: TrackerSession) {
-		val table = TableCard(false, AppendBehaviour.Any, 10)
+		val table = TableCard(false, 10)
 		table.title = "${session.start.formatAsShortDateTime()} - ${session.end.formatAsShortDateTime()}"
 
 		val resources = resources
@@ -196,7 +195,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		table.addButton(resources.getString(R.string.stats_details), View.OnClickListener { startActivity<StatsDetailActivity> { putExtra(StatsDetailActivity.ARG_SESSION_ID, session.id) } })
 
-		GlobalScope.launch(Dispatchers.Main) { adapter.add(table) }
+		GlobalScope.launch(Dispatchers.Main) { adapter.add(table, AppendPriority.Any) }
 	}
 
 	private fun generateStatData(index: Int): List<StatData> {
@@ -212,15 +211,15 @@ class FragmentStats : Fragment(), IOnDemandView {
 	 *
 	 * @param stats stats
 	 */
-	private fun addStatsTable(stats: TableStat, appendBehavior: AppendBehaviour): TableCard {
-		val table = TableCard(stats.showPosition, appendBehavior)
+	private fun addStatsTable(stats: TableStat, appendPriority: AppendPriority): TableStat {
+		val table = TableCard(stats.showPosition)
 		table.title = stats.name
 		stats.data.indices
 				.asSequence()
 				.map { stats.data[it] }
 				.forEach { table.addData(it.id, it.value) }
-		GlobalScope.launch(Dispatchers.Main) { adapter.add(table) }
-		return table
+		GlobalScope.launch(Dispatchers.Main) { adapter.add(table, appendPriority) }
+		return stats
 	}
 
 
