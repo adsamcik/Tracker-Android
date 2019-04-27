@@ -25,6 +25,7 @@ import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Assist.navbarSize
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.color.ColorManager
+import com.adsamcik.signalcollector.app.color.ColorMap
 import com.adsamcik.signalcollector.app.color.ColorSupervisor
 import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
@@ -45,9 +46,7 @@ import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.android.synthetic.main.fragment_map.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -77,8 +76,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var colorManager: ColorManager? = null
 
 	private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
-
-	private val isMapLight = AtomicBoolean()
 
 	private var dateRange: ClosedRange<Calendar>? = null
 
@@ -114,12 +111,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			locationListener?.unsubscribeFromLocationUpdates(activity)
 		}
 
-		val keyboardManager = keyboardManager
-		if (keyboardManager != null) {
-			keyboardManager.hideKeyboard()
-			keyboardManager.removeKeyboardListener(keyboardListener)
-			keyboardInitialized.set(false)
+		keyboardManager?.run {
+			hideKeyboard()
+			removeKeyboardListener(keyboardListener)
 		}
+		keyboardInitialized.set(false)
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -183,11 +179,14 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	override fun onDestroyView() {
 		super.onDestroyView()
 		mapFragment = null
+		map?.let { ColorMap.removeListener(it) }
+		map = null
 
 		val colorManager = colorManager
 		if (colorManager != null) {
 			ColorSupervisor.recycleColorManager(colorManager)
 		}
+
 	}
 
 	/**
@@ -246,10 +245,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					?: throw NullPointerException("KeyboardManager should never be null when keyboardInitialized is true")
 			keyboardManager.onDisplaySizeChanged()
 		} else {
-			var keyboardManager = keyboardManager
-			if (keyboardManager == null) {
+			val keyboardManager = keyboardManager ?: KeyboardManager(view!!.rootView).also {
 				searchOriginalMargin = (map_ui_parent.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams).bottomMargin
-				keyboardManager = KeyboardManager(view!!.rootView)
+				keyboardManager = it
 			}
 
 			keyboardManager.addKeyboardListener(keyboardListener)
@@ -371,23 +369,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		this.map = map
 
-		colorManager!!.addListener { luminance, _, _ ->
-			//-32
-			if (luminance >= 0) {
-				if (isMapLight.get())
-					return@addListener
-
-				isMapLight.set(true)
-
-				GlobalScope.launch(Dispatchers.Main) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style)) }
-			} else {
-				if (!isMapLight.get())
-					return@addListener
-
-				isMapLight.set(false)
-				GlobalScope.launch(Dispatchers.Main) { map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark)) }
-			}
-		}
+		ColorMap.addListener(context, map)
 
 		//does not work well with bearing. Known bug in Google maps api since 2014.
 		//Unfortunately had to be implemented anyway under new UI because Google requires Google logo to be visible at all times.

@@ -19,4 +19,6 @@ interface StatisticDetailData {
 
 abstract class ViewHolder<T : StatisticDetailData>(rootView: View) : RecyclerView.ViewHolder(rootView) {
 	abstract fun bind(value: T)
+
+	open fun onRecycle() {}
 }

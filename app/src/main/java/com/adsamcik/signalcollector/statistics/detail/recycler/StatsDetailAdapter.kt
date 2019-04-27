@@ -23,6 +23,11 @@ class StatsDetailAdapter : SortableAdapter<StatisticDetailData, ViewHolder<Stati
 		typeMap[type.ordinal] = creator
 	}
 
+	override fun onViewRecycled(holder: ViewHolder<StatisticDetailData>) {
+		super.onViewRecycled(holder)
+		holder.onRecycle()
+	}
+
 	class NotRegisteredException(message: String) : Exception(message)
 	class AlreadyRegisteredException(message: String) : Exception(message)
 }
