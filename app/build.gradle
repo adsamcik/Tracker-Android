@@ -139,12 +139,12 @@ dependencies {
 
     //Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1"
     implementation 'androidx.core:core-ktx:1.1.0-alpha05'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0-alpha03', {
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0-alpha04', {
         exclude group: 'com.android.support', module: 'support-annotations'
     }
-    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.2.0-alpha03', {
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.2.0-alpha04', {
         exclude group: 'com.android.support', module: 'support-annotations'
         exclude group: 'com.android.support', module: 'support-v4'
         exclude group: 'com.android.support', module: 'design'
