@@ -77,7 +77,9 @@ class DataComponentManager(context: Context) {
 
 	private inline fun <reified T> removeInstance() where T : DataTrackerComponent {
 		val index = dataComponentList.indexOfFirst { it::class == T::class }
-		dataComponentList[index].onDisable(appContext)
-		dataComponentList.removeAt(index)
+		if (index >= 0) {
+			dataComponentList[index].onDisable(appContext)
+			dataComponentList.removeAt(index)
+		}
 	}
 }
