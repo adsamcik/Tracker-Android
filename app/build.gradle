@@ -93,6 +93,11 @@ dependencies {
     implementation 'com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2'
     implementation 'com.github.PhilJay:MPAndroidChart:3.1.0'
 
+    //GPX
+    implementation 'stax:stax-api:1.0.1'
+    implementation 'com.fasterxml:aalto-xml:1.1.1'
+    implementation 'io.jenetics:jpx:1.4.0'
+
     //Google dependencies
     implementation 'com.google.android:flexbox:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.0.0-alpha5'

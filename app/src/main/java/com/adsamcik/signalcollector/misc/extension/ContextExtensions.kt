@@ -22,6 +22,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 
+
 /**
  * Starts new activity for result
  *
@@ -190,3 +191,10 @@ inline val Context.notificationManager: NotificationManager get() = getSystemSer
  * Shortcut to get [LayoutInflater]. This property does not cache the service.
  */
 inline val Context.layoutInflater: LayoutInflater get() = getSystemServiceTyped(Context.LAYOUT_INFLATER_SERVICE)
+
+val Context.applicationName: String
+	get() {
+		val applicationInfo = applicationInfo
+		val stringId = applicationInfo.labelRes
+		return if (stringId == 0) applicationInfo.nonLocalizedLabel.toString() else getString(stringId)
+	}

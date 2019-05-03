@@ -17,4 +17,6 @@ data class DatabaseLocation(@Embedded val location: Location, @Embedded val acti
 	val longitude: Double get() = location.longitude
 
 	val altitude: Double? get() = location.altitude
+
+	val time: Long get() = location.time
 }
