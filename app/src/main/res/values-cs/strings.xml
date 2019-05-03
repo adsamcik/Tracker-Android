@@ -90,7 +90,7 @@
     <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
     <string name="error_play_services_not_available">knihovna Play Services není dostupná</string>
 
-    <string name="export_share_button">Sdílet (Export)</string>
+    <string name="share_button">Sdílet (Export)</string>
 
     <string name="feet_abbr">%s ft</string>
 

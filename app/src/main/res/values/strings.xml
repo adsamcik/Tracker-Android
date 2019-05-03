@@ -47,8 +47,11 @@
     <string name="collections_title">Collections</string>
     <string name="locations_new_title">New locations</string>
 
-    <string name="export_share_button">Share (Export)</string>
+    <string name="share_button">Share</string>
+    <string name="export_button">Export</string>
     <string name="export_gpx_description">Export of location data tracked using Signals between %1$s - %2$s</string>
+    <string name="export_file_name">File name</string>
+    <string name="export_default_file_name">SignalsExportData</string>
 
     <string name="challenge_list_title">Challenges</string>
 

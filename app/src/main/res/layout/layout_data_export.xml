@@ -3,16 +3,33 @@
                                                    xmlns:app="http://schemas.android.com/apk/res-auto"
                                                    android:layout_width="match_parent"
                                                    android:layout_height="match_parent"
-                                                   android:orientation="vertical">
+                                                   android:orientation="vertical"
+                                                   android:padding="@dimen/edge_margin">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/imageview_filename"
+        android:layout_width="48dp"
+        android:layout_height="0dp"
+        android:scaleType="center"
+        app:layout_constraintBottom_toBottomOf="@id/edittext_filename"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/edittext_filename"
+        app:srcCompat="@drawable/ic_outline_name"/>
+
+    <androidx.appcompat.widget.AppCompatEditText
+        android:id="@+id/edittext_filename"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="@string/export_file_name"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/imageview_filename"
+        app:layout_constraintTop_toTopOf="parent"/>
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/imageview_from_date"
         android:layout_width="48dp"
         android:layout_height="0dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
         android:scaleType="centerInside"
-
         app:layout_constraintBottom_toBottomOf="@id/edittext_date_range_to"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="@id/edittext_date_range_from"
@@ -32,7 +49,7 @@
         android:inputType="datetime"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/imageview_from_date"
-        app:layout_constraintTop_toTopOf="parent"/>
+        app:layout_constraintTop_toBottomOf="@id/edittext_filename"/>
 
 
     <androidx.appcompat.widget.AppCompatEditText
@@ -56,10 +73,23 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:layout_marginEnd="8dp"
-        android:text="@string/export_share_button"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:text="@string/export_button"
+        app:layout_constraintEnd_toStartOf="@+id/button_share"
+        app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/edittext_date_range_to"/>
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/button_share"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/share_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/button_export"
         app:layout_constraintTop_toBottomOf="@+id/edittext_date_range_to"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

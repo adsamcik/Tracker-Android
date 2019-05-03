@@ -14,7 +14,6 @@ class GpxExport : IExport {
 	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.gpx")
 		serialize(context, targetFile, locationData)
-
 		return ExportResult(targetFile, "application/gpx+xml")
 	}
 

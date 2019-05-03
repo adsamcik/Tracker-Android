@@ -92,7 +92,8 @@ dependencies {
     implementation 'com.luckycatlabs:SunriseSunsetCalculator:1.2'
     implementation 'com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2'
     implementation 'com.github.PhilJay:MPAndroidChart:3.1.0'
-    implementation 'com.github.codekidX:storage-chooser:2.0.4.4'
+    //Looks nice doesn't work, check later
+    //implementation 'com.github.codekidX:storage-chooser:2.0.4.4'
 
     //GPX
     implementation 'stax:stax-api:1.0.1'
