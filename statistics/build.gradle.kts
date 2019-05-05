@@ -1,7 +1,6 @@
 plugins {
     id("com.android.dynamic-feature")
-    kotlin("android.extensions")
-    kotlin("android")
+    Libraries.corePlugins(this)
 }
 
 
@@ -19,12 +18,9 @@ android {
 }
 
 dependencies {
-    implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
+    Libraries.core(this)
 
-    implementation(fileTree("libs").include("*.jar"))
-    implementation(project(":app"))
-    implementation("androidx.core:core-ktx:1.1.0-alpha05")
-    implementation(Libraries.kotlinStdLib)
+    implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 
     implementation(fileTree("libs").include("*.jar"))
     implementation(project(":app"))

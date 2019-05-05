@@ -1,3 +1,5 @@
+import java.net.URL
+import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -5,9 +7,7 @@ plugins {
 	id("org.jetbrains.dokka-android")
 	id("com.google.gms.oss.licenses.plugin")
 	id("io.fabric")
-	kotlin("android")
-	kotlin("android.extensions")
-	kotlin("kapt")
+	Libraries.corePlugins(this)
 }
 
 
@@ -40,22 +40,20 @@ android {
 
 	buildTypes {
 		getByName("debug") {
-			//testCoverageEnabled = true
+			isTestCoverageEnabled = true
 		}
-		//getByName("release_nominify") {
-		//minifyEnabled = false
-		//}
+
+		create("release_nominify") {
+			isMinifyEnabled = false
+		}
 		getByName("release") {
-			//minifyEnabled = true
+			isMinifyEnabled = true
 			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
 		}
 	}
-	/*lintOptions {
-		checkReleaseBuilds = false
-	}*/
-	/*sourceSets {
-		androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
-	}*/
+
+	lintOptions.isCheckReleaseBuilds = false
+	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
 	packagingOptions {
 		pickFirst("META-INF/atomicfu.kotlin_module")
@@ -66,7 +64,7 @@ android {
 
 }
 
-/*tasks.withType<DokkaTask>  {
+tasks.withType<DokkaTask> {
 	outputFormat = "html"
 	outputDirectory = "$buildDir/javadoc"
 	jdkVersion = 8
@@ -74,13 +72,14 @@ android {
 	skipDeprecated = true
 
 	externalDocumentationLink {
-		url = new URL ("https://developer.android.com/reference/")
-		packageListUrl = new URL ("https://developer.android.com/reference/android/support/package-list")
+		url = URL("https://developer.android.com/reference/")
+		packageListUrl = URL("https://developer.android.com/reference/android/support/package-list")
 	}
-}*/
+}
 
 //gradlew dependencyUpdates -Drevision=release
 dependencies {
+	Libraries.core(this)
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
 	implementation("com.adsamcik.android-components:recycler:0.4.0")
@@ -88,9 +87,7 @@ dependencies {
 	implementation("com.adsamcik.android-forks:spotlight:2.0.7")
 
 	//3rd party dependencies
-	val moshi_version = "1.8.0"
-	implementation("com.squareup.moshi:moshi:$moshi_version")
-	kapt("com.squareup.moshi:moshi-kotlin-codegen:$moshi_version")
+	Libraries.moshi(this)
 
 	implementation("com.jaredrummler:colorpicker:1.1.0")
 
@@ -107,18 +104,10 @@ dependencies {
 
 	//Google dependencies
 	implementation("com.google.android:flexbox:1.1.0")
-	implementation(Libraries.constraintLayout)
-
-
-	implementation("com.google.android.material:material:1.1.0-alpha05")
 
 	//AndroidX
-	implementation("androidx.fragment:fragment:1.1.0-alpha07")
-	implementation("androidx.appcompat:appcompat:1.1.0-alpha04")
-	implementation("androidx.core:core:1.1.0-alpha05")
 	implementation("androidx.cardview:cardview:1.0.0")
 	implementation("androidx.preference:preference:1.1.0-alpha04")
-	implementation("androidx.lifecycle:lifecycle-extensions:2.1.0-alpha04")
 
 	//PlayServices
 	implementation("com.google.android.gms:play-services-location:16.0.0")
@@ -127,15 +116,8 @@ dependencies {
 
 
 	//Room
-	implementation(Libraries.roomRuntime)
-	kapt(Libraries.roomCompiler)
-	implementation(Libraries.roomKtx)
+	Libraries.database(this)
 
-	// Test helpers
-	androidTestImplementation(Libraries.Test.room)
-
-	//Annotation processors
-	kapt("androidx.lifecycle:lifecycle-compiler:2.1.0-alpha04")
 
 	//Test implementations
 	androidTestImplementation("androidx.test:runner:1.2.0-alpha05")
@@ -145,10 +127,7 @@ dependencies {
 	androidTestImplementation("androidx.arch.core:core-testing:2.0.1")
 	androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
 
-	//Kotlin
-	implementation(Libraries.kotlinStdLib)
-	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1")
-	implementation(Libraries.ktxCore)
+	//Kotlin )
 	androidTestImplementation("androidx.test.espresso:espresso-core:3.2.0-alpha04") {
 		exclude("com.android.support", "support-annotations")
 	}
