@@ -10,7 +10,7 @@ import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Tips.showTips
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.preference.Preferences
 import com.takusemba.spotlight.OnTargetStateChangedListener
 import com.takusemba.spotlight.SimpleTarget

@@ -4,8 +4,8 @@ import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.misc.extension.startActivity
-import com.adsamcik.signalcollector.misc.shortcut.Shortcuts
+import com.adsamcik.signalcollector.common.misc.extension.startActivity
+import com.adsamcik.signalcollector.common.misc.shortcut.Shortcuts
 import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 

@@ -10,11 +10,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.DrawableRes
-import androidx.core.view.setMargins
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 
 /**
  * Custom implementation of Preference that allows use of ImageButtons to switch between different states

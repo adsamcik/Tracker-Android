@@ -18,8 +18,8 @@ import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
-import com.adsamcik.signalcollector.misc.SnackMaker
-import com.adsamcik.signalcollector.misc.extension.cloneCalendar
+import com.adsamcik.signalcollector.common.misc.SnackMaker
+import com.adsamcik.signalcollector.common.misc.extension.cloneCalendar
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER

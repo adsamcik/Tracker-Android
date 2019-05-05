@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.app.widget.behavior
 import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 
 /**
  * Custom behavior that allows specific view to be modified instead of direct child of coordinator layout

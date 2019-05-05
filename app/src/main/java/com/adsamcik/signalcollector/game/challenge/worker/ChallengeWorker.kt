@@ -7,7 +7,7 @@ import androidx.work.WorkerParameters
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
-import com.adsamcik.signalcollector.misc.extension.notificationManager
+import com.adsamcik.signalcollector.common.misc.extension.notificationManager
 
 class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
 	override fun doWork(): Result {

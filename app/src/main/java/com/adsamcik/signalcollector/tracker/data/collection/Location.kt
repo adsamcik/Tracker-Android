@@ -4,8 +4,8 @@ import android.os.Build
 import androidx.room.ColumnInfo
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.misc.extension.deg2rad
-import com.adsamcik.signalcollector.misc.extension.round
+import com.adsamcik.signalcollector.common.misc.extension.deg2rad
+import com.adsamcik.signalcollector.common.misc.extension.round
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlin.math.sqrt

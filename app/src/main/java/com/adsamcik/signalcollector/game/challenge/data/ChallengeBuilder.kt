@@ -4,9 +4,9 @@ import android.content.Context
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.misc.Probability
-import com.adsamcik.signalcollector.misc.extension.normalize
-import com.adsamcik.signalcollector.misc.extension.rescale
+import com.adsamcik.signalcollector.common.misc.Probability
+import com.adsamcik.signalcollector.common.misc.extension.normalize
+import com.adsamcik.signalcollector.common.misc.extension.rescale
 
 abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private val definition: ChallengeDefinition<ChallengeType>) {
 	protected var difficultyMultiplier: Double = 1.0

@@ -10,7 +10,6 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
 import androidx.preference.*
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
@@ -18,7 +17,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
+import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity
@@ -26,8 +25,8 @@ import com.adsamcik.signalcollector.export.DatabaseExport
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
 import com.adsamcik.signalcollector.export.activity.ExportActivity
-import com.adsamcik.signalcollector.misc.SnackMaker
-import com.adsamcik.signalcollector.misc.extension.*
+import com.adsamcik.signalcollector.common.misc.SnackMaker
+import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.notification.Notifications
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings

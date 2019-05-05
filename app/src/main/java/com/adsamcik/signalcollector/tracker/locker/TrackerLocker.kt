@@ -11,9 +11,9 @@ import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.misc.extension.alarmManager
-import com.adsamcik.signalcollector.misc.extension.stopService
+import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
+import com.adsamcik.signalcollector.common.misc.extension.alarmManager
+import com.adsamcik.signalcollector.common.misc.extension.stopService
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService

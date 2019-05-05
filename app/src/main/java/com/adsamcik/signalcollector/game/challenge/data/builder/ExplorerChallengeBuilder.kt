@@ -7,8 +7,8 @@ import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallenge
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.misc.extension.additiveInverse
-import com.adsamcik.signalcollector.misc.extension.rescale
+import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
+import com.adsamcik.signalcollector.common.misc.extension.rescale
 
 class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) : ChallengeBuilder<ExplorerChallengeInstance>(definition) {
 	private var requiredLocationCount: Int = 0

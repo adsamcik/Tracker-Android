@@ -15,10 +15,10 @@ import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.misc.extension.connectivityManager
-import com.adsamcik.signalcollector.misc.extension.locationManager
-import com.adsamcik.signalcollector.misc.extension.windowManager
-import com.adsamcik.signalcollector.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.common.misc.extension.connectivityManager
+import com.adsamcik.signalcollector.common.misc.extension.locationManager
+import com.adsamcik.signalcollector.common.misc.extension.windowManager
+import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability

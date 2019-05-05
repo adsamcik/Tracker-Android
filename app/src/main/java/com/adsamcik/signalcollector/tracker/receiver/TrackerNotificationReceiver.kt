@@ -7,7 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.FirebaseAssist
+import com.adsamcik.signalcollector.common.misc.FirebaseAssist
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.firebase.analytics.FirebaseAnalytics

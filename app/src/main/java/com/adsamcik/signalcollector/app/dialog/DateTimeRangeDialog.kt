@@ -11,10 +11,10 @@ import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.view.setPadding
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.color.ColorManager
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.app.color.ColorView
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.ColorSupervisor
+import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.appeaser.sublimepickerlibrary.SublimePicker
 import com.appeaser.sublimepickerlibrary.datepicker.SelectedDate
 import com.appeaser.sublimepickerlibrary.helpers.SublimeListenerAdapter

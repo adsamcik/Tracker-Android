@@ -7,8 +7,8 @@ import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChall
 import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.misc.extension.additiveInverse
-import com.adsamcik.signalcollector.misc.extension.rescale
+import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
+import com.adsamcik.signalcollector.common.misc.extension.rescale
 
 class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) : ChallengeBuilder<WalkDistanceChallengeInstance>(definition) {
 

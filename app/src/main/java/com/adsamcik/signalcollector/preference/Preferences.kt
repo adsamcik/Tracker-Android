@@ -10,7 +10,7 @@ import androidx.annotation.StringRes
 import androidx.core.content.res.ResourcesCompat
 import androidx.preference.PreferenceManager
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.misc.LengthSystem
+import com.adsamcik.signalcollector.common.misc.LengthSystem
 import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
 
 

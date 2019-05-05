@@ -8,7 +8,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.app.activity.DetailActivity
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 /**

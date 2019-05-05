@@ -63,7 +63,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".misc.shortcut.ShortcutActivity"
+            android:name="com.adsamcik.signalcollector.common.misc.shortcut.ShortcutActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
         </activity>
