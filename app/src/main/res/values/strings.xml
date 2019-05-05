@@ -105,4 +105,7 @@
     <string name="info_accuracy">%s accuracy</string>
     <string name="info_session_collections">%d collections</string>
     <string name="info_session_distance">%s distance</string>
+    <string name="title_statistics">Statistics</string>
+    <string name="title_game">Game</string>
+    <string name="title_map">Map</string>
 </resources>
