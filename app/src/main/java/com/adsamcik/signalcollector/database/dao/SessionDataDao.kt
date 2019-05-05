@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.database.dao
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.signalcollector.statistics.data.TrackerSessionSummary
-import com.adsamcik.signalcollector.statistics.data.TrackerSessionTimeSummary
+import com.adsamcik.signalcollector.database.data.TrackerSessionSummary
+import com.adsamcik.signalcollector.database.data.TrackerSessionTimeSummary
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 
 @Dao

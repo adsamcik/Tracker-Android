@@ -13,9 +13,6 @@ import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Constants
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
-import com.adsamcik.signalcollector.common.misc.extension.powerManager
-import com.adsamcik.signalcollector.common.misc.extension.startForegroundService
-import com.adsamcik.signalcollector.common.misc.extension.stopService
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService

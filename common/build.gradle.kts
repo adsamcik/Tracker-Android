@@ -14,6 +14,19 @@ android {
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
+
+	buildTypes {
+		getByName("debug") {
+			isTestCoverageEnabled = true
+		}
+
+		create("release_nominify") {
+			isMinifyEnabled = false
+		}
+		getByName("release") {
+			isMinifyEnabled = true
+		}
+	}
 }
 
 dependencies {
@@ -23,7 +36,4 @@ dependencies {
 	testImplementation("junit:junit:4.12")
 	androidTestImplementation("androidx.test:runner:1.1.1")
 	androidTestImplementation("androidx.test.espresso:espresso-core:3.1.1")
-}
-repositories {
-	mavenCentral()
 }

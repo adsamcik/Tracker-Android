@@ -14,11 +14,10 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.app.adapter.IViewChange
 import com.adsamcik.signalcollector.common.color.ColorSupervisor.backgroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorSupervisor.foregroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorSupervisor.layerColor
-import com.adsamcik.signalcollector.misc.extension.contains
+import com.adsamcik.signalcollector.common.misc.extension.contains
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope

@@ -8,12 +8,12 @@ import android.widget.ProgressBar
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.adapter.IViewChange
+import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.common.misc.extension.formatAsDuration
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
 
-class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
+class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), com.adsamcik.signalcollector.common.color.IViewChange {
 
 	class ViewHolder(itemView: View,
 	                 val titleTextView: AppCompatTextView,

@@ -1,6 +1,6 @@
-import java.net.URL
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.net.URL
 
 plugins {
 	id("com.android.application")
@@ -79,6 +79,8 @@ tasks.withType<DokkaTask> {
 
 //gradlew dependencyUpdates -Drevision=release
 dependencies {
+	implementation(project(":common"))
+
 	Libraries.core(this)
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
@@ -112,11 +114,14 @@ dependencies {
 	//PlayServices
 	implementation("com.google.android.gms:play-services-location:16.0.0")
 	implementation("com.google.firebase:firebase-core:16.0.8")
-	implementation("com.crashlytics.sdk.android:crashlytics:2.9.9")
+	implementation("com.crashlytics.sdk.android:crashlytics:2.10.0")
+
+	implementation("com.google.android.play:core:1.5.0")
 
 
 	//Room
 	Libraries.database(this)
+	Libraries.work(this)
 
 
 	//Test implementations

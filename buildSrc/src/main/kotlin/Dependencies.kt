@@ -17,7 +17,7 @@ object Libraries {
 		const val kotlin = "1.3.31"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
-		const val work = "2.0.1"
+		const val work = "2.1.0-alpha01"
 		const val lifecycle = "2.1.0-alpha04"
 	}
 

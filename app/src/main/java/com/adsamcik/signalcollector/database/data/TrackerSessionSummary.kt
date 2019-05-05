@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.statistics.data
+package com.adsamcik.signalcollector.database.data
 
 import androidx.room.ColumnInfo
 
