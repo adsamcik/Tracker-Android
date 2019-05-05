@@ -11,8 +11,8 @@ buildscript {
 		classpath("com.google.gms:oss-licenses:0.9.2")
 		classpath("io.fabric.tools:gradle:1.28.1")
 
-		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Kotlin.dokkaVersion}")
-		classpath(kotlin("gradle-plugin", Kotlin.version))
+		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Libraries.Versions.dokka}")
+		classpath(kotlin("gradle-plugin", Libraries.Versions.kotlin))
 	}
 }
 
@@ -33,6 +33,7 @@ allprojects {
 			options.compilerArgs = listOf("-Xlint:unchecked", "-Xlint:deprecation")
 		}
 	}
+
 }
 
 tasks.register("clean", Delete::class) {
