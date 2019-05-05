@@ -81,4 +81,10 @@ object Libraries {
 			implementation("com.google.android.gms:play-services-maps:16.1.0")
 		}
 	}
+
+	fun draggable(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.adsamcik.android-components:draggable:0.14.1")
+		}
+	}
 }

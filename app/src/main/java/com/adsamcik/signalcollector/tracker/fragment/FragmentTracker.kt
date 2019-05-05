@@ -19,15 +19,15 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.app.widget.InfoComponent
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.app.widget.InfoComponent
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.*
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.mock.useMock
-import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
 import com.adsamcik.signalcollector.tracker.data.collection.*
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession

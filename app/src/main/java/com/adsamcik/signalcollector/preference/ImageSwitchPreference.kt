@@ -10,6 +10,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.DrawableRes
+import androidx.core.view.setMargins
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
@@ -32,18 +33,22 @@ class ImageSwitchPreference : Preference {
 
 	private var mSelected: Int = -1
 
+	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
 		initAttributes(context, attrs!!)
 	}
 
+	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
 		initAttributes(context, attrs!!)
 	}
 
+	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
 		initAttributes(context, attrs!!)
 	}
 
+	@Suppress("unused")
 	constructor(context: Context) : super(context)
 
 	private fun initAttributes(context: Context, attrs: AttributeSet) {

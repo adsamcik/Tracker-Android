@@ -20,7 +20,9 @@ android {
 dependencies {
     Libraries.core(this)
     Libraries.work(this)
+    Libraries.draggable(this)
 
     implementation(fileTree("libs").include("*.jar"))
     implementation(project(":app"))
+    implementation(project(":common"))
 }

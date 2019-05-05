@@ -85,7 +85,7 @@ dependencies {
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
 	implementation("com.adsamcik.android-components:recycler:0.4.0")
-	implementation("com.adsamcik.android-components:draggable:0.14.1")
+	Libraries.draggable(this)
 	implementation("com.adsamcik.android-forks:spotlight:2.0.7")
 
 	//3rd party dependencies

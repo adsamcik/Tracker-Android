@@ -18,12 +18,10 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Constants
-import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
-import com.adsamcik.signalcollector.game.challenge.worker.ChallengeWorker
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.shortcut.Shortcuts
-import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.post.PostTrackerComponent
@@ -137,7 +135,7 @@ class TrackerService : LifecycleService() {
 		}
 
 		//Challenge cancel
-		WorkManager.getInstance().cancelAllWorkByTag("ChallengeQueue")
+		//WorkManager.getInstance(this).cancelAllWorkByTag("ChallengeQueue")
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -224,11 +222,13 @@ class TrackerService : LifecycleService() {
 
 		//Challenges
 
+		//todo add hook to listen on tracker changes
+		/*
 		GlobalScope.launch {
 			ChallengeDatabase.getDatabase(this@TrackerService).sessionDao.insert(dataComponentManager.session)
 		}
 
-		val workManager = WorkManager.getInstance()
+		val workManager = WorkManager.getInstance(this)
 
 		if (Preferences.getPref(this).getBooleanRes(R.string.settings_game_challenge_enable_key, R.string.settings_game_challenge_enable_default)) {
 			val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
@@ -239,7 +239,7 @@ class TrackerService : LifecycleService() {
 							.build()
 					).build()
 			workManager.enqueue(workRequest)
-		}
+		}*/
 	}
 
 

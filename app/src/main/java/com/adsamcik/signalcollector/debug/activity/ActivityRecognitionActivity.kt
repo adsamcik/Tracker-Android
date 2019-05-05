@@ -7,12 +7,12 @@ import android.widget.Button
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.adapter.StringFilterableAdapter
+import com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.DebugDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseDebugActivity
-import com.adsamcik.signalcollector.preference.Preferences
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
