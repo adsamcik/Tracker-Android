@@ -18,6 +18,8 @@ android {
 }
 
 dependencies {
+    implementation 'com.github.PhilJay:MPAndroidChart:3.1.0'
+
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':app')
 }
