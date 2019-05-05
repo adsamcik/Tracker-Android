@@ -94,7 +94,6 @@ dependencies {
 	implementation("com.jaredrummler:colorpicker:1.1.0")
 
 	implementation("de.psdev.licensesdialog:licensesdialog:2.0.0")
-	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
 	implementation("com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2")
 	//Looks nice doesn"t work, check later
 	//implementation "com.github.codekidX:storage-chooser:2.0.4.4"
@@ -142,6 +141,10 @@ dependencies {
 		exclude("com.android.support", "design")
 		exclude("com.android.support", "recyclerview-v7")
 	}
+
+	//workaround  Multiple APKs packaging the same library can cause runtime errors.
+	implementation(project(":commonmap"))
+	Libraries.map(this)
 }
 apply {
 	plugin("com.google.gms.google-services")

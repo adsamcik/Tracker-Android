@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.misc.shortcut
+package com.adsamcik.signalcollector.shortcut
 
 import android.content.Context
 import android.content.Intent

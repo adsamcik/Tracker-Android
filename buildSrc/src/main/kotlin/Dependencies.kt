@@ -52,6 +52,7 @@ object Libraries {
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1")
 			implementation("androidx.fragment:fragment:1.1.0-alpha07")
 			implementation("com.google.android.material:material:1.1.0-alpha05")
+			implementation("com.google.android.gms:play-services-base:16.1.0")
 
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
 
@@ -72,6 +73,12 @@ object Libraries {
 		with(dependencyHandler) {
 			implementation("androidx.work:work-runtime-ktx:${Versions.work}")
 			androidTestImplementation("androidx.work:work-testing:${Versions.work}")
+		}
+	}
+
+	fun map(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.google.android.gms:play-services-maps:16.1.0")
 		}
 	}
 }

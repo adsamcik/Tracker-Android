@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.common.color
 
-import com.adsamcik.signalcollector.misc.extension.roundToDate
+import com.adsamcik.signalcollector.common.misc.extension.roundToDate
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
 import java.util.*

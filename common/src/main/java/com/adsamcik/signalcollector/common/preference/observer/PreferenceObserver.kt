@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.preference.observer
+package com.adsamcik.signalcollector.common.preference.observer
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -6,7 +6,7 @@ import androidx.annotation.IntegerRes
 import androidx.annotation.StringRes
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.preference.Preferences
 
 @Suppress("WeakerAccess", "UNUSED")
 object PreferenceObserver {

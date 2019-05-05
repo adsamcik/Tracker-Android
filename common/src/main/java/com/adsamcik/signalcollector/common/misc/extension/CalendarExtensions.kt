@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.common.misc.extension
 
 import android.os.Build
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import java.util.*
 
 fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calendar {

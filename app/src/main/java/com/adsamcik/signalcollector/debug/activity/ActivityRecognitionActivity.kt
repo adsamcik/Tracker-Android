@@ -7,7 +7,7 @@ import android.widget.Button
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.app.Constants.DAY_IN_MILLISECONDS
+import com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.adapter.StringFilterableAdapter
 import com.adsamcik.signalcollector.database.DebugDatabase

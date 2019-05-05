@@ -10,7 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.GroupedActivity
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager
 import com.adsamcik.signalcollector.preference.Preferences

@@ -1,3 +1,14 @@
 <resources>
-    <string name="app_name">Common</string>
+    <string name="day_short">%d d</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
+
+    <!-- Strings as parameters for better readability -->
+    <string name="meter_abbr">%s m</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="passus">%s pace</string>
+    <string name="millepassus">%s roman mile</string>
 </resources>

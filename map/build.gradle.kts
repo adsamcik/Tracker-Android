@@ -19,9 +19,8 @@ android {
 }
 
 dependencies {
+	implementation(project(":commonmap"))
 	Libraries.core(this)
-
-	implementation("com.google.android.gms:play-services-maps:16.1.0")
 
 	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.app
+package com.adsamcik.signalcollector.common
 
 /**
  * Singleton containing many useful constant values used across the application

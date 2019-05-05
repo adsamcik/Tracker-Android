@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.activity.ActivityRequestInfo
 import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker

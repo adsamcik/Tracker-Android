@@ -4,7 +4,10 @@ import android.location.Location
 import kotlin.math.pow
 
 object LocationExtensions {
-	const val ESTIMATE_LOCATION_PROVIDER: String = "Estimate"
+	const val EARTH_CIRCUMFERENCE: Int = 40075000
+	const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE
+
+	private const val ESTIMATE_LOCATION_PROVIDER: String = "Estimate"
 
 	/// <summary>
 /// Tries to approximate location in time between 2 known locations.
@@ -68,7 +71,7 @@ object LocationExtensions {
 	}
 
 	fun countPixelSize(latitude: Double, zoom: Int): Double {
-		return com.adsamcik.signalcollector.tracker.data.collection.Location.EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
+		return EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
 	}
 }
 

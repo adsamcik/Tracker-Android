@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.misc.extension
+package com.adsamcik.signalcollector.preference
 
 import androidx.annotation.StringRes
 import androidx.preference.Preference

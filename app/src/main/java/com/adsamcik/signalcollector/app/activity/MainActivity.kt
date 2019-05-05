@@ -15,13 +15,13 @@ import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.app.widget.behavior.BottomBarBehavior
-import com.adsamcik.signalcollector.game.fragment.FragmentGame
+import com.adsamcik.signalcollector.game.challenge.fragment.FragmentGame
 import com.adsamcik.signalcollector.map.fragment.FragmentMap
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.common.misc.extension.marginBottom
@@ -127,7 +127,7 @@ class MainActivity : AppCompatActivity() {
 				showBottomLayer()
 		}
 
-		val activityPayload = DraggablePayload(this, FragmentGame::class.java, root, root)
+		val activityPayload = DraggablePayload(this, com.adsamcik.signalcollector.game.challenge.fragment.FragmentGame::class.java, root, root)
 		activityPayload.width = MATCH_PARENT
 		activityPayload.height = MATCH_PARENT
 		activityPayload.initialTranslation = Point(size.x, 0)

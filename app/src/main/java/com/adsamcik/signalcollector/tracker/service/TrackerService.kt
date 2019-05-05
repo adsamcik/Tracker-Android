@@ -17,12 +17,12 @@ import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.worker.ChallengeWorker
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.common.misc.shortcut.Shortcuts
+import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent

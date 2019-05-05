@@ -1,1 +1,1 @@
-include(":app", ":statistics", ":game", ":map", ":common")
+include(":app", ":statistics", ":game", ":map", ":common", ":commonmap")

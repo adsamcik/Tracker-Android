@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.game.fragment
+package com.adsamcik.signalcollector.game.challenge.fragment
 
 import android.os.Bundle
 import android.view.LayoutInflater

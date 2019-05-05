@@ -11,11 +11,11 @@ import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.activity.GroupedActivity
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
+import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession

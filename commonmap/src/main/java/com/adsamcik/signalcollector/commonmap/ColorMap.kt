@@ -1,9 +1,10 @@
-package com.adsamcik.signalcollector.common.color
+package com.adsamcik.signalcollector.commonmap
 
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
-import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers

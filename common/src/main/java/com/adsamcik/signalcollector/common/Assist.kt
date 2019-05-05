@@ -4,8 +4,6 @@ import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
-import android.content.res.Resources
 import android.graphics.Point
 import android.location.LocationManager
 import android.os.Build
@@ -13,13 +11,11 @@ import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.misc.extension.connectivityManager
+import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.misc.extension.locationManager
 import com.adsamcik.signalcollector.common.misc.extension.windowManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.util.*
@@ -135,16 +131,6 @@ object Assist {
 	}
 
 	/**
-	 * Checks if device is connecting or is connected to network
-	 *
-	 * @return true if connected or connecting
-	 */
-	fun hasNetwork(context: Context): Boolean {
-		val activeNetwork = context.connectivityManager.activeNetworkInfo
-		return activeNetwork != null && activeNetwork.isConnected
-	}
-
-	/**
 	 * Returns whether satellite position is allowed
 	 * GNSS is universal term for global navigation satellite system
 	 *
@@ -209,13 +195,4 @@ object Assist {
 	fun verticalSmoothScrollTo(viewGroup: ViewGroup, y: Int, millis: Int) {
 		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.scrollY, y).setDuration(millis.toLong()).start()
 	}
-
-	/**
-	 * Returns array of color state lists in this order: Default, Selected
-	 *
-	 * @param resources resources
-	 * @return array of color states
-	 */
-	fun getSelectionStateLists(resources: Resources, theme: Resources.Theme): Array<ColorStateList> =
-			arrayOf(ResourcesCompat.getColorStateList(resources, R.color.default_value, theme)!!.withAlpha(resources.getInteger(R.integer.inactive_alpha)), ResourcesCompat.getColorStateList(resources, R.color.selected_value, theme)!!)
 }

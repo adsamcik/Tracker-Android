@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.tracker
 import android.content.Context
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import org.junit.Assert
 import org.junit.Rule

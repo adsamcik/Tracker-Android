@@ -18,6 +18,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":commonmap"))
     Libraries.core(this)
 
     implementation("com.github.PhilJay:MPAndroidChart:3.1.0")

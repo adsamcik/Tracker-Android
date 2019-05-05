@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.database.AppDatabase
@@ -116,7 +116,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		val timePattern = "hh:mm"
 
-		return if ((startDate.time / Constants.DAY_IN_MILLISECONDS) == (endDate.time / Constants.DAY_IN_MILLISECONDS)) {
+		return if ((startDate.time / com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS) == (endDate.time / com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS)) {
 			val dateFormat = SimpleDateFormat("d MMMM", Locale.getDefault())
 			val timeFormat = SimpleDateFormat(timePattern, Locale.getDefault())
 			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"

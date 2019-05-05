@@ -31,6 +31,9 @@ android {
 
 dependencies {
 	Libraries.core(this)
+
+	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
+
 	implementation(fileTree("libs").setIncludes(listOf("*.jar")))
 
 	testImplementation("junit:junit:4.12")

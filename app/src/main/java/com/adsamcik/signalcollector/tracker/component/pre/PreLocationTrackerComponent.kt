@@ -4,7 +4,7 @@ import android.content.Context
 import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.preference.observer.PreferenceObserver
+import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.google.android.gms.location.LocationResult
 
 class PreLocationTrackerComponent : PreTrackerComponent {

@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.common.misc.extension
 
 import android.content.Context
 import android.content.res.Resources
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Constants
+import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.misc.LengthSystem
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat

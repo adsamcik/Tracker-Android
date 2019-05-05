@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.tracker.data.collection
 import android.os.Build
 import androidx.room.ColumnInfo
 import com.adsamcik.signalcollector.activity.ActivityInfo
+import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions.EARTH_CIRCUMFERENCE
+import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions.METER_DEGREE_LATITUDE
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.misc.extension.deg2rad
 import com.adsamcik.signalcollector.common.misc.extension.round
@@ -97,9 +99,6 @@ data class Location(
 	}
 
 	companion object {
-		const val EARTH_CIRCUMFERENCE: Int = 40075000
-		const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE
-
 		fun distance(firstLatitude: Double,
 		             firstLongitude: Double,
 		             secondLatitude: Double,

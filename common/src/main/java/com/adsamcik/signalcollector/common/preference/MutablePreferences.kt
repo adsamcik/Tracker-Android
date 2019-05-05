@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.preference
+package com.adsamcik.signalcollector.common.preference
 
 import android.content.Context
 import android.content.SharedPreferences

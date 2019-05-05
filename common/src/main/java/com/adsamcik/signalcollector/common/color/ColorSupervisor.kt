@@ -6,13 +6,12 @@ import android.location.Location
 import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.signalcollector.BuildConfig
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.extension.toTimeSinceMidnight
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.BuildConfig
+import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.R
+import com.adsamcik.signalcollector.common.misc.extension.toTimeSinceMidnight
+import com.adsamcik.signalcollector.common.preference.Preferences
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -100,8 +99,8 @@ object ColorSupervisor {
 	 */
 	fun createColorManager(context: Context): ColorManager {
 		if (darkTextColor == 0) {
-			darkTextColor = ContextCompat.getColor(context, R.color.text_primary)
-			lightTextColor = ContextCompat.getColor(context, R.color.text_primary_dark)
+			darkTextColor = Color.argb(222, 0, 0, 0)
+			lightTextColor = Color.argb(222, 255, 255, 255)
 		}
 
 		val colorManager = ColorManager()
