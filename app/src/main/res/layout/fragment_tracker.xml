@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<androidx.appcompat.widget.LinearLayoutCompat
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:animateLayoutChanges="true">
+    android:animateLayoutChanges="true"
+    android:orientation="vertical">
 
     <LinearLayout
         android:id="@+id/top_panel"
@@ -62,10 +63,10 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bar_info_top"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/edge_margin"
-        android:layout_marginTop="90dp"
+        android:layout_marginTop="@dimen/edge_margin"
         android:layout_marginEnd="@dimen/edge_margin"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -175,7 +176,7 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bar_info_top_extended"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="@dimen/edge_margin"
         android:visibility="gone"
@@ -243,8 +244,9 @@
 
     <ScrollView
         android:id="@+id/include"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
         android:translationZ="-1dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -252,8 +254,6 @@
         app:layout_constraintTop_toBottomOf="@id/bar_info_top_extended">
 
         <com.google.android.flexbox.FlexboxLayout
-            xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:app="http://schemas.android.com/apk/res-auto"
             android:id="@+id/content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -274,4 +274,4 @@
             app:showDividerVertical="middle"/>
     </ScrollView>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.appcompat.widget.LinearLayoutCompat>
