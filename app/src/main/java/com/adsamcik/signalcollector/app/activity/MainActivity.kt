@@ -26,9 +26,12 @@ import com.adsamcik.signalcollector.common.misc.extension.marginBottom
 import com.adsamcik.signalcollector.common.misc.extension.setMargin
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.module.Modules
+import com.adsamcik.signalcollector.module.PayloadFragment
 import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.tracker.fragment.FragmentTracker
 import com.google.android.gms.location.LocationServices
+import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import kotlinx.android.synthetic.main.activity_ui.*
 
 
@@ -41,8 +44,6 @@ class MainActivity : AppCompatActivity() {
 	private var themeLocationRequestCode = 4513
 
 	private var draggableOriginalMargin = Int.MIN_VALUE
-
-	private var mapFragment: FragmentMap? = null
 
 	private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
@@ -87,82 +88,106 @@ class MainActivity : AppCompatActivity() {
 		display.getRealSize(realSize)
 		display.getSize(size)
 
-		button_stats.dragAxis = DragAxis.X
-		button_stats.setTarget(root, DragTargetAnchor.RightTop)
-		button_stats.setTargetOffsetDp(Offset(56))
-		button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
-		button_stats.extendTouchAreaBy(56.dpAsPx, 0, 0, 0)
-		button_stats.onEnterStateListener = { _, state, _, _ ->
-			if (state == DraggableImageButton.State.TARGET)
-				hideBottomLayer()
-		}
-		button_stats.onLeaveStateListener = { _, state ->
-			if (state == DraggableImageButton.State.TARGET)
-				showBottomLayer()
-		}
+		val newContext = createPackageContext(this.packageName, 0)
 
-		val statsPayload = DraggablePayload(this, FragmentStats::class.java, root, root)
-		statsPayload.width = MATCH_PARENT
-		statsPayload.height = MATCH_PARENT
-		statsPayload.initialTranslation = Point(-size.x, 0)
-		statsPayload.backgroundColor = Color.WHITE
-		statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
-		statsPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
-		button_stats.addPayload(statsPayload)
+		val splitInstallManager = SplitInstallManagerFactory.create(this)
+		val installedModules = splitInstallManager.installedModules
 
-		button_activity.dragAxis = DragAxis.X
-		button_activity.setTarget(root, DragTargetAnchor.LeftTop)
-		button_activity.setTargetOffsetDp(Offset(-56))
-		button_activity.targetTranslationZ = 8.dpAsPx.toFloat()
-		button_activity.extendTouchAreaBy(0, 0, 56.dpAsPx, 0)
-		button_activity.onEnterStateListener = { _, state, _, _ ->
-			if (state == DraggableImageButton.State.TARGET)
-				hideBottomLayer()
-		}
-		button_activity.onLeaveStateListener = { _, state ->
-			if (state == DraggableImageButton.State.TARGET)
-				showBottomLayer()
-		}
+		if (installedModules.contains(Modules.STATISTICS_MODULE)) {
+			val fragmentStatsClass = newContext.classLoader.loadClass("com.adsamcik.signalcollector.statistics.fragment.FragmentStats") as Class<PayloadFragment>
 
-		val activityPayload = DraggablePayload(this, com.adsamcik.signalcollector.game.challenge.fragment.FragmentGame::class.java, root, root)
-		activityPayload.width = MATCH_PARENT
-		activityPayload.height = MATCH_PARENT
-		activityPayload.initialTranslation = Point(size.x, 0)
-		activityPayload.backgroundColor = Color.WHITE
-		activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
-		activityPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
-		activityPayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
-
-		button_activity.addPayload(activityPayload)
-
-		button_map.extendTouchAreaBy(32.dpAsPx)
-		button_map.onEnterStateListener = { _, state, _, _ ->
-			if (state == DraggableImageButton.State.TARGET) {
-				hideBottomLayer()
-				hideMiddleLayer()
+			button_stats.visibility = View.VISIBLE
+			button_stats.dragAxis = DragAxis.X
+			button_stats.setTarget(root, DragTargetAnchor.RightTop)
+			button_stats.setTargetOffsetDp(Offset(56))
+			button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
+			button_stats.extendTouchAreaBy(56.dpAsPx, 0, 0, 0)
+			button_stats.onEnterStateListener = { _, state, _, _ ->
+				if (state == DraggableImageButton.State.TARGET)
+					hideBottomLayer()
 			}
-		}
-		button_map.onLeaveStateListener = { _, state ->
-			if (state == DraggableImageButton.State.TARGET) {
-				if (button_activity.state != DraggableImageButton.State.TARGET && button_stats.state != DraggableImageButton.State.TARGET)
+			button_stats.onLeaveStateListener = { _, state ->
+				if (state == DraggableImageButton.State.TARGET)
 					showBottomLayer()
-
-				showMiddleLayer()
 			}
+
+			val statsPayload = DraggablePayload(this, fragmentStatsClass, root, root)
+			statsPayload.width = MATCH_PARENT
+			statsPayload.height = MATCH_PARENT
+			statsPayload.initialTranslation = Point(-size.x, 0)
+			statsPayload.backgroundColor = Color.WHITE
+			statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
+			statsPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
+			button_stats.addPayload(statsPayload)
+		} else {
+			button_stats.visibility = View.GONE
 		}
 
-		val mapPayload = DraggablePayload(this, FragmentMap::class.java, root, root)
-		mapPayload.width = MATCH_PARENT
-		mapPayload.height = MATCH_PARENT
-		mapPayload.initialTranslation = Point(0, realSize.y)
-		mapPayload.backgroundColor = Color.WHITE
-		mapPayload.setTranslationZ(16.dpAsPx.toFloat())
-		mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
+		if (installedModules.contains(Modules.GAME_MODULE)) {
+			button_game.visibility = View.VISIBLE
+			button_game.dragAxis = DragAxis.X
+			button_game.setTarget(root, DragTargetAnchor.LeftTop)
+			button_game.setTargetOffsetDp(Offset(-56))
+			button_game.targetTranslationZ = 8.dpAsPx.toFloat()
+			button_game.extendTouchAreaBy(0, 0, 56.dpAsPx, 0)
+			button_game.onEnterStateListener = { _, state, _, _ ->
+				if (state == DraggableImageButton.State.TARGET)
+					hideBottomLayer()
+			}
+			button_game.onLeaveStateListener = { _, state ->
+				if (state == DraggableImageButton.State.TARGET)
+					showBottomLayer()
+			}
 
-		mapPayload.onInitialized = { mapFragment = it }
-		mapPayload.onBeforeDestroyed = { mapFragment = null }
+			val fragmentGameClass = newContext.classLoader.loadClass("com.adsamcik.signalcollector.game.challenge.fragment.FragmentGame") as Class<PayloadFragment>
 
-		button_map.addPayload(mapPayload)
+			val activityPayload = DraggablePayload(this, fragmentGameClass, root, root)
+			activityPayload.width = MATCH_PARENT
+			activityPayload.height = MATCH_PARENT
+			activityPayload.initialTranslation = Point(size.x, 0)
+			activityPayload.backgroundColor = Color.WHITE
+			activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
+			activityPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
+			activityPayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
+
+			button_game.addPayload(activityPayload)
+		} else {
+			button_game.visibility = View.GONE
+		}
+
+
+		if (installedModules.contains(Modules.MAP_MODULE)) {
+			button_map.visibility = View.VISIBLE
+			button_map.extendTouchAreaBy(32.dpAsPx)
+			button_map.onEnterStateListener = { _, state, _, _ ->
+				if (state == DraggableImageButton.State.TARGET) {
+					hideBottomLayer()
+					hideMiddleLayer()
+				}
+			}
+			button_map.onLeaveStateListener = { _, state ->
+				if (state == DraggableImageButton.State.TARGET) {
+					if (button_game.state != DraggableImageButton.State.TARGET && button_stats.state != DraggableImageButton.State.TARGET)
+						showBottomLayer()
+
+					showMiddleLayer()
+				}
+			}
+
+			val fragmentMapClass = newContext.classLoader.loadClass("com.adsamcik.signalcollector.map.fragment.FragmentMap") as Class<PayloadFragment>
+
+			val mapPayload = DraggablePayload(this, fragmentMapClass, root, root)
+			mapPayload.width = MATCH_PARENT
+			mapPayload.height = MATCH_PARENT
+			mapPayload.initialTranslation = Point(0, realSize.y)
+			mapPayload.backgroundColor = Color.WHITE
+			mapPayload.setTranslationZ(16.dpAsPx.toFloat())
+			mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
+
+			button_map.addPayload(mapPayload)
+		} else {
+			button_map.visibility = View.GONE
+		}
 
 		val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
 		params.behavior = BottomBarBehavior(button_map)
@@ -178,25 +203,25 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun hideMiddleLayer() {
-		button_activity.visibility = View.GONE
+		button_game.visibility = View.GONE
 		button_stats.visibility = View.GONE
 
 		if (button_stats.state == DraggableImageButton.State.TARGET)
 			button_stats.payloads.forEach { it.wrapper?.visibility = View.GONE }
 
-		if (button_activity.state == DraggableImageButton.State.TARGET)
-			button_activity.payloads.forEach { it.wrapper?.visibility = View.GONE }
+		if (button_game.state == DraggableImageButton.State.TARGET)
+			button_game.payloads.forEach { it.wrapper?.visibility = View.GONE }
 	}
 
 	private fun showMiddleLayer() {
-		button_activity.visibility = View.VISIBLE
+		button_game.visibility = View.VISIBLE
 		button_stats.visibility = View.VISIBLE
 
 		if (button_stats.state == DraggableImageButton.State.TARGET)
 			button_stats.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
 
-		if (button_activity.state == DraggableImageButton.State.TARGET)
-			button_activity.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
+		if (button_game.state == DraggableImageButton.State.TARGET)
+			button_game.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
 	}
 
 	private fun initializeButtonsPosition() {
@@ -229,7 +254,7 @@ class MainActivity : AppCompatActivity() {
 
 		colorManager.watchView(ColorView(button_stats, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
 		colorManager.watchView(ColorView(button_map, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
-		colorManager.watchView(ColorView(button_activity, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+		colorManager.watchView(ColorView(button_game, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
 
 		ColorSupervisor.ensureUpdate()
 	}
@@ -239,7 +264,7 @@ class MainActivity : AppCompatActivity() {
 
 		button_map.saveFragments(outState)
 		button_stats.saveFragments(outState)
-		button_activity.saveFragments(outState)
+		button_game.saveFragments(outState)
 	}
 
 	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -247,7 +272,7 @@ class MainActivity : AppCompatActivity() {
 
 		button_map.restoreFragments(savedInstanceState)
 		button_stats.restoreFragments(savedInstanceState)
-		button_activity.restoreFragments(savedInstanceState)
+		button_game.restoreFragments(savedInstanceState)
 	}
 
 	override fun onDestroy() {
@@ -293,7 +318,7 @@ class MainActivity : AppCompatActivity() {
 		when {
 			button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(DraggableImageButton.State.INITIAL, true)
 			button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(DraggableImageButton.State.INITIAL, true)
-			button_activity.state == DraggableImageButton.State.TARGET -> button_activity.moveToState(DraggableImageButton.State.INITIAL, true)
+			button_game.state == DraggableImageButton.State.TARGET -> button_game.moveToState(DraggableImageButton.State.INITIAL, true)
 			else -> super.onBackPressed()
 		}
 	}

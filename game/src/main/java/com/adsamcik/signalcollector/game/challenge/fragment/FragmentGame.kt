@@ -10,7 +10,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -18,6 +17,7 @@ import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.game.R
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -35,7 +35,8 @@ class FragmentGame : Fragment(), IOnDemandView {
 		recyclerViewChallenges = rootView.findViewById(R.id.recyclerview_challenges)
 
 		refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
-		refreshLayout.setColorSchemeResources(R.color.color_primary)
+		//todo add color scheme support to ColorManager
+		//refreshLayout.setColorSchemeResources(R.color.color_primary)
 		refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 		refreshLayout.setOnRefreshListener { this.updateData(ChallengeManager.activeChallenges.value) }
 

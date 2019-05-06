@@ -7,13 +7,13 @@ import android.view.ViewGroup
 import android.widget.ProgressBar
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.IViewChange
-import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.common.misc.extension.formatAsDuration
+import com.adsamcik.signalcollector.game.R
+import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
 
-class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), com.adsamcik.signalcollector.common.color.IViewChange {
+class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
 
 	class ViewHolder(itemView: View,
 	                 val titleTextView: AppCompatTextView,
@@ -33,8 +33,13 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-		val view = LayoutInflater.from(parent.context).inflate(R.layout.layout_challenge_list_item, parent, false)
-		return ViewHolder(view, view.challenge_title, view.challenge_description, view.challenge_difficulty, view.challenge_time_left, view.challenge_progress)
+		val view = mInflater.inflate(R.layout.layout_challenge_list_item, parent, false)
+		return ViewHolder(view,
+				view.challenge_title,
+				view.challenge_description,
+				view.challenge_difficulty,
+				view.challenge_time_left,
+				view.challenge_progress)
 	}
 
 	override fun getItemCount(): Int = mDataSource.size

@@ -36,6 +36,7 @@ import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
+import kotlinx.android.synthetic.main.layout_component_info.*
 import java.util.*
 import kotlin.math.roundToInt
 
@@ -125,7 +126,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		val orientation = Assist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			tracker_card_recycler.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
+			content.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
 		}
 
 		if (useMock)

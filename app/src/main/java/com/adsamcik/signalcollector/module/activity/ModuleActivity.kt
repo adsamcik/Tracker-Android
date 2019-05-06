@@ -13,12 +13,13 @@ import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.module.Modules
 import com.google.android.play.core.splitinstall.*
 import com.google.android.play.core.splitinstall.model.SplitInstallSessionStatus
 import kotlinx.android.synthetic.main.activity_module.*
 
 class ModuleActivity : AppCompatActivity() {
-	private val activeModules = listOf(ModuleInfo("game", R.string.module_game_title), ModuleInfo("map", R.string.module_map_title), ModuleInfo("statistics", R.string.module_statistics_title))
+	private val activeModules = listOf(ModuleInfo(Modules.GAME_MODULE, R.string.module_game_title), ModuleInfo(Modules.MAP_MODULE, R.string.module_map_title), ModuleInfo(Modules.STATISTICS_MODULE, R.string.module_statistics_title))
 
 	private lateinit var manager: SplitInstallManager
 

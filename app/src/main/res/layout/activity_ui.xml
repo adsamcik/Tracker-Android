@@ -32,14 +32,14 @@
             app:layout_constraintLeft_toLeftOf="parent"/>
 
         <com.adsamcik.draggable.DraggableImageButton
-            android:id="@+id/button_activity"
+            android:id="@+id/button_game"
             android:layout_width="72dp"
             android:layout_height="80dp"
             android:layout_gravity="end"
             android:layout_marginBottom="30dp"
             android:background="@drawable/side_button"
             android:elevation="6dp"
-            android:src="@drawable/ic_directions_walk_black_24dp"
+            android:src="@drawable/ic_outline_games_24dp"
             android:translationX="10dp"
             app:interpolator="Decelerate"
             app:layout_constraintBottom_toTopOf="@id/button_map"

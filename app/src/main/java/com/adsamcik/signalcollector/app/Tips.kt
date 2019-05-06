@@ -11,7 +11,7 @@ import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Tips.showTips
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.takusemba.spotlight.OnTargetStateChangedListener
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
@@ -98,7 +98,7 @@ object Tips {
 					.setDescription(resources.getString(R.string.tutorial_stats_description))
 					.build()
 
-			target = findViewById<View>(R.id.button_activity)
+			target = findViewById<View>(R.id.button_game)
 			//radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
 			val activitiesButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
@@ -138,7 +138,7 @@ object Tips {
 	 * Shows map tips to the user
 	 */
 	private fun showMapTips(activity: FragmentActivity, onDoneListener: (() -> Unit)?) {
-		activity.run {
+		/*activity.run {
 			val buttonData = SimpleTarget.ButtonData(getString(R.string.next_part)) { _, spotlight ->
 				spotlight.next()
 			}
@@ -200,6 +200,6 @@ object Tips {
 					.start()
 
 			isActive = true
-		}
+		}*/
 	}
 }
