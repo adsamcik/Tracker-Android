@@ -10,6 +10,4 @@
     android:focusable="true"
     android:gravity="start"
     android:minWidth="100dp"
-    android:padding="@dimen/setting_item_padding"
-    android:textColor="?android:textColorPrimary"
-    android:textSize="@dimen/primary_text_size"/>
+    android:padding="8dp"/>

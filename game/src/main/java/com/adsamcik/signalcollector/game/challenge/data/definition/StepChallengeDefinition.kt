@@ -1,8 +1,7 @@
 package com.adsamcik.signalcollector.game.challenge.data.definition
 
 import android.content.Context
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeType
 import com.adsamcik.signalcollector.game.challenge.data.builder.StepChallengeBuilder

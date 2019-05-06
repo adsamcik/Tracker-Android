@@ -4,17 +4,17 @@ import android.content.Context
 import android.view.View
 import androidx.annotation.LayoutRes
 import androidx.appcompat.widget.AppCompatTextView
-import com.adsamcik.signalcollector.app.adapter.BaseFilterableAdapter
-import com.adsamcik.signalcollector.app.adapter.SimpleFilterableAdapter
-import com.adsamcik.signalcollector.map.CoordinateBounds
+import com.adsamcik.signalcollector.common.adapter.BaseFilterableAdapter
+import com.adsamcik.signalcollector.common.adapter.SimpleFilterableAdapter
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.MapLayer
-import kotlinx.android.synthetic.main.spinner_item.view.*
+import com.adsamcik.signalcollector.common.R
 
 /**
  * Implementation of the [BaseFilterableAdapter] using a MapLayer and CoordinateBounds
  */
 class MapFilterableAdapter(context: Context, @LayoutRes resource: Int, stringMethod: (MapLayer) -> String) : SimpleFilterableAdapter<MapLayer, CoordinateBounds>(context, resource, stringMethod) {
-	override fun getTitleView(root: View): AppCompatTextView = root.text_view
+	override fun getTitleView(root: View): AppCompatTextView = root.findViewById(R.id.text_view)
 
 	override fun filter(item: MapLayer, filterObject: CoordinateBounds?): Boolean {
 		return if (filterObject != null && item.name != "wifi")

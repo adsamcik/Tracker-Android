@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.activity
+package com.adsamcik.signalcollector.common.data
 
 /**
  * Singleton that contains [GroupedActivity]. It is made this way so even the constants are contained within an object.

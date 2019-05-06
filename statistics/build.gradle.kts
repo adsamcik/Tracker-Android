@@ -25,9 +25,12 @@ android {
 dependencies {
     implementation(project(":commonmap"))
     Libraries.core(this)
+    Libraries.draggable(this)
+    Libraries.map(this)
 
     implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 
     implementation(fileTree("libs").include("*.jar"))
     implementation(project(":app"))
+    implementation(project(":common"))
 }

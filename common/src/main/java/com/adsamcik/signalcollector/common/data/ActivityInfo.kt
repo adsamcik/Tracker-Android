@@ -1,8 +1,8 @@
-package com.adsamcik.signalcollector.activity
+package com.adsamcik.signalcollector.common.data
 
 import android.content.Context
 import androidx.room.Ignore
-import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.R
 import com.google.android.gms.location.DetectedActivity
 
 /**

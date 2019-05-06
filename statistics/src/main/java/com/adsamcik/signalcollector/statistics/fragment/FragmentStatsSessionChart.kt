@@ -121,7 +121,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 				}
 			}
 		} else
-			colorManager.update()
+			colorManager.notifyChangeOn(chart)
 	}
 
 	override fun onStart() {

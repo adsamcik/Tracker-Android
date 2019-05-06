@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.data.collection
+package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
 import android.telephony.*

@@ -89,7 +89,6 @@ dependencies {
 	Libraries.core(this)
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
-	implementation("com.adsamcik.android-components:recycler:0.4.0")
 	Libraries.draggable(this)
 	implementation("com.adsamcik.android-forks:spotlight:2.0.7")
 
@@ -116,9 +115,8 @@ dependencies {
 	implementation("androidx.preference:preference:1.1.0-alpha04")
 
 	//PlayServices
-	implementation("com.google.android.gms:play-services-location:16.0.0")
-	implementation("com.google.firebase:firebase-core:16.0.8")
-	implementation("com.crashlytics.sdk.android:crashlytics:2.10.0")
+	Libraries.location(this)
+	Libraries.crashlytics(this)
 
 	implementation("com.google.android.play:core:1.5.0")
 

@@ -6,9 +6,9 @@ import android.view.View
 import android.widget.Button
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityInfo
+import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.app.activity.DetailActivity
-import com.adsamcik.signalcollector.app.adapter.StringFilterableAdapter
+import com.adsamcik.signalcollector.common.adapter.StringFilterableAdapter
 import com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.DebugDatabase
@@ -63,7 +63,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 
 		val appContext = applicationContext
 		val items = DebugDatabase.getAppDatabase(appContext).activityDebugDao().getAll()
-		adapter = StringFilterableAdapter(this, R.layout.spinner_item) { item ->
+		adapter = StringFilterableAdapter(this, com.adsamcik.signalcollector.common.R.layout.recycler_item) { item ->
 			item.joinToString(delim)
 		}
 		adapter.addAll(items.map {

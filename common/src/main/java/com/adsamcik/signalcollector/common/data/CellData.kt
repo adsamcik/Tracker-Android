@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.data.collection
+package com.adsamcik.signalcollector.common.data
 
 import com.squareup.moshi.JsonClass
 import java.util.*

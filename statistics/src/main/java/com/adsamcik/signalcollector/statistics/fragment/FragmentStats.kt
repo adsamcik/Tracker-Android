@@ -8,18 +8,19 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
+import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.recycler.card.table.TableCard
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.adapter.ChangeTableAdapter
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.misc.extension.*
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.DatabaseMaintenance
-import com.adsamcik.signalcollector.common.misc.extension.*
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.statistics.ChangeTableAdapter
+import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
@@ -53,7 +54,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
 		swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
-		swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
+		//swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
 		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 
 		val recyclerView = fragmentView!!.recycler_stats
@@ -134,8 +135,8 @@ class FragmentStats : Fragment(), IOnDemandView {
 			))
 
 
-			handleResponse(summaryStats, AppendPriority.Start)
-			handleResponse(weeklyStats, AppendPriority.Start)
+			handleResponse(summaryStats, AppendPriority(AppendBehavior.Start))
+			handleResponse(weeklyStats, AppendPriority(AppendBehavior.Start))
 
 			val startOfTheDay = Calendar.getInstance().apply { roundToDate() }
 
@@ -156,7 +157,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 				))
 			}.let {
 				it.forEach { statData ->
-					handleResponse(statData, AppendPriority.Any)
+					handleResponse(statData, AppendPriority(AppendBehavior.Any))
 				}
 			}
 
@@ -195,7 +196,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		table.addButton(resources.getString(R.string.stats_details), View.OnClickListener { startActivity<StatsDetailActivity> { putExtra(StatsDetailActivity.ARG_SESSION_ID, session.id) } })
 
-		GlobalScope.launch(Dispatchers.Main) { adapter.add(table, AppendPriority.Any) }
+		GlobalScope.launch(Dispatchers.Main) { adapter.add(table, AppendPriority(AppendBehavior.Any)) }
 	}
 
 	private fun generateStatData(index: Int): List<StatData> {

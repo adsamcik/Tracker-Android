@@ -1,6 +1,12 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LATITUDE
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LONGITUDE
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LATITUDE
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LONGITUDE
 
 data class MapLayer(var name: String,
                     val bounds: CoordinateBounds,
@@ -20,10 +26,6 @@ data class MapLayer(var name: String,
 	            values: Array<ValueColor>? = null) : this(name, CoordinateBounds(top, right, bottom, left), values)
 
 	companion object {
-		const val MIN_LATITUDE: Double = -90.0
-		const val MAX_LATITUDE: Double = 90.0
-		const val MIN_LONGITUDE: Double = -180.0
-		const val MAX_LONGITUDE: Double = 180.0
 		/**
 		 * Checks if MapLayer is in given array
 		 */

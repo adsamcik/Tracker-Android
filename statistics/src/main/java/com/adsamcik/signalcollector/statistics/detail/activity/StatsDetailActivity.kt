@@ -6,15 +6,15 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.common.misc.extension.*
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatsDetailAdapter
@@ -74,10 +74,10 @@ class StatsDetailActivity : DetailActivity() {
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 
 			val data = mutableListOf(
-					InformationStatisticsData(R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
-					InformationStatisticsData(R.drawable.shoe_print, R.string.stats_steps, session.steps.formatReadable()),
-					InformationStatisticsData(R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
-					InformationStatisticsData(R.drawable.ic_baseline_commute_24px, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
+					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
+					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.shoe_print, R.string.stats_steps, session.steps.formatReadable()),
+					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
+					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute_24px, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
 			addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 			//todo add Wi-Fi and Cell
@@ -86,7 +86,7 @@ class StatsDetailActivity : DetailActivity() {
 				val database = AppDatabase.getDatabase(this@StatsDetailActivity)
 				val locations = database.locationDao().getAllBetween(session.start, session.end)
 				if (locations.isNotEmpty()) {
-					val sortableData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority.Start)
+					val sortableData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
 					GlobalScope.launch(Dispatchers.Main) {
 						add(sortableData)
 					}

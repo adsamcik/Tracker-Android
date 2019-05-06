@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.statistics.detail.recycler.creator
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder

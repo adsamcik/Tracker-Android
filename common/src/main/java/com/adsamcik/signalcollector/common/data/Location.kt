@@ -1,11 +1,9 @@
-package com.adsamcik.signalcollector.tracker.data.collection
+package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
 import androidx.room.ColumnInfo
-import com.adsamcik.signalcollector.activity.ActivityInfo
 import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions.EARTH_CIRCUMFERENCE
 import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions.METER_DEGREE_LATITUDE
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.misc.extension.deg2rad
 import com.adsamcik.signalcollector.common.misc.extension.round
 import com.squareup.moshi.Json
@@ -46,11 +44,6 @@ data class Location(
 
 	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy, location.speed, location.speedAccuracy)
 
-
-	/**
-	 * Creates new [DatabaseLocation] instance that uses [Location] instance
-	 */
-	fun toDatabase(activityInfo: ActivityInfo): DatabaseLocation = DatabaseLocation(this, activityInfo)
 
 	/// <summary>
 	/// Calculates distance based on only latitude and longitude

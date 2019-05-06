@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
-import com.adsamcik.signalcollector.map.CoordinateBounds
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.LayerType
 import com.adsamcik.signalcollector.map.MapFunctions
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator

@@ -11,9 +11,6 @@ import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
-import androidx.work.Constraints
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
@@ -34,9 +31,6 @@ import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 class TrackerService : LifecycleService() {
 	private lateinit var powerManager: PowerManager

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.app.adapter
+package com.adsamcik.signalcollector.statistics
 
 import android.view.View
 import androidx.annotation.StyleRes

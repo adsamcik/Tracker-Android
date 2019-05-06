@@ -8,11 +8,15 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.map.CoordinateBounds
-import com.adsamcik.signalcollector.map.MapLayer
-import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
 import com.adsamcik.signalcollector.common.misc.extension.getNonNullContext
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LATITUDE
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LONGITUDE
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LATITUDE
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LONGITUDE
+import com.adsamcik.signalcollector.map.MapLayer
+import com.adsamcik.signalcollector.map.R
+import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
 import com.adsamcik.signalcollector.mock.useMock
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
@@ -27,11 +31,11 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
 	override fun onStart() {
 		super.onStart()
-		val adapter = MapFilterableAdapter(getNonNullContext(), R.layout.spinner_item) { it.name }
+		val adapter = MapFilterableAdapter(getNonNullContext(), com.adsamcik.signalcollector.common.R.layout.recycler_item) { it.name }
 
 		if (useMock) {
 			adapter.addAll(arrayListOf(MapLayer("WiFi"),
-					MapLayer("CenterFon", MapLayer.MAX_LATITUDE / 2, MapLayer.MAX_LONGITUDE / 2, MapLayer.MIN_LATITUDE / 2, MapLayer.MIN_LONGITUDE / 2),
+					MapLayer("CenterFon", MAX_LATITUDE / 2, MAX_LONGITUDE / 2, MIN_LATITUDE / 2, MIN_LONGITUDE / 2),
 					MapLayer("Filler01"),
 					MapLayer("Filler02"),
 					MapLayer("Filler03"),

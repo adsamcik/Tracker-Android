@@ -36,6 +36,10 @@ android {
 
 dependencies {
 	Libraries.core(this)
+	Libraries.moshi(this)
+	Libraries.database(this)
+	Libraries.crashlytics(this)
+	Libraries.location(this)
 
 	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
 

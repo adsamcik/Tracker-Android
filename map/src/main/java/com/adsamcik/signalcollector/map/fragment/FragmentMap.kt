@@ -13,9 +13,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageButton
+import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
@@ -36,8 +36,11 @@ import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.commonmap.ColorMap
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.*
 import com.adsamcik.signalcollector.map.R
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
+import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -81,7 +84,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		if (requestCode == PERMISSION_LOCATION_CODE && success && activity != null) {
 			val newFrag = FragmentMap()
 			activity.supportFragmentManager.transactionStateLoss {
-				replace(R.id.container, newFrag)
+				replace(R.id.container_map, newFrag)
 			}
 			newFrag.onEnter(activity)
 		}
@@ -163,8 +166,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
 		} else {
-			fragmentView = inflater.inflate(R.layout.layout_error, container, false)
-			(fragmentView.findViewById<View>(R.id.activity_error_text) as TextView).setText(if (hasPermissions) R.string.error_play_services_not_available else R.string.error_missing_permission)
+			fragmentView = inflater.inflate(com.adsamcik.signalcollector.common.R.layout.layout_error, container, false)
+			fragmentView.findViewById<AppCompatTextView>(com.adsamcik.signalcollector.common.R.id.activity_error_text)
+					.setText(if (hasPermissions) com.adsamcik.signalcollector.common.R.string.error_play_services_not_available else com.adsamcik.signalcollector.common.R.string.error_missing_permission)
 			return fragmentView
 		}
 
@@ -332,10 +336,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
 			}
 		} catch (e: IOException) {
-			Crashlytics.logException(e)
-			val view = view
-			if (view != null)
-				SnackMaker(view).showSnackbar(R.string.map_search_no_geocoder)
+			//Crashlytics.logException(e)
+			view?.let { SnackMaker(it).showSnackbar(R.string.map_search_no_geocoder) }
 		}
 	}
 
@@ -388,9 +390,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private fun loadMapLayers() {
 		val resources = resources
 		val mapLayers = mutableListOf(
-				MapLayer(resources.getString(R.string.location)),
-				MapLayer(resources.getString(R.string.wifi)),
-				MapLayer(resources.getString(R.string.cell)))
+				MapLayer(resources.getString(com.adsamcik.signalcollector.common.R.string.location)),
+				MapLayer(resources.getString(com.adsamcik.signalcollector.common.R.string.wifi)),
+				MapLayer(resources.getString(com.adsamcik.signalcollector.common.R.string.cell)))
 		initializeMenuButton(mapLayers)
 	}
 

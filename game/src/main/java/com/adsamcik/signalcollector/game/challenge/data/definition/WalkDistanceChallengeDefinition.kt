@@ -1,15 +1,15 @@
 package com.adsamcik.signalcollector.game.challenge.data.definition
 
 import android.content.Context
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeType
 import com.adsamcik.signalcollector.game.challenge.data.builder.WalkDistanceChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceChallengeInstance
 
 class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChallengeInstance>(R.string.challenge_walk_in_the_park_title, R.string.challenge_walk_in_the_park_description,
-		com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS * 3) {
+		Constants.DAY_IN_MILLISECONDS * 3) {
 
 	val defaultDistanceInM: Int = 18000
 

@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 
-import com.adsamcik.signalcollector.common.color.ColorMap
+import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
 import com.google.android.gms.maps.CameraUpdateFactory

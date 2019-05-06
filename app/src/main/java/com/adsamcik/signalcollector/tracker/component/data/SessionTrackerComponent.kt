@@ -9,8 +9,8 @@ import android.hardware.SensorManager
 import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.activity.GroupedActivity
+import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.dao.SessionDataDao

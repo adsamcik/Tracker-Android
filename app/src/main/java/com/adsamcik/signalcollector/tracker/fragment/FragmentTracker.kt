@@ -16,27 +16,26 @@ import androidx.core.view.children
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.widget.InfoComponent
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.mock.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
-import com.adsamcik.signalcollector.tracker.data.collection.*
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
-import kotlinx.android.synthetic.main.layout_component_info.*
 import java.util.*
 import kotlin.math.roundToInt
 
@@ -60,8 +59,8 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		super.onStart()
 
 		icon_activity.visibility = GONE
-		altitude.visibility = GONE
-		horizontal_accuracy.visibility = GONE
+		textview_altitude.visibility = GONE
+		textview_horizontal_accuracy.visibility = GONE
 
 
 		button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
@@ -319,24 +318,26 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			val context = getNonNullContext()
 			val resources = context.resources
 			val lengthSystem = Preferences.getLengthSystem(context)
-			if (location.horizontalAccuracy != null) {
-				horizontal_accuracy.visibility = VISIBLE
-				horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(location.horizontalAccuracy, 0, lengthSystem))
+			val horizontalAccuracy = location.horizontalAccuracy
+			if (horizontalAccuracy != null) {
+				textview_horizontal_accuracy.visibility = VISIBLE
+				textview_horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(horizontalAccuracy, 0, lengthSystem))
 			} else {
-				horizontal_accuracy.visibility = GONE
+				textview_horizontal_accuracy.visibility = GONE
 			}
 
 			//todo add vertical accuracy
 
-			if (location.altitude != null) {
-				altitude.text = getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem))
-				altitude.visibility = VISIBLE
+			val altitude = location.altitude
+			if (altitude != null) {
+				textview_altitude.text = getString(R.string.info_altitude, resources.formatDistance(altitude, 2, lengthSystem))
+				textview_altitude.visibility = VISIBLE
 			} else {
-				altitude.visibility = GONE
+				textview_altitude.visibility = GONE
 			}
 		} else {
-			horizontal_accuracy.visibility = GONE
-			altitude.visibility = GONE
+			textview_horizontal_accuracy.visibility = GONE
+			textview_altitude.visibility = GONE
 		}
 	}
 

@@ -28,6 +28,7 @@ dependencies {
 	Libraries.core(this)
 	Libraries.draggable(this)
 	Libraries.map(this)
+	Libraries.location(this)
 	Libraries.dateTimePicker(this)
 
 	implementation(fileTree("libs").include("*.jar"))

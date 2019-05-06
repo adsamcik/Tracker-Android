@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.tracker.component.data
 import android.content.Context
 import android.location.Location
 import android.telephony.TelephonyManager
-import com.adsamcik.signalcollector.activity.ActivityInfo
+import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.common.misc.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData

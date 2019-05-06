@@ -17,16 +17,6 @@
     <string name="main_cell_count">Cell in range %1$d</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
 
-    <string name="map_search">Search</string>
-    <string name="map_search_no_text">Searching for nothing is not very useful</string>
-    <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
-
-    <string name="map_no_play_services">Map requires up-to-date Play Services</string>
-
-    <string name="wifi">Wi-Fi</string>
-    <string name="cell">Cell</string>
-    <string name="location">Location</string>
-
     <string name="wifi_new_title">New Wi-Fi</string>
     <string name="cell_new">New cell</string>
     <string name="collections_title">Collections</string>
@@ -46,12 +36,6 @@
 
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
-
-    <!-- Activity strings -->
-    <string name="activity_idle">Idle</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_unknown">Unknown</string>
 
     <!-- Generic strings -->
     <string name="other">Other</string>

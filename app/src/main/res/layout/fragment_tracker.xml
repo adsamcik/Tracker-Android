@@ -125,7 +125,7 @@
             tools:ignore="ContentDescription"/>
 
         <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/altitude"
+            android:id="@+id/textview_altitude"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"
@@ -141,7 +141,7 @@
             />
 
         <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/horizontal_accuracy"
+            android:id="@+id/textview_horizontal_accuracy"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="marquee"

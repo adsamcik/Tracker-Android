@@ -1,14 +1,14 @@
-package com.adsamcik.signalcollector.map
+package com.adsamcik.signalcollector.commonmap
 
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.data.Location
 
 /**
  * CoordinateBounds class allows passing of boundary information in GPS coordinates
  */
-data class CoordinateBounds(private var topBound: Double = MapLayer.MIN_LATITUDE,
-                            private var rightBound: Double = MapLayer.MIN_LONGITUDE,
-                            private var bottomBound: Double = MapLayer.MAX_LATITUDE,
-                            private var leftBound: Double = MapLayer.MAX_LONGITUDE) {
+data class CoordinateBounds(private var topBound: Double = MIN_LATITUDE,
+                            private var rightBound: Double = MIN_LONGITUDE,
+                            private var bottomBound: Double = MAX_LATITUDE,
+                            private var leftBound: Double = MAX_LONGITUDE) {
 
 	val top: Double get() = this.topBound
 	val right: Double get() = this.rightBound
@@ -19,7 +19,7 @@ data class CoordinateBounds(private var topBound: Double = MapLayer.MIN_LATITUDE
 	val height: Double get() = topBound - bottomBound
 
 
-	fun updateBounds(collection: Collection<DatabaseLocation>) {
+	fun updateBounds(collection: Collection<Location>) {
 		if (collection.isEmpty()) return
 		val first = collection.first()
 		//todo improve this
@@ -52,5 +52,12 @@ data class CoordinateBounds(private var topBound: Double = MapLayer.MIN_LATITUDE
 		this.rightBound = right
 		this.bottomBound = bottom
 		this.leftBound = left
+	}
+
+	companion object {
+		const val MIN_LATITUDE: Double = -90.0
+		const val MAX_LATITUDE: Double = 90.0
+		const val MIN_LONGITUDE: Double = -180.0
+		const val MAX_LONGITUDE: Double = 180.0
 	}
 }

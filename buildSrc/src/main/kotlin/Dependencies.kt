@@ -14,6 +14,7 @@ object Libraries {
 		const val lifecycle = "2.1.0-alpha04"
 	}
 
+	private fun DependencyHandler.api(name: String) = add("api", name)
 	private fun DependencyHandler.implementation(name: String) = add("implementation", name)
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
 	private fun DependencyHandler.androidTestImplementation(name: String) = add("androidTestImplementation", name)
@@ -28,7 +29,7 @@ object Libraries {
 	fun database(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			val roomBaseString = "androidx.room:room"
-			implementation("$roomBaseString-runtime:${Versions.room}")
+			api("$roomBaseString-runtime:${Versions.room}")
 			kapt("$roomBaseString-compiler:${Versions.room}")
 			implementation("$roomBaseString-ktx:${Versions.room}")
 			androidTestImplementation("androidx.room:room-testing:${Versions.room}")
@@ -41,6 +42,8 @@ object Libraries {
 			implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
 			implementation("androidx.core:core-ktx:${Versions.coreKtx}")
 			implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
+			implementation("com.adsamcik.android-components:recycler:0.4.0")
+			implementation("androidx.recyclerview:recyclerview:1.1.0-alpha04")
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1")
 			implementation("androidx.fragment:fragment:1.1.0-alpha07")
@@ -72,6 +75,19 @@ object Libraries {
 	fun map(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.google.android.gms:play-services-maps:16.1.0")
+		}
+	}
+
+	fun location(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.google.android.gms:play-services-location:16.0.0")
+		}
+	}
+
+	fun crashlytics(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.google.firebase:firebase-core:16.0.8")
+			implementation("com.crashlytics.sdk.android:crashlytics:2.10.0")
 		}
 	}
 
