@@ -186,7 +186,7 @@ class MainActivity : AppCompatActivity() {
 
 			button_map.addPayload(mapPayload)
 		} else {
-			button_map.visibility = View.GONE
+			button_map.visibility = View.INVISIBLE
 		}
 
 		val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
