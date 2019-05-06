@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.game.challenge.fragment
+package com.adsamcik.signalcollector.game.fragment
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -13,11 +13,11 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
-import com.adsamcik.signalcollector.game.R
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -46,6 +46,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 		recyclerViewChallenges.adapter = ChallengeAdapter(context, arrayOf())
 		recyclerViewChallenges.layoutManager = LinearLayoutManager(context)
 		colorManager = ColorSupervisor.createColorManager(context)
+		colorManager.watchView(ColorView(rootView, 1))
 		colorManager.watchAdapterView(ColorView(recyclerViewChallenges, 1, recursive = true, rootIsBackground = false))
 
 		ChallengeManager.activeChallenges.observe(this) { updateData(it) }

@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
 		val installedModules = splitInstallManager.installedModules
 
 		if (installedModules.contains(Modules.STATISTICS_MODULE)) {
-			val fragmentStatsClass = newContext.classLoader.loadClass("com.adsamcik.signalcollector.statistics.fragment.FragmentStats") as Class<PayloadFragment>
+			val fragmentStatsClass = Class.forName("com.adsamcik.signalcollector.statistics.fragment.FragmentStats") as Class<PayloadFragment>
 
 			button_stats.visibility = View.VISIBLE
 			button_stats.dragAxis = DragAxis.X
@@ -139,18 +139,18 @@ class MainActivity : AppCompatActivity() {
 					showBottomLayer()
 			}
 
-			val fragmentGameClass = newContext.classLoader.loadClass("com.adsamcik.signalcollector.game.challenge.fragment.FragmentGame") as Class<PayloadFragment>
+			val fragmentGameClass = Class.forName("com.adsamcik.signalcollector.game.fragment.FragmentGame") as Class<PayloadFragment>
 
-			val activityPayload = DraggablePayload(this, fragmentGameClass, root, root)
-			activityPayload.width = MATCH_PARENT
-			activityPayload.height = MATCH_PARENT
-			activityPayload.initialTranslation = Point(size.x, 0)
-			activityPayload.backgroundColor = Color.WHITE
-			activityPayload.targetTranslationZ = 7.dpAsPx.toFloat()
-			activityPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
-			activityPayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
+			val gamePayload = DraggablePayload(this, fragmentGameClass, root, root)
+			gamePayload.width = MATCH_PARENT
+			gamePayload.height = MATCH_PARENT
+			gamePayload.initialTranslation = Point(size.x, 0)
+			gamePayload.backgroundColor = Color.WHITE
+			gamePayload.targetTranslationZ = 7.dpAsPx.toFloat()
+			gamePayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
+			//gamePayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
 
-			button_game.addPayload(activityPayload)
+			button_game.addPayload(gamePayload)
 		} else {
 			button_game.visibility = View.GONE
 		}
@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
 				}
 			}
 
-			val fragmentMapClass = newContext.classLoader.loadClass("com.adsamcik.signalcollector.map.fragment.FragmentMap") as Class<PayloadFragment>
+			val fragmentMapClass = Class.forName("com.adsamcik.signalcollector.map.fragment.FragmentMap") as Class<PayloadFragment>
 
 			val mapPayload = DraggablePayload(this, fragmentMapClass, root, root)
 			mapPayload.width = MATCH_PARENT
