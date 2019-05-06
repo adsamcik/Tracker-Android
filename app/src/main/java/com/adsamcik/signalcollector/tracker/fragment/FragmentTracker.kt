@@ -125,7 +125,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		val orientation = Assist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
+			tracker_card_recycler.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
 		}
 
 		if (useMock)
