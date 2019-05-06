@@ -1,13 +1,6 @@
 import org.gradle.api.artifacts.dsl.DependencyHandler
 import org.gradle.kotlin.dsl.kotlin
 
-object Android {
-	const val min = 21
-	const val compile = 28
-	const val target = compile
-}
-
-
 object Libraries {
 	object Versions {
 		const val constraintLayout = "2.0.0-alpha5"
@@ -85,6 +78,12 @@ object Libraries {
 	fun draggable(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.adsamcik.android-components:draggable:0.14.1")
+		}
+	}
+
+	fun dateTimePicker(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2")
 		}
 	}
 }

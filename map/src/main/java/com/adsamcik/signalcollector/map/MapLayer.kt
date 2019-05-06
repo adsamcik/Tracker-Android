@@ -1,10 +1,7 @@
 package com.adsamcik.signalcollector.map
 
 import android.content.Context
-import com.adsamcik.signalcollector.preference.Preferences
-import com.squareup.moshi.JsonClass
 
-@JsonClass(generateAdapter = true)
 data class MapLayer(var name: String,
                     val bounds: CoordinateBounds,
                     /**
@@ -91,5 +88,4 @@ enum class LayerType {
 	}
 }
 
-@JsonClass(generateAdapter = true)
 data class ValueColor(val name: String, val color: Int)

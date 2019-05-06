@@ -116,7 +116,7 @@ object TrackerLocker {
 	 */
 	fun lockUntilRecharge(context: Context) {
 		synchronized(this) {
-			val workManager = WorkManager.getInstance()
+			val workManager = WorkManager.getInstance(context)
 			val constraints = Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build()
 			val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(constraints).addTag(WORK_DISABLE_TILL_RECHARGE_TAG).build()
 			workManager.enqueue(work)
@@ -128,7 +128,7 @@ object TrackerLocker {
 	 * Removed recharge lockTimeLock
 	 */
 	fun unlockRechargeLock(context: Context) {
-		WorkManager.getInstance().cancelAllWorkByTag(WORK_DISABLE_TILL_RECHARGE_TAG)
+		WorkManager.getInstance(context).cancelAllWorkByTag(WORK_DISABLE_TILL_RECHARGE_TAG)
 		setRechargeLock(context, false)
 	}
 
