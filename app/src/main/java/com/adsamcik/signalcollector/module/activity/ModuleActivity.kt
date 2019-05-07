@@ -98,7 +98,7 @@ class ModuleActivity : AppCompatActivity() {
 
 
 		colorManager.watchView(ColorView(root, 0, recursive = true))
-		colorManager.watchAdapterView(ColorView(recycler, 0))
+		colorManager.watchAdapterView(ColorView(recycler, 0, ignoreRoot = true))
 
 		val moduleInfoList = activeModules.map { ModuleInfo(it) }
 		manager.installedModules.forEach { moduleName ->

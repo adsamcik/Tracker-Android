@@ -267,12 +267,12 @@ class ColorManager {
 		if (view is androidx.cardview.widget.CardView) {
 			view.setCardBackgroundColor(bgColor)
 			return true
-		} else if (background != null && background.isVisible) {
+		} else if (background?.isVisible == true) {
 			if (background.alpha < 255)
 				return false
 
 			background.setTint(bgColor)
-			view.background.colorFilter = PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
+			background.colorFilter = PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
 			return true
 		}
 		return false
