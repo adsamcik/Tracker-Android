@@ -1,16 +1,16 @@
 package com.adsamcik.signalcollector.common.color
 
+import android.content.res.ColorStateList
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
-import androidx.appcompat.widget.AppCompatImageView
-import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.recyclerview.widget.RecyclerView
@@ -246,17 +246,18 @@ class ColorManager {
 
 	private fun updateStyleForeground(view: View, @ColorInt fgColor: Int) {
 		when (view) {
-			is TextView, is AppCompatTextView -> {
-				view as TextView
+			is ImageView -> {
+				view.setColorFilter(fgColor)
+			}
+			is TextView -> {
+				if (view is CheckBox)
+					view.buttonTintList = ColorStateList.valueOf(fgColor)
+
 				val alpha = view.currentTextColor.alpha
 				val newTextColor = ColorUtils.setAlphaComponent(fgColor, alpha)
 				view.setTextColor(newTextColor)
 				view.setHintTextColor(brightenColor(newTextColor, 1))
 				view.compoundDrawables.forEach { it?.setTint(fgColor) }
-			}
-			is ImageView, is AppCompatImageView -> {
-				view as ImageView
-				view.setColorFilter(fgColor)
 			}
 		}
 	}

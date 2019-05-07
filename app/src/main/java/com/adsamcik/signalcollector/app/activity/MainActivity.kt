@@ -10,23 +10,21 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Tips
-import com.adsamcik.signalcollector.app.widget.behavior.NavigationButtonOffsetBehavior
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.guidelineEnd
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
-import com.adsamcik.signalcollector.module.Modules
+import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.PayloadFragment
 import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.tracker.fragment.FragmentTracker
@@ -66,17 +64,6 @@ class MainActivity : AppCompatActivity() {
 		supportFragmentManager.transaction {
 			replace(R.id.root, trackerFragment)
 		}
-
-
-		SnackMaker(root).apply {
-			addMessage("TEST")
-			addMessage("TEST")
-			addMessage("TEST")
-			addMessage("TEST")
-			addMessage("TEST")
-			addMessage("TEST")
-
-		}
 	}
 
 	override fun onStart() {
@@ -102,8 +89,8 @@ class MainActivity : AppCompatActivity() {
 		val splitInstallManager = SplitInstallManagerFactory.create(this)
 		val installedModules = splitInstallManager.installedModules
 
-		if (installedModules.contains(Modules.STATISTICS_MODULE)) {
-			val fragmentStatsClass = Class.forName("com.adsamcik.signalcollector.statistics.fragment.FragmentStats") as Class<PayloadFragment>
+		if (installedModules.contains(Module.STATISTICS.moduleName)) {
+			val fragmentStatsClass = Module.STATISTICS.loadClass<PayloadFragment>("fragment.FragmentStats")
 
 			button_stats.visibility = View.VISIBLE
 			button_stats.dragAxis = DragAxis.X
@@ -132,7 +119,7 @@ class MainActivity : AppCompatActivity() {
 			button_stats.visibility = View.GONE
 		}
 
-		if (installedModules.contains(Modules.GAME_MODULE)) {
+		if (installedModules.contains(Module.GAME.moduleName)) {
 			button_game.visibility = View.VISIBLE
 			button_game.dragAxis = DragAxis.X
 			button_game.setTarget(root, DragTargetAnchor.LeftTop)
@@ -148,7 +135,7 @@ class MainActivity : AppCompatActivity() {
 					showBottomLayer()
 			}
 
-			val fragmentGameClass = Class.forName("com.adsamcik.signalcollector.game.fragment.FragmentGame") as Class<PayloadFragment>
+			val fragmentGameClass = Module.GAME.loadClass<PayloadFragment>("fragment.FragmentGame")
 
 			val gamePayload = DraggablePayload(this, fragmentGameClass, root, root)
 			gamePayload.width = MATCH_PARENT
@@ -165,7 +152,7 @@ class MainActivity : AppCompatActivity() {
 		}
 
 
-		if (installedModules.contains(Modules.MAP_MODULE)) {
+		if (installedModules.contains(Module.MAP.moduleName)) {
 			button_map.visibility = View.VISIBLE
 			button_map.extendTouchAreaBy(32.dpAsPx)
 			button_map.onEnterStateListener = { _, state, _, _ ->
@@ -183,7 +170,7 @@ class MainActivity : AppCompatActivity() {
 				}
 			}
 
-			val fragmentMapClass = Class.forName("com.adsamcik.signalcollector.map.fragment.FragmentMap") as Class<PayloadFragment>
+			val fragmentMapClass = Module.MAP.loadClass<PayloadFragment>("fragment.FragmentMap")
 
 			val mapPayload = DraggablePayload(this, fragmentMapClass, root, root)
 			mapPayload.width = MATCH_PARENT
@@ -198,9 +185,11 @@ class MainActivity : AppCompatActivity() {
 			button_map.visibility = View.GONE
 		}
 
-		val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
-		params.behavior = NavigationButtonOffsetBehavior(navigation_guideline)
-		root.requestLayout()
+		//todo fix behavior for snackbar, currently it does not work properly with guideline for some reason
+		/*val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
+		params.behavior = NavigationGuidelinesOffsetBehavior(navigation_guideline)
+		root.layoutParams = params
+		root.requestLayout()*/
 	}
 
 	private fun hideBottomLayer() {
@@ -235,8 +224,7 @@ class MainActivity : AppCompatActivity() {
 
 	private fun initializeButtonsPosition() {
 		if (navigationOffset == Int.MIN_VALUE) {
-			val params = navigation_guideline.layoutParams as ConstraintLayout.LayoutParams
-			navigationOffset = params.guideEnd
+			navigationOffset = navigation_guideline.guidelineEnd
 		}
 
 		val (position, navDim) = Assist.navbarSize(this)
@@ -328,11 +316,5 @@ class MainActivity : AppCompatActivity() {
 			button_game.state == DraggableImageButton.State.TARGET -> button_game.moveToState(DraggableImageButton.State.INITIAL, true)
 			else -> super.onBackPressed()
 		}
-	}
-
-	companion object {
-		const val MAP_OPENED: String = "mapopened"
-		const val STATS_OPENED: String = "statsopened"
-		const val ACTIVITIES_OPENED: String = "activitiesopened"
 	}
 }

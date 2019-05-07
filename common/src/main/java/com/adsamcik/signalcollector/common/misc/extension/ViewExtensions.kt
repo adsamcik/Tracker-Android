@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
 
@@ -161,3 +162,7 @@ fun View.contains(childView: View): Boolean {
 	else
 		false
 }
+
+var Guideline.guidelineEnd: Int
+	get() = (layoutParams as ConstraintLayout.LayoutParams).guideEnd
+	set(value) = setGuidelineEnd(value)

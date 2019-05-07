@@ -201,6 +201,11 @@
     <string name="settings_map_clear_heat_cache_description">Use this if your locations on the map suddenly became too dim</string>
     <string name="settings_map_clear_heat_cache_key" translatable="false">clearHeatmapMaxHeat</string>
 
+    <!-- MODULES -->
+
+    <string name="settings_modules_title">Modules</string>
+    <string name="settings_modules_key" translatable="false">modules</string>
+
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
     <string name="settings_debug_available">You now have access to developer options</string>

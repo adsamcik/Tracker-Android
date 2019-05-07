@@ -30,6 +30,7 @@ import com.adsamcik.signalcollector.export.DatabaseExport
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
 import com.adsamcik.signalcollector.export.activity.ExportActivity
+import com.adsamcik.signalcollector.module.activity.ModuleActivity
 import com.adsamcik.signalcollector.notification.Notifications
 import com.adsamcik.signalcollector.preference.findDirectPreferenceByTitle
 import com.adsamcik.signalcollector.preference.findPreference
@@ -167,8 +168,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {
 		snackMaker = SnackMaker(caller.listView)
 
+		setOnClickListener(R.string.settings_modules_key) {
+			startActivity<ModuleActivity> {}
+		}
+
 		setOnClickListener(R.string.settings_licenses_key) {
-			startActivity<LicenseActivity> { }
+			startActivity<LicenseActivity> {}
 		}
 
 		val devKeyRes = R.string.settings_debug_key
