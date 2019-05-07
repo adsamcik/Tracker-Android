@@ -42,7 +42,7 @@
         app:layout_constraintTop_toBottomOf="@android:id/title"
         tools:text="Slider value"/>
 
-    <com.adsamcik.signalcollector.app.widget.FloatValueSlider
+    <com.adsamcik.slider.implementations.FloatValueSlider
         android:id="@+id/slider"
         android:layout_width="match_parent"
         android:layout_height="32dp"
