@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/coordinator"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:theme="@style/AppThemeTransluscent">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
         xmlns:tools="http://schemas.android.com/tools"
         android:id="@+id/root"
@@ -28,7 +29,7 @@
             android:src="@drawable/ic_pie_chart_black_24dp"
             android:translationX="-10dp"
             app:interpolator="Decelerate"
-            app:layout_constraintBottom_toTopOf="@id/button_map"
+            app:layout_constraintBottom_toTopOf="@id/navigation_guideline"
             app:layout_constraintLeft_toLeftOf="parent"/>
 
         <com.adsamcik.draggable.DraggableImageButton
@@ -42,19 +43,18 @@
             android:src="@drawable/ic_outline_games_24dp"
             android:translationX="10dp"
             app:interpolator="Decelerate"
-            app:layout_constraintBottom_toTopOf="@id/button_map"
+            app:layout_constraintBottom_toTopOf="@id/navigation_guideline"
             app:layout_constraintRight_toRightOf="parent"/>
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/button_map"
             android:layout_width="220dp"
             android:layout_height="8dp"
-            android:layout_marginBottom="20dp"
             android:background="@drawable/map_draggable"
             android:translationZ="12dp"
             app:axis="Y"
             app:interpolator="Decelerate"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toBottomOf="@id/navigation_guideline"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"
             app:targetAnchor="top"
@@ -62,5 +62,12 @@
             app:targetTranslationZ="24dp"
             app:targetView="@id/root"
             />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/navigation_guideline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layout_constraintGuide_percent="0.965"/>
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
