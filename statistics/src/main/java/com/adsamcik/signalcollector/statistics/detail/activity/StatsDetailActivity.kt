@@ -42,7 +42,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		inflateContent(R.layout.activity_stats_detail)
 
-		colorManager.watchView(ColorView(root_stats_detail, 0))
+		colorController.watchView(ColorView(root_stats_detail, 0))
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
 
@@ -94,7 +94,7 @@ class StatsDetailActivity : DetailActivity() {
 			}
 		}
 
-		colorManager.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
+		colorController.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
 
 		val startDate = Date(session.start)
 		val endDate = Date(session.end)

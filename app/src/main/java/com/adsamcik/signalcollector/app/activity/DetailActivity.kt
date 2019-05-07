@@ -9,8 +9,8 @@ import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import kotlinx.android.synthetic.main.activity_content_detail.*
@@ -22,7 +22,7 @@ import kotlinx.android.synthetic.main.activity_content_detail.*
 abstract class DetailActivity : AppCompatActivity() {
 	//todo this control over bar layer is kinda awkward, improve it
 	protected var titleBarLayer = 1
-	protected lateinit var colorManager: ColorManager
+	protected lateinit var colorController: ColorController
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,7 +35,7 @@ abstract class DetailActivity : AppCompatActivity() {
 		if (titleBarLayer <= 0) titleBarRoot.elevation = 0f
 		else titleBarRoot.elevation = (titleBarLayer * 4.dpAsPx).toFloat()
 
-		colorManager = ColorSupervisor.createColorManager().also {
+		colorController = ColorManager.createColorManager().also {
 			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))
 		}
 	}
@@ -139,7 +139,7 @@ abstract class DetailActivity : AppCompatActivity() {
 	}
 
 	override fun onDestroy() {
-		ColorSupervisor.recycleColorManager(colorManager)
+		ColorManager.recycleColorManager(colorController)
 		super.onDestroy()
 	}
 

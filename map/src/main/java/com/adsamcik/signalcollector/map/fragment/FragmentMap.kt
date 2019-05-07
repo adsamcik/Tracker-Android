@@ -24,8 +24,8 @@ import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Assist.navbarSize
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
@@ -73,7 +73,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var searchOriginalMargin = 0
 	private var keyboardInitialized = AtomicBoolean(false)
 
-	private var colorManager: ColorManager? = null
+	private var colorController: ColorController? = null
 
 	private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
 
@@ -172,7 +172,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			return fragmentView
 		}
 
-		colorManager = ColorSupervisor.createColorManager()
+		colorController = ColorManager.createColorManager()
 
 		return fragmentView
 	}
@@ -183,9 +183,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		map?.let { ColorMap.removeListener(it) }
 		map = null
 
-		val colorManager = colorManager
+		val colorManager = colorController
 		if (colorManager != null) {
-			ColorSupervisor.recycleColorManager(colorManager)
+			ColorManager.recycleColorManager(colorManager)
 		}
 
 	}
@@ -307,8 +307,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			locationListener?.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
 
-		val colorManager = colorManager
-				?: throw NullPointerException("ColorManager should be already initialized")
+		val colorManager = colorController
+				?: throw NullPointerException("ColorController should be already initialized")
 		colorManager.watchView(ColorView(map_menu_button, 2, recursive = false, rootIsBackground = false))
 		colorManager.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
 	}
@@ -412,7 +412,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			payload.height = map_menu_parent.height
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
-				colorManager!!.watchAdapterView(ColorView(it.view!!, 2))
+				colorController!!.watchAdapterView(ColorView(it.view!!, 2))
 				if (mapLayers.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
@@ -426,7 +426,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			}
 			payload.onBeforeDestroyed = {
 				fragmentMapMenu.set(null)
-				colorManager!!.stopWatchingAdapterView(R.id.recycler)
+				colorController!!.stopWatchingAdapterView(R.id.recycler)
 			}
 
 			map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
@@ -442,7 +442,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			map_menu_button.addPayload(payload)
 			if (mapLayers.isNotEmpty()) {
 				map_menu_button.visibility = VISIBLE
-				colorManager!!.notifyChangeOn(map_menu_button)
+				colorController!!.notifyChangeOn(map_menu_button)
 			}
 		}
 

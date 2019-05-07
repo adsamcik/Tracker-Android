@@ -11,8 +11,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProviders
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.common.misc.extension.observe
 import com.adsamcik.signalcollector.statistics.data.ChartStat
@@ -30,7 +30,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 
 	private var rootView: View? = null
 
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		return inflater.inflate(R.layout.layout_loading, container, false).also { rootView = it }
@@ -39,7 +39,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		colorManager = ColorSupervisor.createColorManager()
+		colorController = ColorManager.createColorManager()
 
 		viewModel = ViewModelProviders.of(this)[StatsChartVM::class.java]
 		viewModel.chartStat.observe(this) {
@@ -101,7 +101,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 		}
 
 		if (this.chart == null) {
-			colorManager.addListener { _, foregroundColor, backgroundColor ->
+			colorController.addListener { _, foregroundColor, backgroundColor ->
 				chart.let {
 					it.setBackgroundColor(backgroundColor)
 					dataSet.color = foregroundColor
@@ -121,7 +121,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 				}
 			}
 		} else
-			colorManager.notifyChangeOn(chart)
+			colorController.notifyChangeOn(chart)
 	}
 
 	override fun onStart() {

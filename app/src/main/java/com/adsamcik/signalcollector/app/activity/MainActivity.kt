@@ -17,8 +17,8 @@ import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.common.misc.extension.guidelineEnd
@@ -38,7 +38,7 @@ import kotlinx.android.synthetic.main.activity_ui.*
  * Users should spend most time in here.
  */
 class MainActivity : AppCompatActivity() {
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 	private var themeLocationRequestCode = 4513
 
 	private var navigationOffset = Int.MIN_VALUE
@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity() {
 			gamePayload.backgroundColor = Color.WHITE
 			gamePayload.targetTranslationZ = 7.dpAsPx.toFloat()
 			gamePayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
-			//gamePayload.onInitialized = { colorManager.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
+			//gamePayload.onInitialized = { colorController.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
 
 			button_game.addPayload(gamePayload)
 		} else {
@@ -243,15 +243,15 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun initializeColorElements() {
-		colorManager = ColorSupervisor.createColorManager()
+		colorController = ColorManager.createColorManager()
 
-		colorManager.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
+		colorController.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
 
-		colorManager.watchView(ColorView(button_stats, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
-		colorManager.watchView(ColorView(button_map, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
-		colorManager.watchView(ColorView(button_game, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+		colorController.watchView(ColorView(button_stats, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+		colorController.watchView(ColorView(button_map, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+		colorController.watchView(ColorView(button_game, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
 
-		ColorSupervisor.ensureUpdate()
+		ColorManager.ensureUpdate()
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {
@@ -272,11 +272,11 @@ class MainActivity : AppCompatActivity() {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		ColorSupervisor.recycleColorManager(colorManager)
+		ColorManager.recycleColorManager(colorController)
 	}
 
 	private fun initializeColors() {
-		ColorSupervisor.initializeFromPreferences(this)
+		ColorManager.initializeFromPreferences(this)
 		initializeSunriseSunset()
 	}
 
@@ -288,7 +288,7 @@ class MainActivity : AppCompatActivity() {
 				if (it.isSuccessful) {
 					val loc = it.result
 					if (loc != null)
-						ColorSupervisor.setLocation(loc)
+						ColorManager.setLocation(loc)
 				}
 			}
 		} else if (Build.VERSION.SDK_INT >= 23)

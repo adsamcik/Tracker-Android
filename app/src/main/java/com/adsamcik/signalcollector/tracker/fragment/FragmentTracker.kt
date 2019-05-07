@@ -19,8 +19,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.widget.InfoComponent
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.misc.SnackMaker
@@ -40,7 +40,7 @@ import java.util.*
 import kotlin.math.roundToInt
 
 class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 
 	private var wifiInfo: InfoComponent? = null
 	private var cellInfo: InfoComponent? = null
@@ -106,16 +106,16 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateExtendedInfoBar() {
 		if (bar_info_top_extended.visibility == VISIBLE) {
-			colorManager.watchView(ColorView(bar_info_top_extended, 0, recursive = true, rootIsBackground = false, ignoreRoot = true))
+			colorController.watchView(ColorView(bar_info_top_extended, 0, recursive = true, rootIsBackground = false, ignoreRoot = true))
 			initializeExtendedInfo()
 		} else {
-			colorManager.stopWatchingView(bar_info_top_extended)
+			colorController.stopWatchingView(bar_info_top_extended)
 		}
 	}
 
 
 	override fun onStop() {
-		ColorSupervisor.recycleColorManager(colorManager)
+		ColorManager.recycleColorManager(colorController)
 		super.onStop()
 	}
 
@@ -189,12 +189,12 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorManager = ColorSupervisor.createColorManager()
-		colorManager.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
-		colorManager.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
+		colorController = ColorManager.createColorManager()
+		colorController.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
+		colorController.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
 
-		cellInfo?.setColorManager(colorManager)
-		wifiInfo?.setColorManager(colorManager)
+		cellInfo?.setColorManager(colorController)
+		wifiInfo?.setColorManager(colorController)
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
@@ -218,7 +218,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		component.setTitle(drawable, getString(R.string.wifi))
 		component.addPrimaryText(WIFI_COMPONENT_COUNT, "")
 		component.addSecondaryText(WIFI_COMPONENT_DISTANCE, "")
-		component.setColorManager(colorManager)
+		component.setColorManager(colorController)
 		wifiInfo = component
 		return component
 	}
@@ -233,7 +233,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		component.setTitle(drawable, getString(R.string.cell))
 		component.addPrimaryText(CELL_COMPONENT_CURRENT, "")
 		component.addSecondaryText(CELL_COMPONENT_COUNT, "")
-		component.setColorManager(colorManager)
+		component.setColorManager(colorController)
 		cellInfo = component
 		return component
 	}
@@ -256,7 +256,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
 
 			if (longitude.visibility == GONE) {
-				colorManager.notifyChangeOn(bar_info_top_extended)
+				colorController.notifyChangeOn(bar_info_top_extended)
 
 				longitude.visibility = VISIBLE
 				latitude.visibility = VISIBLE

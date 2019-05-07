@@ -18,7 +18,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
+import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.common.misc.extension.transaction
@@ -356,7 +356,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		styleChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
 			when (key) {
-				styleKey, defaultColorKey -> ColorSupervisor.initializeFromPreferences(this)
+				styleKey, defaultColorKey -> ColorManager.initializeFromPreferences(this)
 				morningKey, dayKey, eveningKey, nightKey -> {
 					if (preferences.contains(key)) {
 						val stylePrefVal = stylePreference.value.toInt()
@@ -393,7 +393,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 							else -> -1
 						}
 
-						ColorSupervisor.updateColorAt(index, preferences.getInt(key, 0))
+						ColorManager.updateColorAt(index, preferences.getInt(key, 0))
 					}
 				}
 			}

@@ -12,8 +12,8 @@ import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.recycler.card.table.TableCard
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -39,11 +39,11 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val activity = activity!!
-		colorManager = ColorSupervisor.createColorManager()
+		colorController = ColorManager.createColorManager()
 
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
@@ -66,13 +66,13 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		this.fragmentView = fragmentView
 
-		colorManager.watchAdapterView(ColorView(recyclerView, 1, recursive = true, rootIsBackground = true))
+		colorController.watchAdapterView(ColorView(recyclerView, 1, recursive = true, rootIsBackground = true))
 
 		return fragmentView
 	}
 
 	override fun onDestroyView() {
-		ColorSupervisor.recycleColorManager(colorManager)
+		ColorManager.recycleColorManager(colorController)
 		super.onDestroyView()
 	}
 

@@ -1,280 +1,463 @@
 package com.adsamcik.signalcollector.common.color
 
-import android.content.res.ColorStateList
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
-import android.view.View
-import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.CheckBox
-import android.widget.ImageView
-import android.widget.TextView
+import android.content.Context
+import android.graphics.Color
+import android.location.Location
+import android.util.Log
+import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
-import androidx.annotation.IdRes
 import androidx.core.graphics.ColorUtils
-import androidx.core.graphics.alpha
-import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.color.ColorSupervisor.backgroundColorFor
-import com.adsamcik.signalcollector.common.color.ColorSupervisor.foregroundColorFor
-import com.adsamcik.signalcollector.common.color.ColorSupervisor.layerColor
-import com.adsamcik.signalcollector.common.misc.extension.contains
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-
-//Cannot be annotated with ColorInt yet
-typealias ColorListener = (luminance: Byte, foregroundColor: Int, backgroundColor: Int) -> Unit
+import com.adsamcik.signalcollector.common.BuildConfig
+import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.R
+import com.adsamcik.signalcollector.common.misc.extension.toTimeSinceMidnight
+import com.adsamcik.signalcollector.common.preference.Preferences
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.ArrayList
 
 /**
- * ColorManager class that handles color updates of views in a given Activity or Fragment
+ * Class that handles globally calculation of current color
+ * It needs to be updated with proper location to have accurate color transitions
  */
-class ColorManager {
-	private val watchedViews = ArrayList<ColorView>(5)
+@AnyThread
+object ColorManager {
+	//Lock order colorList, colorManagerLock, timer
+
+	private val colorList = ArrayList<@ColorInt Int>()
+	private var timer: Timer? = null
+	private var timerActive = false
+
+	private val colorManagers = ArrayList<ColorController>()
+
+	private val sunsetRise = SunSetRise()
+
+	private var currentIndex = 0
+
+	private val nextIndex get () = (currentIndex + 1).rem(colorList.size)
+
+	private var darkTextColor: Int = 0
+	private var lightTextColor: Int = 0
 
 	/**
-	 * Colors listener array. Holds all listeners.
-	 *
+	 * Returns current luminance as byte
+	 * Values can be from [Byte.MIN_VALUE] to [Byte.MAX_VALUE]
 	 */
-	private val colorChangeListeners = ArrayList<ColorListener>(0)
+	var currentLuminance: Byte = 0
+		private set
+
+	@ColorInt
+	private var currentForegroundColor = 0
+
+	@ColorInt
+	private var currentBaseColor = 0
+
+	private val colorManagerLock = ReentrantLock()
 
 	/**
-	 * Add given [colorView] to the list of watched Views
-	 *
+	 * Returns proper base foreground color for given ColorView
 	 */
-	fun watchView(colorView: ColorView) {
-		synchronized(watchedViews) {
-			watchedViews.add(colorView)
+	@ColorInt
+	fun foregroundColorFor(colorView: ColorView): Int = foregroundColorFor(colorView.backgroundIsForeground)
+
+	/**
+	 * Returns proper base foreground color based on [backgroundIsForeground]
+	 *
+	 * @param backgroundIsForeground True if background and foreground should be inverted
+	 */
+	@ColorInt
+	fun foregroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentBaseColor else currentForegroundColor
+
+	/**
+	 * Returns proper base background color for given ColorView
+	 */
+	@ColorInt
+	fun backgroundColorFor(colorView: ColorView): Int = backgroundColorFor(colorView.backgroundIsForeground)
+
+	/**
+	 * Returns proper base background color based on [backgroundIsForeground]
+	 *
+	 * @param backgroundIsForeground True if background and foreground should be inverted
+	 */
+	@ColorInt
+	fun backgroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentForegroundColor else currentBaseColor
+
+	/**
+	 * Creates color manager instance
+	 */
+	fun createColorManager(): ColorController {
+		if (darkTextColor == 0) {
+			darkTextColor = Color.argb(222, 0, 0, 0)
+			lightTextColor = Color.argb(222, 255, 255, 255)
 		}
-		updateInternal(colorView)
+
+		val colorManager = ColorController()
+
+		colorManagerLock.lock()
+		colorManagers.add(colorManager)
+		colorManagerLock.unlock()
+
+		ensureUpdate()
+
+		return colorManager
 	}
 
 	/**
-	 * Notifies [ColorManager] that change has occurred on given view. View needs to be subscribed to color updates.
-	 * It is recommended to pass root View of ColorView because it does not trigger recursive lookup.
-	 *
-	 * @param view root View of ColorView
+	 * Recycles color manager instance. Cleans it up and prepares it for removal.
+	 * It is also removed from active color managers.
 	 */
-	fun notifyChangeOn(view: View) {
-		var find: ColorView? = null
-		synchronized(watchedViews) {
-			find = watchedViews.find { it.view == view }
-			if (find == null)
-				find = watchedViews.find { it.view.contains(view) }
-		}
-
-		if (find != null)
-			updateInternal(find!!)
-		else
-			throw IllegalArgumentException("View is not subscribed")
-	}
-
-	/**
-	 * Add given [ColorView] that must derive from [AdapterView] to the list of watched view. Provides additional support for recycling so recycled views are styled properly.
-	 *
-	 * Adapter needs to implement [IViewChange] interface for the best and most reliable color updating.
-	 * However it will somehow work even without it, but it might not be reliable.
-	 */
-	fun watchAdapterView(colorView: ColorView) {
-		if (!colorView.recursive)
-			throw RuntimeException("Recycler view cannot be non recursive")
-
-		colorView.view as RecyclerView
-		val adapter = colorView.view.adapter
-		if (adapter is IViewChange) {
-			adapter.onViewChangedListener = {
-				updateStyleRecursive(it, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
-			}
+	fun recycleColorManager(colorController: ColorController) {
+		colorManagerLock.lock()
+		colorManagers.remove(colorController)
+		colorController.cleanup()
+		if (colorManagers.isEmpty()) {
+			colorManagers.trimToSize()
+			colorManagerLock.unlock()
+			stopUpdate()
 		} else {
-			colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
-				override fun onChildViewRemoved(parent: View, child: View) {
-				}
-
-				override fun onChildViewAdded(parent: View, child: View) {
-					updateStyleRecursive(child, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
-				}
-
-			})
-		}
-		watchView(colorView)
-	}
-
-	/**
-	 * Stop watching [ColorView] based on predicate. This allows more advanced and unpredictable ColorView removals.
-	 * Only the first [ColorView] that matches the predicate will be removed.
-	 */
-	fun stopWatchingView(predicate: (ColorView) -> Boolean) {
-		synchronized(watchedViews) {
-			val index = watchedViews.indexOfFirst(predicate)
-			if (index >= 0)
-				watchedViews.removeAt(index)
+			colorManagerLock.unlock()
 		}
 	}
 
 	/**
-	 * Request to stop watching view.
-	 *
-	 * @param view RootView of ColorView to remove. No child lookups are performed.
+	 * Checks if a timer is running, if not start a new timer.
 	 */
-	fun stopWatchingView(view: View) {
-		stopWatchingView { it.view == view }
-	}
-
-	/**
-	 * Request to stop watching view with given id
-	 *
-	 * @param id Id of the RootView of ColorView. No child lookups are performed.
-	 */
-	fun stopWatchingView(@IdRes id: Int) {
-		stopWatchingView { it.view.id == id }
-	}
-
-	/**
-	 * Request to stop watching adapter view.
-	 * This is required to call if AdapterView was added with [watchAdapterView] function, otherwise it will not be unsubscribed properly.
-	 *
-	 * @param view AdapterView to unsubscribe
-	 */
-	fun stopWatchingAdapterView(view: AdapterView<*>) {
-		val adapter = view.adapter
-		if (adapter is IViewChange)
-			adapter.onViewChangedListener = null
-		else
-			view.setOnHierarchyChangeListener(null)
-		stopWatchingView(view)
-	}
-
-	/**
-	 * Request to stop watching adapter view.
-	 * This is required to call if AdapterView was added with [watchAdapterView] function, otherwise it will not be unsubscribed properly.
-	 *
-	 * @param id Id of the AdapterView to unsubscribe
-	 */
-	fun stopWatchingAdapterView(@IdRes id: Int) {
-		synchronized(watchedViews) {
-			val index = watchedViews.indexOfFirst { it.view.id == id }
-			if (index >= 0) {
-				(watchedViews[index].view as ViewGroup).setOnHierarchyChangeListener(null)
-				watchedViews.removeAt(index)
+	fun ensureUpdate() {
+		synchronized(colorList) {
+			if (colorList.size > 1) {
+				synchronized(timerActive) {
+					if (!timerActive) startUpdate()
+				}
+			} else if (colorList.size == 1) {
+				update(colorList[0])
 			}
 		}
 	}
 
 	/**
-	 * Triggers cleanup of all watched [ColorView] and [ColorListener] removing them from watch lists.
+	 * Returns proper color for given layer
+	 *
+	 * @param color base color
+	 * @param layer layer (should be positive)
 	 */
-	fun cleanup() {
-		synchronized(watchedViews) {
-			watchedViews.clear()
-		}
-
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.clear()
-		}
-	}
-
-	/**
-	 * Adds color listener which is called on change. It is not guaranteed to be called on UI thread.
-	 * For views [watchView] should be used.
-	 * Listener returns only luminance and background color
-	 */
-	fun addListener(colorListener: ColorListener) {
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.add(colorListener)
-			colorListener.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(true), backgroundColorFor(false))
-		}
-	}
-
-	/**
-	 * Removes color listener
-	 */
-	fun removeListener(colorListener: ColorListener) {
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.remove(colorListener)
-		}
-	}
-
-	/**
-	 * Internal update function which should be called only by ColorSupervisor
-	 */
-	internal fun update() {
-		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-			synchronized(watchedViews) {
-				watchedViews.forEach {
-					updateInternal(it)
-				}
-			}
-		}
-
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.forEach { it.invoke(ColorSupervisor.currentLuminance, backgroundColorFor(true), backgroundColorFor(false)) }
-		}
-	}
-
-	private fun updateInternal(colorView: ColorView) {
-		val backgroundColor = backgroundColorFor(colorView)
-		val foregroundColor = foregroundColorFor(colorView)
-
-		if (!colorView.ignoreRoot) {
-			val layerColor = layerColor(backgroundColor, colorView.layer)
-			if (colorView.rootIsBackground)
-				colorView.view.setBackgroundColor(layerColor)
-			else
-				updateBackgroundDrawable(colorView.view, layerColor)
-
-			updateStyleForeground(colorView.view, foregroundColor)
-		}
-
-		if (colorView.recursive && colorView.view is ViewGroup) {
-			val layer = if (!colorView.ignoreRoot) colorView.layer + 1 else colorView.layer
-			for (i in 0 until colorView.view.childCount)
-				updateStyleRecursive(colorView.view.getChildAt(i), backgroundColor, foregroundColor, layer)
-		}
-	}
-
-	private fun updateStyleRecursive(view: View, @ColorInt color: Int, @ColorInt fgColor: Int, layer: Int) {
-		var newLayer = layer
-		if (updateBackgroundDrawable(view, layerColor(color, layer)))
-			newLayer++
-		if (view is ViewGroup) {
-			for (i in 0 until view.childCount)
-				updateStyleRecursive(view.getChildAt(i), color, fgColor, newLayer)
+	fun layerColor(@ColorInt color: Int, layer: Int): Int {
+		return if (layer == 0) {
+			color
 		} else {
-			updateStyleForeground(view, fgColor)
+			brightenColor(color, 17 * layer)
 		}
 	}
 
-	private fun updateStyleForeground(view: View, @ColorInt fgColor: Int) {
-		when (view) {
-			is ImageView -> {
-				view.setColorFilter(fgColor)
-			}
-			is TextView -> {
-				if (view is CheckBox)
-					view.buttonTintList = ColorStateList.valueOf(fgColor)
+	/**
+	 * Add all given colors to colorList. This is usually not the way you want to initialize the colors. Consider using load from preferences.
+	 *
+	 * @param varargs colors to add
+	 */
+	fun addColors(@ColorInt vararg varargs: Int) {
+		synchronized(colorList) {
+			if (varargs.isEmpty())
+				throw RuntimeException("You can't just add no colors.")
 
-				val alpha = view.currentTextColor.alpha
-				val newTextColor = ColorUtils.setAlphaComponent(fgColor, alpha)
-				view.setTextColor(newTextColor)
-				view.setHintTextColor(brightenColor(newTextColor, 1))
-				view.compoundDrawables.forEach { it?.setTint(fgColor) }
+			//Has to be added one by one because it is vararg
+			colorList.ensureCapacity(colorList.size + varargs.size)
+			varargs.forEach { colorList.add(it) }
+
+			ensureUpdate()
+		}
+	}
+
+	/**
+	 * Delta update which is called internally by update functions
+	 *
+	 * @param delta value from 0 to 1
+	 */
+	private fun deltaUpdate(delta: Float) {
+		if (delta > 1) {
+			currentIndex = nextIndex
+			updateUpdate()
+		}
+
+		synchronized(colorList) {
+			if (colorList.size < 2) {
+				stopUpdate()
+				return
+			}
+
+			update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
+		}
+	}
+
+	/**
+	 * Update function is called with new color and handles updating of all the colorManagers.
+	 */
+	private fun update(@ColorInt color: Int) {
+		val lum = perceivedRelLuminance(layerColor(color, 1))
+		val fgColor: Int = if (lum > 0)
+			darkTextColor
+		else
+			lightTextColor
+
+		currentLuminance = lum
+		currentForegroundColor = fgColor
+		currentBaseColor = color
+
+		colorManagerLock.lock()
+		colorManagers.forEach {
+			it.update()
+		}
+		colorManagerLock.unlock()
+	}
+
+	private fun updateUpdate() {
+		synchronized(colorList) {
+			if (colorList.size > 1) {
+				synchronized(timerActive) {
+					stopUpdate()
+					startUpdate()
+				}
+			} else {
+				update(colorList[0])
 			}
 		}
 	}
 
-	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
-		val background = view.background
-		if (view is androidx.cardview.widget.CardView) {
-			view.setCardBackgroundColor(bgColor)
-			return true
-		} else if (background?.isVisible == true) {
-			if (background.alpha < 255)
-				return false
+	/**
+	 * Handles start update function. Supports only 2 or 4 colors.
+	 * 1 color should never call an update, because the color never changes.
+	 */
+	private fun startUpdate() {
+		synchronized(colorList) {
+			if (colorList.size >= 2) {
+				synchronized(timerActive) {
+					timerActive = true
+					val timer = Timer("ColorUpdate", true)
+					when (colorList.size) {
+						2 -> startUpdate2(timer)
+						4 -> startUpdate4(timer)
+						else -> throw IllegalStateException()
+					}
 
-			background.setTint(bgColor)
-			background.colorFilter = PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
-			return true
+					ColorManager.timer = timer
+				}
+			}
 		}
-		return false
+	}
+
+	/**
+	 * Starts update function for 2 colors
+	 */
+	private fun startUpdate2(timer: Timer) {
+		timer.schedule(object : TimerTask() {
+			override fun run() {
+				deltaUpdate(0f)
+			}
+		}, calculateTimeOfDay2().time)
+		deltaUpdate(0f)
+	}
+
+	/**
+	 * Starts update function for 4 colors
+	 */
+	private fun startUpdate4(timer: Timer) {
+		val (changeLength, progress, period) = calculateTimeOfDay4()
+		timer.scheduleAtFixedRate(ColorUpdateTask(changeLength, progress, period), 0L, period)
+
+		deltaUpdate(progress / changeLength.toFloat())
+
+		if (BuildConfig.DEBUG) {
+			val sunset = sunsetRise.nextSunset()
+			val sunrise = sunsetRise.nextSunrise()
+			val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
+			Log.d("ColorManager", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+					"Sunrise is at ${format.format(sunrise.time)} " +
+					"and sun sets at ${format.format(sunset.time)}")
+
+			Log.d("ColorManager", "Update rate is $period")
+		}
+	}
+
+	private fun getTimeOfDay(value: Int) = when (value) {
+		0 -> "Morning"
+		1 -> "Noon"
+		2 -> "Evening"
+		3 -> "Night"
+		else -> "Bug"
+	}
+
+	private fun calculateTimeOfDay2(): Calendar {
+		val time = Calendar.getInstance().toTimeSinceMidnight()
+		val sunset = sunsetRise.nextSunset()
+		val sunrise = sunsetRise.nextSunrise()
+
+		return when {
+			(time > sunset.toTimeSinceMidnight()) or (time < sunrise.toTimeSinceMidnight()) -> {
+				currentIndex = 1
+				sunrise
+			}
+			else -> {
+				currentIndex = 0
+				sunset
+			}
+		}
+	}
+
+	private fun calculateTimeOfDay4(): Triple<Long, Long, Long> {
+		val time = Calendar.getInstance().toTimeSinceMidnight()
+		val changeLength: Long
+		val progress: Long
+
+		val sunsetTime = sunsetRise.nextSunset().toTimeSinceMidnight()
+		val sunriseTime = sunsetRise.nextSunrise().toTimeSinceMidnight()
+
+		val dayTime = (sunsetTime - sunriseTime) / 2 + sunriseTime
+		val nightTime = ((Constants.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Constants.DAY_IN_MILLISECONDS)
+
+		if (time > sunsetTime) {
+			if (nightTime > sunsetTime) {
+				if (time < nightTime) {
+					//Between sunset and night when night is before midnight and time is before midnight
+					changeLength = nightTime - sunsetTime
+					progress = time - sunsetTime
+					currentIndex = 2
+				} else {
+					//Between night and sunrise when night is before midnight and time is before midnight
+					changeLength = 24 * Constants.HOUR_IN_MILLISECONDS - nightTime + sunriseTime
+					progress = time - nightTime
+					currentIndex = 3
+				}
+			} else {
+				//Between sunset and night when night is after midnight and time is before midnight
+				changeLength = 24 * Constants.HOUR_IN_MILLISECONDS - sunsetTime + nightTime
+				progress = time - sunsetTime
+				currentIndex = 2
+			}
+		} else if (time > dayTime) {
+			//Between day and sunset
+			changeLength = sunsetTime - dayTime
+			progress = time - dayTime
+			currentIndex = 1
+		} else if (time > sunriseTime) {
+			//Between sunrise and day
+			changeLength = dayTime - sunriseTime
+			progress = time - sunriseTime
+			currentIndex = 0
+		} else {
+			if (nightTime > sunsetTime) {
+				//Between night and sunrise when night is before midnight and time is after midnight
+				val beforeMidnight = 24 * Constants.HOUR_IN_MILLISECONDS - nightTime
+				changeLength = beforeMidnight + sunriseTime
+				progress = time + beforeMidnight
+				currentIndex = 3
+			} else {
+				if (time < nightTime) {
+					//Between sunset and night when night is after midnight and time is after midnight
+					val beforeMidnight = 24 * Constants.HOUR_IN_MILLISECONDS - sunsetTime
+					changeLength = beforeMidnight + nightTime
+					progress = time + beforeMidnight
+					currentIndex = 2
+				} else {
+					//Between night and sunrise when night is after midnight and time is after midnight
+					changeLength = sunriseTime - nightTime
+					progress = time - nightTime
+					currentIndex = 3
+				}
+			}
+		}
+
+		return Triple(changeLength, progress, calculateUpdatePeriod(changeLength))
+	}
+
+	private fun calculateUpdatePeriod(changeLength: Long) = changeLength / calculateUpdateCount()
+
+	private fun calculateUpdateCount(): Int {
+		synchronized(colorList) {
+			if (colorList.size < 2) throw IllegalStateException("Update rate cannot be calculated for less than 2 colors")
+
+			val currentColor = colorList[currentIndex]
+			val targetColor = colorList[nextIndex]
+			val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
+			val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
+			val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
+			val totalDiff = rDiff + gDiff + bDiff
+			return if (totalDiff == 0) 1 else totalDiff
+		}
+	}
+
+	private fun stopUpdate() {
+		synchronized(timerActive) {
+			if (timerActive) {
+				timerActive = false
+				timer!!.cancel()
+			}
+		}
+	}
+
+	/**
+	 * Initializes colors from preference. This completely replaces all current colors with those saved in preferences.
+	 */
+	fun initializeFromPreferences(context: Context) {
+		val preferences = Preferences.getPref(context)
+		val mode = preferences.getStringAsIntResString(R.string.settings_style_mode_key, R.string.settings_style_mode_default)
+
+		stopUpdate()
+
+		synchronized(colorList) {
+			colorList.clear()
+
+			val day = preferences.getColorRes(R.string.settings_color_day_key, R.color.settings_color_day_default)
+
+			if (mode == 0) {
+				addColors(day)
+			} else {
+				val night = preferences.getColorRes(R.string.settings_color_night_key, R.color.settings_color_night_default)
+				if (mode == 1) {
+					addColors(day, night)
+				} else {
+					val morning = preferences.getColorRes(R.string.settings_color_morning_key, R.color.settings_color_morning_default)
+					val evening = preferences.getColorRes(R.string.settings_color_evening_key, R.color.settings_color_evening_default)
+					addColors(morning, day, evening, night)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Updates specific color at given index. This function requires proper knowledge of the current colors.
+	 * This function can cause a lot of bugs so use it carefully.
+	 * It is intended mainly to be used for easy color switching when preference is changed.
+	 */
+	fun updateColorAt(index: Int, @ColorInt color: Int) {
+		synchronized(colorList) {
+			if (index < 0 || index >= colorList.size) {
+				throw IllegalArgumentException("Index $index is out of bounds. Size is ${colorList.size}.")
+			} else {
+				colorList[index] = color
+				updateUpdate()
+			}
+		}
+	}
+
+	/**
+	 * Sets location for the sunrise and sunset calculator
+	 * This should be called every time when location significantly changes
+	 */
+	fun setLocation(location: Location) {
+		sunsetRise.updateLocation(location)
+		synchronized(timerActive) {
+			stopUpdate()
+			startUpdate()
+		}
+	}
+
+	/**
+	 * Color update task that calculates delta update based on parameters. It is used for color transitions.
+	 */
+	internal class ColorUpdateTask(private val periodLength: Long, private var currentTime: Long = 0, private val deltaTime: Long) : TimerTask() {
+		override fun run() {
+			currentTime = (currentTime + deltaTime).rem(periodLength)
+			val delta = currentTime.toFloat() / periodLength
+			deltaUpdate(delta)
+		}
 	}
 }

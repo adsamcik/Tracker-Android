@@ -11,8 +11,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
@@ -27,7 +27,7 @@ class ModuleActivity : AppCompatActivity() {
 
 	private lateinit var manager: SplitInstallManager
 
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 
 	private lateinit var adapter: ModuleAdapter
 
@@ -91,14 +91,14 @@ class ModuleActivity : AppCompatActivity() {
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_module)
 
-		colorManager = ColorSupervisor.createColorManager()
+		colorController = ColorManager.createColorManager()
 		manager = SplitInstallManagerFactory.create(this)
 
 		val adapter = ModuleAdapter()
 
 
-		colorManager.watchView(ColorView(root, 0, recursive = true))
-		colorManager.watchAdapterView(ColorView(recycler, 0, ignoreRoot = true))
+		colorController.watchView(ColorView(root, 0, recursive = true))
+		colorController.watchAdapterView(ColorView(recycler, 0, ignoreRoot = true))
 
 		val moduleInfoList = activeModules.map { ModuleInfo(it) }
 		manager.installedModules.forEach { moduleName ->

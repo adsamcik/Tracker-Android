@@ -10,8 +10,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.game.R
@@ -27,7 +27,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 	private lateinit var recyclerViewChallenges: RecyclerView
 	private lateinit var refreshLayout: SwipeRefreshLayout
 
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val rootView = inflater.inflate(R.layout.fragment_game, container, false)
@@ -35,7 +35,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 		recyclerViewChallenges = rootView.findViewById(R.id.recyclerview_challenges)
 
 		refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
-		//todo add color scheme support to ColorManager
+		//todo add color scheme support to ColorController
 		//refreshLayout.setColorSchemeResources(R.color.color_primary)
 		refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
 		refreshLayout.setOnRefreshListener { this.updateData(ChallengeManager.activeChallenges.value) }
@@ -45,9 +45,9 @@ class FragmentGame : Fragment(), IOnDemandView {
 		val context = context!!
 		recyclerViewChallenges.adapter = ChallengeAdapter(context, arrayOf())
 		recyclerViewChallenges.layoutManager = LinearLayoutManager(context)
-		colorManager = ColorSupervisor.createColorManager()
-		colorManager.watchView(ColorView(rootView, 1))
-		colorManager.watchAdapterView(ColorView(recyclerViewChallenges, 1, recursive = true, rootIsBackground = false))
+		colorController = ColorManager.createColorManager()
+		colorController.watchView(ColorView(rootView, 1))
+		colorController.watchAdapterView(ColorView(recyclerViewChallenges, 1, recursive = true, rootIsBackground = false))
 
 		ChallengeManager.activeChallenges.observe(this) { updateData(it) }
 

@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.commonmap
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
+import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers
@@ -14,16 +14,16 @@ import kotlinx.coroutines.launch
 object ColorMap {
 	private val colorChangeListeners = ArrayList<GoogleMap>(0)
 	private var resources: Resources? = null
-	private var colorManager: ColorManager? = null
+	private var colorController: ColorController? = null
 
 	private var activeMapStyle: MapStyleOptions? = null
 	private var activeMapStyleRes: Int = 0
 
 	private fun init(context: Context) {
 		if (resources == null) resources = context.resources
-		if (colorManager == null) {
-			ColorSupervisor.createColorManager().also {
-				colorManager = it
+		if (colorController == null) {
+			ColorManager.createColorManager().also {
+				colorController = it
 				it.addListener(this::onColorChange)
 			}
 		}
@@ -31,7 +31,7 @@ object ColorMap {
 
 	private fun destroy() {
 		resources = null
-		colorManager?.let { ColorSupervisor.recycleColorManager(it) }
+		colorController?.let { ColorManager.recycleColorManager(it) }
 	}
 
 	private fun onColorChange(luminance: Byte, foregroundColor: Int, backgroundColor: Int) {
