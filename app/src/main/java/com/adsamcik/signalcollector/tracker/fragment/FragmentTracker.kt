@@ -189,7 +189,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorManager = ColorSupervisor.createColorManager(context!!)
+		colorManager = ColorSupervisor.createColorManager()
 		colorManager.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
 		colorManager.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
 

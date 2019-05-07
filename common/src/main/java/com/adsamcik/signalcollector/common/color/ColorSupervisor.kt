@@ -59,9 +59,7 @@ object ColorSupervisor {
 	 * Returns proper base foreground color for given ColorView
 	 */
 	@ColorInt
-	fun foregroundColorFor(colorView: ColorView): Int {
-		return foregroundColorFor(colorView.backgroundIsForeground)
-	}
+	fun foregroundColorFor(colorView: ColorView): Int = foregroundColorFor(colorView.backgroundIsForeground)
 
 	/**
 	 * Returns proper base foreground color based on [backgroundIsForeground]
@@ -69,20 +67,13 @@ object ColorSupervisor {
 	 * @param backgroundIsForeground True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun foregroundColorFor(backgroundIsForeground: Boolean): Int {
-		return if (backgroundIsForeground)
-			currentBaseColor
-		else
-			currentForegroundColor
-	}
+	fun foregroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentBaseColor else currentForegroundColor
 
 	/**
 	 * Returns proper base background color for given ColorView
 	 */
 	@ColorInt
-	fun backgroundColorFor(colorView: ColorView): Int {
-		return backgroundColorFor(colorView.backgroundIsForeground)
-	}
+	fun backgroundColorFor(colorView: ColorView): Int = backgroundColorFor(colorView.backgroundIsForeground)
 
 	/**
 	 * Returns proper base background color based on [backgroundIsForeground]
@@ -90,14 +81,12 @@ object ColorSupervisor {
 	 * @param backgroundIsForeground True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun backgroundColorFor(backgroundIsForeground: Boolean): Int {
-		return if (backgroundIsForeground) currentForegroundColor else currentBaseColor
-	}
+	fun backgroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentForegroundColor else currentBaseColor
 
 	/**
 	 * Creates color manager instance
 	 */
-	fun createColorManager(context: Context): ColorManager {
+	fun createColorManager(): ColorManager {
 		if (darkTextColor == 0) {
 			darkTextColor = Color.argb(222, 0, 0, 0)
 			lightTextColor = Color.argb(222, 255, 255, 255)
@@ -126,9 +115,9 @@ object ColorSupervisor {
 			colorManagers.trimToSize()
 			colorManagerLock.unlock()
 			stopUpdate()
-		} else
+		} else {
 			colorManagerLock.unlock()
-
+		}
 	}
 
 	/**
@@ -138,11 +127,11 @@ object ColorSupervisor {
 		synchronized(colorList) {
 			if (colorList.size > 1) {
 				synchronized(timerActive) {
-					if (!timerActive)
-						startUpdate()
+					if (!timerActive) startUpdate()
 				}
-			} else if (colorList.size == 1)
+			} else if (colorList.size == 1) {
 				update(colorList[0])
+			}
 		}
 	}
 
@@ -153,10 +142,11 @@ object ColorSupervisor {
 	 * @param layer layer (should be positive)
 	 */
 	fun layerColor(@ColorInt color: Int, layer: Int): Int {
-		return if (layer == 0)
+		return if (layer == 0) {
 			color
-		else
+		} else {
 			brightenColor(color, 17 * layer)
+		}
 	}
 
 	/**
@@ -304,12 +294,10 @@ object ColorSupervisor {
 			(time > sunset.toTimeSinceMidnight()) or (time < sunrise.toTimeSinceMidnight()) -> {
 				currentIndex = 1
 				sunrise
-
 			}
 			else -> {
 				currentIndex = 0
 				sunset
-
 			}
 		}
 	}
@@ -384,8 +372,7 @@ object ColorSupervisor {
 
 	private fun calculateUpdateCount(): Int {
 		synchronized(colorList) {
-			if (colorList.size < 2)
-				throw RuntimeException("Update rate cannot be calculated for less than 2 colors")
+			if (colorList.size < 2) throw IllegalStateException("Update rate cannot be calculated for less than 2 colors")
 
 			val currentColor = colorList[currentIndex]
 			val targetColor = colorList[nextIndex]
@@ -424,9 +411,9 @@ object ColorSupervisor {
 				addColors(day)
 			} else {
 				val night = preferences.getColorRes(R.string.settings_color_night_key, R.color.settings_color_night_default)
-				if (mode == 1)
+				if (mode == 1) {
 					addColors(day, night)
-				else {
+				} else {
 					val morning = preferences.getColorRes(R.string.settings_color_morning_key, R.color.settings_color_morning_default)
 					val evening = preferences.getColorRes(R.string.settings_color_evening_key, R.color.settings_color_evening_default)
 					addColors(morning, day, evening, night)

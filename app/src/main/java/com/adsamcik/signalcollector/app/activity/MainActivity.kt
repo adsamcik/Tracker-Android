@@ -243,7 +243,7 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun initializeColorElements() {
-		colorManager = ColorSupervisor.createColorManager(this)
+		colorManager = ColorSupervisor.createColorManager()
 
 		colorManager.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
 

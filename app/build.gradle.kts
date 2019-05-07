@@ -11,8 +11,9 @@ plugins {
 }
 
 
-if (file("key.gradle").exists())
+if (file("key.gradle").exists()) {
 	apply("key.gradle")
+}
 
 android {
 	compileSdkVersion(Android.compile)

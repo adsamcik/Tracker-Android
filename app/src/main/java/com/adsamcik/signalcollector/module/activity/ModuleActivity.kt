@@ -91,7 +91,7 @@ class ModuleActivity : AppCompatActivity() {
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_module)
 
-		colorManager = ColorSupervisor.createColorManager(this)
+		colorManager = ColorSupervisor.createColorManager()
 		manager = SplitInstallManagerFactory.create(this)
 
 		val adapter = ModuleAdapter()

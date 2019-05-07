@@ -22,7 +22,7 @@ object ColorMap {
 	private fun init(context: Context) {
 		if (resources == null) resources = context.resources
 		if (colorManager == null) {
-			ColorSupervisor.createColorManager(context).also {
+			ColorSupervisor.createColorManager().also {
 				colorManager = it
 				it.addListener(this::onColorChange)
 			}

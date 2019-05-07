@@ -39,7 +39,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		colorManager = ColorSupervisor.createColorManager(context!!)
+		colorManager = ColorSupervisor.createColorManager()
 
 		viewModel = ViewModelProviders.of(this)[StatsChartVM::class.java]
 		viewModel.chartStat.observe(this) {

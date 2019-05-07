@@ -31,7 +31,7 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val context = context!!
-		colorManager = ColorSupervisor.createColorManager(context)
+		colorManager = ColorSupervisor.createColorManager()
 
 		val linearLayout = LinearLayout(context)
 		linearLayout.orientation = LinearLayout.VERTICAL

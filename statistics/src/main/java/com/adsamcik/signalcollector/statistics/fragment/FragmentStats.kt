@@ -43,7 +43,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val activity = activity!!
-		colorManager = ColorSupervisor.createColorManager(activity)
+		colorManager = ColorSupervisor.createColorManager()
 
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 

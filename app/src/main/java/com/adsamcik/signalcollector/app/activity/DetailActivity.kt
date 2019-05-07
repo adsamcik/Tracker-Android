@@ -35,7 +35,7 @@ abstract class DetailActivity : AppCompatActivity() {
 		if (titleBarLayer <= 0) titleBarRoot.elevation = 0f
 		else titleBarRoot.elevation = (titleBarLayer * 4.dpAsPx).toFloat()
 
-		colorManager = ColorSupervisor.createColorManager(this).also {
+		colorManager = ColorSupervisor.createColorManager().also {
 			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))
 		}
 	}

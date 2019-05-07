@@ -172,7 +172,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			return fragmentView
 		}
 
-		colorManager = ColorSupervisor.createColorManager(activity)
+		colorManager = ColorSupervisor.createColorManager()
 
 		return fragmentView
 	}
