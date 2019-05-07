@@ -23,13 +23,13 @@
             android:layout_width="72dp"
             android:layout_height="80dp"
             android:layout_gravity="start"
-            android:layout_marginBottom="30dp"
+            android:layout_marginBottom="48dp"
             android:background="@drawable/side_button"
             android:elevation="6dp"
             android:src="@drawable/ic_pie_chart_black_24dp"
             android:translationX="-10dp"
             app:interpolator="Decelerate"
-            app:layout_constraintBottom_toTopOf="@id/navigation_guideline"
+            app:layout_constraintBottom_toBottomOf="@id/navigation_guideline"
             app:layout_constraintLeft_toLeftOf="parent"/>
 
         <com.adsamcik.draggable.DraggableImageButton
@@ -37,13 +37,13 @@
             android:layout_width="72dp"
             android:layout_height="80dp"
             android:layout_gravity="end"
-            android:layout_marginBottom="30dp"
+            android:layout_marginBottom="48dp"
             android:background="@drawable/side_button"
             android:elevation="6dp"
             android:src="@drawable/ic_outline_games_24dp"
             android:translationX="10dp"
             app:interpolator="Decelerate"
-            app:layout_constraintBottom_toTopOf="@id/navigation_guideline"
+            app:layout_constraintBottom_toBottomOf="@id/navigation_guideline"
             app:layout_constraintRight_toRightOf="parent"/>
 
         <com.adsamcik.draggable.DraggableImageButton
@@ -68,6 +68,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            app:layout_constraintGuide_percent="0.965"/>
+            app:layout_constraintGuide_end="24dp"/>
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

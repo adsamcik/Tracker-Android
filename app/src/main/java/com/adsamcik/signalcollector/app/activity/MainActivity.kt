@@ -10,20 +10,20 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Tips
-import com.adsamcik.signalcollector.app.widget.behavior.BottomBarBehavior
+import com.adsamcik.signalcollector.app.widget.behavior.NavigationButtonOffsetBehavior
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorSupervisor
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
-import com.adsamcik.signalcollector.common.misc.extension.marginBottom
-import com.adsamcik.signalcollector.common.misc.extension.setMargin
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.module.Modules
@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
 	private lateinit var colorManager: ColorManager
 	private var themeLocationRequestCode = 4513
 
-	private var draggableOriginalMargin = Int.MIN_VALUE
+	private var navigationOffset = Int.MIN_VALUE
 
 	private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
@@ -66,6 +66,17 @@ class MainActivity : AppCompatActivity() {
 		supportFragmentManager.transaction {
 			replace(R.id.root, trackerFragment)
 		}
+
+
+		SnackMaker(root).apply {
+			showSnackbar("TEST")
+			showSnackbar("TEST")
+			showSnackbar("TEST")
+			showSnackbar("TEST")
+			showSnackbar("TEST")
+			showSnackbar("TEST")
+
+		}
 	}
 
 	override fun onStart() {
@@ -87,8 +98,6 @@ class MainActivity : AppCompatActivity() {
 		val size = Point()
 		display.getRealSize(realSize)
 		display.getSize(size)
-
-		val newContext = createPackageContext(this.packageName, 0)
 
 		val splitInstallManager = SplitInstallManagerFactory.create(this)
 		val installedModules = splitInstallManager.installedModules
@@ -190,7 +199,7 @@ class MainActivity : AppCompatActivity() {
 		}
 
 		val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
-		params.behavior = BottomBarBehavior(button_map)
+		params.behavior = NavigationButtonOffsetBehavior(navigation_guideline)
 		root.requestLayout()
 	}
 
@@ -225,8 +234,10 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun initializeButtonsPosition() {
-		if (draggableOriginalMargin == Int.MIN_VALUE)
-			draggableOriginalMargin = button_map.marginBottom
+		if (navigationOffset == Int.MIN_VALUE) {
+			val params = navigation_guideline.layoutParams as ConstraintLayout.LayoutParams
+			navigationOffset = params.guideEnd
+		}
 
 		val (position, navDim) = Assist.navbarSize(this)
 		if (navDim.x > navDim.y)
@@ -234,15 +245,11 @@ class MainActivity : AppCompatActivity() {
 		else
 			navDim.y = 0
 
-		button_map.setMargin(0, 0, 0, draggableOriginalMargin + navDim.y)
+		navigation_guideline.setGuidelineEnd(navigationOffset + navDim.y)
 
 		when (position) {
-			NavBarPosition.RIGHT -> {
-				root.setPadding(0, 0, navDim.x, 0)
-			}
-			NavBarPosition.LEFT -> {
-				root.setPadding(navDim.x, 0, 0, 0)
-			}
+			NavBarPosition.RIGHT -> root.setPadding(0, 0, navDim.x, 0)
+			NavBarPosition.LEFT -> root.setPadding(navDim.x, 0, 0, 0)
 			else -> root.setPadding(0, 0, 0, 0)
 		}
 	}

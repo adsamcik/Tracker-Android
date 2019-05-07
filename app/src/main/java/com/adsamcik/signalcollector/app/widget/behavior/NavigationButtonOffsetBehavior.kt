@@ -2,13 +2,14 @@ package com.adsamcik.signalcollector.app.widget.behavior
 
 import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 
 /**
  * Custom behavior that allows specific view to be modified instead of direct child of coordinator layout
  */
-class BottomBarBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
+class NavigationButtonOffsetBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
 
 	private val dp16 = 16.dpAsPx
 
