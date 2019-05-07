@@ -69,12 +69,12 @@ class MainActivity : AppCompatActivity() {
 
 
 		SnackMaker(root).apply {
-			showSnackbar("TEST")
-			showSnackbar("TEST")
-			showSnackbar("TEST")
-			showSnackbar("TEST")
-			showSnackbar("TEST")
-			showSnackbar("TEST")
+			addMessage("TEST")
+			addMessage("TEST")
+			addMessage("TEST")
+			addMessage("TEST")
+			addMessage("TEST")
+			addMessage("TEST")
 
 		}
 	}

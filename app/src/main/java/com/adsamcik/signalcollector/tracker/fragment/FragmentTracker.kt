@@ -70,7 +70,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated) {
 				val lockedForMinutes = 60
 				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
-				SnackMaker(activity.findViewById(R.id.root) as View).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
 			} else
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
 		}
@@ -147,7 +147,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		if (requiredPermissions == null && view != null) {
 			if (!TrackerService.isServiceRunning.value) {
 				if (!Assist.isGNSSEnabled(activity)) {
-					SnackMaker(activity.root).showSnackbar(R.string.error_gnss_not_enabled,
+					SnackMaker(activity.root).addMessage(R.string.error_gnss_not_enabled,
 							priority = SnackMaker.SnackbarPriority.IMPORTANT,
 							actionRes = R.string.enable,
 							onActionClick = View.OnClickListener {
@@ -155,7 +155,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 								startActivity(locationOptionsIntent)
 							})
 				} else if (!Assist.canTrack(activity)) {
-					SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_nothing_to_track)
+					SnackMaker(activity.findViewById(R.id.root)).addMessage(R.string.error_nothing_to_track)
 				} else {
 					Preferences.getPref(activity).edit {
 						setBoolean(R.string.settings_disabled_recharge_key, false)

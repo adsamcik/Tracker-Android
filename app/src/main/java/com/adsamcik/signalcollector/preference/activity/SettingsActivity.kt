@@ -107,7 +107,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		locationPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = newValue as Boolean, wifiEnabled = wifiPreference.isChecked, cellEnabled = cellPreference.isChecked)) {
-				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
 			} else
 				true
@@ -115,7 +115,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		wifiPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = newValue as Boolean, cellEnabled = cellPreference.isChecked)) {
-				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
 			} else
 				true
@@ -123,7 +123,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		cellPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = wifiPreference.isChecked, cellEnabled = newValue as Boolean)) {
-				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
 			} else
 				true

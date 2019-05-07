@@ -174,7 +174,7 @@ class ExportActivity : DetailActivity() {
 			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 			if (locations.isEmpty()) {
-				SnackMaker(root).showSnackbar(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
+				SnackMaker(root).addMessage(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
 				return@launch
 			}
 

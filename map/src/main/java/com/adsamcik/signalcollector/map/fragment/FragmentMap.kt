@@ -319,10 +319,10 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 */
 	private fun search(searchText: String) {
 		if (searchText.isBlank()) {
-			SnackMaker(view!!).showSnackbar(R.string.map_search_no_text)
+			SnackMaker(view!!).addMessage(R.string.map_search_no_text)
 			return
 		} else if (!Geocoder.isPresent()) {
-			SnackMaker(view!!).showSnackbar(R.string.map_search_no_geocoder)
+			SnackMaker(view!!).addMessage(R.string.map_search_no_geocoder)
 			return
 		}
 
@@ -337,7 +337,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			}
 		} catch (e: IOException) {
 			//Crashlytics.logException(e)
-			view?.let { SnackMaker(it).showSnackbar(R.string.map_search_no_geocoder) }
+			view?.let { SnackMaker(it).addMessage(R.string.map_search_no_geocoder) }
 		}
 	}
 

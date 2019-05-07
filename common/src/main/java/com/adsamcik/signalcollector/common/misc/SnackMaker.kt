@@ -31,7 +31,7 @@ class SnackMaker(view: View) {
 	 * @param message Message
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun showSnackbar(message: String, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+	fun addMessage(message: String, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
 		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}
 
@@ -41,7 +41,7 @@ class SnackMaker(view: View) {
 	 * @param messageRes Message resource
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun showSnackbar(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+	fun addMessage(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
 		val message = weakView.get()!!.context.getString(messageRes)
 		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}
@@ -54,7 +54,7 @@ class SnackMaker(view: View) {
 	 * @param actionRes Action string resource
 	 * @param onActionClick On action click listener
 	 */
-	fun showSnackbar(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority, @StringRes actionRes: Int, onActionClick: View.OnClickListener) {
+	fun addMessage(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority, @StringRes actionRes: Int, onActionClick: View.OnClickListener) {
 		val resources = weakView.get()!!.context.resources
 		val action = resources.getString(actionRes)
 		val message = resources.getString(messageRes)
