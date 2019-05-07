@@ -18,7 +18,11 @@ import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
+import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.misc.SnackMaker
+import com.adsamcik.signalcollector.common.misc.extension.startActivity
+import com.adsamcik.signalcollector.common.misc.extension.transaction
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity
@@ -26,10 +30,11 @@ import com.adsamcik.signalcollector.export.DatabaseExport
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
 import com.adsamcik.signalcollector.export.activity.ExportActivity
-import com.adsamcik.signalcollector.misc.SnackMaker
-import com.adsamcik.signalcollector.misc.extension.*
+import com.adsamcik.signalcollector.module.activity.ModuleActivity
 import com.adsamcik.signalcollector.notification.Notifications
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.preference.findDirectPreferenceByTitle
+import com.adsamcik.signalcollector.preference.findPreference
+import com.adsamcik.signalcollector.preference.findPreferenceTyped
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
@@ -103,7 +108,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		locationPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = newValue as Boolean, wifiEnabled = wifiPreference.isChecked, cellEnabled = cellPreference.isChecked)) {
-				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
 			} else
 				true
@@ -111,7 +116,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		wifiPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = newValue as Boolean, cellEnabled = cellPreference.isChecked)) {
-				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
 			} else
 				true
@@ -119,7 +124,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		cellPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = wifiPreference.isChecked, cellEnabled = newValue as Boolean)) {
-				snackMaker.showSnackbar(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
 			} else
 				true
@@ -163,8 +168,12 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {
 		snackMaker = SnackMaker(caller.listView)
 
+		setOnClickListener(R.string.settings_modules_key) {
+			startActivity<ModuleActivity> {}
+		}
+
 		setOnClickListener(R.string.settings_licenses_key) {
-			startActivity<LicenseActivity> { }
+			startActivity<LicenseActivity> {}
 		}
 
 		val devKeyRes = R.string.settings_debug_key
@@ -347,7 +356,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		styleChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
 			when (key) {
-				styleKey, defaultColorKey -> ColorSupervisor.initializeFromPreferences(this)
+				styleKey, defaultColorKey -> ColorManager.initializeFromPreferences(this)
 				morningKey, dayKey, eveningKey, nightKey -> {
 					if (preferences.contains(key)) {
 						val stylePrefVal = stylePreference.value.toInt()
@@ -384,7 +393,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 							else -> -1
 						}
 
-						ColorSupervisor.updateColorAt(index, preferences.getInt(key, 0))
+						ColorManager.updateColorAt(index, preferences.getInt(key, 0))
 					}
 				}
 			}

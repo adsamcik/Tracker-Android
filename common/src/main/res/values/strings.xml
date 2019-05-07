@@ -1,0 +1,32 @@
+<resources>
+    <string name="day_short">%d d</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
+
+    <!-- Strings as parameters for better readability -->
+    <string name="meter_abbr">%s m</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="passus">%s pace</string>
+    <string name="millepassus">%s roman mile</string>
+
+
+    <string name="error_play_services_not_available">Play services are not available</string>
+    <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>
+    <string name="error_missing_permission">App does not have required permission</string>
+    <string name="error_general">Error occurred</string>
+
+
+    <string name="wifi">Wi-Fi</string>
+    <string name="cell">Cell</string>
+    <string name="location">Location</string>
+
+
+    <!-- Activity strings -->
+    <string name="activity_idle">Idle</string>
+    <string name="activity_on_foot">On foot</string>
+    <string name="activity_in_vehicle">In vehicle</string>
+    <string name="activity_unknown">Unknown</string>
+</resources>

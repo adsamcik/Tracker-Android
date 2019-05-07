@@ -6,25 +6,19 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.FirebaseAssist
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.firebase.analytics.FirebaseAnalytics
 
 class TrackerNotificationReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
-		val value = intent.getIntExtra(ACTION_STRING, -1)
-		val params = Bundle()
-		params.putString(FirebaseAssist.PARAM_SOURCE, "notification")
-		when (value) {
+		when (val value = intent.getIntExtra(ACTION_STRING, -1)) {
 			STOP_TRACKING_ACTION -> {
-				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_EVENT, params)
 				context.stopService(Intent(context, TrackerService::class.java))
 			}
 			LOCK_RECHARGE_ACTION -> {
 				TrackerLocker.lockUntilRecharge(context)
-				FirebaseAnalytics.getInstance(context).logEvent(FirebaseAssist.STOP_TILL_RECHARGE_EVENT, params)
 			}
 			LOCK_TIME_ACTION -> {
 				val minutes = intent.getIntExtra(STOP_MINUTES_EXTRA, -1)

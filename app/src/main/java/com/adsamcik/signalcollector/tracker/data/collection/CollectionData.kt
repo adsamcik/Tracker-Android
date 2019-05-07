@@ -1,6 +1,9 @@
 package com.adsamcik.signalcollector.tracker.data.collection
 
-import com.adsamcik.signalcollector.activity.ActivityInfo
+import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.common.data.CellData
+import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.WifiData
 
 interface CollectionData {
 	/**

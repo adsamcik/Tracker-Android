@@ -10,14 +10,14 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.color.ColorManager
-import com.adsamcik.signalcollector.app.color.ColorView
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
-import com.adsamcik.signalcollector.misc.extension.layoutInflater
+import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.layoutInflater
 
 /**
  * Component that shows custom data with title and items.
- * Supports ColorManager
+ * Supports ColorController
  *
  */
 class InfoComponent : FrameLayout {
@@ -27,7 +27,7 @@ class InfoComponent : FrameLayout {
 
 	private var items: MutableMap<String, TextView> = mutableMapOf()
 
-	private var colorManager: ColorManager? = null
+	private var colorController: ColorController? = null
 
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
 		initialize(context)
@@ -92,12 +92,12 @@ class InfoComponent : FrameLayout {
 	}
 
 	/**
-	 * Sets a [ColorManager] that should manage colors for this [InfoComponent].
+	 * Sets a [ColorController] that should manage colors for this [InfoComponent].
 	 * Add and remove watch is handled automatically.
 	 */
-	internal fun setColorManager(colorManager: ColorManager) {
-		this.colorManager = colorManager
-		colorManager.watchView(ColorView(this, 1, recursive = true, rootIsBackground = false, ignoreRoot = true))
+	internal fun setColorManager(colorController: ColorController) {
+		this.colorController = colorController
+		colorController.watchView(ColorView(this, 1, recursive = true, rootIsBackground = false, ignoreRoot = true))
 	}
 
 	private fun setTextViewTheme(textView: TextView, textSizeResource: Int, textColorResource: Int) {
@@ -156,11 +156,11 @@ class InfoComponent : FrameLayout {
 	}
 
 	/**
-	 * Detach the [InfoComponent] from the view. Automatically removes it from [ColorManager] if it was set.
+	 * Detach the [InfoComponent] from the view. Automatically removes it from [ColorController] if it was set.
 	 */
 	fun detach() {
 		(parent as ViewGroup).removeView(this)
-		colorManager?.stopWatchingView(this)
-		colorManager = null
+		colorController?.stopWatchingView(this)
+		colorController = null
 	}
 }

@@ -10,16 +10,14 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import br.tiagohm.materialfilechooser.MaterialFileChooser
-import br.tiagohm.materialfilechooser.Sorter
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.DetailActivity
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
+import com.adsamcik.signalcollector.common.misc.SnackMaker
+import com.adsamcik.signalcollector.common.misc.extension.cloneCalendar
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
-import com.adsamcik.signalcollector.misc.SnackMaker
-import com.adsamcik.signalcollector.misc.extension.cloneCalendar
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
@@ -124,7 +122,7 @@ class ExportActivity : DetailActivity() {
 
 	private fun exportClick() {
 		onExport { result ->
-			MaterialFileChooser(this,
+			/*MaterialFileChooser(this,
 					allowBrowsing = true,
 					allowCreateFolder = true,
 					allowMultipleFiles = false,
@@ -139,7 +137,7 @@ class ExportActivity : DetailActivity() {
 						val newFile = File(it.first(), result.file.name)
 						result.file.renameTo(newFile)
 					}
-					.show()
+					.show()*/
 		}
 	}
 
@@ -176,7 +174,7 @@ class ExportActivity : DetailActivity() {
 			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 			if (locations.isEmpty()) {
-				SnackMaker(root).showSnackbar(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
+				SnackMaker(root).addMessage(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
 				return@launch
 			}
 

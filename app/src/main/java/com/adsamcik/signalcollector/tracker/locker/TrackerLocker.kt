@@ -10,11 +10,11 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.misc.extension.alarmManager
-import com.adsamcik.signalcollector.misc.extension.stopService
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
+import com.adsamcik.signalcollector.common.misc.extension.alarmManager
+import com.adsamcik.signalcollector.common.misc.extension.stopService
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 
@@ -116,7 +116,7 @@ object TrackerLocker {
 	 */
 	fun lockUntilRecharge(context: Context) {
 		synchronized(this) {
-			val workManager = WorkManager.getInstance()
+			val workManager = WorkManager.getInstance(context)
 			val constraints = Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build()
 			val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(constraints).addTag(WORK_DISABLE_TILL_RECHARGE_TAG).build()
 			workManager.enqueue(work)
@@ -128,7 +128,7 @@ object TrackerLocker {
 	 * Removed recharge lockTimeLock
 	 */
 	fun unlockRechargeLock(context: Context) {
-		WorkManager.getInstance().cancelAllWorkByTag(WORK_DISABLE_TILL_RECHARGE_TAG)
+		WorkManager.getInstance(context).cancelAllWorkByTag(WORK_DISABLE_TILL_RECHARGE_TAG)
 		setRechargeLock(context, false)
 	}
 

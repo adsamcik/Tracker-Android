@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="module_game_title">Games</string>
+    <string name="module_statistics_title">Statistics</string>
+    <string name="module_map_title">Map</string>
+
+    <string name="module_downloading">Downloading module %s</string>
+    <string name="module_installing">Installing module %s</string>
+    <string name="module_error">Failed to install modules %s (error code %d)</string>
+
+    <string name="module_success">Installation completed succesfully</string>
+    <string name="module_download_progress">Downloaded %1$s / %2$s</string>
+</resources>

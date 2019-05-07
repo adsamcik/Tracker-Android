@@ -8,7 +8,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.app.activity.DetailActivity
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 /**
@@ -19,7 +19,7 @@ class StatusActivity : DetailActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val layout = createScrollableContentParent(true, androidx.constraintlayout.widget.ConstraintLayout::class.java)
-		val workManager = WorkManager.getInstance()
+		val workManager = WorkManager.getInstance(this)
 		val waitForRechargeStates = workManager.getWorkInfosByTag(TrackerLocker.WORK_DISABLE_TILL_RECHARGE_TAG).get()
 
 		val isWaitingForRecharge = waitForRechargeStates != null && waitForRechargeStates.size > 0

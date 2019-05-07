@@ -7,6 +7,7 @@ import com.adsamcik.signalcollector.database.dao.CellDataDao
 import com.adsamcik.signalcollector.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.database.dao.WifiDataDao
 import com.adsamcik.signalcollector.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
@@ -37,7 +38,7 @@ class TrackerDataComponent : PostTrackerComponent {
 			var locationId: Long? = null
 			val activity = collectionData.activity
 			if (trackedLocation != null && activity != null) {
-				locationId = locationDao!!.insert(trackedLocation.toDatabase(activity))
+				locationId = locationDao!!.insert(DatabaseLocation(trackedLocation, activity))
 			}
 
 			val cellData = collectionData.cell
@@ -48,7 +49,7 @@ class TrackerDataComponent : PostTrackerComponent {
 			if (wifiData != null) {
 				val wifiDao = wifiDao!!
 
-				val estimatedWifiLocation = com.adsamcik.signalcollector.tracker.data.collection.Location(wifiData.location)
+				val estimatedWifiLocation = com.adsamcik.signalcollector.common.data.Location(wifiData.location)
 				wifiData.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
 			}
 		}

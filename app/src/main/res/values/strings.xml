@@ -17,31 +17,6 @@
     <string name="main_cell_count">Cell in range %1$d</string>
     <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
 
-    <string name="map_search">Search</string>
-    <string name="map_search_no_text">Searching for nothing is not very useful</string>
-    <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
-
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_total">Distance</string>
-    <string name="stats_collections">Collection count</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_cell_count">Cell count</string>
-    <string name="stats_details">Details</string>
-
-    <string name="stats_weekly_title">Last 7 days</string>
-
-    <string name="map_no_play_services">Map requires up-to-date Play Services</string>
-
-    <string name="wifi">Wi-Fi</string>
-    <string name="cell">Cell</string>
-    <string name="location">Location</string>
-
     <string name="wifi_new_title">New Wi-Fi</string>
     <string name="cell_new">New cell</string>
     <string name="collections_title">Collections</string>
@@ -62,12 +37,6 @@
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
 
-    <!-- Activity strings -->
-    <string name="activity_idle">Idle</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_unknown">Unknown</string>
-
     <!-- Generic strings -->
     <string name="other">Other</string>
     <string name="cancel">Cancel</string>
@@ -84,19 +53,6 @@
     <string name="agree">I agree</string>
     <string name="disagree">I disagree</string>
 
-    <string name="day_short">%d d</string>
-    <string name="hour_short">%d h</string>
-    <string name="minute_short">%d m</string>
-    <string name="second_short">%d s</string>
-
-    <!-- Strings as parameters for better readability -->
-    <string name="meter_abbr">%s m</string>
-    <string name="kilometer_abbr">%s km</string>
-    <string name="mile_abbr">%s mi</string>
-    <string name="feet_abbr">%s ft</string>
-    <string name="passus">%s pace</string>
-    <string name="millepassus">%s roman mile</string>
-
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
@@ -105,4 +61,7 @@
     <string name="info_accuracy">%s accuracy</string>
     <string name="info_session_collections">%d collections</string>
     <string name="info_session_distance">%s distance</string>
+    <string name="title_statistics">Statistics</string>
+    <string name="title_game">Game</string>
+    <string name="title_map">Map</string>
 </resources>

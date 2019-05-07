@@ -14,7 +14,7 @@ import androidx.core.view.setMargins
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 
 /**
  * Custom implementation of Preference that allows use of ImageButtons to switch between different states
@@ -33,18 +33,22 @@ class ImageSwitchPreference : Preference {
 
 	private var mSelected: Int = -1
 
+	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
 		initAttributes(context, attrs!!)
 	}
 
+	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
 		initAttributes(context, attrs!!)
 	}
 
+	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
 		initAttributes(context, attrs!!)
 	}
 
+	@Suppress("unused")
 	constructor(context: Context) : super(context)
 
 	private fun initAttributes(context: Context, attrs: AttributeSet) {

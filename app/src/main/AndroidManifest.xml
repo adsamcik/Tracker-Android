@@ -29,6 +29,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
     <application
+        android:name="com.google.android.play.core.splitcompat.SplitCompatApplication"
         android:allowBackup="true"
         android:fullBackupContent="true"
         android:icon="@mipmap/ic_launcher"
@@ -36,7 +37,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppThemeLight"
         tools:ignore="GoogleAppIndexingWarning">
-        <activity android:name="com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity"/>
+
+        <activity android:name=".module.activity.ModuleActivity"/>
+        <activity android:name=".statistics.detail.activity.StatsDetailActivity"/>
 
         <meta-data
             android:name="android.max_aspect"
@@ -63,7 +66,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".misc.shortcut.ShortcutActivity"
+            android:name=".shortcut.ShortcutActivity"
             android:screenOrientation="portrait"
             android:theme="@style/SplashTheme">
         </activity>

@@ -1,11 +1,4 @@
 <resources>
-    <string name="error_missing_permission">App does not have required permission</string>
-    <string name="error_play_services_not_available">Play services are not available</string>
-
-    <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>
-
-    <string name="error_general">Error occurred</string>
-
     <string name="error_nothing_to_track">You need to track more than time</string>
     <string name="error_no_locations_in_interval">No locations found in the selected interval.</string>
 </resources>

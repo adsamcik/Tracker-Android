@@ -252,6 +252,10 @@
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
 
+    <androidx.preference.Preference
+        app:icon="@drawable/ic_modules"
+        android:key="@string/settings_modules_key"
+        android:title="@string/settings_modules_title"/>
 
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">

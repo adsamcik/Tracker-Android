@@ -16,20 +16,20 @@ import androidx.core.view.children
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.activity.GroupedActivity
 import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.app.color.ColorManager
-import com.adsamcik.signalcollector.app.color.ColorSupervisor
-import com.adsamcik.signalcollector.app.color.ColorView
 import com.adsamcik.signalcollector.app.widget.InfoComponent
-import com.adsamcik.signalcollector.misc.SnackMaker
-import com.adsamcik.signalcollector.misc.extension.*
+import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.data.*
+import com.adsamcik.signalcollector.common.misc.SnackMaker
+import com.adsamcik.signalcollector.common.misc.extension.*
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.mock.useMock
-import com.adsamcik.signalcollector.preference.Preferences
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
-import com.adsamcik.signalcollector.tracker.data.collection.*
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
@@ -40,7 +40,7 @@ import java.util.*
 import kotlin.math.roundToInt
 
 class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
-	private lateinit var colorManager: ColorManager
+	private lateinit var colorController: ColorController
 
 	private var wifiInfo: InfoComponent? = null
 	private var cellInfo: InfoComponent? = null
@@ -59,8 +59,8 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		super.onStart()
 
 		icon_activity.visibility = GONE
-		altitude.visibility = GONE
-		horizontal_accuracy.visibility = GONE
+		textview_altitude.visibility = GONE
+		textview_horizontal_accuracy.visibility = GONE
 
 
 		button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
@@ -70,7 +70,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated) {
 				val lockedForMinutes = 60
 				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
-				SnackMaker(activity.findViewById(R.id.root) as View).showSnackbar(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
 			} else
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
 		}
@@ -106,16 +106,16 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateExtendedInfoBar() {
 		if (bar_info_top_extended.visibility == VISIBLE) {
-			colorManager.watchView(ColorView(bar_info_top_extended, 0, recursive = true, rootIsBackground = false, ignoreRoot = true))
+			colorController.watchView(ColorView(bar_info_top_extended, 0, recursive = true, rootIsBackground = false, ignoreRoot = true))
 			initializeExtendedInfo()
 		} else {
-			colorManager.stopWatchingView(bar_info_top_extended)
+			colorController.stopWatchingView(bar_info_top_extended)
 		}
 	}
 
 
 	override fun onStop() {
-		ColorSupervisor.recycleColorManager(colorManager)
+		ColorManager.recycleColorManager(colorController)
 		super.onStop()
 	}
 
@@ -125,7 +125,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		val orientation = Assist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			include.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
+			content.setPadding(72.dpAsPx, 0, 72.dpAsPx, 0)
 		}
 
 		if (useMock)
@@ -147,7 +147,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		if (requiredPermissions == null && view != null) {
 			if (!TrackerService.isServiceRunning.value) {
 				if (!Assist.isGNSSEnabled(activity)) {
-					SnackMaker(activity.root).showSnackbar(R.string.error_gnss_not_enabled,
+					SnackMaker(activity.root).addMessage(R.string.error_gnss_not_enabled,
 							priority = SnackMaker.SnackbarPriority.IMPORTANT,
 							actionRes = R.string.enable,
 							onActionClick = View.OnClickListener {
@@ -155,7 +155,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 								startActivity(locationOptionsIntent)
 							})
 				} else if (!Assist.canTrack(activity)) {
-					SnackMaker(activity.findViewById(R.id.root)).showSnackbar(R.string.error_nothing_to_track)
+					SnackMaker(activity.findViewById(R.id.root)).addMessage(R.string.error_nothing_to_track)
 				} else {
 					Preferences.getPref(activity).edit {
 						setBoolean(R.string.settings_disabled_recharge_key, false)
@@ -189,12 +189,12 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorManager = ColorSupervisor.createColorManager(context!!)
-		colorManager.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
-		colorManager.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
+		colorController = ColorManager.createColorManager()
+		colorController.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
+		colorController.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
 
-		cellInfo?.setColorManager(colorManager)
-		wifiInfo?.setColorManager(colorManager)
+		cellInfo?.setColorManager(colorController)
+		wifiInfo?.setColorManager(colorController)
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
@@ -218,7 +218,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		component.setTitle(drawable, getString(R.string.wifi))
 		component.addPrimaryText(WIFI_COMPONENT_COUNT, "")
 		component.addSecondaryText(WIFI_COMPONENT_DISTANCE, "")
-		component.setColorManager(colorManager)
+		component.setColorManager(colorController)
 		wifiInfo = component
 		return component
 	}
@@ -233,7 +233,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		component.setTitle(drawable, getString(R.string.cell))
 		component.addPrimaryText(CELL_COMPONENT_CURRENT, "")
 		component.addSecondaryText(CELL_COMPONENT_COUNT, "")
-		component.setColorManager(colorManager)
+		component.setColorManager(colorController)
 		cellInfo = component
 		return component
 	}
@@ -256,7 +256,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			latitude.text = getString(R.string.main_latitude, Assist.coordinateToString(location.latitude))
 
 			if (longitude.visibility == GONE) {
-				colorManager.notifyChangeOn(bar_info_top_extended)
+				colorController.notifyChangeOn(bar_info_top_extended)
 
 				longitude.visibility = VISIBLE
 				latitude.visibility = VISIBLE
@@ -318,24 +318,26 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			val context = getNonNullContext()
 			val resources = context.resources
 			val lengthSystem = Preferences.getLengthSystem(context)
-			if (location.horizontalAccuracy != null) {
-				horizontal_accuracy.visibility = VISIBLE
-				horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(location.horizontalAccuracy, 0, lengthSystem))
+			val horizontalAccuracy = location.horizontalAccuracy
+			if (horizontalAccuracy != null) {
+				textview_horizontal_accuracy.visibility = VISIBLE
+				textview_horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(horizontalAccuracy, 0, lengthSystem))
 			} else {
-				horizontal_accuracy.visibility = GONE
+				textview_horizontal_accuracy.visibility = GONE
 			}
 
 			//todo add vertical accuracy
 
-			if (location.altitude != null) {
-				altitude.text = getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem))
-				altitude.visibility = VISIBLE
+			val altitude = location.altitude
+			if (altitude != null) {
+				textview_altitude.text = getString(R.string.info_altitude, resources.formatDistance(altitude, 2, lengthSystem))
+				textview_altitude.visibility = VISIBLE
 			} else {
-				altitude.visibility = GONE
+				textview_altitude.visibility = GONE
 			}
 		} else {
-			horizontal_accuracy.visibility = GONE
-			altitude.visibility = GONE
+			textview_horizontal_accuracy.visibility = GONE
+			textview_altitude.visibility = GONE
 		}
 	}
 

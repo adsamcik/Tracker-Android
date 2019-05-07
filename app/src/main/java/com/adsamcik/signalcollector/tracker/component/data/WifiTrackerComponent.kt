@@ -9,10 +9,10 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.SystemClock
-import com.adsamcik.signalcollector.activity.ActivityInfo
-import com.adsamcik.signalcollector.app.Constants
-import com.adsamcik.signalcollector.misc.extension.LocationExtensions
-import com.adsamcik.signalcollector.misc.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions
+import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs

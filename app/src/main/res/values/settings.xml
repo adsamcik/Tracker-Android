@@ -44,23 +44,15 @@
         <item>120</item>
     </integer-array>
 
-    <string name="settings_tracking_activity_key" translatable="false">backgroundTracking</string>
-    <string name="settings_tracking_activity_default" translatable="false">1</string>
-
     <string name="settings_auto_tracking_category">Automatic tracking</string>
     <string name="settings_tracking_enable_category">Tracking options</string>
 
     <string name="settings_location_enabled_title">Location tracking</string>
-    <string name="settings_location_enabled_key" translatable="false">trackingLocationEnabled</string>
-    <string name="settings_location_enabled_default" translatable="false">true</string>
 
     <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
-    <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
-    <string name="settings_wifi_enabled_default" translatable="false">false</string>
+
 
     <string name="settings_cell_enabled_title">Cell tracking</string>
-    <string name="settings_cell_enabled_key" translatable="false">trackingCellEnabled</string>
-    <string name="settings_cell_enabled_default" translatable="false">false</string>
 
     <string-array name="tracking_options_titles">
         <item>Disabled</item>
@@ -75,8 +67,6 @@
     </integer-array>
 
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
-    <string name="settings_tracking_min_distance_key" translatable="false">minTrackingDistance</string>
-    <integer name="settings_tracking_min_distance_default">10</integer>
 
     <integer-array name="settings_tracking_min_distance_values">
         <item>5</item>
@@ -91,8 +81,6 @@
     </integer-array>
 
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
-    <string name="settings_tracking_min_time_key" translatable="false">minTrackingTimeDifference</string>
-    <integer name="settings_tracking_min_time_default">2</integer>
 
     <integer-array name="settings_tracking_min_time_values">
         <item>0</item>
@@ -110,8 +98,6 @@
 
 
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
-    <string name="settings_tracking_required_accuracy_key" translatable="false">requiredTrackingAccuracy</string>
-    <integer name="settings_tracking_required_accuracy_default">50</integer>
 
     <integer-array name="settings_tracking_required_accuracy">
         <item>5</item>
@@ -129,8 +115,6 @@
 
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
-    <string name="settings_style_mode_key" translatable="false">styleMode</string>
-    <string name="settings_style_mode_default" translatable="false">2</string>
 
     <string-array name="settings_style_mode_values" translatable="false">
         <item>0</item>
@@ -146,20 +130,9 @@
 
 
     <string name="settings_color_morning_title">Morning color</string>
-    <string name="settings_color_morning_key" translatable="false">colorMorning</string>
-    <color name="settings_color_morning_default" translatable="false">#bf9615</color>
-
     <string name="settings_color_day_title">Day color</string>
-    <string name="settings_color_day_key" translatable="false">colorDay</string>
-    <color name="settings_color_day_default" translatable="false">#559676</color>
-
     <string name="settings_color_evening_title">Evening color</string>
-    <string name="settings_color_evening_key" translatable="false">colorEvening</string>
-    <color name="settings_color_evening_default" translatable="false">#6a4e39</color>
-
     <string name="settings_color_night_title">Night color</string>
-    <string name="settings_color_night_key" translatable="false">colorNight</string>
-    <color name="settings_color_night_default" translatable="false">#002733</color>
 
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
@@ -177,8 +150,6 @@
     <!-- GAMES -->
 
     <string name="settings_game_challenge_enable_title">Enable challenges</string>
-    <string name="settings_game_challenge_enable_key" translatable="false">enableChallenges</string>
-    <string name="settings_game_challenge_enable_default" translatable="false">true</string>
 
     <!-- EXPORT -->
 
@@ -203,9 +174,7 @@
 
     <!-- MAP -->
     <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_quality_key" translatable="false">mapHeatmapQuality</string>
     <string name="settings_map_quality_summary">Scale relative to default value</string>
-    <string name="settings_map_quality_default" translatable="false">1f</string>
     <string-array name="settings_map_quality_values">
         <item>0.25</item>
         <item>0.5</item>
@@ -216,8 +185,6 @@
     </string-array>
 
     <string name="settings_map_default_layer_title">Default layer</string>
-    <string name="settings_map_default_layer_key" translatable="false">mapDefaultLayer</string>
-    <string name="settings_map_default_layer_default" translatable="false">location</string>
     <string-array name="settings_map_default_layer_values" translatable="false">
         <item>location</item>
         <item>cell</item>
@@ -233,6 +200,11 @@
     <string name="settings_map_clear_heat_cache_title">Clear heatmap offset</string>
     <string name="settings_map_clear_heat_cache_description">Use this if your locations on the map suddenly became too dim</string>
     <string name="settings_map_clear_heat_cache_key" translatable="false">clearHeatmapMaxHeat</string>
+
+    <!-- MODULES -->
+
+    <string name="settings_modules_title">Modules</string>
+    <string name="settings_modules_key" translatable="false">modules</string>
 
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
@@ -275,8 +247,6 @@
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
 
     <string name="settings_length_system_title">Length system</string>
-    <string name="settings_length_system_key" translatable="false">lengthSystem</string>
-    <string name="settings_length_system_default" translatable="false">Metric</string>
     <string-array name="settings_length_system_values" translatable="false">
         <item>Metric</item>
         <item>Imperial</item>

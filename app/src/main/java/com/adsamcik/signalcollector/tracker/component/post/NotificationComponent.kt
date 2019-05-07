@@ -11,9 +11,9 @@ import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.LaunchActivity
-import com.adsamcik.signalcollector.misc.extension.formatDistance
-import com.adsamcik.signalcollector.misc.extension.notificationManager
-import com.adsamcik.signalcollector.preference.Preferences
+import com.adsamcik.signalcollector.common.misc.extension.formatDistance
+import com.adsamcik.signalcollector.common.misc.extension.notificationManager
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
