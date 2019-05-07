@@ -1,8 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
 
-    <string name="button_back">back</string>
-
     <plurals name="main_collections">
         <item quantity="one">1 collection</item>
         <item quantity="other">%d collections</item>
@@ -36,22 +34,6 @@
 
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
-
-    <!-- Generic strings -->
-    <string name="other">Other</string>
-    <string name="cancel">Cancel</string>
-    <string name="yes">Yes</string>
-    <string name="no">No</string>
-    <string name="send">Send</string>
-    <string name="enable">Enable</string>
-    <string name="start">Start</string>
-    <string name="stop">Stop</string>
-    <string name="clear">Clear</string>
-    <string name="select_all">Select all</string>
-    <string name="deselect_all">Deselect all</string>
-    <string name="share_nothing_to_share">Nothing to share</string>
-    <string name="agree">I agree</string>
-    <string name="disagree">I disagree</string>
 
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>

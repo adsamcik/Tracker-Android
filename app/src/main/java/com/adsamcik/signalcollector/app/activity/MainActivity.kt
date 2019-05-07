@@ -243,7 +243,7 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun initializeColorElements() {
-		colorController = ColorManager.createColorManager()
+		colorController = ColorManager.createController()
 
 		colorController.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
 
@@ -272,7 +272,7 @@ class MainActivity : AppCompatActivity() {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		ColorManager.recycleColorManager(colorController)
+		ColorManager.recycleController(colorController)
 	}
 
 	private fun initializeColors() {

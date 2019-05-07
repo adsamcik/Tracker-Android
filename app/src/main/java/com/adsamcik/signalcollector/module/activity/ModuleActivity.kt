@@ -5,14 +5,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatCheckBox
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
@@ -22,12 +20,10 @@ import com.google.android.play.core.splitinstall.*
 import com.google.android.play.core.splitinstall.model.SplitInstallSessionStatus
 import kotlinx.android.synthetic.main.activity_module.*
 
-class ModuleActivity : AppCompatActivity() {
+class ModuleActivity : DetailActivity() {
 	private val activeModules = listOf(Module.GAME, Module.MAP, Module.STATISTICS)
 
 	private lateinit var manager: SplitInstallManager
-
-	private lateinit var colorController: ColorController
 
 	private lateinit var adapter: ModuleAdapter
 
@@ -89,9 +85,10 @@ class ModuleActivity : AppCompatActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		setContentView(R.layout.activity_module)
+		inflateContent(R.layout.activity_module)
 
-		colorController = ColorManager.createColorManager()
+		setTitle(R.string.settings_modules_title)
+
 		manager = SplitInstallManagerFactory.create(this)
 
 		val adapter = ModuleAdapter()

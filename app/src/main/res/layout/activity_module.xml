@@ -6,17 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:paddingTop="@dimen/status_bar_height"
     tools:context=".module.activity.ModuleActivity">
-
-    <androidx.appcompat.widget.AppCompatTextView
-        style="@style/TextAppearance.MaterialComponents.Headline4"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/edge_margin"
-        android:layout_marginTop="@dimen/edge_margin"
-        android:layout_marginEnd="@dimen/edge_margin"
-        android:text="@string/settings_modules_title"/>
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/progress_layout"

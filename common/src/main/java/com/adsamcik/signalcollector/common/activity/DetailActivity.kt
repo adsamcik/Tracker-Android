@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.app.activity
+package com.adsamcik.signalcollector.common.activity
 
 import android.os.Bundle
 import android.view.View
@@ -8,7 +8,7 @@ import android.widget.ScrollView
 import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AppCompatActivity
-import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -32,10 +32,9 @@ abstract class DetailActivity : AppCompatActivity() {
 		back_button.setOnClickListener { onBackPressed() }
 
 		val titleBarRoot = back_button.parent as View
-		if (titleBarLayer <= 0) titleBarRoot.elevation = 0f
-		else titleBarRoot.elevation = (titleBarLayer * 4.dpAsPx).toFloat()
+		titleBarRoot.elevation = if (titleBarLayer <= 0) 0f else (titleBarLayer * 4.dpAsPx).toFloat()
 
-		colorController = ColorManager.createColorManager().also {
+		colorController = ColorManager.createController().also {
 			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))
 		}
 	}
@@ -56,7 +55,7 @@ abstract class DetailActivity : AppCompatActivity() {
 	private fun <T : ViewGroup> initContentLayout(layout: T, scrollable: Boolean, addContentPadding: Boolean) {
 		val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, if (scrollable) LinearLayout.LayoutParams.WRAP_CONTENT else LinearLayout.LayoutParams.MATCH_PARENT)
 		if (addContentPadding) {
-			val padding = resources.getDimension(R.dimen.activity_horizontal_margin).toInt()
+			val padding = resources.getDimension(R.dimen.content_padding).toInt()
 			layout.setPadding(padding, padding, padding, padding)
 		}
 		layout.layoutParams = lp
@@ -139,7 +138,7 @@ abstract class DetailActivity : AppCompatActivity() {
 	}
 
 	override fun onDestroy() {
-		ColorManager.recycleColorManager(colorController)
+		ColorManager.recycleController(colorController)
 		super.onDestroy()
 	}
 

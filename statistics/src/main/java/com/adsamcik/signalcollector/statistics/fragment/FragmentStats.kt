@@ -43,7 +43,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val activity = activity!!
-		colorController = ColorManager.createColorManager()
+		colorController = ColorManager.createController()
 
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
@@ -72,7 +72,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 	}
 
 	override fun onDestroyView() {
-		ColorManager.recycleColorManager(colorController)
+		ColorManager.recycleController(colorController)
 		super.onDestroyView()
 	}
 

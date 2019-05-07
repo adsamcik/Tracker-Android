@@ -16,6 +16,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
+import kotlin.concurrent.withLock
 
 /**
  * Class that handles globally calculation of current color
@@ -29,7 +30,7 @@ object ColorManager {
 	private var timer: Timer? = null
 	private var timerActive = false
 
-	private val colorManagers = ArrayList<ColorController>()
+	private val controllerCollection = ArrayList<ColorController>()
 
 	private val sunsetRise = SunSetRise()
 
@@ -53,7 +54,7 @@ object ColorManager {
 	@ColorInt
 	private var currentBaseColor = 0
 
-	private val colorManagerLock = ReentrantLock()
+	private val controllerLock = ReentrantLock()
 
 	/**
 	 * Returns proper base foreground color for given ColorView
@@ -86,7 +87,7 @@ object ColorManager {
 	/**
 	 * Creates color manager instance
 	 */
-	fun createColorManager(): ColorController {
+	fun createController(): ColorController {
 		if (darkTextColor == 0) {
 			darkTextColor = Color.argb(222, 0, 0, 0)
 			lightTextColor = Color.argb(222, 255, 255, 255)
@@ -94,9 +95,9 @@ object ColorManager {
 
 		val colorManager = ColorController()
 
-		colorManagerLock.lock()
-		colorManagers.add(colorManager)
-		colorManagerLock.unlock()
+		controllerLock.lock()
+		controllerCollection.add(colorManager)
+		controllerLock.unlock()
 
 		ensureUpdate()
 
@@ -107,16 +108,16 @@ object ColorManager {
 	 * Recycles color manager instance. Cleans it up and prepares it for removal.
 	 * It is also removed from active color managers.
 	 */
-	fun recycleColorManager(colorController: ColorController) {
-		colorManagerLock.lock()
-		colorManagers.remove(colorController)
+	fun recycleController(colorController: ColorController) {
+		controllerLock.lock()
+		controllerCollection.remove(colorController)
 		colorController.cleanup()
-		if (colorManagers.isEmpty()) {
-			colorManagers.trimToSize()
-			colorManagerLock.unlock()
+		if (controllerCollection.isEmpty()) {
+			controllerCollection.trimToSize()
+			controllerLock.unlock()
 			stopUpdate()
 		} else {
-			colorManagerLock.unlock()
+			controllerLock.unlock()
 		}
 	}
 
@@ -202,11 +203,11 @@ object ColorManager {
 		currentForegroundColor = fgColor
 		currentBaseColor = color
 
-		colorManagerLock.lock()
-		colorManagers.forEach {
-			it.update()
+		controllerLock.withLock {
+			controllerCollection.forEach {
+				it.update()
+			}
 		}
-		colorManagerLock.unlock()
 	}
 
 	private fun updateUpdate() {

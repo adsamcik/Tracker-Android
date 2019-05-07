@@ -16,7 +16,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Tips
-import com.adsamcik.signalcollector.app.activity.DetailActivity
+import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.misc.SnackMaker

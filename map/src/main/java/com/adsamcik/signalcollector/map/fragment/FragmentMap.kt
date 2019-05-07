@@ -172,7 +172,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			return fragmentView
 		}
 
-		colorController = ColorManager.createColorManager()
+		colorController = ColorManager.createController()
 
 		return fragmentView
 	}
@@ -185,7 +185,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		val colorManager = colorController
 		if (colorManager != null) {
-			ColorManager.recycleColorManager(colorManager)
+			ColorManager.recycleController(colorManager)
 		}
 
 	}

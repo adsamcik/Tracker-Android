@@ -115,7 +115,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 
 	override fun onStop() {
-		ColorManager.recycleColorManager(colorController)
+		ColorManager.recycleController(colorController)
 		super.onStop()
 	}
 
@@ -189,7 +189,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorController = ColorManager.createColorManager()
+		colorController = ColorManager.createController()
 		colorController.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
 		colorController.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
 

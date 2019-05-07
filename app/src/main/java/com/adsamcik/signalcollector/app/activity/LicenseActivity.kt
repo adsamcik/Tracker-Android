@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import androidx.annotation.RawRes
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.crashlytics.android.Crashlytics
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20

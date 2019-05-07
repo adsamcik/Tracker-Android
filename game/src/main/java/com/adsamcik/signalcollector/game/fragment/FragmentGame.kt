@@ -45,7 +45,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 		val context = context!!
 		recyclerViewChallenges.adapter = ChallengeAdapter(context, arrayOf())
 		recyclerViewChallenges.layoutManager = LinearLayoutManager(context)
-		colorController = ColorManager.createColorManager()
+		colorController = ColorManager.createController()
 		colorController.watchView(ColorView(rootView, 1))
 		colorController.watchAdapterView(ColorView(recyclerViewChallenges, 1, recursive = true, rootIsBackground = false))
 

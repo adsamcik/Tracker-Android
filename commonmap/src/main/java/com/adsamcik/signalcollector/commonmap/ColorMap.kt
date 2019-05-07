@@ -22,7 +22,7 @@ object ColorMap {
 	private fun init(context: Context) {
 		if (resources == null) resources = context.resources
 		if (colorController == null) {
-			ColorManager.createColorManager().also {
+			ColorManager.createController().also {
 				colorController = it
 				it.addListener(this::onColorChange)
 			}
@@ -31,7 +31,7 @@ object ColorMap {
 
 	private fun destroy() {
 		resources = null
-		colorController?.let { ColorManager.recycleColorManager(it) }
+		colorController?.let { ColorManager.recycleController(it) }
 	}
 
 	private fun onColorChange(luminance: Byte, foregroundColor: Int, backgroundColor: Int) {
