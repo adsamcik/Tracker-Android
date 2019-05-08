@@ -9,7 +9,7 @@ import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Tips
-import com.adsamcik.signalcollector.app.activity.LicenseActivity
+import com.adsamcik.signalcollector.license.LicenseActivity
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.ModuleSettings

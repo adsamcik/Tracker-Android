@@ -94,7 +94,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".app.activity.LicenseActivity"
+            android:name=".license.LicenseActivity"
             android:screenOrientation="portrait"/>
         <activity
             android:name=".preference.activity.SettingsActivity"

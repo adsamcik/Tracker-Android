@@ -3,11 +3,13 @@ package com.adsamcik.signalcollector.common.activity
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.LinearLayoutCompat
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
@@ -53,7 +55,7 @@ abstract class DetailActivity : AppCompatActivity() {
 	}
 
 	private fun <T : ViewGroup> initContentLayout(layout: T, scrollable: Boolean, addContentPadding: Boolean) {
-		val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, if (scrollable) LinearLayout.LayoutParams.WRAP_CONTENT else LinearLayout.LayoutParams.MATCH_PARENT)
+		val lp = LinearLayoutCompat.LayoutParams(LinearLayoutCompat.LayoutParams.MATCH_PARENT, if (scrollable) LinearLayoutCompat.LayoutParams.WRAP_CONTENT else LinearLayoutCompat.LayoutParams.MATCH_PARENT)
 		if (addContentPadding) {
 			val padding = resources.getDimension(R.dimen.content_padding).toInt()
 			layout.setPadding(padding, padding, padding, padding)
@@ -62,10 +64,10 @@ abstract class DetailActivity : AppCompatActivity() {
 		layout.id = CONTENT_ID
 	}
 
-	private fun createLinearContentLayout(scrollable: Boolean, addContentPadding: Boolean): LinearLayout {
-		val linearLayout = LinearLayout(this)
+	private fun createLinearContentLayout(scrollable: Boolean, addContentPadding: Boolean): LinearLayoutCompat {
+		val linearLayout = LinearLayoutCompat(this)
 		initContentLayout(linearLayout, scrollable, addContentPadding)
-		linearLayout.orientation = LinearLayout.VERTICAL
+		linearLayout.orientation = LinearLayoutCompat.VERTICAL
 		return linearLayout
 	}
 
@@ -75,13 +77,15 @@ abstract class DetailActivity : AppCompatActivity() {
 		return constraintLayout
 	}
 
+
 	@Suppress("UNCHECKED_CAST")
-	protected fun <T : ViewGroup> createContentLayout(scrollable: Boolean, addContentPadding: Boolean, tClass: Class<T>): T {
+	private fun <T : ViewGroup> createContentLayout(scrollable: Boolean, addContentPadding: Boolean, tClass: Class<T>): T {
 		//Casts are safe and due to limitations it was done this way. Can be revisited in the future for improvements.
 		return when (tClass) {
 			LinearLayout::class.java -> createLinearContentLayout(scrollable, addContentPadding) as T
 			androidx.constraintlayout.widget.ConstraintLayout::class.java -> createConstraintContentLayout(scrollable, addContentPadding) as T
-			else -> throw RuntimeException("Support for ${tClass.name} is not implemented")
+			FrameLayout::class.java -> createFrameContentLayout(addContentPadding) as T
+			else -> throw NotImplementedError("Support for ${tClass.name} is not implemented")
 		}
 	}
 
@@ -91,10 +95,17 @@ abstract class DetailActivity : AppCompatActivity() {
 	 *
 	 * @param addContentPadding Should default content padding be set?
 	 */
-	protected fun createLinearContentParent(addContentPadding: Boolean): LinearLayout {
+	protected fun createLinearContentParent(addContentPadding: Boolean): LinearLayoutCompat {
 		val contentParent = createLinearContentLayout(false, addContentPadding)
 		content_detail_root.addView(contentParent)
 		return contentParent
+	}
+
+	protected fun createFrameContentLayout(addContentPadding: Boolean): FrameLayout {
+		val frameLayout = FrameLayout(this)
+		initContentLayout(frameLayout, false, addContentPadding)
+		content_detail_root.addView(frameLayout)
+		return frameLayout
 	}
 
 	/**
@@ -102,9 +113,9 @@ abstract class DetailActivity : AppCompatActivity() {
 	 *
 	 * @param addContentPadding Should default content padding be set?
 	 */
-	protected fun createLinearScrollableContentParent(addContentPadding: Boolean): LinearLayout {
+	protected fun createLinearScrollableContentParent(addContentPadding: Boolean): LinearLayoutCompat {
 		val scrollView = ScrollView(this)
-		val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+		val lp = LinearLayoutCompat.LayoutParams(LinearLayoutCompat.LayoutParams.MATCH_PARENT, LinearLayoutCompat.LayoutParams.MATCH_PARENT)
 		scrollView.layoutParams = lp
 
 		val contentParent = createLinearContentLayout(false, addContentPadding)
@@ -122,7 +133,7 @@ abstract class DetailActivity : AppCompatActivity() {
 	 */
 	protected fun <T : ViewGroup> createScrollableContentParent(addContentPadding: Boolean, tClass: Class<T>): T {
 		val scrollView = ScrollView(this)
-		val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+		val lp = LinearLayoutCompat.LayoutParams(LinearLayoutCompat.LayoutParams.MATCH_PARENT, LinearLayoutCompat.LayoutParams.MATCH_PARENT)
 		scrollView.layoutParams = lp
 
 		val contentParent = createContentLayout(false, addContentPadding, tClass)
