@@ -4,14 +4,27 @@ import org.gradle.kotlin.dsl.kotlin
 object Libraries {
 	object Versions {
 		const val constraintLayout = "2.0.0-alpha5"
-		const val coreKtx = "1.1.0-alpha05"
-		const val appcompat = "1.1.0-alpha04"
-		const val room = "2.1.0-alpha07"
+		const val coreKtx = "1.1.0-beta01"
+		const val appcompat = "1.1.0-alpha05"
+		const val room = "2.1.0-beta01"
+		const val fragment = "1.1.0-alpha08"
 		const val kotlin = "1.3.31"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
 		const val work = "2.1.0-alpha01"
-		const val lifecycle = "2.1.0-alpha04"
+		const val lifecycle = "2.2.0-alpha01"
+		const val preference = "1.1.0-alpha05"
+		const val material = "1.1.0-alpha06"
+
+		const val maps = "16.1.0"
+		const val location = "16.0.0"
+		const val firebaseCore = "16.0.9"
+		const val firebasePlugins = "2.0.0"
+		const val recyclerView = "1.1.0-alpha04"
+
+		object Test {
+
+		}
 	}
 
 	private fun DependencyHandler.api(name: String) = add("api", name)
@@ -43,11 +56,11 @@ object Libraries {
 			implementation("androidx.core:core-ktx:${Versions.coreKtx}")
 			implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
 			implementation("com.adsamcik.android-components:recycler:0.4.0")
-			implementation("androidx.recyclerview:recyclerview:1.1.0-alpha04")
+			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1")
-			implementation("androidx.fragment:fragment:1.1.0-alpha07")
-			implementation("com.google.android.material:material:1.1.0-alpha05")
+			implementation("androidx.fragment:fragment:${Versions.fragment}")
+			implementation("com.google.android.material:material:${Versions.material}")
 			implementation("com.google.android.gms:play-services-base:16.1.0")
 
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
@@ -74,19 +87,19 @@ object Libraries {
 
 	fun map(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.google.android.gms:play-services-maps:16.1.0")
+			implementation("com.google.android.gms:play-services-maps:${Versions.maps}")
 		}
 	}
 
 	fun location(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.google.android.gms:play-services-location:16.0.0")
+			implementation("com.google.android.gms:play-services-location:${Versions.location}")
 		}
 	}
 
 	fun crashlytics(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.google.firebase:firebase-core:16.0.8")
+			implementation("com.google.firebase:firebase-core:${Versions.firebaseCore}")
 			implementation("com.crashlytics.sdk.android:crashlytics:2.10.0")
 		}
 	}

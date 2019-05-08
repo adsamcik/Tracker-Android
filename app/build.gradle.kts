@@ -105,7 +105,7 @@ dependencies {
 
 	//GPX
 	implementation("stax:stax-api:1.0.1")
-	implementation("com.fasterxml:aalto-xml:1.1.1")
+	implementation("com.fasterxml:aalto-xml:1.2.0")
 	implementation("io.jenetics:jpx:1.4.0")
 
 	//Google dependencies
@@ -113,7 +113,7 @@ dependencies {
 
 	//AndroidX
 	implementation("androidx.cardview:cardview:1.0.0")
-	implementation("androidx.preference:preference:1.1.0-alpha04")
+	implementation("androidx.preference:preference:${Libraries.Versions.preference}")
 
 	//PlayServices
 	Libraries.location(this)
