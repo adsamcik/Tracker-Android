@@ -45,6 +45,19 @@ class FloatValueSliderPreference : Preference {
 
 	var slider: FloatValueSlider? = null
 
+	//todo reflect properly changes after bind
+	fun setStringFormat(format: String) {
+		mTextViewString = format
+	}
+
+	fun setValuesResource(resource: Int) {
+		mValuesResource = resource
+	}
+
+	fun setInitialValue(value: Float) {
+		mInitialValue = value
+	}
+
 	init {
 		layoutResource = R.layout.layout_settings_float_slider
 	}
@@ -63,7 +76,9 @@ class FloatValueSliderPreference : Preference {
 		val slider = holder.findViewById(R.id.slider) as FloatValueSlider
 		val textView = holder.findViewById(R.id.slider_value) as TextView
 
-		val stringArray = context.resources.getStringArray(R.array.settings_map_quality_values)
+		val valuesResource = mValuesResource ?: throw NullPointerException("Value resource must be set!")
+
+		val stringArray = context.resources.getStringArray(valuesResource)
 
 		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
 		//slider.setPadding(8.dpAsPx)

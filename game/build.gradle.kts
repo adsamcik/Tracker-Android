@@ -27,6 +27,7 @@ dependencies {
 	Libraries.work(this)
 	Libraries.draggable(this)
 	Libraries.database(this)
+	Libraries.preference(this)
 
 	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))

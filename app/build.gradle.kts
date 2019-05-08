@@ -113,7 +113,7 @@ dependencies {
 
 	//AndroidX
 	implementation("androidx.cardview:cardview:1.0.0")
-	implementation("androidx.preference:preference:${Libraries.Versions.preference}")
+	Libraries.preference(this)
 
 	//PlayServices
 	Libraries.location(this)

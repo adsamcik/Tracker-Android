@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.annotation.StringRes
-import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -16,12 +15,14 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.app.Tips
-import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.app.activity.LicenseActivity
+import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.dialog.ConfirmDialog
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.common.misc.extension.transaction
+import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
@@ -30,6 +31,7 @@ import com.adsamcik.signalcollector.export.DatabaseExport
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport
 import com.adsamcik.signalcollector.export.activity.ExportActivity
+import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.activity.ModuleActivity
 import com.adsamcik.signalcollector.notification.Notifications
 import com.adsamcik.signalcollector.preference.findDirectPreferenceByTitle
@@ -37,6 +39,7 @@ import com.adsamcik.signalcollector.preference.findPreference
 import com.adsamcik.signalcollector.preference.findPreferenceTyped
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
+import com.crashlytics.android.Crashlytics
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -50,23 +53,64 @@ import java.util.*
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
 	lateinit var fragment: FragmentSettings
 
-	private val backstack = ArrayList<PreferenceScreen>()
+	private val backstack = mutableListOf<PreferenceScreen>()
 
 	private var clickCount = 0
 
 	private lateinit var snackMaker: SnackMaker
+
+	private val moduleSettingsList = mutableMapOf<Module, ModuleSettings>()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
 		createLinearContentParent(false)
 		fragment = FragmentSettings()
+
+		initializeModuleSettingsList()
+
 		supportFragmentManager.transaction {
 			replace(CONTENT_ID, fragment, FragmentSettings.TAG)
 			runOnCommit { initializeRoot(fragment) }
 		}
 
 		title = getString(R.string.settings_title)
+	}
+
+	private fun initializeModuleSettingsList() {
+		val modules = Module.getActiveModuleInfo(this)
+		modules.forEach {
+			try {
+				val tClass = it.module.loadClass<ModuleSettings>("preference.${it.module.moduleName.capitalize()}Settings")
+				val instance = tClass.newInstance()
+				moduleSettingsList[it.module] = instance
+			} catch (e: ClassNotFoundException) {
+				e.printStackTrace()
+				//this exception is ok, just don't add anything
+			} catch (e: InstantiationException) {
+				Crashlytics.logException(e)
+				e.printStackTrace()
+			} catch (e: IllegalAccessException) {
+				Crashlytics.logException(e)
+				e.printStackTrace()
+			} catch (e: ClassCastException) {
+				Crashlytics.logException(e)
+				e.printStackTrace()
+			}
+		}
+	}
+
+	private fun createModuleScreens(caller: PreferenceFragmentCompat) {
+		val preferenceManager = caller.preferenceManager
+		val preferenceParent = caller.findPreferenceTyped<PreferenceGroup>(R.string.settings_group_category_key)
+		moduleSettingsList.forEach {
+			val preferenceScreen = preferenceManager.createPreferenceScreen(this)
+			preferenceScreen.setTitle(it.key.titleRes)
+			preferenceScreen.key = "module-${it.key.moduleName}"
+			preferenceScreen.setIcon(it.value.iconRes)
+			it.value.onCreatePreferenceScreen(preferenceScreen)
+			preferenceParent.addPreference(preferenceScreen)
+		}
 	}
 
 	private fun initializeTracking(caller: PreferenceFragmentCompat) {
@@ -155,16 +199,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 	}
 
-	private fun initializeMap(caller: PreferenceFragmentCompat) {
-		setOnClickListener(R.string.settings_map_clear_heat_cache_key) {
-			createConfirmDialog(it.title.toString()) {
-				GlobalScope.launch {
-					AppDatabase.getDatabase(applicationContext).mapHeatDao().clear()
-				}
-			}
-		}
-	}
-
 	private fun initializeRoot(caller: PreferenceFragmentCompat) {
 		snackMaker = SnackMaker(caller.listView)
 
@@ -217,6 +251,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			}
 			true
 		}
+
+		createModuleScreens(caller)
 	}
 
 	private fun showToast(string: String) {
@@ -251,18 +287,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 	}
 
-	private fun createConfirmDialog(action: String, clearFunction: (Context) -> Unit) {
-		val alertDialogBuilder = AlertDialog.Builder(this)
-		alertDialogBuilder
-				.setPositiveButton(resources.getText(R.string.yes)) { _, _ ->
-					clearFunction.invoke(this)
-				}
-				.setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
-				.setMessage(resources.getString(R.string.alert_confirm, action.toLowerCase()))
-
-		alertDialogBuilder.show()
-	}
-
 
 	/***
 	 * Initializes settings on preferences on debug screen
@@ -295,8 +319,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 
 		caller.findPreference(R.string.settings_clear_preferences_key).setOnPreferenceClickListener { pref ->
-			createConfirmDialog(pref.title.toString()) {
-				Preferences.getPref(it).edit {
+			ConfirmDialog.create(this, pref.title.toString()) {
+				Preferences.getPref(this).edit {
 					clear()
 				}
 			}
@@ -409,7 +433,6 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			r.getString(R.string.settings_debug_title) -> initializeDebug(caller)
 			r.getString(R.string.settings_style_title) -> initializeStyle(caller)
 			r.getString(R.string.settings_tracking_title) -> initializeTracking(caller)
-			r.getString(R.string.settings_map_title) -> initializeMap(caller)
 			r.getString(R.string.settings_export_title) -> initializeExport(caller)
 		}
 	}

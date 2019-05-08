@@ -115,4 +115,10 @@ object Libraries {
 			implementation("com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2")
 		}
 	}
+
+	fun preference(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("androidx.preference:preference:${Versions.preference}")
+		}
+	}
 }

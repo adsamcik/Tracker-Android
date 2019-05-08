@@ -230,7 +230,7 @@
     <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
     <string name="settings_location_enabled_title">Záznam polohy</string>
-    <string name="settings_map_clear_heat_cache_description">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
+    <string name="settings_map_clear_heat_cache_summary">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
     <string name="settings_map_clear_heat_cache_title">Smazat ofsetové hodnoty teplotní mapy</string>
     <string name="settings_map_default_layer_title">Výchozí vrstva</string>
     <string name="settings_map_quality_summary">Relativně k výchozímu rozlišení</string>

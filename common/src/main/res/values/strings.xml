@@ -29,4 +29,8 @@
     <string name="activity_on_foot">On foot</string>
     <string name="activity_in_vehicle">In vehicle</string>
     <string name="activity_unknown">Unknown</string>
+
+    <!-- Dialog -->
+    <string name="alert_confirm_generic">Are you sure?</string>
+    <string name="alert_confirm">Are you sure you want to %1$s?</string>
 </resources>

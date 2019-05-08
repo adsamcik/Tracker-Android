@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="alert_confirm_generic">Are you sure?</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
-
     <!--- TITLES -->
+    <string name="settings_group_category_key" translatable="false">grpCategory</string>
+
     <string name="settings_title">Settings</string>
     <string name="settings_tracking_title">Tracking</string>
-    <string name="settings_map_title">Map</string>
     <string name="settings_style_title">Style</string>
     <string name="settings_data_title">Data</string>
     <string name="settings_export_title">Export</string>
-    <string name="settings_game_title">Games</string>
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
@@ -147,10 +144,6 @@
     <string name="settings_delete_tracked_data_summary">Delete tracked data that has not yet been uploaded</string>
     <string name="settings_delete_tracked_data_key" translatable="false">deleteTrackedData</string>
 
-    <!-- GAMES -->
-
-    <string name="settings_game_challenge_enable_title">Enable challenges</string>
-
     <!-- EXPORT -->
 
     <string name="settings_export_export_title">As raw data</string>
@@ -171,35 +164,6 @@
 
     <string name="settings_export_dialog_from">From</string>
     <string name="settings_export_dialog_to">To</string>
-
-    <!-- MAP -->
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_quality_summary">Scale relative to default value</string>
-    <string-array name="settings_map_quality_values">
-        <item>0.25</item>
-        <item>0.5</item>
-        <item>1</item>
-        <item>2</item>
-        <item>4</item>
-        <item>8</item>
-    </string-array>
-
-    <string name="settings_map_default_layer_title">Default layer</string>
-    <string-array name="settings_map_default_layer_values" translatable="false">
-        <item>location</item>
-        <item>cell</item>
-        <item>wifi</item>
-    </string-array>
-    <string-array name="settings_map_default_layer_names">
-        <item>Location</item>
-        <item>Cell</item>
-        <item>Wi-Fi</item>
-    </string-array>
-
-
-    <string name="settings_map_clear_heat_cache_title">Clear heatmap offset</string>
-    <string name="settings_map_clear_heat_cache_description">Use this if your locations on the map suddenly became too dim</string>
-    <string name="settings_map_clear_heat_cache_key" translatable="false">clearHeatmapMaxHeat</string>
 
     <!-- MODULES -->
 

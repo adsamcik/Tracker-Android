@@ -4,211 +4,179 @@
     key="root"
     title="@string/settings_title">
 
-    <androidx.preference.PreferenceScreen
-        android:title="@string/settings_tracking_title"
-        app:icon="@drawable/ic_outline_perm_scan_wifi_24px">
-        <androidx.preference.PreferenceCategory
-            android:title="@string/settings_auto_tracking_category">
+    <androidx.preference.PreferenceCategory
+        android:key="@string/settings_group_category_key">
 
-            <com.adsamcik.signalcollector.preference.ImageSwitchPreference
-                android:defaultValue="@string/settings_tracking_activity_default"
-                android:key="@string/settings_tracking_activity_key"
-                app:drawables="@array/tracking_options_drawables"
-                app:foregroundStateColors="@color/image_switch_colors"
-                app:titles="@array/tracking_options_titles"/>
-
-            <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_activity_watcher_default"
-                android:key="@string/settings_activity_watcher_key"
-                android:summary="@string/settings_activity_watcher_summary"
-                android:title="@string/settings_activity_watcher_title"
-                app:icon="@drawable/ic_outline_remove_red_eye_24px"/>
-
-            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
-                android:defaultValue="@string/settings_activity_freq_default"
-                android:dependency="@string/settings_activity_watcher_key"
-                android:key="@string/settings_activity_freq_key"
-                android:title="@string/settings_activity_freq_title"
-                app:items="@array/activity_watching_interval"
-                app:stringFormat="%1$d s"/>
-
-            <androidx.preference.SwitchPreferenceCompat
-                android:defaultValue="@string/settings_disabled_recharge_default"
-                android:key="@string/settings_disabled_recharge_key"
-                android:summary="@string/settings_disabled_recharge_summary"
-                android:thumbTint="@color/negative_switch_color"
-                android:thumbTintMode="src_in"
-                android:title="@string/settings_disabled_recharge_title"/>
-        </androidx.preference.PreferenceCategory>
-
-        <androidx.preference.PreferenceCategory>
-            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
-                android:defaultValue="@integer/settings_tracking_min_distance_default"
-                android:key="@string/settings_tracking_min_distance_key"
-                android:title="@string/settings_tracking_min_distance_title"
-                app:icon="@drawable/ic_outline_directions_run_24px"
-                app:items="@array/settings_tracking_min_distance_values"
-                app:stringFormat="%1$d m"/>
-
-            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
-                android:defaultValue="@integer/settings_tracking_min_time_default"
-                android:key="@string/settings_tracking_min_time_key"
-                android:title="@string/settings_tracking_min_time_title"
-                app:icon="@drawable/ic_outline_access_time_24px"
-                app:items="@array/settings_tracking_min_time_values"
-                app:stringFormat="%1$d s"/>
-        </androidx.preference.PreferenceCategory>
-        <androidx.preference.PreferenceCategory>
-            <com.adsamcik.signalcollector.preference.IntValueSliderPreference
-                android:defaultValue="@integer/settings_tracking_required_accuracy_default"
-                android:key="@string/settings_tracking_required_accuracy_key"
-                android:title="@string/settings_tracking_required_accuracy_title"
-                app:icon="@drawable/ic_gps_fixed_black_24dp"
-                app:items="@array/settings_tracking_required_accuracy"
-                app:stringFormat="%1$d m"/>
-        </androidx.preference.PreferenceCategory>
-        <androidx.preference.PreferenceCategory>
-            <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_location_enabled_default"
-                android:key="@string/settings_location_enabled_key"
-                android:title="@string/settings_location_enabled_title"
-                app:icon="@drawable/ic_outline_location_on_24px"/>
-
-
-            <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_wifi_enabled_default"
-                android:key="@string/settings_wifi_enabled_key"
-                android:title="@string/settings_wifi_enabled_title"
-                app:icon="@drawable/ic_outline_network_wifi_24px"/>
-
-
-            <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_cell_enabled_default"
-                android:key="@string/settings_cell_enabled_key"
-                android:title="@string/settings_cell_enabled_title"
-                app:icon="@drawable/ic_outline_network_cell_24px"/>
-        </androidx.preference.PreferenceCategory>
-
-    </androidx.preference.PreferenceScreen>
-
-    <androidx.preference.PreferenceScreen
-        android:title="@string/settings_map_title"
-        app:icon="@drawable/ic_outline_map_24dp">
-
-        <androidx.preference.PreferenceCategory>
-            <com.adsamcik.signalcollector.preference.FloatValueSliderPreference
-                android:defaultValue="@string/settings_map_quality_default"
-                android:key="@string/settings_map_quality_key"
-                android:summary="@string/settings_map_quality_summary"
-                android:title="@string/settings_map_quality_title"
-                app:icon="@drawable/ic_outline_hd_24dp"
-                app:items="@array/settings_map_quality_values"
-                app:stringFormat="%.2fx"/>
-
-            <androidx.preference.ListPreference
-                android:defaultValue="@string/settings_map_default_layer_default"
-                android:entries="@array/settings_map_default_layer_names"
-                android:entryValues="@array/settings_map_default_layer_values"
-                android:key="@string/settings_map_default_layer_key"
-                android:summary="%s"
-                android:title="@string/settings_map_default_layer_title"
-                app:icon="@drawable/ic_outline_layers_24dp"/>
-        </androidx.preference.PreferenceCategory>
-        <androidx.preference.PreferenceCategory>
-            <Preference
-                android:description="@string/settings_map_clear_heat_cache_description"
-                android:key="@string/settings_map_clear_heat_cache_key"
-                android:title="@string/settings_map_clear_heat_cache_title"/>
-        </androidx.preference.PreferenceCategory>
-    </androidx.preference.PreferenceScreen>
-
-    <androidx.preference.PreferenceScreen
-        android:title="@string/settings_style_title"
-        app:icon="@drawable/ic_outline_style_24px">
-        <androidx.preference.ListPreference
-            android:defaultValue="@string/settings_style_mode_default"
-            android:entries="@array/settings_style_mode_names"
-            android:entryValues="@array/settings_style_mode_values"
-            android:key="@string/settings_style_mode_key"
-            android:summary="%s"
-            android:title="@string/settings_style_mode_title"/>
-
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_morning_default"
-            android:key="@string/settings_color_morning_key"
-            android:title="@string/settings_color_morning_title"/>
-
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_day_default"
-            android:key="@string/settings_color_day_key"
-            android:title="@string/settings_color_day_title"/>
-
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_evening_default"
-            android:key="@string/settings_color_evening_key"
-            android:title="@string/settings_color_evening_title"/>
-
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_night_default"
-            android:key="@string/settings_color_night_key"
-            android:title="@string/settings_color_night_title"/>
-
-        <androidx.preference.Preference
-            android:key="@string/settings_color_default_key"
-            android:title="@string/settings_color_default_title"/>
-
-    </androidx.preference.PreferenceScreen>
-
-    <androidx.preference.PreferenceScreen
-        android:title="@string/settings_data_title"
-        app:icon="@drawable/ic_outline_folder_24px">
         <androidx.preference.PreferenceScreen
-            android:title="@string/settings_export_title"
-            app:icon="@drawable/ic_outline_share_24px">
-            <androidx.preference.Preference
-                android:key="@string/settings_export_export_key"
-                android:summary="@string/settings_export_export_summary"
-                android:title="@string/settings_export_export_title"/>
-            <androidx.preference.Preference
-                android:key="@string/settings_export_gpx_key"
-                android:summary="@string/settings_export_gpx_summary"
-                android:title="@string/settings_export_gpx_title"/>
-            <androidx.preference.Preference
-                android:key="@string/settings_export_kml_key"
-                android:summary="@string/settings_export_kml_summary"
-                android:title="@string/settings_export_kml_title"/>
+            android:title="@string/settings_tracking_title"
+            app:icon="@drawable/ic_outline_perm_scan_wifi_24px">
+            <androidx.preference.PreferenceCategory
+                android:title="@string/settings_auto_tracking_category">
+
+                <com.adsamcik.signalcollector.preference.ImageSwitchPreference
+                    android:defaultValue="@string/settings_tracking_activity_default"
+                    android:key="@string/settings_tracking_activity_key"
+                    app:drawables="@array/tracking_options_drawables"
+                    app:foregroundStateColors="@color/image_switch_colors"
+                    app:titles="@array/tracking_options_titles"/>
+
+                <androidx.preference.CheckBoxPreference
+                    android:defaultValue="@string/settings_activity_watcher_default"
+                    android:key="@string/settings_activity_watcher_key"
+                    android:summary="@string/settings_activity_watcher_summary"
+                    android:title="@string/settings_activity_watcher_title"
+                    app:icon="@drawable/ic_outline_remove_red_eye_24px"/>
+
+                <com.adsamcik.signalcollector.preference.IntValueSliderPreference
+                    android:defaultValue="@string/settings_activity_freq_default"
+                    android:dependency="@string/settings_activity_watcher_key"
+                    android:key="@string/settings_activity_freq_key"
+                    android:title="@string/settings_activity_freq_title"
+                    app:items="@array/activity_watching_interval"
+                    app:stringFormat="%1$d s"/>
+
+                <androidx.preference.SwitchPreferenceCompat
+                    android:defaultValue="@string/settings_disabled_recharge_default"
+                    android:key="@string/settings_disabled_recharge_key"
+                    android:summary="@string/settings_disabled_recharge_summary"
+                    android:thumbTint="@color/negative_switch_color"
+                    android:thumbTintMode="src_in"
+                    android:title="@string/settings_disabled_recharge_title"/>
+            </androidx.preference.PreferenceCategory>
+
+            <androidx.preference.PreferenceCategory>
+                <com.adsamcik.signalcollector.preference.IntValueSliderPreference
+                    android:defaultValue="@integer/settings_tracking_min_distance_default"
+                    android:key="@string/settings_tracking_min_distance_key"
+                    android:title="@string/settings_tracking_min_distance_title"
+                    app:icon="@drawable/ic_outline_directions_run_24px"
+                    app:items="@array/settings_tracking_min_distance_values"
+                    app:stringFormat="%1$d m"/>
+
+                <com.adsamcik.signalcollector.preference.IntValueSliderPreference
+                    android:defaultValue="@integer/settings_tracking_min_time_default"
+                    android:key="@string/settings_tracking_min_time_key"
+                    android:title="@string/settings_tracking_min_time_title"
+                    app:icon="@drawable/ic_outline_access_time_24px"
+                    app:items="@array/settings_tracking_min_time_values"
+                    app:stringFormat="%1$d s"/>
+            </androidx.preference.PreferenceCategory>
+            <androidx.preference.PreferenceCategory>
+                <com.adsamcik.signalcollector.preference.IntValueSliderPreference
+                    android:defaultValue="@integer/settings_tracking_required_accuracy_default"
+                    android:key="@string/settings_tracking_required_accuracy_key"
+                    android:title="@string/settings_tracking_required_accuracy_title"
+                    app:icon="@drawable/ic_gps_fixed_black_24dp"
+                    app:items="@array/settings_tracking_required_accuracy"
+                    app:stringFormat="%1$d m"/>
+            </androidx.preference.PreferenceCategory>
+            <androidx.preference.PreferenceCategory>
+                <androidx.preference.CheckBoxPreference
+                    android:defaultValue="@string/settings_location_enabled_default"
+                    android:key="@string/settings_location_enabled_key"
+                    android:title="@string/settings_location_enabled_title"
+                    app:icon="@drawable/ic_outline_location_on_24px"/>
+
+
+                <androidx.preference.CheckBoxPreference
+                    android:defaultValue="@string/settings_wifi_enabled_default"
+                    android:key="@string/settings_wifi_enabled_key"
+                    android:title="@string/settings_wifi_enabled_title"
+                    app:icon="@drawable/ic_outline_network_wifi_24px"/>
+
+
+                <androidx.preference.CheckBoxPreference
+                    android:defaultValue="@string/settings_cell_enabled_default"
+                    android:key="@string/settings_cell_enabled_key"
+                    android:title="@string/settings_cell_enabled_title"
+                    app:icon="@drawable/ic_outline_network_cell_24px"/>
+            </androidx.preference.PreferenceCategory>
+
+        </androidx.preference.PreferenceScreen>
+        
+        <androidx.preference.PreferenceScreen
+            android:title="@string/settings_style_title"
+            app:icon="@drawable/ic_outline_style_24px">
+            <androidx.preference.ListPreference
+                android:defaultValue="@string/settings_style_mode_default"
+                android:entries="@array/settings_style_mode_names"
+                android:entryValues="@array/settings_style_mode_values"
+                android:key="@string/settings_style_mode_key"
+                android:summary="%s"
+                android:title="@string/settings_style_mode_title"/>
+
+            <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+                android:defaultValue="@color/settings_color_morning_default"
+                android:key="@string/settings_color_morning_key"
+                android:title="@string/settings_color_morning_title"/>
+
+            <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+                android:defaultValue="@color/settings_color_day_default"
+                android:key="@string/settings_color_day_key"
+                android:title="@string/settings_color_day_title"/>
+
+            <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+                android:defaultValue="@color/settings_color_evening_default"
+                android:key="@string/settings_color_evening_key"
+                android:title="@string/settings_color_evening_title"/>
+
+            <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+                android:defaultValue="@color/settings_color_night_default"
+                android:key="@string/settings_color_night_key"
+                android:title="@string/settings_color_night_title"/>
 
             <androidx.preference.Preference
-                android:key="@string/settings_export_sqlite_key"
-                android:summary="@string/settings_export_sqlite_summary"
-                android:title="@string/settings_export_sqlite_title"
-                />
+                android:key="@string/settings_color_default_key"
+                android:title="@string/settings_color_default_title"/>
+
         </androidx.preference.PreferenceScreen>
 
-        <androidx.preference.PreferenceCategory>
-            <androidx.preference.Preference
-                android:key="@string/settings_delete_stored_data_key"
-                android:summary="@string/settings_delete_stored_data_summary"
-                android:title="@string/settings_delete_stored_data_title"/>
-            <androidx.preference.Preference
-                android:key="@string/settings_delete_tracked_data_key"
-                android:summary="@string/settings_delete_tracked_data_summary"
-                android:title="@string/settings_delete_tracked_data_title"/>
-        </androidx.preference.PreferenceCategory>
+        <androidx.preference.PreferenceScreen
+            android:title="@string/settings_data_title"
+            app:icon="@drawable/ic_outline_folder_24px">
+            <androidx.preference.PreferenceScreen
+                android:title="@string/settings_export_title"
+                app:icon="@drawable/ic_outline_share_24px">
+                <androidx.preference.Preference
+                    android:key="@string/settings_export_export_key"
+                    android:summary="@string/settings_export_export_summary"
+                    android:title="@string/settings_export_export_title"/>
+                <androidx.preference.Preference
+                    android:key="@string/settings_export_gpx_key"
+                    android:summary="@string/settings_export_gpx_summary"
+                    android:title="@string/settings_export_gpx_title"/>
+                <androidx.preference.Preference
+                    android:key="@string/settings_export_kml_key"
+                    android:summary="@string/settings_export_kml_summary"
+                    android:title="@string/settings_export_kml_title"/>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_export_sqlite_key"
+                    android:summary="@string/settings_export_sqlite_summary"
+                    android:title="@string/settings_export_sqlite_title"
+                    />
+            </androidx.preference.PreferenceScreen>
+
+            <androidx.preference.PreferenceCategory>
+                <androidx.preference.Preference
+                    android:key="@string/settings_delete_stored_data_key"
+                    android:summary="@string/settings_delete_stored_data_summary"
+                    android:title="@string/settings_delete_stored_data_title"/>
+                <androidx.preference.Preference
+                    android:key="@string/settings_delete_tracked_data_key"
+                    android:summary="@string/settings_delete_tracked_data_summary"
+                    android:title="@string/settings_delete_tracked_data_title"/>
+            </androidx.preference.PreferenceCategory>
 
 
-    </androidx.preference.PreferenceScreen>
+        </androidx.preference.PreferenceScreen>
 
-    <androidx.preference.PreferenceScreen
-        android:title="@string/settings_game_title"
-        app:icon="@drawable/ic_outline_games_24dp">
+    </androidx.preference.PreferenceCategory>
 
-        <androidx.preference.SwitchPreferenceCompat
-            android:defaultValue="settings_game_challenge_enable_default"
-            android:key="@string/settings_game_challenge_enable_key"
-            android:title="@string/settings_game_challenge_enable_title"/>
-
-    </androidx.preference.PreferenceScreen>
+    <androidx.preference.Preference
+        android:key="@string/settings_modules_key"
+        android:title="@string/settings_modules_title"
+        app:icon="@drawable/ic_modules"/>
 
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_debug_title"
@@ -251,11 +219,6 @@
                 android:title="@string/settings_clear_preferences_title"/>
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
-
-    <androidx.preference.Preference
-        app:icon="@drawable/ic_modules"
-        android:key="@string/settings_modules_key"
-        android:title="@string/settings_modules_title"/>
 
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">

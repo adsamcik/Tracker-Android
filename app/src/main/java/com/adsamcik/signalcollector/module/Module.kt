@@ -36,12 +36,12 @@ enum class Module {
 	companion object {
 		private const val BASE_PATH = "com.adsamcik.signalcollector"
 
-		fun getModuleInfo(context: Context): List<ModuleInfo> {
+		fun getActiveModuleInfo(context: Context): List<ModuleInfo> {
 			val manager = SplitInstallManagerFactory.create(context)
-			return getModuleInfo(manager)
+			return getActiveModuleInfo(manager)
 		}
 
-		fun getModuleInfo(manager: SplitInstallManager): List<ModuleInfo> {
+		fun getActiveModuleInfo(manager: SplitInstallManager): List<ModuleInfo> {
 			val installedModules = manager.installedModules
 			return values()
 					.filter { it.enabled }

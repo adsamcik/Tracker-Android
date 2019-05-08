@@ -40,6 +40,7 @@ dependencies {
 	Libraries.database(this)
 	Libraries.crashlytics(this)
 	Libraries.location(this)
+	Libraries.preference(this)
 
 	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
 

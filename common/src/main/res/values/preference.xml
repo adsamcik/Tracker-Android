@@ -10,8 +10,6 @@
     <string name="settings_color_morning_key" translatable="false">colorMorning</string>
     <color name="settings_color_night_default" translatable="false">#002733</color>
     <string name="settings_color_night_key" translatable="false">colorNight</string>
-    <string name="settings_game_challenge_enable_default" translatable="false">true</string>
-    <string name="settings_game_challenge_enable_key" translatable="false">enableChallenges</string>
     <string name="settings_location_enabled_default" translatable="false">true</string>
     <string name="settings_location_enabled_key" translatable="false">trackingLocationEnabled</string>
     <string name="settings_style_mode_default" translatable="false">2</string>
@@ -26,12 +24,6 @@
     <string name="settings_tracking_required_accuracy_key" translatable="false">requiredTrackingAccuracy</string>
     <string name="settings_wifi_enabled_default" translatable="false">false</string>
     <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
-
-    <string name="settings_map_quality_key" translatable="false">mapHeatmapQuality</string>
-    <string name="settings_map_quality_default" translatable="false">1f</string>
-
-    <string name="settings_map_default_layer_key" translatable="false">mapDefaultLayer</string>
-    <string name="settings_map_default_layer_default" translatable="false">location</string>
 
     <string name="settings_length_system_key" translatable="false">lengthSystem</string>
     <string name="settings_length_system_default" translatable="false">Metric</string>
