@@ -2,18 +2,18 @@ package com.adsamcik.signalcollector.map.heatmap
 
 import android.content.Context
 import android.graphics.Color
+import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
+import com.adsamcik.signalcollector.common.misc.Int2
+import com.adsamcik.signalcollector.common.misc.extension.toDate
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
-import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.LayerType
 import com.adsamcik.signalcollector.map.MapFunctions
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.WifiHeatmapTileCreator
-import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
-import com.adsamcik.signalcollector.common.misc.Int2
-import com.adsamcik.signalcollector.common.misc.extension.toDate
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import java.util.*

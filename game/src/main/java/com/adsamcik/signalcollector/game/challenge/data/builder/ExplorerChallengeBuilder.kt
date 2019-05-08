@@ -1,14 +1,14 @@
 package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
+import com.adsamcik.signalcollector.common.misc.extension.rescale
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
-import com.adsamcik.signalcollector.common.misc.extension.rescale
 
 class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) : ChallengeBuilder<ExplorerChallengeInstance>(definition) {
 	private var requiredLocationCount: Int = 0

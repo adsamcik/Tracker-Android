@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.game.challenge
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.misc.NonNullLiveData
+import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
@@ -8,8 +10,6 @@ import com.adsamcik.signalcollector.game.challenge.data.definition.StepChallenge
 import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeLoader
-import com.adsamcik.signalcollector.common.misc.NonNullLiveData
-import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

@@ -86,7 +86,7 @@ class ModuleActivity : DetailActivity() {
 		super.onCreate(savedInstanceState)
 		inflateContent(R.layout.activity_module)
 
-		setTitle(R.string.settings_modules_title)
+		setTitle(R.string.settings_module_group_title)
 
 		manager = SplitInstallManagerFactory.create(this)
 

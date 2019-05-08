@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--- TITLES -->
-    <string name="settings_group_category_key" translatable="false">grpCategory</string>
-
     <string name="settings_title">Settings</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_style_title">Style</string>
@@ -167,8 +165,11 @@
 
     <!-- MODULES -->
 
-    <string name="settings_modules_title">Modules</string>
-    <string name="settings_modules_key" translatable="false">modules</string>
+    <string name="settings_module_enable_title">Modules</string>
+    <string name="settings_module_enable_key" translatable="false">modules</string>
+
+    <string name="settings_module_group_title">Module settings</string>
+    <string name="settings_module_group_key" translatable="false">moduleSettings</string>
 
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
@@ -203,7 +204,6 @@
 
     <string name="settings_clear_preferences_title">Clear preferences</string>
     <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
-
     <!-- OTHER -->
     <string name="settings_notifications_title">Notifications</string>
 

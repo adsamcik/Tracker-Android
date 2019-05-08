@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.map
 
 import android.content.Context
 import android.os.Looper
-import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTileProvider
 import com.google.android.gms.maps.GoogleMap

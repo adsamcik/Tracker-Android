@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.map.heatmap
 
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
+import com.adsamcik.signalcollector.common.misc.extension.toByteArray
 import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.map.MapFunctions
-import com.adsamcik.signalcollector.common.misc.extension.toByteArray
 import kotlin.math.roundToInt
 
 class HeatmapTile(

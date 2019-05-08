@@ -61,6 +61,13 @@ fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference
 	return findPreferenceTyped(titleId)
 }
 
+fun PreferenceFragmentCompat.setOnClickListener(@StringRes key: Int, listener: (Preference) -> Unit) {
+	findPreference(key).setOnPreferenceClickListener {
+		listener.invoke(it)
+		false
+	}
+}
+
 /**
  * Searches for preference using title
  *

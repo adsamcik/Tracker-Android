@@ -1,5 +1,3 @@
-import org.gradle.kotlin.dsl.dependencies
-
 plugins {
     id("com.android.library")
     Libraries.corePlugins(this)

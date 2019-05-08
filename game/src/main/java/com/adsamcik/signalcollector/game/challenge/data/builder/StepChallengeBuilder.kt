@@ -1,14 +1,14 @@
 package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
+import com.adsamcik.signalcollector.common.misc.extension.rescale
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.definition.StepChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.instance.StepChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
-import com.adsamcik.signalcollector.common.misc.extension.rescale
 import kotlin.math.roundToInt
 
 class StepChallengeBuilder(private val definition: StepChallengeDefinition) : ChallengeBuilder<StepChallengeInstance>(definition) {

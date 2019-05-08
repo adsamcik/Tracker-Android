@@ -2,10 +2,10 @@ package com.adsamcik.signalcollector.database
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.adsamcik.signalcollector.database.dao.CellDataDao
-import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.common.data.CellInfo
 import com.adsamcik.signalcollector.common.data.CellType
+import com.adsamcik.signalcollector.database.dao.CellDataDao
+import com.adsamcik.signalcollector.database.data.DatabaseCellData
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test

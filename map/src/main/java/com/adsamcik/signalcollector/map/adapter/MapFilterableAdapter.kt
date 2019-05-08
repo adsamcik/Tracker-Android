@@ -4,11 +4,11 @@ import android.content.Context
 import android.view.View
 import androidx.annotation.LayoutRes
 import androidx.appcompat.widget.AppCompatTextView
+import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.adapter.BaseFilterableAdapter
 import com.adsamcik.signalcollector.common.adapter.SimpleFilterableAdapter
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.MapLayer
-import com.adsamcik.signalcollector.common.R
 
 /**
  * Implementation of the [BaseFilterableAdapter] using a MapLayer and CoordinateBounds
