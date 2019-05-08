@@ -296,7 +296,7 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-		return if (!Tips.isActive && root.touchDelegate.onTouchEvent(event))
+		return if (!Tips.isActive && root.touchDelegate?.onTouchEvent(event) == true)
 			true
 		else
 			super.dispatchTouchEvent(event)
