@@ -16,13 +16,12 @@ import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
 import com.adsamcik.signalcollector.common.recycler.SimpleMarginDecoration
 import com.adsamcik.signalcollector.module.Module
+import com.adsamcik.signalcollector.module.ModuleInfo
 import com.google.android.play.core.splitinstall.*
 import com.google.android.play.core.splitinstall.model.SplitInstallSessionStatus
 import kotlinx.android.synthetic.main.activity_module.*
 
 class ModuleActivity : DetailActivity() {
-	private val activeModules = listOf(Module.GAME, Module.MAP, Module.STATISTICS)
-
 	private lateinit var manager: SplitInstallManager
 
 	private lateinit var adapter: ModuleAdapter
@@ -49,7 +48,7 @@ class ModuleActivity : DetailActivity() {
 				if (langsInstall) {
 					//onSuccessfulLanguageLoad(names)
 				} else {
-					onLoadSuccess(state.moduleNames())
+					onLoadSuccess()
 				}
 
 				finish()
@@ -74,7 +73,7 @@ class ModuleActivity : DetailActivity() {
 		progress_title.text = message
 	}
 
-	private fun onLoadSuccess(names: Collection<String>) {
+	private fun onLoadSuccess() {
 		toast(getString(R.string.module_success))
 		finish()
 	}
@@ -97,13 +96,7 @@ class ModuleActivity : DetailActivity() {
 		colorController.watchView(ColorView(root, 0, recursive = true))
 		colorController.watchAdapterView(ColorView(recycler, 0, ignoreRoot = true))
 
-		val moduleInfoList = activeModules.map { ModuleInfo(it) }
-		manager.installedModules.forEach { moduleName ->
-			moduleInfoList.find { it.module.moduleName == moduleName }?.apply {
-				isInstalled = true
-				shouldBeInstalled = true
-			}
-		}
+		val moduleInfoList = Module.getModuleInfo(manager)
 
 		adapter.addModules(moduleInfoList)
 
@@ -182,8 +175,6 @@ class ModuleActivity : DetailActivity() {
 
 		class ViewHolder(view: View, val checkbox: AppCompatCheckBox) : RecyclerView.ViewHolder(view)
 	}
-
-	data class ModuleInfo(val module: Module, var shouldBeInstalled: Boolean = false, var isInstalled: Boolean = false)
 
 	companion object {
 		private const val CONFIRMATION_REQUEST_CODE = 1
