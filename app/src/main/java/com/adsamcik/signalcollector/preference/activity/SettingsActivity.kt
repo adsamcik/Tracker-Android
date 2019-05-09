@@ -109,7 +109,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		caller.preferenceScreen = pref
 		val index = backstack.indexOf(pref)
 		if (index >= 0) {
-			for (i in (backstack.size - 1) downTo (index + 1)) {
+			for (i in backstack.size - 1 downTo index + 1) {
 				backstack.removeAt(i)
 			}
 		} else {

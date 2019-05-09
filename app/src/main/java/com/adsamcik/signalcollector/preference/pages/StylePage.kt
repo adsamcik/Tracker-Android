@@ -75,22 +75,13 @@ class StylePage : PreferencePage {
 
 						val index = when (key) {
 							morningKey -> {
-								if (stylePrefVal < 2)
-									return@OnSharedPreferenceChangeListener
-								else
-									2
+								if (stylePrefVal < 2) return@OnSharedPreferenceChangeListener else 2
 							}
 							dayKey -> {
-								if (stylePrefVal < 2)
-									0
-								else
-									1
+								if (stylePrefVal < 2) 0 else 1
 							}
 							eveningKey -> {
-								if (stylePrefVal < 2)
-									return@OnSharedPreferenceChangeListener
-								else
-									2
+								if (stylePrefVal < 2) return@OnSharedPreferenceChangeListener else 2
 							}
 							nightKey -> {
 								when (stylePrefVal) {
