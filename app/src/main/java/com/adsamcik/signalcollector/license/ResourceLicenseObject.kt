@@ -23,11 +23,12 @@ class ResourceLicenseObject(override val name: String, val from: Int, val length
 	private fun resolveNotice(): Notice {
 		val lowerName = name.toLowerCase()
 		val resolvedLicense = getLicense()
-		if (lowerName.startsWith("stag"))
+		if (lowerName.startsWith("stag")) {
 			return Notice(name,
 					"https://github.com/vimeo/stag-java",
 					"Copyright (c) 2016 Vimeo",
 					resolvedLicense)
+		}
 
 		return when (lowerName) {
 			"slider" -> Notice("Slider",
@@ -54,29 +55,27 @@ class ResourceLicenseObject(override val name: String, val from: Int, val length
 					"https://github.com/jaredrummler/ColorPicker",
 					null,
 					resolvedLicense)
-			else -> {
-				Notice(name, null, null, resolvedLicense)
-			}
+			else -> Notice(name, null, null, resolvedLicense)
 		}
 	}
 
 
 	private fun getLicense(): License {
 		val licenseText = loadLicense()
-		return if (licenseText.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || licenseText.startsWith("https://api.github.com/licenses/apache-2.0"))
+		return if (licenseText.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || licenseText.startsWith("https://api.github.com/licenses/apache-2.0")) {
 			ApacheSoftwareLicense20()
-		else if (licenseText.startsWith("http://www.opensource.org/licenses/mit-license"))
+		} else if (licenseText.startsWith("http://www.opensource.org/licenses/mit-license")) {
 			MITLicense()
-		else
+		} else {
 			CustomResourceLicense(licenseText)
+		}
 	}
 
 	private fun loadLicense(): String {
 		val buffer = CharArray(length)
 
 		openStream(R.raw.third_party_licenses).use {
-			if (from > 0)
-				it.skip(from.toLong())
+			if (from > 0) it.skip(from.toLong())
 
 			val reader = InputStreamReader(it, StandardCharsets.UTF_8)
 			reader.read(buffer, 0, length)
