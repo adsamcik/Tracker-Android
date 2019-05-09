@@ -189,7 +189,7 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 		return when (i) {
 			0 -> x
 			1 -> y
-			else -> throw IndexOutOfBoundsException("Index: i")
+			else -> throw IndexOutOfBoundsException("Index: $i")
 		}
 	}
 
@@ -209,7 +209,7 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 				y = value
 				return
 			}
-			else -> throw IndexOutOfBoundsException("Index: i")
+			else -> throw IndexOutOfBoundsException("Index: $i")
 		}
 	}
 
@@ -229,7 +229,7 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 				y += value
 				return
 			}
-			else -> throw IndexOutOfBoundsException("Index: i")
+			else -> throw IndexOutOfBoundsException("Index: $i")
 		}
 	}
 

@@ -15,9 +15,7 @@ class TrackerPreferencePage : PreferencePage {
 
 	private lateinit var snackMaker: SnackMaker
 
-	private fun validateEnablePreference(locationEnabled: Boolean, wifiEnabled: Boolean, cellEnabled: Boolean): Boolean {
-		return locationEnabled.or(wifiEnabled).or(cellEnabled)
-	}
+	private fun validateEnablePreference(locationEnabled: Boolean, wifiEnabled: Boolean, cellEnabled: Boolean) = locationEnabled.or(wifiEnabled).or(cellEnabled)
 
 	override fun onExit(caller: PreferenceFragmentCompat) {}
 
@@ -43,8 +41,9 @@ class TrackerPreferencePage : PreferencePage {
 		caller.findPreference(R.string.settings_disabled_recharge_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			if (newValue as Boolean) {
 				TrackerLocker.lockUntilRecharge(context)
-			} else
+			} else {
 				TrackerLocker.unlockRechargeLock(context)
+			}
 
 			return@OnPreferenceChangeListener true
 		}
@@ -55,18 +54,21 @@ class TrackerPreferencePage : PreferencePage {
 
 
 		val packageManager = context.packageManager
-		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI))
+		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)) {
 			wifiPreference.isEnabled = false
+		}
 
-		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY))
+		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
 			cellPreference.isEnabled = false
+		}
 
 		locationPreference.setOnPreferenceChangeListener { _, newValue ->
 			if (!validateEnablePreference(locationEnabled = newValue as Boolean, wifiEnabled = wifiPreference.isChecked, cellEnabled = cellPreference.isChecked)) {
 				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
-			} else
+			} else {
 				true
+			}
 		}
 
 		wifiPreference.setOnPreferenceChangeListener { _, newValue ->
@@ -81,8 +83,9 @@ class TrackerPreferencePage : PreferencePage {
 			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked, wifiEnabled = wifiPreference.isChecked, cellEnabled = newValue as Boolean)) {
 				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
 				false
-			} else
+			} else {
 				true
+			}
 		}
 	}
 

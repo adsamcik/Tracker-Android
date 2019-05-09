@@ -36,13 +36,13 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 
 	val data: FloatArray = FloatArray(width * height)
 
-	fun addPoint(x: Int, y: Int): Unit = addPointWithStamp(x, y, HeatmapStamp.default9x9)
+	fun addPoint(x: Int, y: Int) = addPointWithStamp(x, y, HeatmapStamp.default9x9)
 
-	fun addWeightedPoint(x: Int, y: Int, weight: Float): Unit = addWeightedPointWithStamp(x, y, weight, HeatmapStamp.default9x9)
+	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(x, y, weight, HeatmapStamp.default9x9)
 
-	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp): Unit = addPointWithStamp(x, y, stamp) { 1f }
+	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) = addPointWithStamp(x, y, stamp) { 1f }
 
-	fun addWeightedPointWithStamp(x: Int, y: Int, weight: Float, stamp: HeatmapStamp): Unit = addPointWithStamp(x, y, stamp) { weight }
+	fun addWeightedPointWithStamp(x: Int, y: Int, weight: Float, stamp: HeatmapStamp) = addPointWithStamp(x, y, stamp) { weight }
 
 	private inline fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp, weightFunc: () -> Float) {
 		//todo validate that odd numbers don't cause some weird artifacts
@@ -65,15 +65,16 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 		val y1 = if (y + halfStampHeight < height) stamp.height else halfStampHeight + height - y
 
 		for (itY in y0 until y1) {
-			var heatIndex = ((y + itY) - halfStampHeight) * width + (x + x0) - halfStampWidth
+			var heatIndex = (y + itY - halfStampHeight) * width + (x + x0) - halfStampWidth
 			var stampIndex = itY * stamp.width + x0
 			assert(stampIndex >= 0f)
 
 			for (itX in x0 until x1) {
 				val heatValue = data[heatIndex]
 				data[heatIndex] = heatValue + stamp.stampData[stampIndex] * weightFunc.invoke()
-				if (dynamicHeat && heatValue > maxHeat)
+				if (dynamicHeat && heatValue > maxHeat) {
 					maxHeat = heatValue
+				}
 
 				assert(heatValue >= 0f)
 
@@ -104,8 +105,7 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 
 		val buffer = IntArray(width * height)
 
-		if (pointCount == 0)
-			return buffer
+		if (pointCount == 0) return buffer
 
 		for (itY in 0 until height) {
 			var index = itY * width
@@ -174,8 +174,7 @@ data class HeatmapColorScheme constructor(val colors: IntArray) {
 
 
 		fun fromArray(argbArray: Collection<Pair<Double, Int>>, totalSteps: Int): HeatmapColorScheme {
-			if (argbArray.size < 2)
-				throw IllegalArgumentException("argbArray must contain at least 2 elements")
+			if (argbArray.size < 2) throw IllegalArgumentException("argbArray must contain at least 2 elements")
 
 			val resultColorArray = IntArray(totalSteps)
 
@@ -217,9 +216,7 @@ data class HeatmapColorScheme constructor(val colors: IntArray) {
 	}
 }
 
-class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
-
-
+data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
 	companion object {
 
 		fun generateNonlinear(radius: Int, distFunction: (Float) -> Float): HeatmapStamp {
