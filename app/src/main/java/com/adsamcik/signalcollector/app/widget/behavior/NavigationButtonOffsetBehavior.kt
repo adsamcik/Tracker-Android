@@ -4,7 +4,7 @@ import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.guidelineEnd
 import kotlin.math.roundToInt
 
@@ -13,7 +13,7 @@ import kotlin.math.roundToInt
  */
 class NavigationButtonOffsetBehavior(private val targetView: View) : CoordinatorLayout.Behavior<ConstraintLayout>() {
 
-	private val dp16 = 16.dpAsPx
+	private val dp16 = 16.dp
 
 	/**
 	 * Used to determine whether the target view moved
@@ -75,7 +75,7 @@ class NavigationButtonOffsetBehavior(private val targetView: View) : Coordinator
  * Custom behavior that allows specific view to be modified instead of direct child of coordinator layout
  */
 class NavigationGuidelinesOffsetBehavior(private val guideline: Guideline) : CoordinatorLayout.Behavior<ConstraintLayout>() {
-	private val dp16 = 16.dpAsPx
+	private val dp16 = 16.dp
 
 	/**
 	 * Used to determine whether the target view moved

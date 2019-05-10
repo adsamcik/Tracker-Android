@@ -74,7 +74,6 @@ class ActivityService : IntentService("ActivityService") {
 	 * Singleton part of the service that holds information about active requests and last known activity.
 	 */
 	companion object {
-		private val TAG = "Signals" + ActivityService::class.java.simpleName
 		private const val REQUIRED_CONFIDENCE = 75
 		private const val REQUEST_CODE_PENDING_INTENT = 4561201
 

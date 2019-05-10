@@ -14,7 +14,7 @@ import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
 /**
@@ -34,7 +34,7 @@ abstract class DetailActivity : AppCompatActivity() {
 		back_button.setOnClickListener { onBackPressed() }
 
 		val titleBarRoot = back_button.parent as View
-		titleBarRoot.elevation = if (titleBarLayer <= 0) 0f else (titleBarLayer * 4.dpAsPx).toFloat()
+		titleBarRoot.elevation = if (titleBarLayer <= 0) 0f else (titleBarLayer * 4.dp).toFloat()
 
 		colorController = ColorManager.createController().also {
 			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))

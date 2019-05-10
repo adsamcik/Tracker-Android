@@ -4,7 +4,7 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
 import com.adsamcik.signalcollector.app.Assist.navbarSize
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.inputMethodManager
 
 
@@ -19,7 +19,7 @@ class KeyboardManager(private val rootView: View) {
 	private var keyboardHeight = 0
 	private var defaultDiff = 0
 
-	private val threshold = KEYBOARD_VISIBLE_THRESHOLD_DP.dpAsPx
+	private val threshold = KEYBOARD_VISIBLE_THRESHOLD_DP.dp
 
 	private val r = Rect()
 

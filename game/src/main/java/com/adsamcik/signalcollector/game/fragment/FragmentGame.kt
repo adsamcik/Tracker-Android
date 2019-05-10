@@ -13,7 +13,7 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
@@ -37,7 +37,7 @@ class FragmentGame : Fragment(), IOnDemandView {
 		refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
 		//todo add color scheme support to ColorController
 		//refreshLayout.setColorSchemeResources(R.color.color_primary)
-		refreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
+		refreshLayout.setProgressViewOffset(true, 0, 40.dp)
 		refreshLayout.setOnRefreshListener { this.updateData(ChallengeManager.activeChallenges.value) }
 
 		//updateData()

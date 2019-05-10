@@ -60,7 +60,7 @@ interface BaseDao<T> {
 @Suppress("unused")
 interface BaseUpsertDao<T> : BaseDao<T> {
 	@Transaction
-	open fun upsert(obj: T) {
+	fun upsert(obj: T) {
 		val id = insert(obj)
 		if (id == -1L) {
 			update(obj)
@@ -68,7 +68,7 @@ interface BaseUpsertDao<T> : BaseDao<T> {
 	}
 
 	@Transaction
-	open fun upsert(objList: Collection<T>) {
+	fun upsert(objList: Collection<T>) {
 		val insertResult = insert(objList)
 		val updateList = objList.filterIndexed { index, _ -> insertResult[index] == -1L }
 

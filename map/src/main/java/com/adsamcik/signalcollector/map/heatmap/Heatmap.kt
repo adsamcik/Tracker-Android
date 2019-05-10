@@ -257,4 +257,24 @@ data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArr
 
 		val default9x9: HeatmapStamp = HeatmapStamp(9, 9, STAMP_DEFAULT_4_DATA)
 	}
+
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
+
+		other as HeatmapStamp
+
+		if (width != other.width) return false
+		if (height != other.height) return false
+		if (!stampData.contentEquals(other.stampData)) return false
+
+		return true
+	}
+
+	override fun hashCode(): Int {
+		var result = width
+		result = 31 * result + height
+		result = 31 * result + stampData.contentHashCode()
+		return result
+	}
 }

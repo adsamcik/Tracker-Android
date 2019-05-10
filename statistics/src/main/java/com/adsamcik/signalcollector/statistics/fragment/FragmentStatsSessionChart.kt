@@ -13,7 +13,7 @@ import androidx.lifecycle.ViewModelProviders
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.observe
 import com.adsamcik.signalcollector.statistics.data.ChartStat
 import com.adsamcik.signalcollector.statistics.data.ChartType
@@ -147,7 +147,7 @@ class FragmentStatsSessionChart : AppCompatDialogFragment() {
 		val metrics = resources.displayMetrics
 		val width = metrics.widthPixels
 		val height = metrics.heightPixels
-		dialog?.window?.setLayout(width - 48.dpAsPx, height - 48.dpAsPx)
+		dialog?.window?.setLayout(width - 48.dp, height - 48.dp)
 	}
 
 	companion object {

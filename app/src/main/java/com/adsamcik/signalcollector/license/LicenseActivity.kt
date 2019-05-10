@@ -19,7 +19,6 @@ import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
 import de.psdev.licensesdialog.licenses.License
 import de.psdev.licensesdialog.model.Notice
-import kotlinx.android.synthetic.main.activity_module.*
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader

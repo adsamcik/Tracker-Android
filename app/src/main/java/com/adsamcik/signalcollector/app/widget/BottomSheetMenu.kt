@@ -9,7 +9,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.StringRes
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.coroutines.*
 import java.util.*
@@ -35,7 +35,7 @@ class BottomSheetMenu(root: CoordinatorLayout) {
 		LayoutInflater.from(context).inflate(R.layout.bottom_sheet_menu, root)
 		menuRoot = root.getChildAt(root.childCount - 1) as LinearLayout
 		bottomSheetBehavior = BottomSheetBehavior.from(menuRoot)
-		bottomSheetBehavior.peekHeight = 54.dpAsPx
+		bottomSheetBehavior.peekHeight = 54.dp
 		bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 
 		menuItems = ArrayList()

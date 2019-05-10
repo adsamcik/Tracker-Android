@@ -55,7 +55,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 		swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
 		swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
 		//swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
-		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dpAsPx)
+		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dp)
 
 		val recyclerView = fragmentView!!.recycler_stats
 		recyclerView.setRecyclerListener { }

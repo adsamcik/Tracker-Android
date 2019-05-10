@@ -8,7 +8,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 /**
@@ -48,7 +48,7 @@ class StatusActivity : DetailActivity() {
 
 		valueParams.leftToRight = title.id
 		valueParams.topToTop = title.id
-		valueParams.marginStart = 16.dpAsPx
+		valueParams.marginStart = 16.dp
 
 		value.layoutParams = valueParams
 		value.text = valueString

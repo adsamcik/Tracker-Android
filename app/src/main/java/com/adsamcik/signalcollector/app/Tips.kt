@@ -9,7 +9,7 @@ import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.Tips.showTips
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Spotlight
@@ -110,7 +110,7 @@ object Tips {
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(resources.getString(R.string.tips_map_overlay_title))
 					.addButtonData(buttonData)
-					.setShape(RoundedRectangle(target, 8.dpAsPx.toFloat(), target.height.toFloat()))
+					.setShape(RoundedRectangle(target, 8.dp.toFloat(), target.height.toFloat()))
 					.setDescription(resources.getString(R.string.tutorial_map_description))
 					.build()
 

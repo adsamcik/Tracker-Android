@@ -20,7 +20,7 @@ import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.guidelineEnd
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
@@ -96,8 +96,8 @@ class MainActivity : AppCompatActivity() {
 			button_stats.dragAxis = DragAxis.X
 			button_stats.setTarget(root, DragTargetAnchor.RightTop)
 			button_stats.setTargetOffsetDp(Offset(56))
-			button_stats.targetTranslationZ = 8.dpAsPx.toFloat()
-			button_stats.extendTouchAreaBy(56.dpAsPx, 0, 0, 0)
+			button_stats.targetTranslationZ = 8.dp.toFloat()
+			button_stats.extendTouchAreaBy(56.dp, 0, 0, 0)
 			button_stats.onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET)
 					hideBottomLayer()
@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
 			statsPayload.height = MATCH_PARENT
 			statsPayload.initialTranslation = Point(-size.x, 0)
 			statsPayload.backgroundColor = Color.WHITE
-			statsPayload.targetTranslationZ = 7.dpAsPx.toFloat()
+			statsPayload.targetTranslationZ = 7.dp.toFloat()
 			statsPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
 			button_stats.addPayload(statsPayload)
 		} else {
@@ -124,8 +124,8 @@ class MainActivity : AppCompatActivity() {
 			button_game.dragAxis = DragAxis.X
 			button_game.setTarget(root, DragTargetAnchor.LeftTop)
 			button_game.setTargetOffsetDp(Offset(-56))
-			button_game.targetTranslationZ = 8.dpAsPx.toFloat()
-			button_game.extendTouchAreaBy(0, 0, 56.dpAsPx, 0)
+			button_game.targetTranslationZ = 8.dp.toFloat()
+			button_game.extendTouchAreaBy(0, 0, 56.dp, 0)
 			button_game.onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET)
 					hideBottomLayer()
@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
 			gamePayload.height = MATCH_PARENT
 			gamePayload.initialTranslation = Point(size.x, 0)
 			gamePayload.backgroundColor = Color.WHITE
-			gamePayload.targetTranslationZ = 7.dpAsPx.toFloat()
+			gamePayload.targetTranslationZ = 7.dp.toFloat()
 			gamePayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
 			//gamePayload.onInitialized = { colorController.watchView(ColorView(it.view!!, 1, recursive = true, rootIsBackground = true)) }
 
@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity() {
 
 		if (installedModules.contains(Module.MAP.moduleName)) {
 			button_map.visibility = View.VISIBLE
-			button_map.extendTouchAreaBy(32.dpAsPx)
+			button_map.extendTouchAreaBy(32.dp)
 			button_map.onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET) {
 					hideBottomLayer()
@@ -177,7 +177,7 @@ class MainActivity : AppCompatActivity() {
 			mapPayload.height = MATCH_PARENT
 			mapPayload.initialTranslation = Point(0, realSize.y)
 			mapPayload.backgroundColor = Color.WHITE
-			mapPayload.setTranslationZ(16.dpAsPx.toFloat())
+			mapPayload.setTranslationZ(16.dp.toFloat())
 			mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
 
 			button_map.addPayload(mapPayload)

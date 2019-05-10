@@ -22,11 +22,11 @@ object ChallengeManager {
 	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkDistanceChallengeDefinition(), StepChallengeDefinition())
 
 	//todo do not hold this indefinitely
-	private val _mutableActiveChallengeList: MutableList<ChallengeInstance<*>> = mutableListOf()
+	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*>> = mutableListOf()
 
 	private const val MAX_CHALLENGE_COUNT = 3
 
-	private val mutableActiveChallenges: NonNullLiveMutableData<List<ChallengeInstance<*>>> = NonNullLiveMutableData(_mutableActiveChallengeList)
+	private val mutableActiveChallenges: NonNullLiveMutableData<List<ChallengeInstance<*>>> = NonNullLiveMutableData(mutableActiveChallengeList_)
 
 	/**
 	 * Returns immutable list of active challenges
@@ -46,28 +46,28 @@ object ChallengeManager {
 
 			val active = initFromDb(context)
 
-			_mutableActiveChallengeList.clear()
-			_mutableActiveChallengeList.addAll(active)
-			while (_mutableActiveChallengeList.size < MAX_CHALLENGE_COUNT) {
+			mutableActiveChallengeList_.clear()
+			mutableActiveChallengeList_.addAll(active)
+			while (mutableActiveChallengeList_.size < MAX_CHALLENGE_COUNT) {
 				val newChallenge = activateRandomChallenge(context = context)
 				if (newChallenge != null)
-					_mutableActiveChallengeList.add(newChallenge)
+					mutableActiveChallengeList_.add(newChallenge)
 				else
 					break
 			}
-			mutableActiveChallenges.postValue(_mutableActiveChallengeList)
+			mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 		}
 	}
 
 	//todo decide on paralelization
 	fun processSession(sessionList: List<TrackerSession>, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
-		val challenges = _mutableActiveChallengeList
+		val challenges = mutableActiveChallengeList_
 		challenges.forEach { it.batchProcess(sessionList, onChallengeCompletedListener) }
 	}
 
 
 	fun activateRandomChallenge(context: Context): ChallengeInstance<*>? {
-		val possibleChallenges = enabledChallengeList.filterNot { definition -> _mutableActiveChallengeList.any { definition.type == it.data.type } }
+		val possibleChallenges = enabledChallengeList.filterNot { definition -> mutableActiveChallengeList_.any { definition.type == it.data.type } }
 
 		if (possibleChallenges.isEmpty()) {
 			return null

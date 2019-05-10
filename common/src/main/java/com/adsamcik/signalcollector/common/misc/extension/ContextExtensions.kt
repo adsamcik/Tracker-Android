@@ -198,3 +198,6 @@ val Context.applicationName: String
 		val stringId = applicationInfo.labelRes
 		return if (stringId == 0) applicationInfo.nonLocalizedLabel.toString() else getString(stringId)
 	}
+
+val Activity.tag: String
+	get() = applicationName + this::class.java.simpleName

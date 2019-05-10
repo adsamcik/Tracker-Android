@@ -28,7 +28,7 @@ import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.SnackMaker
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.marginBottom
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.misc.extension.transactionStateLoss
@@ -214,7 +214,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					}
 				}
 				false -> {
-					val baseBottomMarginPx = 32.dpAsPx
+					val baseBottomMarginPx = 32.dp
 					if (position == NavBarPosition.BOTTOM) {
 						map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
 						map?.setPadding(0, 0, 0, navbarHeight.y)
@@ -446,7 +446,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			}
 		}
 
-		map_menu_button.extendTouchAreaBy(0, 12.dpAsPx, 0, 0)
+		map_menu_button.extendTouchAreaBy(0, 12.dp, 0, 0)
 	}
 
 	override fun onCameraIdle() {

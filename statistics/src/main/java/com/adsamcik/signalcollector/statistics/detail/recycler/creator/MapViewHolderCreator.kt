@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.creator
 
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder
@@ -22,7 +22,7 @@ class MapViewHolderCreator : StatisticDetailViewHolderCreator {
 		val mapView = MapView(parent.context, options).apply {
 			layoutParams = ViewGroup.LayoutParams(
 					ViewGroup.LayoutParams.MATCH_PARENT,
-					200.dpAsPx)
+					200.dp)
 
 			isClickable = false
 		}

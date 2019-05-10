@@ -5,6 +5,7 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
+import com.jraska.livedata.test
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test

@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.recycler.SimpleMarginDecoration
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.ModuleInfo
@@ -107,7 +107,7 @@ class ModuleActivity : DetailActivity() {
 		recycler.layoutManager = layoutManager
 
 		val edgeMargin = resources.getDimension(R.dimen.edge_margin).toInt()
-		recycler.addItemDecoration(SimpleMarginDecoration(16.dpAsPx, edgeMargin))
+		recycler.addItemDecoration(SimpleMarginDecoration(16.dp, edgeMargin))
 
 		recycler.post {
 			val allVisible = layoutManager.findLastCompletelyVisibleItemPosition() == adapter.itemCount - 1

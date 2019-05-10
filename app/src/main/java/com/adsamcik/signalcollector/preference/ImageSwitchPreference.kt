@@ -14,7 +14,7 @@ import androidx.core.view.setMargins
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 
 /**
  * Custom implementation of Preference that allows use of ImageButtons to switch between different states
@@ -28,8 +28,8 @@ class ImageSwitchPreference : Preference {
 
 	private var mInitialized = false
 	private var mInitialValue: Int = -1
-	private val mImageSizePx = 50.dpAsPx
-	private val mMarginPx = 10.dpAsPx
+	private val mImageSizePx = 50.dp
+	private val mMarginPx = 10.dp
 
 	private var mSelected: Int = -1
 

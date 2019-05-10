@@ -26,14 +26,9 @@ fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
 }
 
 /**
- * Converts pixels to density independent pixels
- */
-val Int.pxAsDp: Float get() = this / Resources.getSystem().displayMetrics.density
-
-/**
  * Converts density independent pixels to pixels. Round to whole pixels.
  */
-val Int.dpAsPx: Int get() = (this * Resources.getSystem().displayMetrics.density).toInt()
+val Int.dp: Int get() = (this * Resources.getSystem().displayMetrics.density).toInt()
 
 /**
  * Left margin of this View. Relies on non-null layout params to work properly.
@@ -42,8 +37,7 @@ val Int.dpAsPx: Int get() = (this * Resources.getSystem().displayMetrics.density
  */
 var View.marginLeft: Int
 	get() {
-		val layoutParams = layoutParams ?: return 0
-		return when (layoutParams) {
+		return when (val layoutParams = layoutParams ?: return 0) {
 			is ConstraintLayout.LayoutParams -> layoutParams.leftMargin
 			is LinearLayout.LayoutParams -> layoutParams.leftMargin
 			is RelativeLayout.LayoutParams -> layoutParams.leftMargin
@@ -52,8 +46,7 @@ var View.marginLeft: Int
 		}
 	}
 	set(margin) {
-		val layoutParams = layoutParams ?: return
-		when (layoutParams) {
+		when (val layoutParams = layoutParams ?: return) {
 			is ConstraintLayout.LayoutParams -> layoutParams.leftMargin = margin
 			is LinearLayout.LayoutParams -> layoutParams.leftMargin = margin
 			is RelativeLayout.LayoutParams -> layoutParams.leftMargin = margin
@@ -70,8 +63,7 @@ var View.marginLeft: Int
  */
 var View.marginTop: Int
 	get() {
-		val layoutParams = layoutParams ?: return 0
-		return when (layoutParams) {
+		return when (val layoutParams = layoutParams ?: return 0) {
 			is ConstraintLayout.LayoutParams -> layoutParams.topMargin
 			is LinearLayout.LayoutParams -> layoutParams.topMargin
 			is RelativeLayout.LayoutParams -> layoutParams.topMargin
@@ -80,8 +72,7 @@ var View.marginTop: Int
 		}
 	}
 	set(margin) {
-		val layoutParams = layoutParams ?: return
-		when (layoutParams) {
+		when (val layoutParams = layoutParams ?: return) {
 			is ConstraintLayout.LayoutParams -> layoutParams.topMargin = margin
 			is LinearLayout.LayoutParams -> layoutParams.topMargin = margin
 			is RelativeLayout.LayoutParams -> layoutParams.topMargin = margin
@@ -98,8 +89,7 @@ var View.marginTop: Int
  */
 var View.marginRight: Int
 	get() {
-		val layoutParams = layoutParams ?: return 0
-		return when (layoutParams) {
+		return when (val layoutParams = layoutParams ?: return 0) {
 			is ConstraintLayout.LayoutParams -> layoutParams.rightMargin
 			is LinearLayout.LayoutParams -> layoutParams.rightMargin
 			is RelativeLayout.LayoutParams -> layoutParams.rightMargin
@@ -108,8 +98,7 @@ var View.marginRight: Int
 		}
 	}
 	set(margin) {
-		val layoutParams = layoutParams ?: return
-		when (layoutParams) {
+		when (val layoutParams = layoutParams ?: return) {
 			is ConstraintLayout.LayoutParams -> layoutParams.rightMargin = margin
 			is LinearLayout.LayoutParams -> layoutParams.rightMargin = margin
 			is RelativeLayout.LayoutParams -> layoutParams.rightMargin = margin
@@ -126,8 +115,7 @@ var View.marginRight: Int
  */
 var View.marginBottom: Int
 	get() {
-		val layoutParams = layoutParams ?: return 0
-		return when (layoutParams) {
+		return when (val layoutParams = layoutParams ?: return 0) {
 			is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin
 			is LinearLayout.LayoutParams -> layoutParams.bottomMargin
 			is RelativeLayout.LayoutParams -> layoutParams.bottomMargin
@@ -136,8 +124,7 @@ var View.marginBottom: Int
 		}
 	}
 	set(margin) {
-		val layoutParams = layoutParams ?: return
-		when (layoutParams) {
+		when (val layoutParams = layoutParams ?: return) {
 			is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin = margin
 			is LinearLayout.LayoutParams -> layoutParams.bottomMargin = margin
 			is RelativeLayout.LayoutParams -> layoutParams.bottomMargin = margin

@@ -14,7 +14,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dpAsPx
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.appeaser.sublimepickerlibrary.SublimePicker
 import com.appeaser.sublimepickerlibrary.datepicker.SelectedDate
 import com.appeaser.sublimepickerlibrary.helpers.SublimeListenerAdapter
@@ -39,9 +39,9 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 		val text = AppCompatTextView(context)
 		text.text = getString(R.string.tips_map_date_long_press_range_selection)
 		text.width = MATCH_PARENT
-		text.height = 56.dpAsPx
+		text.height = 56.dp
 		text.gravity = Gravity.CENTER
-		text.setPadding(8.dpAsPx)
+		text.setPadding(8.dp)
 		linearLayout.addView(text)
 
 		val mListener = object : SublimeListenerAdapter() {
