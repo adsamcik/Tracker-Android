@@ -188,46 +188,6 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		updateData(CollectionDataEcho(location, collectionData, session))
 
 		val drawable = getDrawable(requireContext(), R.drawable.ic_outline_directions_24px)
-
-		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
-			setTitle(drawable, getString(R.string.cell))
-			addPrimaryText(CELL_COMPONENT_CURRENT, "")
-			addSecondaryText(CELL_COMPONENT_COUNT, "")
-			setColorManager(colorController)
-		}.also {
-			this.cellInfo = it
-			content.addView(it)
-		}
-
-		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
-			setTitle(drawable, getString(R.string.cell))
-			addPrimaryText(CELL_COMPONENT_CURRENT, "")
-			addSecondaryText(CELL_COMPONENT_COUNT, "")
-			setColorManager(colorController)
-		}.also {
-			this.cellInfo = it
-			content.addView(it)
-		}
-
-		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
-			setTitle(drawable, getString(R.string.cell))
-			addPrimaryText(CELL_COMPONENT_CURRENT, "")
-			addSecondaryText(CELL_COMPONENT_COUNT, "")
-			setColorManager(colorController)
-		}.also {
-			this.cellInfo = it
-			content.addView(it)
-		}
-
-		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
-			setTitle(drawable, getString(R.string.cell))
-			addPrimaryText(CELL_COMPONENT_CURRENT, "")
-			addSecondaryText(CELL_COMPONENT_COUNT, "")
-			setColorManager(colorController)
-		}.also {
-			this.cellInfo = it
-			content.addView(it)
-		}
 	}
 
 	private fun initializeColorElements() {
