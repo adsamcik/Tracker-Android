@@ -20,8 +20,8 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
-import com.adsamcik.signalcollector.app.Assist
-import com.adsamcik.signalcollector.app.Assist.navbarSize
+import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.Assist.navbarSize
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.color.ColorController

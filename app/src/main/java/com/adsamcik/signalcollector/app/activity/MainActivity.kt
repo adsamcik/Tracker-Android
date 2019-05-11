@@ -14,8 +14,8 @@ import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
-import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.Tips
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager

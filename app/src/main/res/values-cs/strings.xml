@@ -98,7 +98,11 @@
 
     <string name="info_accuracy">%s přesnost</string>
     <string name="info_altitude">%s n. m.</string>
-    <string name="info_session_collections">%d sběrů</string>
+    <plurals name="info_session_collections">
+        <item quantity="one">%d sběr</item>
+        <item quantity="few">%d sběry</item>
+        <item quantity="other">%d sběrů</item>
+    </plurals>
     <string name="info_session_distance">%s vzdálenost</string>
 
     <string name="kilometer_abbr">%s km</string>

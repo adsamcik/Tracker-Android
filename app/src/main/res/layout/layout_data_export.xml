@@ -4,7 +4,7 @@
                                                    android:layout_width="match_parent"
                                                    android:layout_height="match_parent"
                                                    android:orientation="vertical"
-                                                   android:padding="@dimen/edge_margin">
+                                                   android:padding="@dimen/activity_horizontal_margin">
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/imageview_filename"

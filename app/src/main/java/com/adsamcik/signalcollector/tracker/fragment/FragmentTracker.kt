@@ -16,8 +16,8 @@ import androidx.core.view.children
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Assist
 import com.adsamcik.signalcollector.app.widget.InfoComponent
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
@@ -186,6 +186,48 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		val session = TrackerSession(0, System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), 56, 5410f, 15f, 5000f, 154)
 
 		updateData(CollectionDataEcho(location, collectionData, session))
+
+		val drawable = getDrawable(requireContext(), R.drawable.ic_outline_directions_24px)
+
+		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
+			setTitle(drawable, getString(R.string.cell))
+			addPrimaryText(CELL_COMPONENT_CURRENT, "")
+			addSecondaryText(CELL_COMPONENT_COUNT, "")
+			setColorManager(colorController)
+		}.also {
+			this.cellInfo = it
+			content.addView(it)
+		}
+
+		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
+			setTitle(drawable, getString(R.string.cell))
+			addPrimaryText(CELL_COMPONENT_CURRENT, "")
+			addSecondaryText(CELL_COMPONENT_COUNT, "")
+			setColorManager(colorController)
+		}.also {
+			this.cellInfo = it
+			content.addView(it)
+		}
+
+		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
+			setTitle(drawable, getString(R.string.cell))
+			addPrimaryText(CELL_COMPONENT_CURRENT, "")
+			addSecondaryText(CELL_COMPONENT_COUNT, "")
+			setColorManager(colorController)
+		}.also {
+			this.cellInfo = it
+			content.addView(it)
+		}
+
+		(layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
+			setTitle(drawable, getString(R.string.cell))
+			addPrimaryText(CELL_COMPONENT_CURRENT, "")
+			addSecondaryText(CELL_COMPONENT_COUNT, "")
+			setColorManager(colorController)
+		}.also {
+			this.cellInfo = it
+			content.addView(it)
+		}
 	}
 
 	private fun initializeColorElements() {
@@ -224,18 +266,21 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeCellInfo(): InfoComponent {
+		val cellInfo = cellInfo
 		if (cellInfo != null)
-			return cellInfo!!
-		val drawable = getDrawable(context!!, R.drawable.ic_network_cell_black_24dp)!!
+			return cellInfo
+		val drawable = getDrawable(requireContext(), R.drawable.ic_network_cell_black_24dp)!!
 		drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
 
-		val component = (layoutInflater.inflate(R.layout.template_component_info, content) as ViewGroup).children.last() as InfoComponent
-		component.setTitle(drawable, getString(R.string.cell))
-		component.addPrimaryText(CELL_COMPONENT_CURRENT, "")
-		component.addSecondaryText(CELL_COMPONENT_COUNT, "")
-		component.setColorManager(colorController)
-		cellInfo = component
-		return component
+		return (layoutInflater.inflate(R.layout.template_component_info, content, false) as InfoComponent).apply {
+			setTitle(drawable, getString(R.string.cell))
+			addPrimaryText(CELL_COMPONENT_CURRENT, "")
+			addSecondaryText(CELL_COMPONENT_COUNT, "")
+			setColorManager(colorController)
+		}.also {
+			this.cellInfo = it
+			content.addView(it)
+		}
 	}
 
 	private fun initializeExtendedInfo() {
@@ -386,7 +431,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateSessionUI(session: TrackerSession) {
 		val resources = resources
-		session_collections.text = resources.getString(R.string.info_session_collections, session.collections)
+		session_collections.text = resources.getQuantityString(R.plurals.info_session_collections, session.collections, session.collections)
 
 		val lengthSystem = Preferences.getLengthSystem(getNonNullContext())
 

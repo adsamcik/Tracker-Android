@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.common.misc.keyboard
 import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
-import com.adsamcik.signalcollector.app.Assist.navbarSize
+import com.adsamcik.signalcollector.common.Assist.navbarSize
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.inputMethodManager
 

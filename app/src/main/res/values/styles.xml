@@ -43,9 +43,9 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">@dimen/activity_vertical_margin</item>
         <item name="background">@drawable/textarea_border</item>
-        <item name="android:paddingBottom">@dimen/edge_margin</item>
-        <item name="paddingEnd">@dimen/edge_margin</item>
-        <item name="paddingStart">@dimen/edge_margin</item>
+        <item name="android:paddingBottom">@dimen/activity_vertical_margin</item>
+        <item name="paddingEnd">@dimen/activity_horizontal_margin</item>
+        <item name="paddingStart">@dimen/activity_horizontal_margin</item>
         <item name="android:paddingTop">8dp</item>
     </style>
 

@@ -5,7 +5,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:background="@drawable/background_component_info"
     android:elevation="4dp"
     android:orientation="vertical"
@@ -23,7 +23,7 @@
         android:drawableStart="@drawable/ic_network_wifi_24dp"
         android:drawablePadding="8dp"
         android:gravity="center_vertical"
-        android:textSize="@dimen/primary_text_size"
+        style="@style/TextAppearance.AppCompat.Body1"
         tools:text="Wifi"/>
 
     <View

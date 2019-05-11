@@ -41,7 +41,10 @@
     <!-- NEW UI -->
     <string name="info_altitude">%s altitude</string>
     <string name="info_accuracy">%s accuracy</string>
-    <string name="info_session_collections">%d collections</string>
+    <plurals name="info_session_collections">
+        <item quantity="one">%d collection</item>
+        <item quantity="other">%d collections</item>
+    </plurals>
     <string name="info_session_distance">%s distance</string>
     <string name="title_statistics">Statistics</string>
     <string name="title_game">Game</string>

@@ -1,8 +1,10 @@
 package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
-import android.telephony.*
-import androidx.annotation.RequiresApi
+import android.telephony.CellInfoCdma
+import android.telephony.CellInfoGsm
+import android.telephony.CellInfoLte
+import android.telephony.CellInfoWcdma
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.squareup.moshi.JsonClass
@@ -70,40 +72,6 @@ data class CellInfo
 
 
 	companion object {
-		/**
-		 * Finds carrier name in subscriptions
-		 *
-		 * @param mnc                  Mobile network code
-		 * @param mcc                  Mobile country code
-		 * @param subscriptionInfoList Subscribed sim cards
-		 * @return carrier name or null if not found
-		 */
-		@RequiresApi(22)
-		private fun getCarrierName(mnc: String, mcc: String, subscriptionInfoList: List<SubscriptionInfo>): String? {
-			if (mcc == Integer.MAX_VALUE.toString())
-				return null
-
-			return subscriptionInfoList
-					.firstOrNull { it.mcc.toString() == mcc && it.mnc.toString() == mnc }?.carrierName?.toString()
-		}
-
-		@RequiresApi(22)
-		private fun getCarrierNameAndRemove(mnc: String, mcc: String, siList: MutableList<SubscriptionInfo>): String? {
-			if (mcc == Integer.MAX_VALUE.toString())
-				return null
-
-			val it = siList.iterator()
-			while (it.hasNext()) {
-				val si = it.next()
-				if (si.mcc.toString() == mcc && si.mnc.toString() == mnc) {
-					val carrierName = si.carrierName.toString()
-					it.remove()
-					return carrierName
-				}
-			}
-
-			return null
-		}
 
 		/**
 		 * Creates new instance of CellInfo from GSM cell info
@@ -132,21 +100,6 @@ data class CellInfo
 		}
 
 
-		@RequiresApi(22)
-		fun newInstance(cing: CellInfoGsm, subscriptionInfoList: MutableList<SubscriptionInfo>): CellInfo? {
-			val cig = cing.cellIdentity
-			val mcc: String
-			val mnc: String
-			if (Build.VERSION.SDK_INT == 28) {
-				mcc = cig.mccString
-				mnc = cig.mncString
-			} else {
-				mcc = cig.mcc.toString()
-				mnc = cig.mnc.toString()
-			}
-			return newInstance(cing, getCarrierNameAndRemove(mnc, mcc, subscriptionInfoList))
-		}
-
 		/**
 		 * Creates new instance of CellInfo from CDMA cell info
 		 *
@@ -161,14 +114,6 @@ data class CellInfo
 			val cssg = cinc.cellSignalStrength
 
 			return CellInfo(operatorName, CellType.CDMA, cic.basestationId, cic.systemId.toString(), cic.networkId.toString(), cssg.asuLevel, cssg.dbm, cssg.level)
-		}
-
-		@RequiresApi(22)
-		fun newInstance(cinc: CellInfoCdma, subscriptionInfoList: List<SubscriptionInfo>): CellInfo? {
-			return if (subscriptionInfoList.size == 1)
-				newInstance(cinc, subscriptionInfoList[0].carrierName.toString())
-			else
-				null
 		}
 
 		/**
@@ -195,28 +140,6 @@ data class CellInfo
 			}
 
 			return CellInfo(operatorName, CellType.WCDMA, cil.cid, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
-		}
-
-
-		@RequiresApi(22)
-		fun newInstance(cinl: CellInfoWcdma, subscriptionInfoList: MutableList<SubscriptionInfo>): CellInfo? {
-			return if (subscriptionInfoList.size == 1)
-				newInstance(cinl, subscriptionInfoList[0].carrierName.toString())
-			else {
-
-				val mcc: String
-				val mnc: String
-				val cil = cinl.cellIdentity
-				if (Build.VERSION.SDK_INT == 28) {
-					mcc = cil.mccString
-					mnc = cil.mncString
-				} else {
-					mcc = cil.mcc.toString()
-					mnc = cil.mnc.toString()
-				}
-
-				newInstance(cinl, getCarrierNameAndRemove(mnc, mcc, subscriptionInfoList))
-			}
 		}
 
 
@@ -247,24 +170,6 @@ data class CellInfo
 		}
 
 
-		@RequiresApi(22)
-		fun newInstance(cinl: CellInfoLte, subscriptionInfoList: MutableList<SubscriptionInfo>): CellInfo? {
-			return if (subscriptionInfoList.size == 1)
-				newInstance(cinl, subscriptionInfoList[0].carrierName.toString())
-			else {
-				val cil = cinl.cellIdentity
-				val mcc: String
-				val mnc: String
-				if (Build.VERSION.SDK_INT == 28) {
-					mcc = cil.mccString
-					mnc = cil.mncString
-				} else {
-					mcc = cil.mcc.toString()
-					mnc = cil.mnc.toString()
-				}
-				newInstance(cinl, getCarrierNameAndRemove(mnc, mcc, subscriptionInfoList))
-			}
-		}
 	}
 }
 

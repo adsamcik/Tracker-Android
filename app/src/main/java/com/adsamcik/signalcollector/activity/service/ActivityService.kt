@@ -8,7 +8,7 @@ import android.os.PowerManager
 import android.util.SparseArray
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityRequestInfo
-import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity

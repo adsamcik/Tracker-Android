@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.app
+package com.adsamcik.signalcollector.common
 
 import android.animation.ObjectAnimator
 import android.app.Activity
@@ -11,7 +11,6 @@ import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.misc.extension.locationManager
 import com.adsamcik.signalcollector.common.misc.extension.windowManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition

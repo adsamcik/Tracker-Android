@@ -8,6 +8,6 @@
     <string name="module_installing">Installing module %s</string>
     <string name="module_error">Failed to install modules %s (error code %d)</string>
 
-    <string name="module_success">Installation completed succesfully</string>
+    <string name="module_success">Installation completed successfully</string>
     <string name="module_download_progress">Downloaded %1$s / %2$s</string>
 </resources>

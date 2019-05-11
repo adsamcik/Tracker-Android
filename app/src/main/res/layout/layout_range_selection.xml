@@ -11,7 +11,7 @@
         android:padding="8dp"
         android:text="@string/tips_map_date_long_press_range_selection"
         android:textAlignment="center"
-        android:textSize="@dimen/secondary_text_size"/>
+        style="@style/TextAppearance.AppCompat.Body2"/>
 
 
 </androidx.appcompat.widget.LinearLayoutCompat>

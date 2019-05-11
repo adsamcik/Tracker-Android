@@ -1,6 +1,6 @@
-import java.net.URL
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.net.URL
 
 plugins {
 	id("com.android.application")

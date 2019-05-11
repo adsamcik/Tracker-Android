@@ -3,12 +3,11 @@ package com.adsamcik.signalcollector.app.widget
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
-import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
-import androidx.core.content.ContextCompat
+import androidx.annotation.StyleRes
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -50,8 +49,10 @@ class InfoComponent : FrameLayout {
 
 	private fun initialize(context: Context) {
 		val inflater = context.layoutInflater
-		inflater.inflate(R.layout.layout_component_info, this)
-		root = this.getChildAt(0) as ViewGroup
+
+		root = inflater.inflate(R.layout.layout_component_info, this, false)
+				.also { (this as ViewGroup).addView(it) }
+				.let { it as ViewGroup }
 
 		titleTextView = findViewById(R.id.tracker_item_title)
 	}
@@ -79,8 +80,8 @@ class InfoComponent : FrameLayout {
 		}
 	}
 
-	private fun createTextView(text: String): TextView {
-		val textView = TextView(context)
+	private fun createTextView(text: String, @StyleRes style: Int): TextView {
+		val textView = TextView(context, null, style)
 		val lp = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
 		lp.setMargins(0, 0, 0, 8.dp)
 		textView.layoutParams = lp
@@ -100,12 +101,6 @@ class InfoComponent : FrameLayout {
 		colorController.watchView(ColorView(this, 1, recursive = true, rootIsBackground = false, ignoreRoot = true))
 	}
 
-	private fun setTextViewTheme(textView: TextView, textSizeResource: Int, textColorResource: Int) {
-		val resources = context.resources
-		textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(textSizeResource))
-		textView.setTextColor(ContextCompat.getColor(context, textColorResource))
-	}
-
 	/**
 	 * Adds primary text to the [InfoComponent].
 	 *
@@ -113,8 +108,7 @@ class InfoComponent : FrameLayout {
 	 * @param text text
 	 */
 	fun addPrimaryText(identifier: String, text: String) {
-		val textView = createTextView(text)
-		setTextViewTheme(textView, R.dimen.primary_text_size, R.color.text_primary)
+		val textView = createTextView(text, com.google.android.material.R.style.TextAppearance_AppCompat_Body1)
 		items[identifier] = textView
 	}
 
@@ -125,8 +119,7 @@ class InfoComponent : FrameLayout {
 	 * @param text text
 	 */
 	fun addSecondaryText(identifier: String, text: String) {
-		val textView = createTextView(text)
-		setTextViewTheme(textView, R.dimen.secondary_text_size, R.color.text_secondary)
+		val textView = createTextView(text, com.google.android.material.R.style.TextAppearance_AppCompat_Body2)
 		items[identifier] = textView
 	}
 

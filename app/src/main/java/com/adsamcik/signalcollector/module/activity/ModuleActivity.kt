@@ -9,7 +9,7 @@ import androidx.appcompat.widget.AppCompatCheckBox
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Assist
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
@@ -106,7 +106,7 @@ class ModuleActivity : DetailActivity() {
 		val layoutManager = LinearLayoutManager(this)
 		recycler.layoutManager = layoutManager
 
-		val edgeMargin = resources.getDimension(R.dimen.edge_margin).toInt()
+		val edgeMargin = resources.getDimension(R.dimen.activity_horizontal_margin).toInt()
 		recycler.addItemDecoration(SimpleMarginDecoration(16.dp, edgeMargin))
 
 		recycler.post {
