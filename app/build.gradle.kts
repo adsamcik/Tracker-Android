@@ -119,7 +119,7 @@ dependencies {
 	Libraries.location(this)
 	Libraries.crashlytics(this)
 
-	implementation("com.google.android.play:core:1.5.0")
+	implementation("com.google.android.play:core:1.6.0")
 
 
 	//Room
@@ -127,19 +127,20 @@ dependencies {
 	Libraries.work(this)
 
 
+
 	//Test implementations
-	androidTestImplementation("androidx.test:runner:1.2.0-alpha05")
-	androidTestImplementation("androidx.test:rules:1.2.0-alpha05")
+	androidTestImplementation("androidx.test:runner:${Libraries.Versions.Test.androidxTest}")
+	androidTestImplementation("androidx.test:rules:${Libraries.Versions.Test.androidxTest}")
 	androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
-	androidTestImplementation("androidx.test.ext:junit:1.1.1-alpha05")
+	androidTestImplementation("androidx.test.ext:junit:1.1.1-beta01")
 	androidTestImplementation("androidx.arch.core:core-testing:2.0.1")
 	androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
 
 	//Kotlin )
-	androidTestImplementation("androidx.test.espresso:espresso-core:3.2.0-alpha04") {
+	androidTestImplementation("androidx.test.espresso:espresso-core:3.2.0-beta01") {
 		exclude("com.android.support", "support-annotations")
 	}
-	androidTestImplementation("androidx.test.espresso:espresso-contrib:3.2.0-alpha04") {
+	androidTestImplementation("androidx.test.espresso:espresso-contrib:3.2.0-beta01") {
 		exclude("com.android.support", "support-annotations")
 		exclude("com.android.support", "support-v4")
 		exclude("com.android.support", "design")
