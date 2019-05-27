@@ -8,10 +8,10 @@
     android:animateLayoutChanges="true"
     android:orientation="vertical">
 
-    <LinearLayout
-        android:id="@+id/top_panel"
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/top_panel_root"
         android:layout_width="match_parent"
-        android:layout_height="72dp"
+        android:layout_height="48dp"
         android:background="#555555"
         android:clipChildren="false"
         android:clipToPadding="false"
@@ -59,7 +59,7 @@
             android:contentDescription="@string/description_settings"
             android:tint="@color/text_primary"
             app:srcCompat="@drawable/ic_settings_black_24dp"/>
-    </LinearLayout>
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bar_info_top"

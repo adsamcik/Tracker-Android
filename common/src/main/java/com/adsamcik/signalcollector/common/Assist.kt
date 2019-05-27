@@ -194,4 +194,13 @@ object Assist {
 	fun verticalSmoothScrollTo(viewGroup: ViewGroup, y: Int, millis: Int) {
 		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.scrollY, y).setDuration(millis.toLong()).start()
 	}
+
+	fun getStatusBarHeight(context: Context): Int {
+		val resources = context.resources
+		val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+		return if (resourceId > 0)
+			resources.getDimensionPixelSize(resourceId)
+		else
+			kotlin.math.ceil((if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) 24 else 25) * resources.displayMetrics.density).toInt()
+	}
 }

@@ -10,6 +10,8 @@ import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.LinearLayoutCompat
+import androidx.core.view.updateLayoutParams
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
@@ -30,6 +32,10 @@ abstract class DetailActivity : AppCompatActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_content_detail)
+
+		top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+			height += Assist.getStatusBarHeight(this@DetailActivity)
+		}
 
 		back_button.setOnClickListener { onBackPressed() }
 

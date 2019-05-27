@@ -11,8 +11,10 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.content.ContextCompat.getDrawable
 import androidx.core.view.children
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import com.adsamcik.signalcollector.R
@@ -36,6 +38,7 @@ import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
+import kotlinx.android.synthetic.main.fragment_tracker.view.*
 import java.util.*
 import kotlin.math.roundToInt
 
@@ -49,10 +52,13 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	private var lastWifiLocation: Location? = null
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-		return if (view != null)
-			view
-		else
-			inflater.inflate(R.layout.fragment_tracker, container, false)
+		if (container == null) return null
+
+		val view = inflater.inflate(R.layout.fragment_tracker, container, false)
+		view.top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+			height += Assist.getStatusBarHeight(container.context)
+		}
+		return view
 	}
 
 	override fun onStart() {
@@ -186,13 +192,11 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		val session = TrackerSession(0, System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), 56, 5410f, 15f, 5000f, 154)
 
 		updateData(CollectionDataEcho(location, collectionData, session))
-
-		val drawable = getDrawable(requireContext(), R.drawable.ic_outline_directions_24px)
 	}
 
 	private fun initializeColorElements() {
 		colorController = ColorManager.createController()
-		colorController.watchView(ColorView(top_panel, 1, recursive = true, rootIsBackground = false))
+		colorController.watchView(ColorView(top_panel_root, 1, recursive = true, rootIsBackground = false))
 		colorController.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
 
 		cellInfo?.setColorManager(colorController)
