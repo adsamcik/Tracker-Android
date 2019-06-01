@@ -3,10 +3,10 @@ import org.gradle.kotlin.dsl.kotlin
 
 object Libraries {
 	object Versions {
-		const val constraintLayout = "2.0.0-alpha5"
+		const val constraintLayout = "2.0.0-beta1"
 		const val coreKtx = "1.1.0-beta01"
 		const val appcompat = "1.1.0-alpha05"
-		const val room = "2.1.0-beta01"
+		const val room = "2.1.0-rc01"
 		const val fragment = "1.1.0-alpha09"
 		const val kotlin = "1.3.31"
 		const val dokka = "0.9.18"
@@ -14,17 +14,18 @@ object Libraries {
 		const val work = "2.1.0-alpha02"
 		const val lifecycle = "2.2.0-alpha01"
 		const val preference = "1.1.0-alpha05"
-		const val material = "1.1.0-alpha06"
+		const val material = "1.1.0-alpha07"
 
 		const val maps = "16.1.0"
 		const val location = "16.0.0"
 		const val firebaseCore = "16.0.9"
-		const val firebasePlugins = "2.0.0"
 		const val recyclerView = "1.1.0-alpha05"
 		const val paging = "2.1.0"
 
+		const val crashlytics = "2.10.1"
+
 		object Test {
-			const val androidxTest = "1.2.0-beta01"
+			const val androidxTest = "1.2.0"
 			const val testing = "2.1.0-beta01"
 		}
 	}
@@ -106,7 +107,7 @@ object Libraries {
 	fun crashlytics(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.google.firebase:firebase-core:${Versions.firebaseCore}")
-			implementation("com.crashlytics.sdk.android:crashlytics:2.10.0")
+			implementation("com.crashlytics.sdk.android:crashlytics:${Versions.crashlytics}")
 		}
 	}
 

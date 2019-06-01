@@ -132,7 +132,7 @@ dependencies {
 	androidTestImplementation("androidx.test:runner:${Libraries.Versions.Test.androidxTest}")
 	androidTestImplementation("androidx.test:rules:${Libraries.Versions.Test.androidxTest}")
 	androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
-	androidTestImplementation("androidx.test.ext:junit:1.1.1-beta01")
+	androidTestImplementation("androidx.test.ext:junit:1.1.1")
 	androidTestImplementation("androidx.arch.core:core-testing:2.0.1")
 	androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
 
