@@ -132,8 +132,8 @@
         <item quantity="other">%d záznamů</item>
     </plurals>
     <string name="main_last_update">%1$s</string>
-    <string name="main_latitude">%1$s zeměpisné šířky</string>
-    <string name="main_longitude">%1$s zeměpisné délky</string>
+    <string name="latitude">%1$s zeměpisné šířky</string>
+    <string name="longitude">%1$s zeměpisné délky</string>
     <string name="main_wifi_count">%1$d v dosahu</string>
     <string name="main_wifi_updated">Nalezeno %s před záznamem</string>
 

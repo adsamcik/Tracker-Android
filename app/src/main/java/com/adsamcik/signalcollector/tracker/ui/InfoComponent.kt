@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.app.widget
+package com.adsamcik.signalcollector.tracker.ui
 
 import android.content.Context
 import android.graphics.drawable.Drawable
@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.annotation.StyleRes
+import androidx.appcompat.widget.LinearLayoutCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -50,7 +51,7 @@ class InfoComponent : FrameLayout {
 	private fun initialize(context: Context) {
 		val inflater = context.layoutInflater
 
-		root = inflater.inflate(R.layout.layout_component_info, this, false)
+		root = inflater.inflate(R.layout.layout_tracker_card, this, false)
 				.also { (this as ViewGroup).addView(it) }
 				.let { it as ViewGroup }
 
@@ -82,9 +83,11 @@ class InfoComponent : FrameLayout {
 
 	private fun createTextView(text: String, @StyleRes style: Int): TextView {
 		val textView = TextView(context, null, style)
-		val lp = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-		lp.setMargins(0, 0, 0, 8.dp)
-		textView.layoutParams = lp
+
+		textView.layoutParams = LinearLayoutCompat.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+			setMargins(0, 4.dp, 0, 4.dp)
+		}
+
 		textView.text = text
 
 		root.addView(textView)

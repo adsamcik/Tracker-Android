@@ -27,7 +27,7 @@ import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.PayloadFragment
 import com.adsamcik.signalcollector.notification.NotificationChannels
-import com.adsamcik.signalcollector.tracker.fragment.FragmentTracker
+import com.adsamcik.signalcollector.tracker.ui.fragment.FragmentTracker
 import com.google.android.gms.location.LocationServices
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import kotlinx.android.synthetic.main.activity_ui.*

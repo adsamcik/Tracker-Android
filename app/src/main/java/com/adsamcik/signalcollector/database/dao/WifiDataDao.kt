@@ -37,5 +37,4 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 
 	@Query("SELECT COUNT(*) from wifi_data")
 	fun count(): Long
-
 }
