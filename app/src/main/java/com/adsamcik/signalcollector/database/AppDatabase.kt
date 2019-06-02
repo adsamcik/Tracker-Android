@@ -34,7 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 		private fun createInstance(context: Context): AppDatabase {
 			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 					.build()
 
 			instance_ = instance

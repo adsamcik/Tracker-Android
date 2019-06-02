@@ -133,6 +133,9 @@ class ModuleActivity : DetailActivity() {
 		if (toRemove.isNotEmpty()) {
 			manager.deferredUninstall(toRemove.map { it.module.moduleName })
 		}
+
+		if (toInstall.isEmpty())
+			finish()
 	}
 
 
@@ -166,6 +169,7 @@ class ModuleActivity : DetailActivity() {
 			val info = modules[position]
 			holder.checkbox.setText(info.module.titleRes)
 			holder.checkbox.isChecked = info.isInstalled
+			holder.checkbox.setOnCheckedChangeListener { _, isChecked -> info.shouldBeInstalled = isChecked }
 			onViewChangedListener?.invoke(holder.itemView)
 		}
 
