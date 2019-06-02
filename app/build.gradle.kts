@@ -22,8 +22,8 @@ android {
 		applicationId = "com.adsamcik.signalcollector"
 		minSdkVersion(Android.min)
 		targetSdkVersion(Android.target)
-		versionCode = 292
-		versionName = "7.0α11 Offline"
+		versionCode = 295
+		versionName = "7.0α13 Offline"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		javaCompileOptions {
 			annotationProcessorOptions {
