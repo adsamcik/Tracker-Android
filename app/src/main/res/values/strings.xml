@@ -12,7 +12,7 @@
 
     <string name="in_range">in range</string>
     <string name="current">current</string>
-    <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$s %3$d dbm</string>
+    <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm</string>
 
     <string name="wifi_new_title">New Wi-Fi</string>
     <string name="cell_new">New cell</string>

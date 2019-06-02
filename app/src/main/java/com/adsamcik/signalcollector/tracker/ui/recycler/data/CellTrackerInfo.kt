@@ -8,10 +8,9 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE, R.dra
 	override fun bindContent(holder: TrackerInfoAdapter.ViewHolder) {
 		val resources = holder.itemView.context.resources
 		cellData.registeredCells.forEach {
-			it.operatorName
 			setBoldText(holder) { title, value ->
-				title.setText(R.string.current)
-				value.text = resources.getString(R.string.cell_current, it.operatorName, it.type.name, it.dbm)
+				title.text = it.operatorName
+				value.text = resources.getString(R.string.cell_current, it.type.name, it.dbm)
 
 			}
 		}
