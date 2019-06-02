@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
-import androidx.appcompat.widget.AppCompatTextView
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -102,8 +101,7 @@ class StatsDetailActivity : DetailActivity() {
 		val endCalendar = endDate.toCalendar()
 		val title = createTitle(startCalendar, "run")
 
-
-		findViewById<AppCompatTextView>(R.id.title).text = title
+		setTitle(title)
 
 		date_time.text = formatRange(startCalendar, endCalendar)
 	}

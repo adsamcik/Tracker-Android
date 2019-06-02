@@ -97,7 +97,7 @@ class MainActivity : AppCompatActivity() {
 			button_stats.setTarget(root, DragTargetAnchor.RightTop)
 			button_stats.setTargetOffsetDp(Offset(56))
 			button_stats.targetTranslationZ = 8.dp.toFloat()
-			button_stats.extendTouchAreaBy(56.dp, 0, 0, 0)
+			button_stats.extendTouchAreaBy(56.dp, 0, 40.dp, 0)
 			button_stats.onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET)
 					hideBottomLayer()

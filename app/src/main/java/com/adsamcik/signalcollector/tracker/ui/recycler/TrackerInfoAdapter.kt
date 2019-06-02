@@ -6,7 +6,6 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.misc.extension.remove
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.ui.recycler.data.CellTrackerInfo
 import com.adsamcik.signalcollector.tracker.ui.recycler.data.LocationTrackerInfo
@@ -42,17 +41,23 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 	}
 
 	private inline fun <T> update(isAvailable: Boolean, nameRes: Int, factory: () -> TrackerInfo, updater: (T) -> Unit) {
+		val index = data.indexOfFirst { it.nameRes == nameRes }
 		if (isAvailable) {
-			val index = data.indexOfFirst { it.nameRes == nameRes }
 			if (index >= 0) {
 				@Suppress("UNCHECKED_CAST")
 				updater(data[index] as T)
+				notifyItemChanged(index)
 			} else {
+				val insertedAt = data.size
 				data.add(factory())
+				notifyItemInserted(insertedAt)
 			}
-		} else {
-			data.remove { it.nameRes == nameRes }
+		} else if (index >= 0) {
+			data.removeAt(index)
+			notifyItemRemoved(index)
 		}
+
+
 	}
 
 	class ViewHolder(val content: ViewGroup, val title: AppCompatTextView, root: View) : RecyclerView.ViewHolder(root)

@@ -22,11 +22,32 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE, R
 			title.setText(R.string.longitude)
 		}
 
-		val altitude = location.altitude
-		if (altitude != null) {
+		location.altitude?.let {
 			setBoldText(holder) { title, value ->
-				value.text = resources.formatDistance(altitude, 1, Preferences.getLengthSystem(context))
+				value.text = resources.formatDistance(it, 1, Preferences.getLengthSystem(context))
 				title.setText(R.string.altitude)
+			}
+		}
+
+		location.speed?.let {
+			setBoldText(holder) { title, value ->
+				val speedFormatted = resources.formatDistance(it, 1, Preferences.getLengthSystem(context))
+				value.text = resources.getString(R.string.speed_value, speedFormatted)
+				title.setText(R.string.speed)
+			}
+		}
+
+		location.horizontalAccuracy?.let {
+			setBoldText(holder) { title, value ->
+				value.text = resources.formatDistance(it, 1, Preferences.getLengthSystem(context))
+				title.setText(R.string.horizontal_accuracy)
+			}
+		}
+
+		location.verticalAccuracy?.let {
+			setBoldText(holder) { title, value ->
+				value.text = resources.formatDistance(it, 1, Preferences.getLengthSystem(context))
+				title.setText(R.string.vertical_accuracy)
 			}
 		}
 	}
