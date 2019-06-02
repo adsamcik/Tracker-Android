@@ -96,8 +96,7 @@ data class MutableCollectionData(
 		for (ci in cellInfo) {
 			if (ci.isRegistered) {
 				convertToCellInfo(ci, registeredOperators)?.let {
-					if (registeredCells.size == phoneCount - 1)
-						return
+					if (registeredCells.size == phoneCount - 1) return
 					registeredCells.add(it)
 				}
 			}
@@ -111,31 +110,35 @@ data class MutableCollectionData(
 		return when (cellInfo) {
 			is CellInfoLte -> {
 				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null)
+				if (operator != null) {
 					CellInfo.newInstance(cellInfo, operator.name)
-				else
+				} else {
 					CellInfo.newInstance(cellInfo, null)
+				}
 			}
 			is CellInfoGsm -> {
 				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null)
+				if (operator != null) {
 					CellInfo.newInstance(cellInfo, operator.name)
-				else
+				} else {
 					CellInfo.newInstance(cellInfo, null)
+				}
 			}
 			is CellInfoWcdma -> {
 				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null)
+				if (operator != null) {
 					CellInfo.newInstance(cellInfo, operator.name)
-				else
+				} else {
 					CellInfo.newInstance(cellInfo, null)
+				}
 			}
 			is CellInfoCdma -> {
 				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null)
+				if (operator != null) {
 					CellInfo.newInstance(cellInfo, operator.name)
-				else
+				} else {
 					CellInfo.newInstance(cellInfo, null)
+				}
 			}
 			else -> {
 				Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))

@@ -26,18 +26,18 @@ class CellTrackerComponent : DataTrackerComponent {
 			val telephonyManager = telephonyManager
 					?: throw NullPointerException("Telephony manager must not be null")
 
-			if (Build.VERSION.SDK_INT >= 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED)
+			if (Build.VERSION.SDK_INT >= 22 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
 				collectionData.addCell(telephonyManager, subscriptionManager!!)
-			else
+			} else {
 				collectionData.addCell(telephonyManager)
+			}
 		}
 	}
 
 	override fun onEnable(context: Context) {
 		this.context = context
 		telephonyManager = context.telephonyManager
-		if (Build.VERSION.SDK_INT >= 22)
-			subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
+		if (Build.VERSION.SDK_INT >= 22) subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
 	}
 
 	override fun onDisable(context: Context) {
