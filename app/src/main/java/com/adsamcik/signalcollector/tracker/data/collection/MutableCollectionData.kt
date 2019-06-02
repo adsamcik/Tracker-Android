@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.net.wifi.ScanResult
 import android.os.Build
 import android.telephony.*
+import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.data.CellInfo
 import com.crashlytics.android.Crashlytics
@@ -61,7 +63,6 @@ data class MutableCollectionData(
 		return this
 	}
 
-	@Suppress("DEPRECATION")
 	fun addCell(telephonyManager: TelephonyManager) {
 		val networkOperator = telephonyManager.networkOperator
 		if (networkOperator.isNotEmpty()) {
@@ -70,11 +71,22 @@ data class MutableCollectionData(
 
 			val registeredOperator = RegisteredOperator(mcc, mnc, telephonyManager.networkOperatorName)
 
-			addCell(telephonyManager, registeredOperator)
+			addCell(telephonyManager, listOf(registeredOperator))
 		}
 	}
 
-	private fun addCell(telephonyManager: TelephonyManager, registeredOperator: RegisteredOperator) {
+	@RequiresApi(22)
+	@RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+	fun addCell(telephonyManager: TelephonyManager, subscriptionManager: SubscriptionManager) {
+		val list = mutableListOf<RegisteredOperator>()
+		subscriptionManager.activeSubscriptionInfoList.forEach {
+			list.add(RegisteredOperator(it.mcc.toString(), it.mnc.toString(), it.carrierName.toString()))
+		}
+
+		addCell(telephonyManager, list)
+	}
+
+	private fun addCell(telephonyManager: TelephonyManager, registeredOperators: List<RegisteredOperator>) {
 		//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
 		@SuppressLint("MissingPermission") val cellInfo = telephonyManager.allCellInfo ?: return
 
@@ -83,7 +95,7 @@ data class MutableCollectionData(
 
 		for (ci in cellInfo) {
 			if (ci.isRegistered) {
-				convertToCellInfo(ci, registeredOperator)?.let {
+				convertToCellInfo(ci, registeredOperators)?.let {
 					if (registeredCells.size == phoneCount - 1)
 						return
 					registeredCells.add(it)
@@ -95,28 +107,36 @@ data class MutableCollectionData(
 		this.cell = CellData(registeredCells.toTypedArray(), cellInfo.size)
 	}
 
-	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: RegisteredOperator): CellInfo? {
+	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: List<RegisteredOperator>): CellInfo? {
 		return when (cellInfo) {
-			is CellInfoLte ->
-				if (registeredOperator.sameNetwork(cellInfo))
-					CellInfo.newInstance(cellInfo, registeredOperator.name)
+			is CellInfoLte -> {
+				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+				if (operator != null)
+					CellInfo.newInstance(cellInfo, operator.name)
 				else
 					CellInfo.newInstance(cellInfo, null)
-			is CellInfoGsm ->
-				if (registeredOperator.sameNetwork(cellInfo))
-					CellInfo.newInstance(cellInfo, registeredOperator.name)
+			}
+			is CellInfoGsm -> {
+				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+				if (operator != null)
+					CellInfo.newInstance(cellInfo, operator.name)
 				else
 					CellInfo.newInstance(cellInfo, null)
-			is CellInfoWcdma ->
-				if (registeredOperator.sameNetwork(cellInfo))
-					CellInfo.newInstance(cellInfo, registeredOperator.name)
+			}
+			is CellInfoWcdma -> {
+				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+				if (operator != null)
+					CellInfo.newInstance(cellInfo, operator.name)
 				else
 					CellInfo.newInstance(cellInfo, null)
-			is CellInfoCdma ->
-				if (registeredOperator.sameNetwork(cellInfo))
-					CellInfo.newInstance(cellInfo, registeredOperator.name)
+			}
+			is CellInfoCdma -> {
+				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+				if (operator != null)
+					CellInfo.newInstance(cellInfo, operator.name)
 				else
 					CellInfo.newInstance(cellInfo, null)
+			}
 			else -> {
 				Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
 				null

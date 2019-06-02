@@ -27,6 +27,7 @@ import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.recycler.SimpleMarginDecoration
 import com.adsamcik.signalcollector.mock.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
@@ -65,7 +66,19 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			val adapter = TrackerInfoAdapter()
 			this@FragmentTracker.adapter = adapter
 			this.adapter = adapter
-			layoutManager = StaggeredGridLayoutManager(2, LinearLayoutManager.VERTICAL)
+
+			post {
+				val computedWidth = measuredWidth - paddingStart - paddingEnd
+				val oneSideHorizontalMargin = 8.dp
+				val totalHorizontalMargin = oneSideHorizontalMargin * 2
+				val maxWidth = 220.dp + totalHorizontalMargin
+				val minWidth = 125.dp + totalHorizontalMargin
+				val minColumnCount = kotlin.math.max(computedWidth / maxWidth, 1)
+				val columnPlusOneWidth = computedWidth / (minColumnCount + 1)
+				val columnCount = if (columnPlusOneWidth < minWidth) minColumnCount else minColumnCount + 1
+				layoutManager = StaggeredGridLayoutManager(columnCount, LinearLayoutManager.VERTICAL)
+				addItemDecoration(SimpleMarginDecoration(horizontalMargin = oneSideHorizontalMargin))
+			}
 		}
 
 		return view
@@ -216,7 +229,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		val collectionData = dataEcho.collectionData
 
-		textview_time.text = res.getString(R.string.main_last_update, DateFormat.getTimeFormat(context).format(Date(collectionData.time)))
+		textview_time.text = DateFormat.getTimeFormat(context).format(Date(collectionData.time))
 
 		updateActivityUI(collectionData.activity)
 		updateLocationUI(collectionData.location)

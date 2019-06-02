@@ -8,8 +8,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.misc.extension.remove
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.CellTrackerInfo
 import com.adsamcik.signalcollector.tracker.ui.recycler.data.LocationTrackerInfo
 import com.adsamcik.signalcollector.tracker.ui.recycler.data.TrackerInfo
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.WifiTrackerInfo
 
 class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>() {
 	private val data = mutableListOf<TrackerInfo>()
@@ -30,17 +32,26 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 
 	fun update(collectionData: CollectionData) {
 		val location = collectionData.location
-		if (location != null) {
-			val index = data.indexOfFirst { it.nameRes == R.string.location }
-			if(index >= 0) {
-				(data[index] as LocationTrackerInfo).apply {
-					this.location = location
-				}
+		update<LocationTrackerInfo>(location != null, LocationTrackerInfo.NAME_RESOURCE, { LocationTrackerInfo(location!!) }, { it.location = location!! })
+
+		val wifi = collectionData.wifi
+		update<WifiTrackerInfo>(wifi != null, WifiTrackerInfo.NAME_RESOURCE, { WifiTrackerInfo(wifi!!) }, { it.wifiData = wifi!! })
+
+		val cell = collectionData.cell
+		update<CellTrackerInfo>(cell != null, CellTrackerInfo.NAME_RESOURCE, { CellTrackerInfo(cell!!) }, { it.cellData = cell!! })
+	}
+
+	private inline fun <T> update(isAvailable: Boolean, nameRes: Int, factory: () -> TrackerInfo, updater: (T) -> Unit) {
+		if (isAvailable) {
+			val index = data.indexOfFirst { it.nameRes == nameRes }
+			if (index >= 0) {
+				@Suppress("UNCHECKED_CAST")
+				updater(data[index] as T)
 			} else {
-				data.add(LocationTrackerInfo(location))
+				data.add(factory())
 			}
 		} else {
-			data.remove { it.nameRes == R.string.location }
+			data.remove { it.nameRes == nameRes }
 		}
 	}
 

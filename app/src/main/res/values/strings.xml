@@ -8,12 +8,11 @@
 
     <string name="latitude">latitude</string>
     <string name="longitude">longitude</string>
+    <string name="altitude">altitude</string>
 
-    <string name="main_last_update">%s</string>
-    <string name="main_wifi_updated">found %1$s before collection</string>
-    <string name="main_wifi_count">%d in range</string>
-    <string name="main_cell_count">Cell in range %1$d</string>
-    <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
+    <string name="in_range">in range</string>
+    <string name="current">current</string>
+    <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$s %3$d dbm</string>
 
     <string name="wifi_new_title">New Wi-Fi</string>
     <string name="cell_new">New cell</string>

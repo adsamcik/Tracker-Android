@@ -12,41 +12,10 @@
 
     <string name="app_name">Signals</string>
 
-    <string name="button_back">zpět</string>
-
     <string name="cancel">Zrušit</string>
 
     <string name="cell">Mobilní vysílače</string>
     <string name="cell_new">Nové mobilní vysílače</string>
-
-    <string name="challenge_alphabet_description">Najděte %1$s Wi-Fi sítí obsahujících v názvu symbol %2$s</string>
-    <string name="challenge_alphabet_title">A je pro abecedu</string>
-    <string name="challenge_awful_explorer_description">Nenajděte ani jedno nové místo v %1$s po sobě jdoucích záznamech</string>
-    <string name="challenge_awful_explorer_title">Příšerný průzkumník</string>
-    <string name="challenge_cell_range_description">Nasbírejte %1$s bez ztráty mobilního signálu</string>
-    <string name="challenge_cell_range_title">Zůstaňte v dosahu</string>
-    <string name="challenge_cross_country_description">Vyšplhejte %1$s metrů pěšky</string>
-    <string name="challenge_cross_country_title">Přespolní běh</string>
-    <string name="challenge_crowded_description">Najděte nové místo s alespoň %1$s novými Wi-Fi sítěmi</string>
-    <string name="challenge_crowded_title">Přelidněno?</string>
-    <string name="challenge_easy">Jednoduché</string>
-    <string name="challenge_error_name">Aktualizujte na poslední verzi aplikace</string>
-    <string name="challenge_explorer_description">Nasbírejte %1$s nových míst bez překročení rychlosti %2$s km/h</string>
-    <string name="challenge_explorer_title">Zákona dbalý průzkumník</string>
-    <string name="challenge_hard">Obtížné</string>
-    <string name="challenge_list_title">Herní výzvy</string>
-    <string name="challenge_long_journey_description">Nasbírejte %1$s míst v jednom dni</string>
-    <string name="challenge_long_journey_title">Dlouhá cesta</string>
-    <string name="challenge_medium">Střední</string>
-    <string name="challenge_memory_lane_description">Navštivte %1$s již nalezených míst pěšky</string>
-    <string name="challenge_memory_lane_title">Nostalgická cesta</string>
-    <string name="challenge_progress">%1$d%%</string>
-    <string name="challenge_scattered_data_description">Najděte %1$s kusů dat v nových Wi-Fi sítích</string>
-    <string name="challenge_scattered_data_title">Roztroušená data</string>
-    <string name="challenge_very_easy">Velmi jednoduché</string>
-    <string name="challenge_very_hard">Velmi obtížné</string>
-    <string name="challenge_walk_in_the_park_description">Ujděte pěšky %s</string>
-    <string name="challenge_walk_in_the_park_title">V nohách mám už tisíc mil</string>
 
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat</string>
     <string name="channel_activity_watcher_name">Sledovač aktivity</string>
@@ -124,23 +93,13 @@
         <item>Dodělat více textu, kterej nikdo neuvidí.</item>
     </string-array>
 
-    <string name="main_cell_count">Mobilních vysílačů v dosahu %1$d</string>
-    <string name="main_cell_current">%1$s %2$d dbm, %3$d asu</string>
     <plurals name="main_collections">
         <item quantity="one">1 záznam</item>
         <item quantity="few">%d záznamy</item>
         <item quantity="other">%d záznamů</item>
     </plurals>
-    <string name="main_last_update">%1$s</string>
     <string name="latitude">%1$s zeměpisné šířky</string>
     <string name="longitude">%1$s zeměpisné délky</string>
-    <string name="main_wifi_count">%1$d v dosahu</string>
-    <string name="main_wifi_updated">Nalezeno %s před záznamem</string>
-
-    <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
-    <string name="map_search">Vyhledávání</string>
-    <string name="map_search_no_geocoder">Bohužel vaše zařízení nemá službu pro překlad adres na souřadnice</string>
-    <string name="map_search_no_text">Hledat nic není moc užitečné</string>
 
     <string name="meter_abbr">%s m</string>
 
@@ -162,10 +121,6 @@
         <item quantity="other">%d mobilních vysílačů v dosahu</item>
     </plurals>
     <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
-    <string name="notification_challenge_done_description">Gratuluji ke splnění herní výzvy %1$s</string>
-    <string name="notification_challenge_done_title">%1$s herní výzva splněna</string>
-    <string name="notification_challenge_unknown_description">Vaše verze Signals je pravděpodobně neaktuální.</string>
-    <string name="notification_challenge_unknown_title">Neznámá výzva splněna</string>
     <string name="notification_location">%1$s° S %2$s° V</string>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop">Zastavit</string>
@@ -234,12 +189,6 @@
     <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
     <string name="settings_location_enabled_title">Záznam polohy</string>
-    <string name="settings_map_clear_heat_cache_summary">Využijte této možnosti, pokud pozice na mapě jsou neobvykle špatně viditelné</string>
-    <string name="settings_map_clear_heat_cache_title">Smazat ofsetové hodnoty teplotní mapy</string>
-    <string name="settings_map_default_layer_title">Výchozí vrstva</string>
-    <string name="settings_map_quality_summary">Relativně k výchozímu rozlišení</string>
-    <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
-    <string name="settings_map_title">Mapa</string>
     <string name="settings_notifications_title">Notifikace</string>
     <string name="settings_other_title">Ostatní</string>
     <string-array name="settings_style_mode_names">
@@ -300,8 +249,4 @@
     <string name="wifi_new_title">Nové Wi-Fi</string>
 
     <string name="yes">Ano</string>
-    <string name="settings_game_title">Hry</string>
-    <string name="settings_game_challenge_enable_title">Povolit herní výzvy</string>
-    <string name="challenge_step_title">Pokračuj a běž dál s nadějí ve svém srdci.</string>
-    <string name="challenge_step_description">Udělej %s kroků</string>
 </resources>
