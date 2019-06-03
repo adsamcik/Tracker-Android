@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
-    <string name="notification_challenge_unknown_description">Your version of Signals seems outdated. Please update.</string>
 
     <string name="challenge_error_name">Please update your app to latest version.</string>
 
@@ -24,28 +23,4 @@
 
     <string name="challenge_step_title">Walk on with hope in your heart</string>
     <string name="challenge_step_description">Take %s steps</string>
-
-    <string name="challenge_awful_explorer_title">Awful explorer</string>
-    <string name="challenge_awful_explorer_description">Don\'t find a single new location in %1$s concurrent collections</string>
-
-    <string name="challenge_scattered_data_title">Scattered data</string>
-    <string name="challenge_scattered_data_description">Find %1$s pieces of data in new Wi-Fi networks</string>
-
-    <string name="challenge_long_journey_title">Long journey</string>
-    <string name="challenge_long_journey_description">Collect %1$s locations in a day</string>
-
-    <string name="challenge_crowded_title">Crowded?</string>
-    <string name="challenge_crowded_description">Find a new place with at least %1$s Wi-Fi networks</string>
-
-    <string name="challenge_cross_country_title">Cross country</string>
-    <string name="challenge_cross_country_description">Climb %1$s meters while on foot</string>
-
-    <string name="challenge_memory_lane_title">Trip down memory lane</string>
-    <string name="challenge_memory_lane_description">Revisit %1$s already collected locations on foot</string>
-
-    <string name="challenge_alphabet_title">A is for alphabet</string>
-    <string name="challenge_alphabet_description">Find %1$s Wi-Fi networks containing the symbol %2$s</string>
-
-    <string name="challenge_cell_range_title">Stay in range</string>
-    <string name="challenge_cell_range_description">Make %1$s collections without losing cell signal</string>
 </resources>

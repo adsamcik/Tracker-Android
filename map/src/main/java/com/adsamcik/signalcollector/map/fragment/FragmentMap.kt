@@ -20,10 +20,10 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
-import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.Assist.navbarSize
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
+import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.Assist.navbarSize
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -119,6 +119,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
+		//This will prevent a crash, but can cause side effects, investigation needed
+		if (isStateSaved) return
+
 		this.fActivity = activity
 
 		if (this.mapFragment == null) {

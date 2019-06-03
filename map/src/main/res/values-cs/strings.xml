@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_map_default_layer_title">Výchozí vrstva</string>
+    <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
+    <string name="map_search">Vyhledávání</string>
+    <string name="map_search_no_geocoder">Vašemu zařízení bohužel chybí geocoder</string>
+    <string name="map_search_no_text">Hledat nic je nanic</string>
+    <string name="settings_map_clear_heat_cache_summary">Použijte tuto možnost pokud pozice na mapě jsou z ničeho nic příliš tmavé</string>
+    <string name="settings_map_clear_heat_cache_title">Vymazat ofset teplotní mapy</string>
+    <string name="settings_map_quality_summary">Škálování je relativní k výchozí hodnotě</string>
+    <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
+</resources>

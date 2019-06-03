@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="challenge_easy">Jednoduché</string>
+    <string name="challenge_error_name">Aktualizujte na poslední verzi aplikace</string>
+    <string name="challenge_explorer_description">Nasbírejte %1$s nových míst bez překročení rychlosti %2$s km/h</string>
+    <string name="challenge_explorer_title">Zákona dbalý průzkumník</string>
+    <string name="challenge_hard">Obtížné</string>
+    <string name="challenge_medium">Střední</string>
+    <string name="challenge_progress">%1$d%%</string>
+    <string name="challenge_very_easy">Velmi jednoduché</string>
+    <string name="challenge_very_hard">Velmi obtížné</string>
+    <string name="challenge_walk_in_the_park_description">Ujděte pěšky %s</string>
+    <string name="challenge_walk_in_the_park_title">V nohách mám už tisíc mil</string>
+    <string name="challenge_step_description">Udělejte %s kroků</string>
+    <string name="challenge_step_title">Jdi dál S nadějí ve svém srdci</string>
+    <string name="notification_challenge_done_description">Gratulace k dokončení výzvy %1$s</string>
+    <string name="notification_challenge_done_title">%1$s výzva dokončena</string>
+    <string name="notification_challenge_unknown_title">Neznámá výzva dokončena</string>
+    <string name="settings_game_challenge_enable_title">Povolit výzvy</string>
+</resources>

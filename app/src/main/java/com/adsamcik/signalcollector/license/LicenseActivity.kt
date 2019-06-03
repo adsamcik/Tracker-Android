@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.license
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -40,7 +41,7 @@ class LicenseActivity : DetailActivity() {
 				.also { frameLayout.addView(it) }
 				.apply {
 					layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-					layoutManager = LinearLayoutManager(this@LicenseActivity).also { requestedOrientation = LinearLayoutManager.VERTICAL }
+					layoutManager = LinearLayoutManager(this@LicenseActivity).also { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
 					this.adapter = adapter
 				}
 

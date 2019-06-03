@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
+@Suppress("unused")
 class FragmentGame : Fragment(), IOnDemandView {
 	private lateinit var recyclerViewChallenges: RecyclerView
 	private lateinit var refreshLayout: SwipeRefreshLayout

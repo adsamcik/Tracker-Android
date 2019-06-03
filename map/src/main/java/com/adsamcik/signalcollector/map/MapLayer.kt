@@ -7,6 +7,7 @@ import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LAT
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LONGITUDE
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LATITUDE
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LONGITUDE
+import java.util.*
 
 data class MapLayer(var name: String,
                     val bounds: CoordinateBounds,
@@ -71,11 +72,14 @@ enum class LayerType {
 	WiFi;
 
 	companion object {
-		fun valueOfCaseInsensitive(value: String): LayerType = when (value.toLowerCase()) {
-			Location.name.toLowerCase() -> Location
-			Cell.name.toLowerCase() -> Cell
-			WiFi.name.toLowerCase(), "wi-fi" -> WiFi
-			else -> throw IllegalArgumentException("Value '$value' is not a valid layer type.")
+		fun valueOfCaseInsensitive(value: String): LayerType {
+			val locale = Locale.getDefault()
+			return when (value.toLowerCase(locale)) {
+				Location.name.toLowerCase(locale) -> Location
+				Cell.name.toLowerCase(locale) -> Cell
+				WiFi.name.toLowerCase(locale), "wi-fi" -> WiFi
+				else -> throw IllegalArgumentException("Value '$value' is not a valid layer type.")
+			}
 		}
 
 		fun fromPreference(context: Context, key: String, default: LayerType): LayerType {

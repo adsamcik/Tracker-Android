@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.common.misc.extension.formatAsDuration
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
+import java.util.*
 
 class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
 
@@ -48,7 +49,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 		val challenge = mDataSource[position]
 		holder.titleTextView.text = challenge.title
 		holder.descriptionTextView.text = challenge.description
-		holder.difficultyTextView.text = challenge.difficulty.name.replace('_', ' ').toLowerCase()
+		holder.difficultyTextView.text = challenge.difficulty.name.replace('_', ' ').toLowerCase(Locale.getDefault())
 
 		holder.progressBar.progress = (challenge.progress * 100.0).toInt()
 		holder.timeTextView.text = (challenge.endTime - System.currentTimeMillis()).formatAsDuration(holder.itemView.context)

@@ -11,6 +11,7 @@ import de.psdev.licensesdialog.model.Notice
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
+import java.util.*
 
 class ResourceLicenseObject(override val name: String, val from: Int, val length: Int, val resources: Resources) : LicenseObject {
 	override val notice: Notice
@@ -21,7 +22,7 @@ class ResourceLicenseObject(override val name: String, val from: Int, val length
 	}
 
 	private fun resolveNotice(): Notice {
-		val lowerName = name.toLowerCase()
+		val lowerName = name.toLowerCase(Locale.getDefault())
 		val resolvedLicense = getLicense()
 		if (lowerName.startsWith("stag")) {
 			return Notice(name,
