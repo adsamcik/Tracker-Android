@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.locationManager
 import com.adsamcik.signalcollector.common.misc.extension.windowManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
@@ -198,9 +199,10 @@ object Assist {
 	fun getStatusBarHeight(context: Context): Int {
 		val resources = context.resources
 		val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-		return if (resourceId > 0)
-			resources.getDimensionPixelSize(resourceId)
-		else
-			kotlin.math.ceil((if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) 24 else 25) * resources.displayMetrics.density).toInt()
+		return when {
+			resourceId > 0 -> resources.getDimensionPixelSize(resourceId)
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> 24.dp
+			else -> 25.dp
+		}
 	}
 }
