@@ -31,6 +31,7 @@ dependencies {
     Libraries.core(this)
     Libraries.draggable(this)
     Libraries.map(this)
+    Libraries.test(this)
 
     implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 

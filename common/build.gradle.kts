@@ -46,7 +46,5 @@ dependencies {
 
 	implementation(fileTree("libs").setIncludes(listOf("*.jar")))
 
-	testImplementation("junit:junit:4.12")
-	androidTestImplementation("androidx.test:runner:1.1.1")
-	androidTestImplementation("androidx.test.espresso:espresso-core:3.1.1")
+	Libraries.test(this)
 }

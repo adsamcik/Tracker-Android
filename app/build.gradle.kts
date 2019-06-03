@@ -105,7 +105,7 @@ dependencies {
 
 	//GPX
 	implementation("stax:stax-api:1.0.1")
-	implementation("com.fasterxml:aalto-xml:1.2.0")
+	implementation("com.fasterxml:aalto-xml:1.2.1")
 	implementation("io.jenetics:jpx:1.4.0")
 
 	//Google dependencies
@@ -127,26 +127,7 @@ dependencies {
 	Libraries.work(this)
 
 
-
-	//Test implementations
-	androidTestImplementation("androidx.test:runner:${Libraries.Versions.Test.androidxTest}")
-	androidTestImplementation("androidx.test:rules:${Libraries.Versions.Test.androidxTest}")
-	androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
-	androidTestImplementation("androidx.test.ext:junit:1.1.1")
-	androidTestImplementation("androidx.arch.core:core-testing:2.0.1")
-	androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
-
-	//Kotlin )
-	androidTestImplementation("androidx.test.espresso:espresso-core:3.2.0-beta01") {
-		exclude("com.android.support", "support-annotations")
-	}
-	androidTestImplementation("androidx.test.espresso:espresso-contrib:3.2.0-beta01") {
-		exclude("com.android.support", "support-annotations")
-		exclude("com.android.support", "support-v4")
-		exclude("com.android.support", "design")
-		exclude("com.android.support", "recyclerview-v7")
-	}
-
+	Libraries.test(this)
 	//workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":commonmap"))
 	Libraries.map(this)

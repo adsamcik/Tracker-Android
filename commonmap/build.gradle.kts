@@ -37,10 +37,6 @@ android {
 dependencies {
     implementation(project(":common"))
     Libraries.core(this)
-
-    implementation("com.google.android.gms:play-services-maps:16.1.0")
-
-    testImplementation("junit:junit:4.12")
-    androidTestImplementation("androidx.test:runner:1.1.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.1.1")
+    Libraries.map(this)
+    Libraries.test(this)
 }

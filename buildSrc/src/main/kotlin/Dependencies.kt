@@ -26,7 +26,7 @@ object Libraries {
 
 		object Test {
 			const val androidxTest = "1.2.0"
-			const val testing = "2.1.0-beta01"
+			const val espresso = "3.2.0"
 		}
 	}
 
@@ -126,6 +126,19 @@ object Libraries {
 	fun preference(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("androidx.preference:preference:${Versions.preference}")
+		}
+	}
+
+	fun test(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			androidTestImplementation("androidx.test:runner:${Versions.Test.androidxTest}")
+			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
+			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
+			androidTestImplementation("androidx.test.ext:junit:1.1.1")
+			androidTestImplementation("androidx.arch.core:core-testing:2.0.1")
+			androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
+			androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
+			androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.espresso}")
 		}
 	}
 }
