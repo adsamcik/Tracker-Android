@@ -24,10 +24,10 @@ import java.lang.Math.toDegrees
 
 class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
 	var followMyPosition: Boolean = false
-	internal var useGyroscope = false
+	private var useGyroscope = false
 
 	private val sensorManager: SensorManager = context.sensorManager
-	private val rotationVector: Sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+	private val rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
 	private var lastUserPos: LatLng? = null
 	private var targetPosition: LatLng = LatLng(0.0, 0.0)
@@ -50,10 +50,10 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 	)
 
 	//Orientation
-	internal var prevRotation: Float = 0f
+	private var prevRotation: Float = 0f
 
-	internal var orientation = FloatArray(3)
-	internal var rotationMatrix = FloatArray(9)
+	private var orientation = FloatArray(3)
+	private var rotationMatrix = FloatArray(9)
 
 	//Location
 	private val locationCallback = object : LocationCallback() {
@@ -79,7 +79,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 	/**
 	 * Registers map to the [UpdateLocationListener]. Initializing camera position and registering camera listeners.
 	 */
-	fun initializePositions() {
+	private fun initializePositions() {
 		val cameraPosition = map.cameraPosition
 		targetPosition = cameraPosition.target ?: LatLng(0.0, 0.0)
 		targetTilt = cameraPosition.tilt
@@ -117,7 +117,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 	}
 
 
-	fun setUserPosition(latlng: LatLng) {
+	private fun setUserPosition(latlng: LatLng) {
 		this.lastUserPos = latlng
 
 		if (followMyPosition) {
@@ -140,7 +140,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 
 	private fun stopUsingGyroscope(returnToDefault: Boolean) {
 		useGyroscope = false
-		sensorManager.unregisterListener(this, rotationVector)
+		if (rotationVector != null) sensorManager.unregisterListener(this, rotationVector)
 		targetBearing = 0f
 		targetTilt = 0f
 		if (returnToDefault)
@@ -215,7 +215,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 				}
 				else -> {
 					useGyroscope = true
-					sensorManager.registerListener(this, rotationVector,
+					if (rotationVector != null) sensorManager.registerListener(this, rotationVector,
 							SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
 					animateToTilt(45f)
 					button.setImageResource(R.drawable.ic_compass)
