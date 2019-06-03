@@ -13,7 +13,7 @@ class GameSettings : ModuleSettings {
 		val context = preferenceScreen.context
 
 		val challengeEnablePreference = SwitchPreferenceCompat(context).apply {
-			val default = context.resources.getString(R.string.settings_game_challenge_enable_default)!!.toBoolean()
+			val default = context.resources.getString(R.string.settings_game_challenge_enable_default).toBoolean()
 			setDefaultValue(default)
 			key = context.getString(R.string.settings_game_challenge_enable_key)
 			setTitle(R.string.settings_game_challenge_enable_title)
