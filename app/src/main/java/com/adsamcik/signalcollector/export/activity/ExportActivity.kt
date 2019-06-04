@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.cloneCalendar
-import com.adsamcik.signalcollector.common.misc.extension.ensureLooper
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
@@ -105,7 +104,8 @@ class ExportActivity : DetailActivity() {
 		button_export.setOnClickListener { if (checkExternalStoragePermissions()) exportClick() }
 
 		button_share.setOnClickListener {
-			onExport {
+			sharableDir.mkdirs()
+			export(sharableDir) {
 				val fileUri = FileProvider.getUriForFile(
 						this@ExportActivity,
 						"com.adsamcik.signalcollector.fileprovider",
@@ -123,19 +123,14 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun exportClick() {
-		onExport { result ->
-			ensureLooper()
-			ChooserDialog(this)
-					.withFilter(true, false)
-					.cancelOnTouchOutside(true)
-					.withOnCancelListener { it.dismiss() }
-					.withChosenListener { _, pathFile ->
-						val newFile = File(pathFile, result.file.name)
-						result.file.renameTo(newFile)
-					}
-					.build()
-					.show()
-		}
+		ChooserDialog(this@ExportActivity)
+				.withFilter(true, false)
+				.cancelOnTouchOutside(true)
+				.withOnCancelListener { it.dismiss() }
+				.withChosenListener { _, pathFile ->
+					export(pathFile)
+				}
+				.show()
 	}
 
 	private fun checkExternalStoragePermissions(): Boolean {
@@ -156,10 +151,10 @@ class ExportActivity : DetailActivity() {
 		return false
 	}
 
-	private fun getExportFile() = edittext_filename.text?.toString()
+	private fun getExportFileName() = edittext_filename.text?.toString()
 			?: getString(R.string.export_default_file_name)
 
-	private fun onExport(onPick: (ExportResult) -> Unit) {
+	private fun export(directory: File, onPick: ((ExportResult) -> Unit)? = null) {
 		val database = AppDatabase.getDatabase(applicationContext)
 		val locationDao = database.locationDao()
 
@@ -167,7 +162,6 @@ class ExportActivity : DetailActivity() {
 		val to = this.range.endInclusive
 
 		GlobalScope.launch {
-			sharableDir.mkdirs()
 			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 			if (locations.isEmpty()) {
@@ -175,8 +169,8 @@ class ExportActivity : DetailActivity() {
 				return@launch
 			}
 
-			val result = exporter.export(this@ExportActivity, locations, sharableDir, getExportFile())
-			onPick(result)
+			val result = exporter.export(this@ExportActivity, locations, directory, getExportFileName())
+			onPick?.invoke(result)
 		}
 	}
 
