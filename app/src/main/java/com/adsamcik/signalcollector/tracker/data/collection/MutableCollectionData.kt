@@ -120,43 +120,44 @@ data class MutableCollectionData(
 	}
 
 	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: List<RegisteredOperator>): CellInfo? {
-		return when (cellInfo) {
-			is CellInfoLte -> {
-				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null) {
-					CellInfo.newInstance(cellInfo, operator.name)
-				} else {
-					CellInfo.newInstance(cellInfo, null)
-				}
+		return if (cellInfo is CellInfoLte) {
+			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+			if (operator != null) {
+				CellInfo.newInstance(cellInfo, operator.name)
+			} else {
+				CellInfo.newInstance(cellInfo, null)
 			}
-			is CellInfoGsm -> {
-				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null) {
-					CellInfo.newInstance(cellInfo, operator.name)
-				} else {
-					CellInfo.newInstance(cellInfo, null)
-				}
+		} else if (Build.VERSION.SDK_INT >= 29 && cellInfo is CellInfoNr) {
+			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+			if (operator != null) {
+				CellInfo.newInstance(cellInfo, operator.name)
+			} else {
+				CellInfo.newInstance(cellInfo, null)
 			}
-			is CellInfoWcdma -> {
-				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null) {
-					CellInfo.newInstance(cellInfo, operator.name)
-				} else {
-					CellInfo.newInstance(cellInfo, null)
-				}
+		} else if (cellInfo is CellInfoGsm) {
+			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+			if (operator != null) {
+				CellInfo.newInstance(cellInfo, operator.name)
+			} else {
+				CellInfo.newInstance(cellInfo, null)
 			}
-			is CellInfoCdma -> {
-				val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-				if (operator != null) {
-					CellInfo.newInstance(cellInfo, operator.name)
-				} else {
-					CellInfo.newInstance(cellInfo, null)
-				}
+		} else if (cellInfo is CellInfoWcdma) {
+			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+			if (operator != null) {
+				CellInfo.newInstance(cellInfo, operator.name)
+			} else {
+				CellInfo.newInstance(cellInfo, null)
 			}
-			else -> {
-				Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
-				null
+		} else if (cellInfo is CellInfoCdma) {
+			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
+			if (operator != null) {
+				CellInfo.newInstance(cellInfo, operator.name)
+			} else {
+				CellInfo.newInstance(cellInfo, null)
 			}
+		} else {
+			Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
+			null
 		}
 	}
 
@@ -194,6 +195,12 @@ data class MutableCollectionData(
 				@Suppress("deprecation")
 				identity.mnc.toString() == mnc && identity.mcc.toString() == mcc
 			}
+		}
+
+		@RequiresApi(29)
+		fun sameNetwork(info: CellInfoNr): Boolean {
+			val identity = info.cellIdentity as CellIdentityNr
+			return identity.mncString == mnc && identity.mccString == mcc
 		}
 	}
 }

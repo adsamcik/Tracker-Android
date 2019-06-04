@@ -1,10 +1,7 @@
 package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
-import android.telephony.CellInfoCdma
-import android.telephony.CellInfoGsm
-import android.telephony.CellInfoLte
-import android.telephony.CellInfoWcdma
+import android.telephony.*
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.squareup.moshi.JsonClass
@@ -42,7 +39,7 @@ data class CellInfo
      * LTE - ci
      */
     @ColumnInfo(name = "cell_id")
-    var cellId: Int,
+    var cellId: Long,
     /**
      * Mobile country code
      * Replaced with System ID on CDMA
@@ -68,7 +65,7 @@ data class CellInfo
     @Ignore
     var level: Int = 0) {
 
-	constructor(operatorName: String, type: CellType, cellId: Int, mcc: String, mnc: String, asu: Int) : this(operatorName, type, cellId, mcc, mnc, asu, 0, 0)
+	constructor(operatorName: String, type: CellType, cellId: Long, mcc: String, mnc: String, asu: Int) : this(operatorName, type, cellId, mcc, mnc, asu, 0, 0)
 
 
 	companion object {
@@ -81,8 +78,8 @@ data class CellInfo
 		 * @return new CellInfo if successfull, null otherwise
 		 */
 		fun newInstance(cing: CellInfoGsm, operatorName: String?): CellInfo? {
-			if (operatorName == null)
-				return null
+			if (operatorName == null) return null
+
 			val cig = cing.cellIdentity
 			val cssg = cing.cellSignalStrength
 
@@ -96,7 +93,7 @@ data class CellInfo
 				mnc = cig.mnc.toString()
 			}
 
-			return CellInfo(operatorName, CellType.GSM, cig.cid, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
+			return CellInfo(operatorName, CellType.GSM, cig.cid.toLong(), mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 
@@ -108,12 +105,12 @@ data class CellInfo
 		 * @return new CellInfo if successfull, null otherwise
 		 */
 		fun newInstance(cinc: CellInfoCdma, operatorName: String?): CellInfo? {
-			if (operatorName == null)
-				return null
+			if (operatorName == null) return null
+
 			val cic = cinc.cellIdentity
 			val cssg = cinc.cellSignalStrength
 
-			return CellInfo(operatorName, CellType.CDMA, cic.basestationId, cic.systemId.toString(), cic.networkId.toString(), cssg.asuLevel, cssg.dbm, cssg.level)
+			return CellInfo(operatorName, CellType.CDMA, cic.basestationId.toLong(), cic.systemId.toString(), cic.networkId.toString(), cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 		/**
@@ -124,8 +121,8 @@ data class CellInfo
 		 * @return new CellInfo if successfull, null otherwise
 		 */
 		fun newInstance(cinl: CellInfoWcdma, operatorName: String?): CellInfo? {
-			if (operatorName == null)
-				return null
+			if (operatorName == null) return null
+
 			val cil = cinl.cellIdentity
 			val cssg = cinl.cellSignalStrength
 
@@ -139,7 +136,7 @@ data class CellInfo
 				mnc = cil.mnc.toString()
 			}
 
-			return CellInfo(operatorName, CellType.WCDMA, cil.cid, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
+			return CellInfo(operatorName, CellType.WCDMA, cil.cid.toLong(), mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
 		}
 
 
@@ -151,8 +148,8 @@ data class CellInfo
 		 * @return new CellInfo if successfull, null otherwise
 		 */
 		fun newInstance(cinl: CellInfoLte, operatorName: String?): CellInfo? {
-			if (operatorName == null)
-				return null
+			if (operatorName == null) return null
+
 			val cil = cinl.cellIdentity
 			val cssg = cinl.cellSignalStrength
 
@@ -166,7 +163,32 @@ data class CellInfo
 				mnc = cil.mnc.toString()
 			}
 
-			return CellInfo(operatorName, CellType.LTE, cil.ci, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
+			return CellInfo(operatorName, CellType.LTE, cil.ci.toLong(), mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
+		}
+
+
+		/**
+		 * Creates new instance of CellInfo from NR (5G) cell info
+		 *
+		 * @param cinr         NR Cell Info
+		 * @param operatorName network operator name
+		 * @return new CellInfo if successfull, null otherwise
+		 */
+
+		fun newInstance(cinr: CellInfoNr, operatorName: String?): CellInfo? {
+			if (operatorName == null) return null
+
+			val cil = cinr.cellIdentity as CellIdentityNr
+			val cssg = cinr.cellSignalStrength as CellSignalStrengthNr
+
+			val mcc = cil.mccString
+			val mnc = cil.mncString
+
+			return if (mcc == null || mnc == null) {
+				null
+			} else {
+				CellInfo(operatorName, CellType.NR, cil.nci, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
+			}
 		}
 
 
