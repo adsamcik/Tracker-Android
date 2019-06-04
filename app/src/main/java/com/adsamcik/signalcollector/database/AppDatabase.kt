@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 	DatabaseWifiData::class,
 	DatabaseCellData::class,
 	DatabaseMapMaxHeat::class],
-		version = 7)
+		version = 6)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
