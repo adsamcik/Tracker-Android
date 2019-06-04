@@ -24,6 +24,8 @@ object Libraries {
 
 		const val crashlytics = "2.10.1"
 
+		const val fileChooser = "1.1.19"
+
 		object Test {
 			const val androidxTest = "1.2.0"
 			const val espresso = "3.2.0"
@@ -126,6 +128,12 @@ object Libraries {
 	fun preference(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("androidx.preference:preference:${Versions.preference}")
+		}
+	}
+
+	fun fileChooser(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.obsez.android.lib.filechooser:filechooser:${Versions.fileChooser}")
 		}
 	}
 

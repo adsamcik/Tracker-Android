@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.cloneCalendar
+import com.adsamcik.signalcollector.common.misc.extension.ensureLooper
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
@@ -22,6 +23,7 @@ import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
 import com.google.android.material.snackbar.Snackbar
+import com.obsez.android.lib.filechooser.ChooserDialog
 import kotlinx.android.synthetic.main.layout_data_export.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -122,22 +124,17 @@ class ExportActivity : DetailActivity() {
 
 	private fun exportClick() {
 		onExport { result ->
-			/*MaterialFileChooser(this,
-					allowBrowsing = true,
-					allowCreateFolder = true,
-					allowMultipleFiles = false,
-					allowSelectFolder = true,
-					showFiles = false,
-					showFoldersFirst = true,
-					showFolders = true,
-					showHiddenFiles = false,
-					restoreFolder = false)
-					.sorter(Sorter.ByNameInDescendingOrder)
-					.onSelectedFilesListener {
-						val newFile = File(it.first(), result.file.name)
+			ensureLooper()
+			ChooserDialog(this)
+					.withFilter(true, false)
+					.cancelOnTouchOutside(true)
+					.withOnCancelListener { it.dismiss() }
+					.withChosenListener { _, pathFile ->
+						val newFile = File(pathFile, result.file.name)
 						result.file.renameTo(newFile)
 					}
-					.show()*/
+					.build()
+					.show()
 		}
 	}
 

@@ -13,6 +13,7 @@ import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.os.PowerManager
 import android.telephony.TelephonyManager
 import android.view.LayoutInflater
@@ -201,3 +202,7 @@ val Context.applicationName: String
 
 val Activity.tag: String
 	get() = applicationName + this::class.java.simpleName
+
+fun Activity.ensureLooper() {
+	if(Looper.myLooper() == null) Looper.prepare()
+}

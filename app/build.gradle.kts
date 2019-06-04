@@ -100,8 +100,7 @@ dependencies {
 
 	implementation("de.psdev.licensesdialog:licensesdialog:2.0.0")
 	Libraries.dateTimePicker(this)
-	//Looks nice doesn"t work, check later
-	//implementation "com.github.codekidX:storage-chooser:2.0.4.4"
+	Libraries.fileChooser(this)
 
 	//GPX
 	implementation("stax:stax-api:1.0.1")
