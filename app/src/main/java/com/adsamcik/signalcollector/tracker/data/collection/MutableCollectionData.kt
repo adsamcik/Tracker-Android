@@ -80,7 +80,20 @@ data class MutableCollectionData(
 	fun addCell(telephonyManager: TelephonyManager, subscriptionManager: SubscriptionManager) {
 		val list = mutableListOf<RegisteredOperator>()
 		subscriptionManager.activeSubscriptionInfoList.forEach {
-			list.add(RegisteredOperator(it.mcc.toString(), it.mnc.toString(), it.carrierName.toString()))
+			val mcc: String?
+			val mnc: String?
+
+			if (Build.VERSION.SDK_INT >= 29) {
+				mcc = it.mccString
+				mnc = it.mncString
+			} else {
+				mcc = it.mcc.toString()
+				mnc = it.mnc.toString()
+			}
+
+			if (mcc != null && mnc != null) {
+				list.add(RegisteredOperator(mcc, mnc, it.carrierName.toString()))
+			}
 		}
 
 		addCell(telephonyManager, list)
