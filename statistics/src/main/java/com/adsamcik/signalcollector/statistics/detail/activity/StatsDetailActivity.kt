@@ -27,7 +27,6 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.github.mikephil.charting.data.Entry
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.play.core.splitcompat.SplitCompat
-import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -77,7 +76,7 @@ class StatsDetailActivity : DetailActivity() {
 		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
 		recycler.layoutManager = LinearLayoutManager(this)
 
-		recycler.adapter = StatsDetailAdapter(colorController).apply {
+		recycler.adapter = StatsDetailAdapter().apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
