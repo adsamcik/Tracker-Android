@@ -118,9 +118,6 @@ dependencies {
 	Libraries.location(this)
 	Libraries.crashlytics(this)
 
-	implementation("com.google.android.play:core:1.6.0")
-
-
 	//Room
 	Libraries.database(this)
 	Libraries.work(this)

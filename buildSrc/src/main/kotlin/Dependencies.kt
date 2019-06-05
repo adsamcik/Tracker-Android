@@ -26,6 +26,9 @@ object Libraries {
 
 		const val fileChooser = "1.1.19"
 
+		const val playServicesBase = "16.1.0"
+		const val playCore = "1.6.0"
+
 		object Test {
 			const val androidxTest = "1.2.0"
 			const val espresso = "3.2.0"
@@ -70,7 +73,8 @@ object Libraries {
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1")
 			implementation("androidx.fragment:fragment:${Versions.fragment}")
 			implementation("com.google.android.material:material:${Versions.material}")
-			implementation("com.google.android.gms:play-services-base:16.1.0")
+			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
+			implementation("com.google.android.play:core:${Versions.playCore}")
 
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
 
