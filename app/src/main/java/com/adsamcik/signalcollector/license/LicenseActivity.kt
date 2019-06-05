@@ -12,10 +12,10 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
-import com.crashlytics.android.Crashlytics
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
 import de.psdev.licensesdialog.licenses.License
@@ -78,7 +78,7 @@ class LicenseActivity : DetailActivity() {
 				adapter.addLicense(license)
 			}
 		} catch (e: IOException) {
-			Crashlytics.logException(e)
+			Reporter.logException(e)
 		}
 
 		adapter.notifyDataSetChanged()

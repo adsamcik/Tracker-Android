@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.shortcut.Shortcuts
@@ -17,8 +18,8 @@ import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 class LaunchActivity : AppCompatActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		Reporter.initialize(this)
 		super.onCreate(savedInstanceState)
-
 
 		startActivity<MainActivity> { }
 

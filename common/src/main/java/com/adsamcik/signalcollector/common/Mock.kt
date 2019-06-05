@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.mock
+package com.adsamcik.signalcollector.common
 
 import android.os.Build
 

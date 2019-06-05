@@ -222,5 +222,8 @@
         <item>Ancient Roman</item>
     </string-array>
 
+    <string name="settings_error_reporting_title">Automatic error reporting</string>
+    <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
+
     <string name="settings_app_version_key" translatable="false">appVersion</string>
 </resources>

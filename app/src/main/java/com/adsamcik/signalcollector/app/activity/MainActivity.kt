@@ -17,6 +17,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -47,14 +48,17 @@ class MainActivity : AppCompatActivity() {
 
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		Reporter.initialize(this)
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_ui)
 
-		if (Build.VERSION.SDK_INT >= 26)
+		if (Build.VERSION.SDK_INT >= 26) {
 			NotificationChannels.prepareChannels(this)
+		}
 
-		if (Assist.checkPlayServices(this))
+		if (Assist.checkPlayServices(this)) {
 			ActivityService.requestAutoTracking(this, this::class)
+		}
 
 		initializeColors()
 		initializeButtons()

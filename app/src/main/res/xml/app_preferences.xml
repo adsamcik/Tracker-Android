@@ -242,6 +242,12 @@
             android:key="@string/show_tips_key"
             android:title="@string/show_tips_title"/>
 
+        <androidx.preference.SwitchPreferenceCompat
+            android:key="@string/settings_error_reporting_key"
+            android:default="@string/settings_error_reporting_default"
+            android:summary="@string/settings_error_reporting_summary"
+            android:title="@string/settings_error_reporting_title"/>
+
         <androidx.preference.Preference
             android:icon="@drawable/ic_open_source_licenses"
             android:key="@string/settings_licenses_key"

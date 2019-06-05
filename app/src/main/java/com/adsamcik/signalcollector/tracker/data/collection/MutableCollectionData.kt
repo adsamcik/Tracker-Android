@@ -6,9 +6,9 @@ import android.os.Build
 import android.telephony.*
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.data.CellInfo
-import com.crashlytics.android.Crashlytics
 import com.squareup.moshi.JsonClass
 import java.util.*
 
@@ -156,7 +156,7 @@ data class MutableCollectionData(
 				CellInfo.newInstance(cellInfo, null)
 			}
 		} else {
-			Crashlytics.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
+			Reporter.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
 			null
 		}
 	}

@@ -5,13 +5,13 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
 import com.adsamcik.signalcollector.preference.pages.*
-import com.crashlytics.android.Crashlytics
 
 /**
  * Settings Activity contains local settings and hosts debugging features
@@ -53,13 +53,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 				e.printStackTrace()
 				//this exception is ok, just don't add anything
 			} catch (e: InstantiationException) {
-				Crashlytics.logException(e)
+				Reporter.logException(e)
 				e.printStackTrace()
 			} catch (e: IllegalAccessException) {
-				Crashlytics.logException(e)
+				Reporter.logException(e)
 				e.printStackTrace()
 			} catch (e: ClassCastException) {
-				Crashlytics.logException(e)
+				Reporter.logException(e)
 				e.printStackTrace()
 			}
 		}

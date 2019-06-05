@@ -27,4 +27,7 @@
 
     <string name="settings_length_system_key" translatable="false">lengthSystem</string>
     <string name="settings_length_system_default" translatable="false">Metric</string>
+    
+    <string name="settings_error_reporting_key" translatable="false">errorReporting</string>
+    <string name="settings_error_reporting_default" translatable="false">false</string>
 </resources>

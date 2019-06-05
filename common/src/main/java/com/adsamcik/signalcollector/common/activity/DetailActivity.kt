@@ -13,6 +13,7 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.R
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -30,6 +31,7 @@ abstract class DetailActivity : AppCompatActivity() {
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
+		Reporter.initialize(this)
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_content_detail)
 
@@ -40,7 +42,7 @@ abstract class DetailActivity : AppCompatActivity() {
 		back_button.setOnClickListener { onBackPressed() }
 
 		val titleBarRoot = back_button.parent as View
-		titleBarRoot.elevation = if (titleBarLayer <= 0) 0f else (titleBarLayer * 4.dp).toFloat()
+		titleBarRoot.elevation = kotlin.math.min(0, titleBarLayer * 4.dp).toFloat()
 
 		colorController = ColorManager.createController().also {
 			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))

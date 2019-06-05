@@ -79,8 +79,8 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 	}
 
 	override fun onEnable(context: Context) {
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver, R.integer.settings_tracking_min_distance_default)
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver, R.integer.settings_tracking_min_time_default)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
 
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {

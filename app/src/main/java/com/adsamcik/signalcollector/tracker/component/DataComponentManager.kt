@@ -35,18 +35,18 @@ class DataComponentManager(context: Context) {
 
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_location_enabled_key,
-				observer = locationTrackerObserver,
-				defaultRes = R.string.settings_location_enabled_default)
+				defaultRes = R.string.settings_location_enabled_default,
+				observer = locationTrackerObserver)
 
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_wifi_enabled_key,
-				observer = wifiTrackerObserver,
-				defaultRes = R.string.settings_wifi_enabled_default)
+				defaultRes = R.string.settings_wifi_enabled_default,
+				observer = wifiTrackerObserver)
 
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_cell_enabled_key,
-				observer = cellTrackerObserver,
-				defaultRes = R.string.settings_cell_enabled_default)
+				defaultRes = R.string.settings_cell_enabled_default,
+				observer = cellTrackerObserver)
 	}
 
 	fun onDisable() {

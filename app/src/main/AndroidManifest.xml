@@ -102,6 +102,10 @@
             android:name=".preference.activity.SettingsActivity"
             android:parentActivityName=".app.activity.MainActivity"/>
 
+        <activity
+            android:name=".debug.activity.StatusActivity"
+            android:exported="true" />
+
         <receiver android:name=".app.receiver.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
@@ -129,10 +133,10 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/GEO_API"/>
 
-        <activity
-            android:name=".debug.activity.StatusActivity"
-            android:exported="true">
-        </activity>
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+
     </application>
 
 </manifest>

@@ -17,7 +17,7 @@ import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LON
 import com.adsamcik.signalcollector.map.MapLayer
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
-import com.adsamcik.signalcollector.mock.useMock
+import com.adsamcik.signalcollector.common.useMock
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
 class FragmentMapMenu : Fragment(), IOnDemandView {

@@ -10,6 +10,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityRequestInfo
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.misc.extension.powerManager
@@ -19,7 +20,6 @@ import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
-import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
@@ -174,7 +174,7 @@ class ActivityService : IntentService("ActivityService") {
 					setMinUpdateRate(context, ari.updateDelay)
 				}
 			} else {
-				Crashlytics.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
+				Reporter.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
 			}
 
 			if (mActiveRequests.size() == 0) {
@@ -215,7 +215,7 @@ class ActivityService : IntentService("ActivityService") {
 				//todo add handling of task failure
 				true
 			} else {
-				Crashlytics.logException(Throwable("Unavailable play services"))
+				Reporter.logException(Throwable("Unavailable play services"))
 				false
 			}
 		}

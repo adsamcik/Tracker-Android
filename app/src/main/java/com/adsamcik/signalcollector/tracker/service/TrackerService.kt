@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -28,7 +29,6 @@ import com.adsamcik.signalcollector.tracker.component.pre.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
-import com.crashlytics.android.Crashlytics
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
 
@@ -99,6 +99,7 @@ class TrackerService : LifecycleService() {
 
 	override fun onCreate() {
 		super.onCreate()
+		Reporter.initialize(this)
 
 		//Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
@@ -163,7 +164,7 @@ class TrackerService : LifecycleService() {
 
 			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
 		} else {
-			Crashlytics.logException(Exception("Tracker does not have sufficient permissions"))
+			Reporter.logException(Exception("Tracker does not have sufficient permissions"))
 			stopSelf()
 			return Service.START_NOT_STICKY
 		}
