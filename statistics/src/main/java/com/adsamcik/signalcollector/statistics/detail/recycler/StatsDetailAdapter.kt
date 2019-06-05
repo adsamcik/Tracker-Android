@@ -2,8 +2,9 @@ package com.adsamcik.signalcollector.statistics.detail.recycler
 
 import android.view.ViewGroup
 import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.signalcollector.common.color.ColorController
 
-class StatsDetailAdapter : SortableAdapter<StatisticDetailData, ViewHolder<StatisticDetailData>>() {
+class StatsDetailAdapter(private val colorController: ColorController) : SortableAdapter<StatisticDetailData, ViewHolder<StatisticDetailData>>() {
 	private val typeMap = mutableMapOf<Int, StatisticDetailViewHolderCreator>()
 
 	override fun getItemViewType(position: Int) = getItem(position).type.ordinal

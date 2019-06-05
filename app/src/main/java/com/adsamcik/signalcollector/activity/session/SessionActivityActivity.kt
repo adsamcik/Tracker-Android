@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.activity.session
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.R
 
 class SessionActivityActivity : AppCompatActivity() {

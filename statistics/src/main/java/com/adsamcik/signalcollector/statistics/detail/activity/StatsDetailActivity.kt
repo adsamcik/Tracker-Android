@@ -18,11 +18,15 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailDa
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatsDetailAdapter
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.InformationViewHolderCreator
+import com.adsamcik.signalcollector.statistics.detail.recycler.creator.LineChartViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationStatisticsData
+import com.adsamcik.signalcollector.statistics.detail.recycler.data.LineChartStatisticsData
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.github.mikephil.charting.data.Entry
 import com.google.android.gms.maps.MapsInitializer
+import com.google.android.play.core.splitcompat.SplitCompat
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -32,6 +36,11 @@ import java.util.*
 
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel
+
+	override fun attachBaseContext(newBase: Context?) {
+		super.attachBaseContext(newBase)
+		SplitCompat.install(this)
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		titleBarLayer = 0
@@ -68,9 +77,10 @@ class StatsDetailActivity : DetailActivity() {
 		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
 		recycler.layoutManager = LinearLayoutManager(this)
 
-		recycler.adapter = StatsDetailAdapter().apply {
+		recycler.adapter = StatsDetailAdapter(colorController).apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
+			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
 
 			val data = mutableListOf(
 					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
@@ -85,9 +95,19 @@ class StatsDetailActivity : DetailActivity() {
 				val database = AppDatabase.getDatabase(this@StatsDetailActivity)
 				val locations = database.locationDao().getAllBetween(session.start, session.end)
 				if (locations.isNotEmpty()) {
-					val sortableData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
+					val locationData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
 					GlobalScope.launch(Dispatchers.Main) {
-						add(sortableData)
+						add(locationData)
+					}
+
+					val elevationList = locations.mapNotNull {
+						val altitude = it.altitude ?: return@mapNotNull null
+						Entry(it.time.toFloat(), altitude.toFloat())
+					}
+					val elevationData = SortableAdapter.SortableData<StatisticDetailData>(LineChartStatisticsData(R.string.stats_distance_total, elevationList), AppendPriority(AppendBehavior.Any))
+
+					GlobalScope.launch(Dispatchers.Main) {
+						add(elevationData)
 					}
 				}
 			}

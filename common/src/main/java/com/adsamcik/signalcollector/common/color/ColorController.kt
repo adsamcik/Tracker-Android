@@ -1,8 +1,11 @@
 package com.adsamcik.signalcollector.common.color
 
 import android.content.res.ColorStateList
+import android.graphics.BlendMode
+import android.graphics.BlendModeColorFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -272,7 +275,12 @@ class ColorController {
 				return false
 
 			background.setTint(bgColor)
-			background.colorFilter = PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
+			background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {
+				BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
+			} else {
+				@Suppress("DEPRECATION")
+				PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
+			}
 			return true
 		}
 		return false

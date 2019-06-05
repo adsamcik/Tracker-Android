@@ -10,7 +10,8 @@ interface StatisticDetailViewHolderCreator {
 
 enum class StatisticDetailType {
 	Information,
-	Map
+	Map,
+	LineChart
 }
 
 interface StatisticDetailData {

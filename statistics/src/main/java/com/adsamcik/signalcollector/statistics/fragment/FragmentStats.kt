@@ -10,6 +10,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
+import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.common.color.ColorController
@@ -26,12 +27,12 @@ import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import kotlinx.android.synthetic.main.fragment_stats.view.*
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
 
+@Suppress("unused")
 class FragmentStats : Fragment(), IOnDemandView {
 	private lateinit var fragmentView: View
 
@@ -46,7 +47,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 		colorController = ColorManager.createController()
 
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
-
 
 		adapter = ChangeTableAdapter(activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
 
@@ -79,22 +79,14 @@ class FragmentStats : Fragment(), IOnDemandView {
 	private fun updateStats() {
 		val activity = activity!!
 		val appContext = activity.applicationContext
-		val isRefresh = swipeRefreshLayout.isRefreshing
 
 		adapter.clear()
 
 		val resources = activity.resources
 
-		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-			swipeRefreshLayout.isRefreshing = true
-		}
+		GlobalScope.launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = true }
 
 
-		/*if (useMock) {
-			generateMockData()
-		} else {*/
-		//refreshingCount = 2
-		//newLocations stat loading
 		GlobalScope.launch {
 			val database = AppDatabase.getDatabase(activity)
 			val sessionDao = database.sessionDao()
@@ -134,13 +126,12 @@ class FragmentStats : Fragment(), IOnDemandView {
 					StatData(resources.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
 			))
 
-
-			handleResponse(summaryStats, AppendPriority(AppendBehavior.Start))
-			handleResponse(weeklyStats, AppendPriority(AppendBehavior.Start))
+			addTableStat(listOf(summaryStats, weeklyStats), AppendPriority(AppendBehavior.Start))
 
 			val startOfTheDay = Calendar.getInstance().apply { roundToDate() }
 
-			sessionDao.getBetween(startOfTheDay.timeInMillis, now).forEach { addSessionData(it) }
+			val todayStats = sessionDao.getBetween(startOfTheDay.timeInMillis, now)
+			addSessionData(todayStats, AppendPriority(AppendBehavior.End, -1))
 
 			val monthAgoCalendar = Calendar.getInstance().apply {
 				roundToDate()
@@ -156,47 +147,51 @@ class FragmentStats : Fragment(), IOnDemandView {
 						StatData(resources.getString(R.string.stats_distance_in_vehicle), resources.formatDistance(it.distanceInVehicleInM, 1, lengthSystem))
 				))
 			}.let {
-				it.forEach { statData ->
-					handleResponse(statData, AppendPriority(AppendBehavior.Any))
-				}
+				addTableStat(it, AppendPriority(AppendBehavior.End))
 			}
 
-			GlobalScope.launch(Dispatchers.Main) {
-				swipeRefreshLayout.isRefreshing = false
-			}
-		}
-		//}
-	}
-
-	private fun handleResponse(value: TableStat, appendPriority: AppendPriority) {
-		GlobalScope.launch(Dispatchers.Main) {
-			addStatsTable(value, appendPriority)
+			GlobalScope.launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = false }
 		}
 	}
 
-	private fun handleResponse(list: List<TableStat>, appendPriority: AppendPriority) {
-		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-			//todo add in batch to less events are called
-			list.forEach { addStatsTable(it, appendPriority) }
+	private fun addTableStat(list: List<TableStat>, appendPriority: AppendPriority) {
+		val tableList = ArrayList<SortableAdapter.SortableData<TableCard>>(list.size)
+
+		list.forEach { stats ->
+			val table = TableCard(stats.showPosition)
+			table.title = stats.name
+			stats.data.indices
+					.map { stats.data[it] }
+					.forEach { table.addData(it.id, it.value) }
+
+			tableList.add(SortableAdapter.SortableData(table, appendPriority))
 		}
+
+		GlobalScope.launch(Dispatchers.Main) { adapter.addAll(tableList) }
 	}
 
-	private fun addSessionData(session: TrackerSession) {
-		val table = TableCard(false, 10)
-		table.title = "${session.start.formatAsShortDateTime()} - ${session.end.formatAsShortDateTime()}"
+	private fun addSessionData(sessionList: List<TrackerSession>, priority: AppendPriority) {
+		val tableList = ArrayList<SortableAdapter.SortableData<TableCard>>(sessionList.size)
 
-		val resources = resources
-		val lengthSystem = Preferences.getLengthSystem(context!!)
+		sessionList.forEach { session ->
+			val table = TableCard(false, 10)
+			table.title = "${session.start.formatAsShortDateTime()} - ${session.end.formatAsShortDateTime()}"
 
-		table.addData(resources.getString(R.string.stats_distance_total), resources.formatDistance(session.distanceInM, 1, lengthSystem))
-		table.addData(resources.getString(R.string.stats_collections), session.collections.formatReadable())
-		table.addData(resources.getString(R.string.stats_steps), session.steps.formatReadable())
-		table.addData(resources.getString(R.string.stats_distance_on_foot), resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem))
-		table.addData(resources.getString(R.string.stats_distance_in_vehicle), resources.formatDistance(session.distanceInVehicleInM, 1, lengthSystem))
+			val resources = resources
+			val lengthSystem = Preferences.getLengthSystem(context!!)
 
-		table.addButton(resources.getString(R.string.stats_details), View.OnClickListener { startActivity<StatsDetailActivity> { putExtra(StatsDetailActivity.ARG_SESSION_ID, session.id) } })
+			table.addData(resources.getString(R.string.stats_distance_total), resources.formatDistance(session.distanceInM, 1, lengthSystem))
+			table.addData(resources.getString(R.string.stats_collections), session.collections.formatReadable())
+			table.addData(resources.getString(R.string.stats_steps), session.steps.formatReadable())
+			table.addData(resources.getString(R.string.stats_distance_on_foot), resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem))
+			table.addData(resources.getString(R.string.stats_distance_in_vehicle), resources.formatDistance(session.distanceInVehicleInM, 1, lengthSystem))
 
-		GlobalScope.launch(Dispatchers.Main) { adapter.add(table, AppendPriority(AppendBehavior.Any)) }
+			table.addButton(resources.getString(R.string.stats_details), View.OnClickListener { startActivity<StatsDetailActivity> { putExtra(StatsDetailActivity.ARG_SESSION_ID, session.id) } })
+
+			tableList.add(SortableAdapter.SortableData(table, priority))
+		}
+
+		GlobalScope.launch(Dispatchers.Main) { adapter.addAll(tableList) }
 	}
 
 	private fun generateStatData(index: Int): List<StatData> {
@@ -205,22 +200,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 			list.add(StatData("Title $i", i.toString()))
 		}
 		return list
-	}
-
-	/**
-	 * Generates tables from list of stats
-	 *
-	 * @param stats stats
-	 */
-	private fun addStatsTable(stats: TableStat, appendPriority: AppendPriority): TableStat {
-		val table = TableCard(stats.showPosition)
-		table.title = stats.name
-		stats.data.indices
-				.asSequence()
-				.map { stats.data[it] }
-				.forEach { table.addData(it.id, it.value) }
-		GlobalScope.launch(Dispatchers.Main) { adapter.add(table, appendPriority) }
-		return stats
 	}
 
 
