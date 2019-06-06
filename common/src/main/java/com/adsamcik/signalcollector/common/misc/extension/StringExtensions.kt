@@ -104,8 +104,20 @@ fun Long.formatAsShortDateTime(): String {
 	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
 }
 
-fun Resources.formatDistance(value: Float, digits: Int, unit: LengthSystem): String {
+fun Resources.formatSpeed(metersPerSecond: Float, digits: Int, unit: LengthSystem): String {
+	return formatSpeed(metersPerSecond.toDouble(), digits, unit)
+}
+
+fun Resources.formatSpeed(metersPerSecond: Double, digits: Int, unit: LengthSystem): String {
+	return getString(R.string.per_second_abbr, formatDistance(metersPerSecond, digits, unit))
+}
+
+fun Resources.formatDistance(value: Int, digits: Int, unit: LengthSystem): String {
 	return formatDistance(value.toDouble(), digits, unit)
+}
+
+fun Resources.formatDistance(meters: Float, digits: Int, unit: LengthSystem): String {
+	return formatDistance(meters.toDouble(), digits, unit)
 }
 
 fun Resources.formatDistance(meters: Double, digits: Int, unit: LengthSystem): String {
@@ -147,8 +159,4 @@ private fun Resources.formatAncientRome(passus: Double, digits: Int): String {
 	} else {
 		getString(R.string.passus, passus.formatReadable(digits))
 	}
-}
-
-fun Resources.formatDistance(value: Int, digits: Int, unit: LengthSystem): String {
-	return formatDistance(value.toDouble(), digits, unit)
 }
