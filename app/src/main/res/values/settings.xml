@@ -222,6 +222,18 @@
         <item>Ancient Roman</item>
     </string-array>
 
+    <string name="settings_speed_format_title">Speed format</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string-array name="settings_speed_format_names">
+        <item>In seconds</item>
+        <item>In minutes</item>
+        <item>In hours</item>
+    </string-array>
+
     <string name="settings_error_reporting_title">Automatic error reporting</string>
     <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
 

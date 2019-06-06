@@ -170,9 +170,15 @@ class StatsDetailActivity : DetailActivity() {
 
 		val avgSpeed = speedSum / (timeSum / Constants.SECOND_IN_MILLISECONDS)
 		val lengthSystem = Preferences.getLengthSystem(this)
+		val speedFormat = Preferences.getSpeedFormat(this)
 		val dataList = listOf(
-				InformationStatisticsData(R.drawable.speedometer, R.string.stats_max_speed, resources.formatSpeed(maxSpeed, 1, lengthSystem)),
-				InformationStatisticsData(R.drawable.speedometer, R.string.stats_avg_speed, resources.formatSpeed(avgSpeed, 1, lengthSystem))
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_speedometer,
+						R.string.stats_max_speed,
+						resources.formatSpeed(maxSpeed, 1, lengthSystem, speedFormat)),
+
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_speedometer,
+						R.string.stats_avg_speed,
+						resources.formatSpeed(avgSpeed, 1, lengthSystem, speedFormat))
 		)
 
 		addStatisticsData(adapter, dataList, AppendPriority(AppendBehavior.Any))

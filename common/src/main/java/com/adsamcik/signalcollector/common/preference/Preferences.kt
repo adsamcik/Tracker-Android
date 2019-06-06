@@ -11,6 +11,7 @@ import androidx.annotation.StringRes
 import androidx.core.content.res.ResourcesCompat
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.misc.LengthSystem
+import com.adsamcik.signalcollector.common.misc.SpeedFormat
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 
 
@@ -162,6 +163,11 @@ open class Preferences {
 		fun getLengthSystem(context: Context): LengthSystem {
 			val preference = getPref(context).getStringRes(R.string.settings_length_system_key, R.string.settings_length_system_default)
 			return LengthSystem.valueOf(preference)
+		}
+
+		fun getSpeedFormat(context: Context): SpeedFormat {
+			val preference = getPref(context).getStringRes(R.string.settings_speed_format_key, R.string.settings_speed_format_default)
+			return SpeedFormat.valueOf(preference)
 		}
 	}
 }

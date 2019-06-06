@@ -236,6 +236,15 @@
             android:summary="%s"
             android:title="@string/settings_length_system_title"/>
 
+        <androidx.preference.ListPreference
+            android:defaultValue="@string/settings_speed_format_default"
+            android:entries="@array/settings_speed_format_names"
+            android:entryValues="@array/settings_speed_format_values"
+            android:icon="@drawable/ic_speedometer"
+            android:key="@string/settings_speed_format_key"
+            android:summary="%s"
+            android:title="@string/settings_speed_format_title"/>
+
         <androidx.preference.CheckBoxPreference
             android:defaultValue="R.string.show_tips_default"
             android:icon="@drawable/ic_tips"

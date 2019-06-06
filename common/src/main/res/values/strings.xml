@@ -13,7 +13,8 @@
     <string name="millepassus">%s roman mile</string>
 
     <string name="per_second_abbr">%s/s</string>
-
+    <string name="per_minute_abbr">%s/m</string>
+    <string name="per_hour_abbr">%s/h</string>
 
     <string name="error_play_services_not_available">Play services are not available</string>
     <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>

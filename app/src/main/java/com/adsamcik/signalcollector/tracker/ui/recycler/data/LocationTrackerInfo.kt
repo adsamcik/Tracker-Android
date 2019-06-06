@@ -33,7 +33,7 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE, R
 
 		location.speed?.let {
 			setBoldText(holder) { title, value ->
-				value.text = resources.formatSpeed(it, 1, lengthSystem)
+				value.text = resources.formatSpeed(it, 1, lengthSystem, Preferences.getSpeedFormat(context))
 				title.setText(R.string.speed)
 			}
 		}

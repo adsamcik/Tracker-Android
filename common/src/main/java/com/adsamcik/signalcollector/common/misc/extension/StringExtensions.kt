@@ -5,6 +5,8 @@ import android.content.res.Resources
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.misc.LengthSystem
+import com.adsamcik.signalcollector.common.misc.SpeedFormat
+import com.adsamcik.signalcollector.common.preference.Preferences
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -104,12 +106,23 @@ fun Long.formatAsShortDateTime(): String {
 	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
 }
 
-fun Resources.formatSpeed(metersPerSecond: Float, digits: Int, unit: LengthSystem): String {
-	return formatSpeed(metersPerSecond.toDouble(), digits, unit)
+fun Resources.formatSpeed(metersPerSecond: Float, digits: Int, lengthSystem: LengthSystem, speedFormat: SpeedFormat): String {
+	return formatSpeed(metersPerSecond.toDouble(), digits, lengthSystem, speedFormat)
 }
 
-fun Resources.formatSpeed(metersPerSecond: Double, digits: Int, unit: LengthSystem): String {
-	return getString(R.string.per_second_abbr, formatDistance(metersPerSecond, digits, unit))
+fun Resources.formatSpeed(context: Context, metersPerSecond: Double, digits: Int): String {
+	val lengthSystem = Preferences.getLengthSystem(context)
+	val speedFormat = Preferences.getSpeedFormat(context)
+	return formatSpeed(metersPerSecond, digits, lengthSystem, speedFormat)
+}
+
+fun Resources.formatSpeed(metersPerSecond: Double, digits: Int, lengthSystem: LengthSystem, speedFormat: SpeedFormat): String {
+	val formatRes = when (speedFormat) {
+		SpeedFormat.Second -> R.string.per_second_abbr
+		SpeedFormat.Minute -> R.string.per_minute_abbr
+		SpeedFormat.Hour -> R.string.per_hour_abbr
+	}
+	return getString(formatRes, formatDistance(metersPerSecond, digits, lengthSystem))
 }
 
 fun Resources.formatDistance(value: Int, digits: Int, unit: LengthSystem): String {
