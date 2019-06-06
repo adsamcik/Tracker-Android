@@ -1,28 +1,34 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.creator
 
+import android.view.LayoutInflater
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.viewholder.LineChartViewHolder
-import com.github.mikephil.charting.charts.LineChart
+import kotlinx.android.synthetic.main.layout_stats_detail_line_chart.view.*
 
 class LineChartViewHolderCreator : StatisticDetailViewHolderCreator {
 
 	override fun createViewHolder(parent: ViewGroup): ViewHolder<StatisticDetailData> {
-		val chart = LineChart(parent.context).apply {
-			layoutParams = ViewGroup.LayoutParams(
-					ViewGroup.LayoutParams.MATCH_PARENT,
-					200.dp)
+		val view = LayoutInflater.from(parent.context).inflate(R.layout.layout_stats_detail_line_chart, parent, false)
 
+		val chart = view.line_chart.apply {
 			isClickable = false
 			setDrawGridBackground(false)
 			setDrawBorders(false)
 			setDrawMarkers(false)
+			setTouchEnabled(false)
+			legend.isEnabled = false
+			xAxis.isEnabled = false
+			description.isEnabled = false
+
+			axisRight.labelCount = 5
+			axisLeft.isEnabled = false
 		}
 		@Suppress("unchecked_cast")
-		return LineChartViewHolder(chart) as ViewHolder<StatisticDetailData>
+		return LineChartViewHolder(view, view.findViewById(R.id.title), chart) as ViewHolder<StatisticDetailData>
 	}
 
 }

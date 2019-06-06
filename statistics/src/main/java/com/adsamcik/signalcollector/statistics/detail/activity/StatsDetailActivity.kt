@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
+import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
@@ -13,6 +14,7 @@ import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
@@ -27,6 +29,7 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import com.github.mikephil.charting.data.Entry
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.play.core.splitcompat.SplitCompat
+import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -70,46 +73,21 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	private fun initializeSessionData(session: TrackerSession) {
-		val resources = resources
-		val lengthSystem = Preferences.getLengthSystem(this)
-
 		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
 		recycler.layoutManager = LinearLayoutManager(this)
+
+		(recycler.itemAnimator as? DefaultItemAnimator)?.apply {
+			supportsChangeAnimations = false
+		}
 
 		recycler.adapter = StatsDetailAdapter().apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
-
-			val data = mutableListOf(
-					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_black_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
-					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_shoe_print, R.string.stats_steps, session.steps.formatReadable()),
-					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
-					InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute_24px, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
-
-			addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 			//todo add Wi-Fi and Cell
 
-			GlobalScope.launch {
-				val database = AppDatabase.getDatabase(this@StatsDetailActivity)
-				val locations = database.locationDao().getAllBetween(session.start, session.end)
-				if (locations.isNotEmpty()) {
-					val locationData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
-					GlobalScope.launch(Dispatchers.Main) {
-						add(locationData)
-					}
-
-					val elevationList = locations.mapNotNull {
-						val altitude = it.altitude ?: return@mapNotNull null
-						Entry(it.time.toFloat(), altitude.toFloat())
-					}
-					val elevationData = SortableAdapter.SortableData<StatisticDetailData>(LineChartStatisticsData(R.string.stats_distance_total, elevationList), AppendPriority(AppendBehavior.Any))
-
-					GlobalScope.launch(Dispatchers.Main) {
-						add(elevationData)
-					}
-				}
-			}
+			addBasicStats(session, this)
+			GlobalScope.launch { addLocationStats(session, this@apply) }
 		}
 
 		colorController.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
@@ -123,6 +101,69 @@ class StatsDetailActivity : DetailActivity() {
 		setTitle(title)
 
 		date_time.text = formatRange(startCalendar, endCalendar)
+	}
+
+	private fun addBasicStats(session: TrackerSession, adapter: StatsDetailAdapter) {
+		val resources = resources
+		val lengthSystem = Preferences.getLengthSystem(this)
+
+		val data = mutableListOf(
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_white_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_shoe_print, R.string.stats_steps, session.steps.formatReadable()),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute_24px, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
+
+		adapter.addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
+	}
+
+	private fun addLocationStats(session: TrackerSession, adapter: StatsDetailAdapter) {
+		val database = AppDatabase.getDatabase(this@StatsDetailActivity)
+		val locations = database.locationDao().getAllBetween(session.start, session.end)
+		if (locations.isNotEmpty()) {
+			addLocationMap(locations, adapter)
+			addElevationStats(locations, adapter)
+		}
+	}
+
+	private fun addLocationMap(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
+		val locationData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
+		GlobalScope.launch(Dispatchers.Main) {
+			adapter.add(locationData)
+		}
+	}
+
+	private fun addElevationStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
+		val firstTime = locations.first().time
+		var descended = 0.0
+		var ascended = 0.0
+		var last = locations.first { it.altitude != null }.altitude!!
+
+		val elevationList = locations.mapNotNull {
+			val altitude = it.altitude ?: return@mapNotNull null
+
+			val diff = altitude - last
+			if (diff > 0) {
+				ascended += diff
+			} else {
+				descended -= diff
+			}
+			last = altitude
+
+			Entry((it.time - firstTime).toFloat(), altitude.toFloat())
+		}
+
+		val resources = resources
+		val lengthSystem = Preferences.getLengthSystem(this)
+
+		val altitudeStatisticsList = listOf(
+				InformationStatisticsData(R.drawable.arrow_top_right_bold_outline, R.string.stats_ascended, resources.formatDistance(ascended, 1, lengthSystem)),
+				InformationStatisticsData(R.drawable.arrow_bottom_right_bold_outline, R.string.stats_descended, resources.formatDistance(descended, 1, lengthSystem)),
+				LineChartStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation, elevationList)
+		)
+
+		GlobalScope.launch(Dispatchers.Main) {
+			adapter.addAll(altitudeStatisticsList.map { SortableAdapter.SortableData(it, AppendPriority(AppendBehavior.Any)) })
+		}
 	}
 
 	//todo improve localization support
