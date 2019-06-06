@@ -1,8 +1,7 @@
-<manifest
-    xmlns:dist="http://schemas.android.com/apk/distribution"
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.adsamcik.signalcollector.statistics">
-
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:dist="http://schemas.android.com/apk/distribution"
+          package="com.adsamcik.signalcollector.statistics">
 
     <dist:module
         dist:instant="false"
@@ -11,5 +10,8 @@
         <dist:fusing dist:include="true"/>
     </dist:module>
 
-</manifest>
+    <application>
+        <activity android:name=".detail.activity.StatsDetailActivity"/>
+    </application>
 
+</manifest>
