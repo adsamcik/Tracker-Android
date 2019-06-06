@@ -6,7 +6,6 @@ import androidx.annotation.RawRes
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.misc.extension.remove
-import com.adsamcik.signalcollector.common.misc.extension.removeAllByIndexes
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers
@@ -45,20 +44,21 @@ object ColorMap {
 		}
 	}
 
+	private fun removeNullMaps() {
+		synchronized(colorChangeListeners) {
+			colorChangeListeners.removeAll { it.get() == null }
+			checkIfEmpty()
+		}
+	}
+
 	private fun onStyleChange(style: MapStyleOptions) {
+		removeNullMaps()
 		GlobalScope.launch(Dispatchers.Main) {
-			val toRemove = mutableListOf<Int>()
-			colorChangeListeners.forEachIndexed { index, reference ->
-				val googleMap = reference.get()
-				if (googleMap == null) {
-					toRemove.add(index)
-				} else {
-					googleMap.setMapStyle(style)
+			synchronized(colorChangeListeners) {
+				colorChangeListeners.forEach {
+					it.get()?.setMapStyle(style)
 				}
 			}
-
-			colorChangeListeners.removeAllByIndexes(toRemove)
-			checkIfEmpty()
 		}
 	}
 
@@ -67,14 +67,14 @@ object ColorMap {
 			val isEmpty = colorChangeListeners.isEmpty()
 			colorChangeListeners.add(WeakReference(googleMap))
 			if (isEmpty) init(context) else googleMap.setMapStyle(activeMapStyle)
+			removeNullMaps()
 		}
 	}
 
 	fun removeListener(googleMap: GoogleMap) {
 		synchronized(colorChangeListeners) {
 			colorChangeListeners.remove { it.get() == googleMap }
-
-			checkIfEmpty()
+			removeNullMaps()
 		}
 	}
 
