@@ -51,9 +51,6 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	private var wifiInfo: InfoComponent? = null
 	private var cellInfo: InfoComponent? = null
 
-	private var lastWifiTime: Long = 0
-	private var lastWifiLocation: Location? = null
-
 	private lateinit var adapter: TrackerInfoAdapter
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -109,8 +106,9 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 				val lockedForMinutes = 60
 				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
 				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
-			} else
+			} else {
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
+			}
 		}
 
 		button_tracking_lock.setOnClickListener {
@@ -151,8 +149,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			tracker_recycler.setPadding(72.dp, 0, 72.dp, 0)
 		}
 
-		if (useMock)
-			mock()
+		if (useMock) mock()
 	}
 
 	/**
@@ -161,8 +158,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	 * @param enable ensures intended action
 	 */
 	private fun toggleCollecting(activity: FragmentActivity, enable: Boolean) {
-		if (TrackerService.isServiceRunning.value == enable)
-			return
+		if (TrackerService.isServiceRunning.value == enable) return
 
 		val requiredPermissions = Assist.checkTrackingPermissions(activity)
 		val view = view
@@ -234,8 +230,6 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateData(dataEcho: CollectionDataEcho) {
 		val context = getNonNullContext()
-		val res = context.resources
-
 		val collectionData = dataEcho.collectionData
 
 		textview_time.text = DateFormat.getTimeFormat(context).format(Date(collectionData.time))
@@ -310,12 +304,4 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		session_distance.text = resources.getString(R.string.info_session_distance, resources.formatDistance(session.distanceInM, 1, lengthSystem))
 
 	}
-
-	companion object {
-		private const val WIFI_COMPONENT_COUNT = "WifiCount"
-		private const val WIFI_COMPONENT_DISTANCE = "WifiDistance"
-		private const val CELL_COMPONENT_COUNT = "CellCount"
-		private const val CELL_COMPONENT_CURRENT = "CellCurrent"
-	}
-
 }

@@ -62,14 +62,14 @@ class ColorController {
 		var find: ColorView? = null
 		synchronized(watchedViews) {
 			find = watchedViews.find { it.view == view }
-			if (find == null)
-				find = watchedViews.find { it.view.contains(view) }
+					?: watchedViews.find { it.view.contains(view) }
 		}
 
-		if (find != null)
+		if (find != null) {
 			updateInternal(find!!)
-		else
+		} else {
 			throw IllegalArgumentException("View is not subscribed")
+		}
 	}
 
 	/**
@@ -79,8 +79,7 @@ class ColorController {
 	 * However it will somehow work even without it, but it might not be reliable.
 	 */
 	fun watchAdapterView(colorView: ColorView) {
-		if (!colorView.recursive)
-			throw RuntimeException("Recycler view cannot be non recursive")
+		if (!colorView.recursive) throw IllegalArgumentException("Recycler view cannot be non recursive")
 
 		colorView.view as RecyclerView
 		val adapter = colorView.view.adapter
@@ -90,8 +89,7 @@ class ColorController {
 			}
 		} else {
 			colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
-				override fun onChildViewRemoved(parent: View, child: View) {
-				}
+				override fun onChildViewRemoved(parent: View, child: View) {}
 
 				override fun onChildViewAdded(parent: View, child: View) {
 					updateStyleRecursive(child, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
@@ -109,8 +107,7 @@ class ColorController {
 	fun stopWatchingView(predicate: (ColorView) -> Boolean) {
 		synchronized(watchedViews) {
 			val index = watchedViews.indexOfFirst(predicate)
-			if (index >= 0)
-				watchedViews.removeAt(index)
+			if (index >= 0) watchedViews.removeAt(index)
 		}
 	}
 
@@ -140,10 +137,11 @@ class ColorController {
 	 */
 	fun stopWatchingAdapterView(view: AdapterView<*>) {
 		val adapter = view.adapter
-		if (adapter is IViewChange)
+		if (adapter is IViewChange) {
 			adapter.onViewChangedListener = null
-		else
+		} else {
 			view.setOnHierarchyChangeListener(null)
+		}
 		stopWatchingView(view)
 	}
 
@@ -220,25 +218,27 @@ class ColorController {
 
 		if (!colorView.ignoreRoot) {
 			val layerColor = layerColor(backgroundColor, colorView.layer)
-			if (colorView.rootIsBackground)
+			if (colorView.rootIsBackground) {
 				colorView.view.setBackgroundColor(layerColor)
-			else
+			} else {
 				updateBackgroundDrawable(colorView.view, layerColor)
+			}
 
 			updateStyleForeground(colorView.view, foregroundColor)
 		}
 
 		if (colorView.recursive && colorView.view is ViewGroup) {
 			val layer = if (!colorView.ignoreRoot) colorView.layer + 1 else colorView.layer
-			for (i in 0 until colorView.view.childCount)
+			for (i in 0 until colorView.view.childCount) {
 				updateStyleRecursive(colorView.view.getChildAt(i), backgroundColor, foregroundColor, layer)
+			}
 		}
 	}
 
 	private fun updateStyleRecursive(view: View, @ColorInt color: Int, @ColorInt fgColor: Int, layer: Int) {
 		var newLayer = layer
-		if (updateBackgroundDrawable(view, layerColor(color, layer)))
-			newLayer++
+		if (updateBackgroundDrawable(view, layerColor(color, layer))) newLayer++
+
 		if (view is ViewGroup) {
 			for (i in 0 until view.childCount)
 				updateStyleRecursive(view.getChildAt(i), color, fgColor, newLayer)
@@ -271,8 +271,7 @@ class ColorController {
 			view.setCardBackgroundColor(bgColor)
 			return true
 		} else if (background?.isVisible == true) {
-			if (background.alpha < 255)
-				return false
+			if (background.alpha < 255) return false
 
 			background.setTint(bgColor)
 			background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {

@@ -103,12 +103,10 @@ class MainActivity : AppCompatActivity() {
 			button_stats.targetTranslationZ = 8.dp.toFloat()
 			button_stats.extendTouchAreaBy(56.dp, 0, 40.dp, 0)
 			button_stats.onEnterStateListener = { _, state, _, _ ->
-				if (state == DraggableImageButton.State.TARGET)
-					hideBottomLayer()
+				if (state == DraggableImageButton.State.TARGET) hideBottomLayer()
 			}
 			button_stats.onLeaveStateListener = { _, state ->
-				if (state == DraggableImageButton.State.TARGET)
-					showBottomLayer()
+				if (state == DraggableImageButton.State.TARGET) showBottomLayer()
 			}
 
 			val statsPayload = DraggablePayload(this, fragmentStatsClass, root, root)
@@ -131,12 +129,10 @@ class MainActivity : AppCompatActivity() {
 			button_game.targetTranslationZ = 8.dp.toFloat()
 			button_game.extendTouchAreaBy(0, 0, 56.dp, 0)
 			button_game.onEnterStateListener = { _, state, _, _ ->
-				if (state == DraggableImageButton.State.TARGET)
-					hideBottomLayer()
+				if (state == DraggableImageButton.State.TARGET) hideBottomLayer()
 			}
 			button_game.onLeaveStateListener = { _, state ->
-				if (state == DraggableImageButton.State.TARGET)
-					showBottomLayer()
+				if (state == DraggableImageButton.State.TARGET) showBottomLayer()
 			}
 
 			val fragmentGameClass = Module.GAME.loadClass<PayloadFragment>("fragment.FragmentGame")
@@ -167,8 +163,9 @@ class MainActivity : AppCompatActivity() {
 			}
 			button_map.onLeaveStateListener = { _, state ->
 				if (state == DraggableImageButton.State.TARGET) {
-					if (button_game.state != DraggableImageButton.State.TARGET && button_stats.state != DraggableImageButton.State.TARGET)
+					if (button_game.state != DraggableImageButton.State.TARGET && button_stats.state != DraggableImageButton.State.TARGET) {
 						showBottomLayer()
+					}
 
 					showMiddleLayer()
 				}
@@ -208,22 +205,26 @@ class MainActivity : AppCompatActivity() {
 		button_game.visibility = View.GONE
 		button_stats.visibility = View.GONE
 
-		if (button_stats.state == DraggableImageButton.State.TARGET)
+		if (button_stats.state == DraggableImageButton.State.TARGET) {
 			button_stats.payloads.forEach { it.wrapper?.visibility = View.GONE }
+		}
 
-		if (button_game.state == DraggableImageButton.State.TARGET)
+		if (button_game.state == DraggableImageButton.State.TARGET) {
 			button_game.payloads.forEach { it.wrapper?.visibility = View.GONE }
+		}
 	}
 
 	private fun showMiddleLayer() {
 		button_game.visibility = View.VISIBLE
 		button_stats.visibility = View.VISIBLE
 
-		if (button_stats.state == DraggableImageButton.State.TARGET)
+		if (button_stats.state == DraggableImageButton.State.TARGET) {
 			button_stats.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
+		}
 
-		if (button_game.state == DraggableImageButton.State.TARGET)
+		if (button_game.state == DraggableImageButton.State.TARGET) {
 			button_game.payloads.forEach { it.wrapper?.visibility = View.VISIBLE }
+		}
 	}
 
 	private fun initializeButtonsPosition() {
@@ -232,10 +233,11 @@ class MainActivity : AppCompatActivity() {
 		}
 
 		val (position, navDim) = Assist.navbarSize(this)
-		if (navDim.x > navDim.y)
+		if (navDim.x > navDim.y) {
 			navDim.x = 0
-		else
+		} else {
 			navDim.y = 0
+		}
 
 		navigation_guideline.setGuidelineEnd(navigationOffset + navDim.y)
 
@@ -291,8 +293,7 @@ class MainActivity : AppCompatActivity() {
 			fusedLocationClient.lastLocation.addOnCompleteListener {
 				if (it.isSuccessful) {
 					val loc = it.result
-					if (loc != null)
-						ColorManager.setLocation(loc)
+					if (loc != null) ColorManager.setLocation(loc)
 				}
 			}
 		} else if (Build.VERSION.SDK_INT >= 23)
@@ -300,16 +301,18 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-		return if (!Tips.isActive && root.touchDelegate?.onTouchEvent(event) == true)
+		return if (!Tips.isActive && root.touchDelegate?.onTouchEvent(event) == true) {
 			true
-		else
+		} else {
 			super.dispatchTouchEvent(event)
+		}
 	}
 
 	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
 		if (requestCode == themeLocationRequestCode) {
-			if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED })
+			if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 				initializeSunriseSunset()
+			}
 		}
 	}
 
