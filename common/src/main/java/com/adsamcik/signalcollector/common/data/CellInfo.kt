@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
 import android.telephony.*
+import androidx.annotation.RequiresApi
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.squareup.moshi.JsonClass
@@ -175,6 +176,7 @@ data class CellInfo
 		 * @return new CellInfo if successfull, null otherwise
 		 */
 
+		@RequiresApi(29)
 		fun newInstance(cinr: CellInfoNr, operatorName: String?): CellInfo? {
 			if (operatorName == null) return null
 
