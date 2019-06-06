@@ -153,16 +153,22 @@ class StatsDetailActivity : DetailActivity() {
 		for (i in 1 until locations.size) {
 			val current = locations[i]
 			val currentAltitude = current.altitude
+			val timeDifference = current.time - previous.time
+			val secondsElapsed = timeDifference.toDouble() / Constants.SECOND_IN_MILLISECONDS.toDouble()
 
-			val speed = if (currentAltitude != null && previousAltitude != null) {
-				Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
-			} else {
-				Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude, LengthUnit.Meter)
+			if (secondsElapsed <= 70.0) {
+				val distance = if (currentAltitude != null && previousAltitude != null) {
+					Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
+				} else {
+					Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude, LengthUnit.Meter)
+				}
+
+				val speed = distance / secondsElapsed
+
+				if (speed > maxSpeed) maxSpeed = speed
+				speedSum += speed
+				timeSum += timeDifference
 			}
-
-			if (speed > maxSpeed) maxSpeed = speed
-			speedSum += speed
-			timeSum += current.time - previous.time
 
 			previous = current
 			previousAltitude = currentAltitude

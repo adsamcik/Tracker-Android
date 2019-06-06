@@ -117,12 +117,11 @@ fun Resources.formatSpeed(context: Context, metersPerSecond: Double, digits: Int
 }
 
 fun Resources.formatSpeed(metersPerSecond: Double, digits: Int, lengthSystem: LengthSystem, speedFormat: SpeedFormat): String {
-	val formatRes = when (speedFormat) {
-		SpeedFormat.Second -> R.string.per_second_abbr
-		SpeedFormat.Minute -> R.string.per_minute_abbr
-		SpeedFormat.Hour -> R.string.per_hour_abbr
+	return when (speedFormat) {
+		SpeedFormat.Second -> getString(R.string.per_second_abbr, formatDistance(metersPerSecond, digits, lengthSystem))
+		SpeedFormat.Minute -> getString(R.string.per_minute_abbr, formatDistance(metersPerSecond * 60, digits, lengthSystem))
+		SpeedFormat.Hour -> getString(R.string.per_hour_abbr, formatDistance(metersPerSecond * 3600, digits, lengthSystem))
 	}
-	return getString(formatRes, formatDistance(metersPerSecond, digits, lengthSystem))
 }
 
 fun Resources.formatDistance(value: Int, digits: Int, unit: LengthSystem): String {
