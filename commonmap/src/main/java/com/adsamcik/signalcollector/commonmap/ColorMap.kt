@@ -52,7 +52,7 @@ object ColorMap {
 		synchronized(colorChangeListeners) {
 			val isEmpty = colorChangeListeners.isEmpty()
 			colorChangeListeners.add(googleMap)
-			if (isEmpty) init(context)
+			if (isEmpty) init(context) else googleMap.setMapStyle(activeMapStyle)
 		}
 	}
 
