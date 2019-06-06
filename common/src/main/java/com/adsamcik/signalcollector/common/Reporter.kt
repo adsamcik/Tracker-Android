@@ -5,12 +5,21 @@ import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric
+import java.lang.ref.WeakReference
 
 object Reporter {
 	private var isInitialized = false
 	private var isEnabled = false
 
-	private val loggingObserver = Observer<Boolean> { isEnabled = it }
+	private var context: WeakReference<Context>? = null
+
+	private val loggingObserver = Observer<Boolean> {
+		isEnabled = it
+		val context = context?.get()
+		if (it && context != null) {
+			Fabric.with(context, Crashlytics())
+		}
+	}
 
 	fun initialize(context: Context) {
 		synchronized(isInitialized) {
@@ -20,9 +29,11 @@ object Reporter {
 
 		if (isEmulator) return
 
-		PreferenceObserver.observe(context, R.string.settings_error_reporting_key, R.string.settings_error_reporting_default, loggingObserver)
+		if (this.context?.get() == null) {
+			this.context = WeakReference(context.applicationContext)
+		}
 
-		if (isEnabled) Fabric.with(context, Crashlytics())
+		PreferenceObserver.observe(context, R.string.settings_error_reporting_key, R.string.settings_error_reporting_default, loggingObserver)
 	}
 
 	private fun checkInitialized() {
