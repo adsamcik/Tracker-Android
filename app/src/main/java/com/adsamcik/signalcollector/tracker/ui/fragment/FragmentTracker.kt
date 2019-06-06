@@ -15,11 +15,13 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
+import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -66,6 +68,13 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			val adapter = TrackerInfoAdapter()
 			this@FragmentTracker.adapter = adapter
 			this.adapter = adapter
+
+			val itemAnimator = itemAnimator
+			if (itemAnimator != null && itemAnimator is DefaultItemAnimator) {
+				itemAnimator.supportsChangeAnimations = false
+			} else {
+				Reporter.logException(RuntimeException("Item animator was null or invalid type"))
+			}
 
 			post {
 				val computedWidth = measuredWidth - paddingStart - paddingEnd
