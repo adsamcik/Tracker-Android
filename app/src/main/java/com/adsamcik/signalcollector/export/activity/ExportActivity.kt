@@ -24,7 +24,6 @@ import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PI
 import com.google.android.material.snackbar.Snackbar
 import com.obsez.android.lib.filechooser.ChooserDialog
 import kotlinx.android.synthetic.main.layout_data_export.*
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -161,7 +160,7 @@ class ExportActivity : DetailActivity() {
 		val from = this.range.start
 		val to = this.range.endInclusive
 
-		GlobalScope.launch {
+		launch {
 			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 			if (locations.isEmpty()) {

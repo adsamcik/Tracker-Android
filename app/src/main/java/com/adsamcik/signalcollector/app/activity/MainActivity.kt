@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
@@ -17,8 +16,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
-import com.adsamcik.signalcollector.common.Reporter
-import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.activity.CoreUIActivity
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.dp
@@ -38,17 +36,13 @@ import kotlinx.android.synthetic.main.activity_ui.*
  * MainActivity containing the core of the App
  * Users should spend most time in here.
  */
-class MainActivity : AppCompatActivity() {
-	private lateinit var colorController: ColorController
-	private var themeLocationRequestCode = 4513
-
+class MainActivity : CoreUIActivity() {
 	private var navigationOffset = Int.MIN_VALUE
 
 	private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
 
 	override fun onCreate(savedInstanceState: Bundle?) {
-		Reporter.initialize(this)
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_ui)
 
@@ -60,7 +54,6 @@ class MainActivity : AppCompatActivity() {
 			ActivityService.requestAutoTracking(this, this::class)
 		}
 
-		initializeColors()
 		initializeButtons()
 		initializeColorElements()
 
@@ -80,7 +73,6 @@ class MainActivity : AppCompatActivity() {
 	override fun onResume() {
 		super.onResume()
 		initializeButtonsPosition()
-		initializeColors()
 	}
 
 	private fun initializeButtons() {
@@ -249,15 +241,11 @@ class MainActivity : AppCompatActivity() {
 	}
 
 	private fun initializeColorElements() {
-		colorController = ColorManager.createController()
-
 		colorController.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
 
 		colorController.watchView(ColorView(button_stats, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
 		colorController.watchView(ColorView(button_map, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
 		colorController.watchView(ColorView(button_game, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
-
-		ColorManager.ensureUpdate()
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {
@@ -276,43 +264,11 @@ class MainActivity : AppCompatActivity() {
 		button_game.restoreFragments(savedInstanceState)
 	}
 
-	override fun onDestroy() {
-		super.onDestroy()
-		ColorManager.recycleController(colorController)
-	}
-
-	private fun initializeColors() {
-		ColorManager.initializeFromPreferences(this)
-		initializeSunriseSunset()
-	}
-
-	private fun initializeSunriseSunset() {
-		val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
-		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-			fusedLocationClient.lastLocation.addOnCompleteListener {
-				if (it.isSuccessful) {
-					val loc = it.result
-					if (loc != null) ColorManager.setLocation(loc)
-				}
-			}
-		} else if (Build.VERSION.SDK_INT >= 23)
-			requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), themeLocationRequestCode)
-	}
-
 	override fun dispatchTouchEvent(event: MotionEvent): Boolean {
 		return if (!Tips.isActive && root.touchDelegate?.onTouchEvent(event) == true) {
 			true
 		} else {
 			super.dispatchTouchEvent(event)
-		}
-	}
-
-	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-		if (requestCode == themeLocationRequestCode) {
-			if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-				initializeSunriseSunset()
-			}
 		}
 	}
 

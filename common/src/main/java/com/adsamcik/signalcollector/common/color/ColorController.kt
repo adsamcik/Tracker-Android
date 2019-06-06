@@ -21,7 +21,6 @@ import com.adsamcik.signalcollector.common.color.ColorManager.backgroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorManager.foregroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
 import com.adsamcik.signalcollector.common.misc.extension.contains
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -199,7 +198,7 @@ class ColorController {
 	 * Internal update function which should be called only by ColorManager
 	 */
 	internal fun update() {
-		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
+		GlobalScope.launch(Dispatchers.Main) {
 			synchronized(watchedViews) {
 				watchedViews.forEach {
 					updateInternal(it)

@@ -35,16 +35,17 @@ open class ConditionVariable<T>(default: T) {
 				if (it.first.invoke(value)) {
 					GlobalScope.launch(block = it.second)
 					true
-				} else
+				} else {
 					false
+				}
 			}
 		}
 	}
 
 	fun addWaiter(checker: ConditionChecker<T>, job: JobFunction) {
-		if (checker.invoke(value))
+		if (checker.invoke(value)) {
 			GlobalScope.launch(block = job)
-		else {
+		} else {
 			waiterLock.withLock {
 				waiters.add(Pair(checker, job))
 			}

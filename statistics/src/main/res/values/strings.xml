@@ -14,6 +14,10 @@
     <string name="stats_cell_count">Cell count</string>
     <string name="stats_details">Details</string>
     <string name="stats_elevation">Elevation</string>
+    <string name="stats_elevation_max">Max elevation</string>
+    <string name="stats_elevation_min">Min elevation</string>
     <string name="stats_ascended">Total ascension</string>
     <string name="stats_descended">Total descension</string>
+    <string name="stats_max_speed">Max speed</string>
+    <string name="stats_avg_speed">Avg speed</string>
 </resources>

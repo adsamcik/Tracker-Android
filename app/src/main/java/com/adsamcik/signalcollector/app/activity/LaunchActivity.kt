@@ -2,9 +2,8 @@ package com.adsamcik.signalcollector.app.activity
 
 import android.os.Build
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.common.Reporter
+import com.adsamcik.signalcollector.common.activity.CoreActivity
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.shortcut.Shortcuts
@@ -15,19 +14,16 @@ import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
  * LaunchActivity is activity that should always be called first when user should see the layout
  * Not only does it allow for easy switching of appropriate Activities, but it also shows SplashScreen and initializes basic services
  */
-class LaunchActivity : AppCompatActivity() {
+class LaunchActivity : CoreActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
-		Reporter.initialize(this)
 		super.onCreate(savedInstanceState)
 
 		startActivity<MainActivity> { }
 
-		if (Build.VERSION.SDK_INT >= 25)
-			Shortcuts.initializeShortcuts(this)
+		if (Build.VERSION.SDK_INT >= 25) Shortcuts.initializeShortcuts(this)
 
-		if (Build.VERSION.SDK_INT >= 26)
-			NotificationChannels.prepareChannels(this)
+		if (Build.VERSION.SDK_INT >= 26) NotificationChannels.prepareChannels(this)
 
 		ActivityWatcherService.poke(this)
 

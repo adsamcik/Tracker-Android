@@ -9,8 +9,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.data.LengthUnit
+import com.adsamcik.signalcollector.common.data.Location
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.AppDatabase
@@ -31,7 +34,6 @@ import com.google.android.gms.maps.MapsInitializer
 import com.google.android.play.core.splitcompat.SplitCompat
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -44,8 +46,11 @@ class StatsDetailActivity : DetailActivity() {
 		SplitCompat.install(this)
 	}
 
+	override fun onConfigure(configuration: Configuration) {
+		configuration.titleBarLayer = 0
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
-		titleBarLayer = 0
 		super.onCreate(savedInstanceState)
 
 		MapsInitializer.initialize(this)
@@ -80,14 +85,14 @@ class StatsDetailActivity : DetailActivity() {
 			supportsChangeAnimations = false
 		}
 
-		recycler.adapter = StatsDetailAdapter().apply {
+		recycler.adapter = StatsDetailAdapter(colorController).apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
 			//todo add Wi-Fi and Cell
 
 			addBasicStats(session, this)
-			GlobalScope.launch { addLocationStats(session, this@apply) }
+			addLocationStats(session, this@apply)
 		}
 
 		colorController.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
@@ -107,6 +112,7 @@ class StatsDetailActivity : DetailActivity() {
 		val resources = resources
 		val lengthSystem = Preferences.getLengthSystem(this)
 
+
 		val data = mutableListOf(
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_white_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
@@ -117,37 +123,86 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	private fun addLocationStats(session: TrackerSession, adapter: StatsDetailAdapter) {
-		val database = AppDatabase.getDatabase(this@StatsDetailActivity)
-		val locations = database.locationDao().getAllBetween(session.start, session.end)
-		if (locations.isNotEmpty()) {
-			addLocationMap(locations, adapter)
-			addElevationStats(locations, adapter)
+		launch(Dispatchers.Default) {
+			val database = AppDatabase.getDatabase(this@StatsDetailActivity)
+			val locations = database.locationDao().getAllBetween(session.start, session.end)
+			if (locations.isNotEmpty()) {
+				addLocationMap(locations, adapter)
+				launch(Dispatchers.Default) { addElevationStats(locations, adapter) }
+				launch(Dispatchers.Default) { addSpeedStats(locations, adapter) }
+			}
 		}
 	}
 
 	private fun addLocationMap(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
 		val locationData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
-		GlobalScope.launch(Dispatchers.Main) {
+		launch(Dispatchers.Main) {
 			adapter.add(locationData)
 		}
+	}
+
+	private fun addSpeedStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
+		if (locations.isEmpty()) return
+
+		var maxSpeed = 0.0
+		var speedSum = 0.0
+		var timeSum = 0L
+
+		var previous = locations[0]
+		var previousAltitude = previous.altitude
+		for (i in 1 until locations.size) {
+			val current = locations[i]
+			val currentAltitude = current.altitude
+
+			val speed = if (currentAltitude != null && previousAltitude != null) {
+				Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
+			} else {
+				Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude, LengthUnit.Meter)
+			}
+
+			if (speed > maxSpeed) maxSpeed = speed
+			speedSum += speed
+			timeSum += current.time - previous.time
+
+			previous = current
+			previousAltitude = currentAltitude
+		}
+
+		val avgSpeed = speedSum / (timeSum / Constants.SECOND_IN_MILLISECONDS)
+		val lengthSystem = Preferences.getLengthSystem(this)
+		val dataList = listOf(
+				InformationStatisticsData(R.drawable.speedometer, R.string.stats_max_speed, resources.formatDistance(maxSpeed, 1, lengthSystem)),
+				InformationStatisticsData(R.drawable.speedometer, R.string.stats_avg_speed, resources.formatDistance(avgSpeed, 1, lengthSystem))
+		)
+
+		addStatisticsData(adapter, dataList, AppendPriority(AppendBehavior.Any))
 	}
 
 	private fun addElevationStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
 		val firstTime = locations.first().time
 		var descended = 0.0
 		var ascended = 0.0
-		var last = locations.first { it.altitude != null }.altitude!!
+		var previousAltitude = locations.first { it.altitude != null }.altitude!!
+
+		var maxAltitude = previousAltitude
+		var minAltitude = previousAltitude
 
 		val elevationList = locations.mapNotNull {
 			val altitude = it.altitude ?: return@mapNotNull null
 
-			val diff = altitude - last
+			if (altitude > maxAltitude) {
+				maxAltitude = altitude
+			} else if (altitude < minAltitude) {
+				minAltitude = altitude
+			}
+
+			val diff = altitude - previousAltitude
 			if (diff > 0) {
 				ascended += diff
 			} else {
 				descended -= diff
 			}
-			last = altitude
+			previousAltitude = altitude
 
 			Entry((it.time - firstTime).toFloat(), altitude.toFloat())
 		}
@@ -158,11 +213,17 @@ class StatsDetailActivity : DetailActivity() {
 		val altitudeStatisticsList = listOf(
 				InformationStatisticsData(R.drawable.arrow_top_right_bold_outline, R.string.stats_ascended, resources.formatDistance(ascended, 1, lengthSystem)),
 				InformationStatisticsData(R.drawable.arrow_bottom_right_bold_outline, R.string.stats_descended, resources.formatDistance(descended, 1, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation_max, resources.formatDistance(maxAltitude, 1, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation_min, resources.formatDistance(minAltitude, 1, lengthSystem)),
 				LineChartStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation, elevationList)
 		)
 
-		GlobalScope.launch(Dispatchers.Main) {
-			adapter.addAll(altitudeStatisticsList.map { SortableAdapter.SortableData(it, AppendPriority(AppendBehavior.Any)) })
+		addStatisticsData(adapter, altitudeStatisticsList, AppendPriority(AppendBehavior.Any))
+	}
+
+	private fun addStatisticsData(adapter: StatsDetailAdapter, data: List<StatisticDetailData>, appendPriority: AppendPriority) {
+		launch(Dispatchers.Main) {
+			adapter.addAll(data.map { SortableAdapter.SortableData(it, appendPriority) })
 		}
 	}
 
@@ -174,7 +235,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		val timePattern = "hh:mm"
 
-		return if ((startDate.time / com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS) == (endDate.time / com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS)) {
+		return if ((startDate.time / Constants.DAY_IN_MILLISECONDS) == (endDate.time / Constants.DAY_IN_MILLISECONDS)) {
 			val dateFormat = SimpleDateFormat("d MMMM", Locale.getDefault())
 			val timeFormat = SimpleDateFormat(timePattern, Locale.getDefault())
 			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"

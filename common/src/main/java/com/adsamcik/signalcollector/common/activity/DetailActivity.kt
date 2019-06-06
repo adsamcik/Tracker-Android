@@ -8,14 +8,10 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.R
-import com.adsamcik.signalcollector.common.Reporter
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import kotlinx.android.synthetic.main.activity_content_detail.*
@@ -24,16 +20,16 @@ import kotlinx.android.synthetic.main.activity_content_detail.*
  * Special abstract helper activity which provides custom AppBar and some other assist functions.
  * Custom AppBar was implemented to provide complete control over that piece of layout.
  */
-abstract class DetailActivity : AppCompatActivity() {
-	//todo this control over bar layer is kinda awkward, improve it
-	protected var titleBarLayer = 1
-	protected lateinit var colorController: ColorController
+abstract class DetailActivity : CoreUIActivity() {
+	open fun onConfigure(configuration: Configuration) {}
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
-		Reporter.initialize(this)
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_content_detail)
+
+		val configuration = Configuration()
+		onConfigure(configuration)
 
 		top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
 			height += Assist.getStatusBarHeight(this@DetailActivity)
@@ -42,11 +38,9 @@ abstract class DetailActivity : AppCompatActivity() {
 		back_button.setOnClickListener { onBackPressed() }
 
 		val titleBarRoot = back_button.parent as View
-		titleBarRoot.elevation = kotlin.math.min(0, titleBarLayer * 4.dp).toFloat()
+		titleBarRoot.elevation = kotlin.math.min(0, configuration.titleBarLayer * 4.dp).toFloat()
 
-		colorController = ColorManager.createController().also {
-			it.watchView(ColorView(titleBarRoot, titleBarLayer, recursive = true, rootIsBackground = true))
-		}
+		colorController.watchView(ColorView(titleBarRoot, configuration.titleBarLayer, recursive = true, rootIsBackground = true))
 	}
 
 	override fun onBackPressed() {
@@ -156,12 +150,9 @@ abstract class DetailActivity : AppCompatActivity() {
 		layoutInflater.inflate(resource, content_detail_root, true)
 	}
 
-	override fun onDestroy() {
-		ColorManager.recycleController(colorController)
-		super.onDestroy()
-	}
-
 	companion object {
 		const val CONTENT_ID: Int = 2668368
 	}
+
+	data class Configuration(var titleBarLayer: Int = 0)
 }

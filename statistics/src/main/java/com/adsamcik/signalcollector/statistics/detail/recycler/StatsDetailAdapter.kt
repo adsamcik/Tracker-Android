@@ -2,8 +2,9 @@ package com.adsamcik.signalcollector.statistics.detail.recycler
 
 import android.view.ViewGroup
 import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.signalcollector.common.color.ColorController
 
-class StatsDetailAdapter : SortableAdapter<StatisticDetailData, ViewHolder<StatisticDetailData>>() {
+class StatsDetailAdapter(val colorController: ColorController) : SortableAdapter<StatisticDetailData, ViewHolder<StatisticDetailData>>() {
 	private val typeMap = mutableMapOf<Int, StatisticDetailViewHolderCreator>()
 
 	override fun getItemViewType(position: Int) = getItem(position).type.ordinal
@@ -15,7 +16,7 @@ class StatsDetailAdapter : SortableAdapter<StatisticDetailData, ViewHolder<Stati
 	}
 
 	override fun onBindViewHolder(holder: ViewHolder<StatisticDetailData>, position: Int) {
-		holder.bind(getItem(position))
+		holder.bind(getItem(position), colorController)
 	}
 
 	fun registerType(type: StatisticDetailType, creator: StatisticDetailViewHolderCreator) {
@@ -25,7 +26,7 @@ class StatsDetailAdapter : SortableAdapter<StatisticDetailData, ViewHolder<Stati
 
 	override fun onViewRecycled(holder: ViewHolder<StatisticDetailData>) {
 		super.onViewRecycled(holder)
-		holder.onRecycle()
+		holder.onRecycle(colorController)
 	}
 
 	class NotRegisteredException(message: String) : Exception(message)
