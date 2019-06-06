@@ -72,3 +72,7 @@ inline fun <T> MutableList<T>.remove(condition: (T) -> Boolean): Boolean {
 	}
 	return false
 }
+
+fun <T> MutableList<T>.removeAllByIndexes(indexList: Collection<Int>) {
+	indexList.sortedDescending().toSet().forEach { removeAt(it) }
+}

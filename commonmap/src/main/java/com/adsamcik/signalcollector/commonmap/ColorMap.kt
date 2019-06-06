@@ -5,14 +5,17 @@ import android.content.res.Resources
 import androidx.annotation.RawRes
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.misc.extension.remove
+import com.adsamcik.signalcollector.common.misc.extension.removeAllByIndexes
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 
 object ColorMap {
-	private val colorChangeListeners = ArrayList<GoogleMap>(0)
+	private val colorChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null
 	private var colorController: ColorController? = null
 
@@ -44,24 +47,39 @@ object ColorMap {
 
 	private fun onStyleChange(style: MapStyleOptions) {
 		GlobalScope.launch(Dispatchers.Main) {
-			colorChangeListeners.forEach { it.setMapStyle(style) }
+			val toRemove = mutableListOf<Int>()
+			colorChangeListeners.forEachIndexed { index, reference ->
+				val googleMap = reference.get()
+				if (googleMap == null) {
+					toRemove.add(index)
+				} else {
+					googleMap.setMapStyle(style)
+				}
+			}
+
+			colorChangeListeners.removeAllByIndexes(toRemove)
+			checkIfEmpty()
 		}
 	}
 
 	fun addListener(context: Context, googleMap: GoogleMap) {
 		synchronized(colorChangeListeners) {
 			val isEmpty = colorChangeListeners.isEmpty()
-			colorChangeListeners.add(googleMap)
+			colorChangeListeners.add(WeakReference(googleMap))
 			if (isEmpty) init(context) else googleMap.setMapStyle(activeMapStyle)
 		}
 	}
 
 	fun removeListener(googleMap: GoogleMap) {
 		synchronized(colorChangeListeners) {
-			colorChangeListeners.remove(googleMap)
+			colorChangeListeners.remove { it.get() == googleMap }
 
-			if (colorChangeListeners.isEmpty()) destroy()
+			checkIfEmpty()
 		}
+	}
+
+	private fun checkIfEmpty() {
+		if (colorChangeListeners.isEmpty()) destroy()
 	}
 
 	private fun loadMapStyleRes(@RawRes mapStyleRes: Int): MapStyleOptions {
