@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.graphics.Point
 import android.location.LocationManager
 import android.os.Build
+import android.os.Looper
 import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
@@ -204,5 +205,9 @@ object Assist {
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> 24.dp
 			else -> 25.dp
 		}
+	}
+
+	fun ensureLooper() {
+		if(Looper.myLooper() == null) Looper.prepare()
 	}
 }

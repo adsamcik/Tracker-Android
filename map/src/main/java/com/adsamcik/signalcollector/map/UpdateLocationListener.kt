@@ -12,6 +12,7 @@ import android.os.Looper
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.misc.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -94,8 +95,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 				this.priority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
 			}
 
-			if (Looper.myLooper() == null)
-				Looper.prepare()
+			Assist.ensureLooper()
 
 			locationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper())
 			if (moveToCurrentLocation) {

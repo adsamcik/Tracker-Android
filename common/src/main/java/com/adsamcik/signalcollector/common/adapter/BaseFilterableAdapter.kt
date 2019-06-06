@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.common.adapter
 
 
-import android.os.Looper
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.Assist
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -39,8 +39,7 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 
 
 	init {
-		if (Looper.myLooper() == null)
-			Looper.prepare()
+		Assist.ensureLooper()
 	}
 
 	/**
