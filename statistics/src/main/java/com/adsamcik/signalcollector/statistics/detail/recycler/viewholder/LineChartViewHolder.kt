@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 
-import android.graphics.Color
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -40,11 +39,11 @@ class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart)
 		title.setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
 
 		val dataSet = LineDataSet(value.values, titleText).apply {
-			color = Color.WHITE
 			setDrawCircles(false)
+			setDrawValues(false)
 			lineWidth = 1.dp.toFloat()
 			mode = LineDataSet.Mode.CUBIC_BEZIER
-			cubicIntensity = 0.2f
+			cubicIntensity = 0.4f
 		}
 
 		val data = LineData(dataSet)
