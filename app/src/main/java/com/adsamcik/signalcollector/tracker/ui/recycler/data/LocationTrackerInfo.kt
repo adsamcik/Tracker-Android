@@ -55,5 +55,4 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE, R
 	companion object {
 		const val NAME_RESOURCE = R.string.location
 	}
-
 }
