@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.tracker.ui.recycler
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
@@ -20,7 +21,7 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 		val root = layoutInflater.inflate(R.layout.layout_tracker_card, parent, false)
 		val content = root.findViewById<ViewGroup>(R.id.content)
 		val title = root.findViewById<AppCompatTextView>(R.id.tracker_item_title)
-		return ViewHolder(content, title, root)
+		return ViewHolder(root, content, title)
 	}
 
 	override fun getItemCount(): Int = data.size
@@ -60,5 +61,7 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 
 	}
 
-	class ViewHolder(val content: ViewGroup, val title: AppCompatTextView, root: View) : RecyclerView.ViewHolder(root)
+	class ViewHolder(root: View, val content: ViewGroup, val title: TextView, val fields: MutableList<InfoField> = mutableListOf()) : RecyclerView.ViewHolder(root)
+
+	data class InfoField(val title: TextView, val value: TextView)
 }

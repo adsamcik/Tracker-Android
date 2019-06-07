@@ -153,3 +153,8 @@ fun View.contains(childView: View): Boolean {
 var Guideline.guidelineEnd: Int
 	get() = (layoutParams as ConstraintLayout.LayoutParams).guideEnd
 	set(value) = setGuidelineEnd(value)
+
+fun View.detach() {
+	val parent = parent as? ViewGroup
+	parent?.removeView(this)
+}
