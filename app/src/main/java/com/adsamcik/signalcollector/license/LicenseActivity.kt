@@ -16,6 +16,7 @@ import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
 import de.psdev.licensesdialog.licenses.License
@@ -29,6 +30,11 @@ import java.io.InputStreamReader
  * For some specific libraries there are manually filled in URLs and copyrights. For most licenses it uses Google's automatically generated list.
  */
 class LicenseActivity : DetailActivity() {
+
+	override fun onConfigure(configuration: Configuration) {
+		configuration.elevation = 4.dp
+		configuration.titleBarLayer = 1
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
