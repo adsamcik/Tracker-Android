@@ -12,7 +12,7 @@
         android:id="@+id/top_panel_root"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="?colorPrimary"
+        android:background="#FFFFFFFF"
         android:elevation="4dp"
         android:gravity="bottom"
         android:orientation="horizontal"
