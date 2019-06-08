@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.common.activity
 
 import android.os.Bundle
-import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -37,10 +36,11 @@ abstract class DetailActivity : CoreUIActivity() {
 
 		back_button.setOnClickListener { onBackPressed() }
 
-		val titleBarRoot = back_button.parent as View
-		titleBarRoot.elevation = kotlin.math.min(0, configuration.titleBarLayer * 4.dp).toFloat()
 
-		colorController.watchView(ColorView(titleBarRoot, configuration.titleBarLayer, recursive = true, rootIsBackground = true))
+		val desiredElevation = configuration.elevation ?: 4.dp * configuration.titleBarLayer
+		top_panel_root.elevation = kotlin.math.max(0, desiredElevation).toFloat()
+
+		colorController.watchView(ColorView(top_panel_root, configuration.titleBarLayer, recursive = true, rootIsBackground = true))
 	}
 
 	override fun onBackPressed() {
@@ -154,5 +154,5 @@ abstract class DetailActivity : CoreUIActivity() {
 		const val CONTENT_ID: Int = 2668368
 	}
 
-	data class Configuration(var titleBarLayer: Int = 0)
+	data class Configuration(var titleBarLayer: Int = 0, var elevation: Int? = null)
 }
