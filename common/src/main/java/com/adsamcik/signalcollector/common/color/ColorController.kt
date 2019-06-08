@@ -25,8 +25,36 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
-//Cannot be annotated with ColorInt yet
-typealias ColorListener = (luminance: Byte, foregroundColor: Int, backgroundColor: Int) -> Unit
+typealias ColorListener = (colorData: ColorData) -> Unit
+
+data class ColorData(@ColorInt val baseColor: Int, @ColorInt val foregroundColor: Int, private val baseColorHSL: FloatArray, val perceivedLuminance: Byte) {
+
+	val luminance get() = baseColorHSL[2]
+	val saturation get() = baseColorHSL[1]
+	val hue get() = baseColorHSL[0]
+
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
+
+		other as ColorData
+
+		if (baseColor != other.baseColor) return false
+		if (foregroundColor != other.foregroundColor) return false
+		if (!baseColorHSL.contentEquals(other.baseColorHSL)) return false
+		if (perceivedLuminance != other.perceivedLuminance) return false
+
+		return true
+	}
+
+	override fun hashCode(): Int {
+		var result = baseColor
+		result = 31 * result + foregroundColor
+		result = 31 * result + baseColorHSL.contentHashCode()
+		result = 31 * result + perceivedLuminance
+		return result
+	}
+}
 
 /**
  * ColorController class that handles color updates of views in a given Activity or Fragment
@@ -181,7 +209,7 @@ class ColorController {
 	fun addListener(colorListener: ColorListener) {
 		synchronized(colorChangeListeners) {
 			colorChangeListeners.add(colorListener)
-			colorListener.invoke(ColorManager.currentLuminance, backgroundColorFor(true), backgroundColorFor(false))
+			colorListener.invoke(ColorManager.currentColorData)
 		}
 	}
 
@@ -206,8 +234,10 @@ class ColorController {
 			}
 		}
 
+		val colorData = ColorManager.currentColorData
+
 		synchronized(colorChangeListeners) {
-			colorChangeListeners.forEach { it.invoke(ColorManager.currentLuminance, backgroundColorFor(true), backgroundColorFor(false)) }
+			colorChangeListeners.forEach { it.invoke(colorData) }
 		}
 	}
 

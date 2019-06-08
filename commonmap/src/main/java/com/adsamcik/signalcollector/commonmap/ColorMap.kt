@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
 import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.color.ColorData
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.misc.extension.remove
 import com.google.android.gms.maps.GoogleMap
@@ -36,8 +37,8 @@ object ColorMap {
 		colorController?.let { ColorManager.recycleController(it) }
 	}
 
-	private fun onColorChange(luminance: Byte, foregroundColor: Int, backgroundColor: Int) {
-		val newStyle = getMapStyleRes(luminance)
+	private fun onColorChange(colorData: ColorData) {
+		val newStyle = getMapStyleRes(colorData)
 		if (newStyle != activeMapStyleRes) {
 			activeMapStyleRes = newStyle
 			activeMapStyle = loadMapStyleRes(newStyle).also { onStyleChange(it) }
@@ -87,10 +88,11 @@ object ColorMap {
 	}
 
 	@RawRes
-	private fun getMapStyleRes(luminance: Byte): Int {
+	private fun getMapStyleRes(colorData: ColorData): Int {
 		return when {
-			luminance > 24 -> R.raw.map_style_light
-			luminance < -48 -> R.raw.map_style_dark
+			colorData.saturation > 0.8f -> R.raw.map_style_vibrant
+			colorData.perceivedLuminance > 24 -> R.raw.map_style_light
+			colorData.perceivedLuminance < -48 -> R.raw.map_style_dark
 			else -> R.raw.map_style_grey
 		}
 	}

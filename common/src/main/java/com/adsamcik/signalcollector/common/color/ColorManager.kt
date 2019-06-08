@@ -7,6 +7,9 @@ import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.blue
+import androidx.core.graphics.green
+import androidx.core.graphics.red
 import com.adsamcik.signalcollector.common.BuildConfig
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.R
@@ -41,18 +44,8 @@ object ColorManager {
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
 
-	/**
-	 * Returns current luminance as byte
-	 * Values can be from [Byte.MIN_VALUE] to [Byte.MAX_VALUE]
-	 */
-	var currentLuminance: Byte = 0
+	var currentColorData = ColorData(0, 0, floatArrayOf(), 0)
 		private set
-
-	@ColorInt
-	private var currentForegroundColor = 0
-
-	@ColorInt
-	private var currentBaseColor = 0
 
 	private val controllerLock = ReentrantLock()
 
@@ -68,7 +61,7 @@ object ColorManager {
 	 * @param backgroundIsForeground True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun foregroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentBaseColor else currentForegroundColor
+	fun foregroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentColorData.baseColor else currentColorData.foregroundColor
 
 	/**
 	 * Returns proper base background color for given ColorView
@@ -82,7 +75,7 @@ object ColorManager {
 	 * @param backgroundIsForeground True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun backgroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentForegroundColor else currentBaseColor
+	fun backgroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentColorData.foregroundColor else currentColorData.baseColor
 
 	/**
 	 * Creates color manager instance
@@ -193,15 +186,16 @@ object ColorManager {
 	 * Update function is called with new color and handles updating of all the colorManagers.
 	 */
 	private fun update(@ColorInt color: Int) {
-		val lum = perceivedRelLuminance(layerColor(color, 1))
-		val fgColor: Int = if (lum > 0)
+		val perceivedLuminance = perceivedRelLuminance(layerColor(color, 1))
+		val fgColor: Int = if (perceivedLuminance > 0)
 			darkTextColor
 		else
 			lightTextColor
 
-		currentLuminance = lum
-		currentForegroundColor = fgColor
-		currentBaseColor = color
+		val baseColorHSL = FloatArray(3)
+		ColorUtils.RGBToHSL(color.red, color.green, color.blue, baseColorHSL)
+
+		currentColorData = ColorData(color, fgColor, baseColorHSL, perceivedLuminance)
 
 		controllerLock.withLock {
 			controllerCollection.forEach {
