@@ -7,6 +7,7 @@ import androidx.preference.PreferenceScreen
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
+import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.module.Module
@@ -25,6 +26,11 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	private val moduleSettingsList = mutableMapOf<Module, ModuleSettings>()
 
 	private var activePage: PreferencePage? = null
+
+	override fun onConfigure(configuration: Configuration) {
+		configuration.elevation = 4.dp
+		configuration.titleBarLayer = 2
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
