@@ -47,7 +47,7 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	override fun onConfigure(configuration: Configuration) {
-		configuration.titleBarLayer = 0
+		configuration.titleBarLayer = 1
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {

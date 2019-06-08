@@ -5,16 +5,20 @@
                                               android:id="@+id/root_stats_detail"
                                               android:layout_width="match_parent"
                                               android:layout_height="match_parent"
+                                              android:background="#FFFFFF"
                                               android:orientation="vertical">
 
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/content_padding"
-        android:layout_marginEnd="@dimen/content_padding"
-        android:layout_marginBottom="@dimen/content_padding"
-        android:orientation="horizontal">
+        android:clipToPadding="false"
+        android:elevation="4dp"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/content_padding"
+        android:paddingEnd="@dimen/content_padding"
+        android:paddingBottom="@dimen/content_padding"
+        android:background="#FFFFFF">
 
         <androidx.appcompat.widget.AppCompatImageView
             android:id="@+id/activity"
