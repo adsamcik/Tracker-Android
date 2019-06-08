@@ -1,56 +1,23 @@
 [
     {
-        "featureType": "all",
+        "featureType": "landscape",
         "elementType": "all",
         "stylers": [
-            {
-                "saturation": "32"
-            },
-            {
-                "lightness": "-3"
-            },
             {
                 "visibility": "on"
             },
             {
-                "weight": "1.18"
-            }
-        ]
-    },
-    {
-        "featureType": "administrative",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "visibility": "off"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "visibility": "off"
+                "color": "#f3f4f4"
             }
         ]
     },
     {
         "featureType": "landscape.man_made",
-        "elementType": "all",
+        "elementType": "geometry",
         "stylers": [
             {
-                "saturation": "-70"
+                "weight": 0.9
             },
-            {
-                "lightness": "14"
-            }
-        ]
-    },
-    {
-        "featureType": "poi",
-        "elementType": "all",
-        "stylers": [
             {
                 "visibility": "off"
             }
@@ -58,7 +25,7 @@
     },
     {
         "featureType": "poi",
-        "elementType": "labels",
+        "elementType": "all",
         "stylers": [
             {
                 "visibility": "off"
@@ -67,10 +34,34 @@
     },
     {
         "featureType": "poi.park",
+        "elementType": "geometry.fill",
+        "stylers": [
+            {
+                "visibility": "on"
+            },
+            {
+                "color": "#83cead"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.park",
+        "elementType": "labels.text",
+        "stylers": [
+            {
+                "visibility": "simplified"
+            }
+        ]
+    },
+    {
+        "featureType": "road",
         "elementType": "all",
         "stylers": [
             {
                 "visibility": "on"
+            },
+            {
+                "color": "#ffffff"
             }
         ]
     },
@@ -79,7 +70,19 @@
         "elementType": "labels",
         "stylers": [
             {
-                "visibility": "on"
+                "visibility": "simplified"
+            }
+        ]
+    },
+    {
+        "featureType": "road",
+        "elementType": "labels.text",
+        "stylers": [
+            {
+                "color": "#646464"
+            },
+            {
+                "visibility": "simplified"
             }
         ]
     },
@@ -89,11 +92,35 @@
         "stylers": [
             {
                 "visibility": "on"
+            },
+            {
+                "color": "#fee379"
             }
         ]
     },
     {
         "featureType": "road.arterial",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            },
+            {
+                "color": "#fee379"
+            }
+        ]
+    },
+    {
+        "featureType": "transit",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "transit",
         "elementType": "labels.icon",
         "stylers": [
             {
@@ -102,41 +129,14 @@
         ]
     },
     {
-        "featureType": "transit",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "simplified"
-            }
-        ]
-    },
-    {
-        "featureType": "transit",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "visibility": "off"
-            }
-        ]
-    },
-    {
         "featureType": "water",
         "elementType": "all",
         "stylers": [
             {
-                "saturation": "100"
+                "visibility": "on"
             },
             {
-                "lightness": "-14"
-            }
-        ]
-    },
-    {
-        "featureType": "water",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "lightness": "12"
+                "color": "#7fc8ed"
             }
         ]
     }
