@@ -6,6 +6,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
@@ -47,6 +48,7 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	override fun onConfigure(configuration: Configuration) {
+		configuration.elevation = 0
 		configuration.titleBarLayer = 1
 	}
 
@@ -79,13 +81,14 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun initializeSessionData(session: TrackerSession) {
 		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
-		recycler.layoutManager = LinearLayoutManager(this)
+		val layoutManager = LinearLayoutManager(this)
+		recycler.layoutManager = layoutManager
 
 		(recycler.itemAnimator as? DefaultItemAnimator)?.apply {
 			supportsChangeAnimations = false
 		}
 
-		recycler.adapter = StatsDetailAdapter(colorController).apply {
+		val adapter = StatsDetailAdapter(colorController).apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
@@ -94,6 +97,25 @@ class StatsDetailActivity : DetailActivity() {
 			addBasicStats(session, this)
 			addLocationStats(session, this@apply)
 		}
+
+		adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+			override fun onChanged() {}
+
+			override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {}
+
+			override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {}
+
+			override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+				if (layoutManager.findFirstCompletelyVisibleItemPosition() == 0)
+					recycler.smoothScrollToPosition(0)
+			}
+
+			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) {}
+
+			override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) {}
+		})
+
+		recycler.adapter = adapter
 
 		colorController.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
 
