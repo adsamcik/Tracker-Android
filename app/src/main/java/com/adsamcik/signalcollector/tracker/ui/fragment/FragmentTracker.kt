@@ -70,7 +70,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			if (itemAnimator != null && itemAnimator is DefaultItemAnimator) {
 				itemAnimator.supportsChangeAnimations = false
 			} else {
-				Reporter.logException(RuntimeException("Item animator was null or invalid type"))
+				Reporter.report(RuntimeException("Item animator was null or invalid type"))
 			}
 
 			post {

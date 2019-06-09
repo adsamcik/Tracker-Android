@@ -59,13 +59,13 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 				e.printStackTrace()
 				//this exception is ok, just don't add anything
 			} catch (e: InstantiationException) {
-				Reporter.logException(e)
+				Reporter.report(e)
 				e.printStackTrace()
 			} catch (e: IllegalAccessException) {
-				Reporter.logException(e)
+				Reporter.report(e)
 				e.printStackTrace()
 			} catch (e: ClassCastException) {
-				Reporter.logException(e)
+				Reporter.report(e)
 				e.printStackTrace()
 			}
 		}

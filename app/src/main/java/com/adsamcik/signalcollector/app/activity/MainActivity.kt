@@ -1,7 +1,5 @@
 package com.adsamcik.signalcollector.app.activity
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Point
 import android.os.Build
@@ -9,16 +7,15 @@ import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import androidx.core.content.ContextCompat
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
-import com.adsamcik.signalcollector.app.Tips
+import com.adsamcik.signalcollector.app.HomeIntroduction
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.activity.CoreUIActivity
-import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.guidelineEnd
 import com.adsamcik.signalcollector.common.misc.extension.transaction
@@ -27,7 +24,6 @@ import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.PayloadFragment
 import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.tracker.ui.fragment.FragmentTracker
-import com.google.android.gms.location.LocationServices
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import kotlinx.android.synthetic.main.activity_ui.*
 
@@ -66,7 +62,7 @@ class MainActivity : CoreUIActivity() {
 	override fun onStart() {
 		super.onStart()
 		root.post {
-			Tips.showTips(this, Tips.HOME_TIPS) {}
+			IntroductionManager.showIntroduction(this, HomeIntroduction())
 		}
 	}
 
@@ -265,7 +261,7 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-		return if (!Tips.isActive && root.touchDelegate?.onTouchEvent(event) == true) {
+		return if (!IntroductionManager.anyShown && root.touchDelegate?.onTouchEvent(event) == true) {
 			true
 		} else {
 			super.dispatchTouchEvent(event)

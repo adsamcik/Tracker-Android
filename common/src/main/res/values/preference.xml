@@ -33,4 +33,7 @@
     
     <string name="settings_error_reporting_key" translatable="false">errorReporting</string>
     <string name="settings_error_reporting_default" translatable="false">false</string>
+
+    <string name="show_tips_key" translatable="false">tipsEnabled</string>
+    <string name="show_tips_default" translatable="false">true</string>
 </resources>

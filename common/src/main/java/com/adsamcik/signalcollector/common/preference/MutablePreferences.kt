@@ -56,6 +56,12 @@ class MutablePreferences : Preferences {
 		editor.remove(key)
 	}
 
+	fun removeKeyByPrefix(prefix: String) {
+		sharedPreferences.all
+				.filter { it.key.startsWith(prefix) }
+				.forEach { remove(it.key) }
+	}
+
 	fun clear() {
 		editor.clear()
 	}

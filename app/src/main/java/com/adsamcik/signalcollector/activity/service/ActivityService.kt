@@ -174,7 +174,7 @@ class ActivityService : IntentService("ActivityService") {
 					setMinUpdateRate(context, ari.updateDelay)
 				}
 			} else {
-				Reporter.logException(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
+				Reporter.report(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
 			}
 
 			if (mActiveRequests.size() == 0) {
@@ -215,7 +215,7 @@ class ActivityService : IntentService("ActivityService") {
 				//todo add handling of task failure
 				true
 			} else {
-				Reporter.logException(Throwable("Unavailable play services"))
+				Reporter.report(Throwable("Unavailable play services"))
 				false
 			}
 		}

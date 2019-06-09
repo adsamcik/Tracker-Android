@@ -164,7 +164,7 @@ class TrackerService : LifecycleService() {
 
 			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
 		} else {
-			Reporter.logException(Exception("Tracker does not have sufficient permissions"))
+			Reporter.report(Exception("Tracker does not have sufficient permissions"))
 			stopSelf()
 			return Service.START_NOT_STICKY
 		}

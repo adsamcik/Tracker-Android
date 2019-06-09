@@ -84,7 +84,7 @@ class LicenseActivity : DetailActivity() {
 				adapter.addLicense(license)
 			}
 		} catch (e: IOException) {
-			Reporter.logException(e)
+			Reporter.report(e)
 		}
 
 		adapter.notifyDataSetChanged()

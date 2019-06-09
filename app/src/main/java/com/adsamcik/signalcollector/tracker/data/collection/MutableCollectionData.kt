@@ -156,7 +156,7 @@ data class MutableCollectionData(
 				CellInfo.newInstance(cellInfo, null)
 			}
 		} else {
-			Reporter.logException(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
+			Reporter.report(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
 			null
 		}
 	}

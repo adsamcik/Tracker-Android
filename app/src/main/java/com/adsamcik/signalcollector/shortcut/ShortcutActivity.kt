@@ -22,7 +22,7 @@ class ShortcutActivity : AppCompatActivity() {
 			if (it.action == Shortcuts.ACTION) {
 				val value = it.getIntExtra(Shortcuts.ACTION_STRING, -1)
 				if (value < 0 || value >= ShortcutAction.values().size) {
-					Reporter.logException(Throwable("Invalid value $value"))
+					Reporter.report(Throwable("Invalid value $value"))
 				} else {
 					onActionReceived(ShortcutAction.values()[value])
 				}

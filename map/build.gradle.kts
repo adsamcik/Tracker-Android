@@ -37,6 +37,7 @@ dependencies {
 	Libraries.dateTimePicker(this)
 	Libraries.preference(this)
 	Libraries.test(this)
+	Libraries.introduction(this)
 
 	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))

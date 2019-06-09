@@ -91,7 +91,8 @@ dependencies {
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
 	Libraries.draggable(this)
-	implementation("com.adsamcik.android-forks:spotlight:2.0.7")
+
+	Libraries.introduction(this)
 
 	//3rd party dependencies
 	Libraries.moshi(this)

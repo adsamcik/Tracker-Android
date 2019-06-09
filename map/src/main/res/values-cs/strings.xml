@@ -9,4 +9,11 @@
     <string name="settings_map_clear_heat_cache_title">Vymazat ofset teplotní mapy</string>
     <string name="settings_map_quality_summary">Škálování je relativní k výchozí hodnotě</string>
     <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
+
+    <string name="tips_map_my_location_description">Kliknutím na toto tlačítko se přesunute na svou aktuální polohu. Mapa bude následovat vaši polohu dokud s ní manuálně nepohnete. Kliknutím na toto tlačítko při sledování polohy spustíte směrový režim.</string>
+    <string name="tips_map_my_location_title">Moje poloha</string>
+    <string name="tips_map_overlay_description">Pokud jste přihlášeni a máte přístup k mapovým podkladům, můžete vytáhnutím této lišty vzhůru zobrazit výběr dostupných mapových podkladů.</string>
+    <string name="tips_map_overlay_title">Mapové podklady</string>
+    <string name="tips_map_search_description">Toto pole slouží pro vyhledávání. Při kliknutí na lupu v pravé části spustíte vyhledávání, alternativně můžete využít vyhledávací tlačítko na vaší klávesnici pokud nějaké má.</string>
+    <string name="tips_map_search_title">Vyhledávání</string>
 </resources>

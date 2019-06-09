@@ -40,7 +40,7 @@ object Reporter {
 		if (!isInitialized) throw UninitializedPropertyAccessException("Reporter needs to be initialized")
 	}
 
-	fun logException(exception: Throwable) {
+	fun report(exception: Throwable) {
 		checkInitialized()
 		if (isEnabled) Crashlytics.logException(exception)
 	}

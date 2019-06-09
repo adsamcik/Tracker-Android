@@ -221,14 +221,6 @@
 
     <string name="stop">Stop</string>
 
-    <string name="tips_map_date_long_press_range_selection">Dlouhým stistkem a táhnutím z data aktivuje výběr časového období</string>
-    <string name="tips_map_my_location_description">Kliknutím na toto tlačítko se přesunute na svou aktuální polohu. Mapa bude následovat vaši polohu dokud s ní manuálně nepohnete. Kliknutím na toto tlačítko při sledování polohy spustíte směrový režim.</string>
-    <string name="tips_map_my_location_title">Moje poloha</string>
-    <string name="tips_map_overlay_description">Pokud jste přihlášeni a máte přístup k mapovým podkladům, můžete vytáhnutím této lišty vzhůru zobrazit výběr dostupných mapových podkladů.</string>
-    <string name="tips_map_overlay_title">Mapové podklady</string>
-    <string name="tips_map_search_description">Toto pole slouží pro vyhledávání. Při kliknutí na lupu v pravé části spustíte vyhledávání, alternativně můžete využít vyhledávací tlačítko na vaší klávesnici pokud nějaké má.</string>
-    <string name="tips_map_search_title">Vyhledávání</string>
-
     <string-array name="tracking_options_titles">
         <item>Vypnuto</item>
         <item>Pěšky</item>
@@ -249,4 +241,11 @@
     <string name="wifi_new_title">Nové Wi-Fi</string>
 
     <string name="yes">Ano</string>
+    <string name="altitude">výška</string>
+    <string name="cell_current">%1$s %2$d dbm</string>
+    <string name="challenge_list_title">Výzvy</string>
+    <string name="current">aktuální</string>
+    <string name="export_button">Export</string>
+    <string name="export_default_file_name">SignalsExportovanaData</string>
+    <string name="export_file_name">Název souboru</string>
 </resources>

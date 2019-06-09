@@ -8,7 +8,7 @@ import androidx.preference.PreferenceGroup
 import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.Tips
+import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
@@ -50,8 +50,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		caller.findPreference(R.string.show_tips_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
 			if (newValue as Boolean) {
 				Preferences.getPref(preference.context).edit {
-					remove(Tips.getTipsPreferenceKey(Tips.HOME_TIPS))
-					remove(Tips.getTipsPreferenceKey(Tips.MAP_TIPS))
+					removeKeyByPrefix(Introduction.prefix)
 				}
 			}
 			true

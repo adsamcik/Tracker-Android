@@ -20,13 +20,13 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
-import com.adsamcik.signalcollector.app.Tips
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.navbarSize
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.marginBottom
@@ -144,7 +144,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		locationListener?.subscribeToLocationUpdates(activity)
 
-		Tips.showTips(activity, Tips.MAP_TIPS, null)
+		IntroductionManager.showIntroduction(activity, MapIntroduction())
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -339,7 +339,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
 			}
 		} catch (e: IOException) {
-			//Crashlytics.logException(e)
+			//Crashlytics.report(e)
 			view?.let { SnackMaker(it).addMessage(R.string.map_search_no_geocoder) }
 		}
 	}

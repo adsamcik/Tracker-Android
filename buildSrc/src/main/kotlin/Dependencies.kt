@@ -29,6 +29,9 @@ object Libraries {
 		const val playServicesBase = "16.1.0"
 		const val playCore = "1.6.0"
 
+		const val sublimePicker = "2.1.2"
+		const val spotlight = "2.1.0"
+
 		object Test {
 			const val androidxTest = "1.2.0"
 			const val espresso = "3.2.0"
@@ -125,7 +128,7 @@ object Libraries {
 
 	fun dateTimePicker(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.appeaser.sublimepickerlibrary:sublimepickerlibrary:2.1.2")
+			implementation("com.appeaser.sublimepickerlibrary:sublimepickerlibrary:${Versions.sublimePicker}")
 		}
 	}
 
@@ -138,6 +141,12 @@ object Libraries {
 	fun fileChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.obsez.android.lib.filechooser:filechooser:${Versions.fileChooser}")
+		}
+	}
+
+	fun introduction(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.adsamcik.android-forks:spotlight:${Versions.spotlight}")
 		}
 	}
 
