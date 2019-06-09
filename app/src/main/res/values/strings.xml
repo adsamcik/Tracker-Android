@@ -53,6 +53,7 @@
     <string name="title_game">Game</string>
     <string name="title_map">Map</string>
 
+    <string name="date_long_press_range_selection">Long press and pull activates date range selection</string>
 
 
     <string name="sessioncategory_add">Add category</string>

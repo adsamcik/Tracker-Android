@@ -37,7 +37,7 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 		linearLayout.orientation = LinearLayout.VERTICAL
 
 		val text = AppCompatTextView(context)
-		text.text = getString(R.string.tips_map_date_long_press_range_selection)
+		text.text = getString(R.string.date_long_press_range_selection)
 		text.width = MATCH_PARENT
 		text.height = 56.dp
 		text.gravity = Gravity.CENTER
