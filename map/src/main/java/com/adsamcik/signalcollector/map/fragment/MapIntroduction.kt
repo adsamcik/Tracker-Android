@@ -14,7 +14,7 @@ class MapIntroduction : Introduction() {
 
 	override fun getTargets(activity: FragmentActivity): Collection<com.takusemba.spotlight.Target> {
 		activity.run {
-			val buttonData = SimpleTarget.ButtonData(getString(R.string.next_part)) { _, spotlight ->
+			val buttonData = SimpleTarget.ButtonData(getString(com.adsamcik.signalcollector.common.R.string.next_part)) { _, spotlight ->
 				spotlight.next()
 			}
 
@@ -22,7 +22,7 @@ class MapIntroduction : Introduction() {
 			val searchTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_search_title))
-					.addButtonData(SimpleTarget.ButtonData(resources.getString(R.string.skip_tips)) { _, spotlight ->
+					.addButtonData(SimpleTarget.ButtonData(resources.getString(com.adsamcik.signalcollector.common.R.string.skip_tips)) { _, spotlight ->
 						spotlight.finishSpotlight()
 					})
 					.addButtonData(buttonData)

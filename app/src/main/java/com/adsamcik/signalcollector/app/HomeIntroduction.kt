@@ -18,13 +18,14 @@ class HomeIntroduction : Introduction() {
 		val targetList = ArrayList<Target>(5)
 		activity.apply {
 			val resources = resources
-			val buttonData = SimpleTarget.ButtonData(resources.getString(R.string.next_part)) { _, spotlight ->
+			//todo add next button to library
+			val buttonData = SimpleTarget.ButtonData(resources.getString(com.adsamcik.signalcollector.common.R.string.next_part)) { _, spotlight ->
 				spotlight.next()
 			}
 
 			val welcome = SimpleTarget.Builder(this)
 					.setTitle(resources.getString(R.string.tutorial_welcome_title))
-					.addButtonData(SimpleTarget.ButtonData(resources.getString(R.string.skip_tips)) { _, spotlight ->
+					.addButtonData(SimpleTarget.ButtonData(resources.getString(com.adsamcik.signalcollector.common.R.string.skip_tips)) { _, spotlight ->
 						spotlight.finishSpotlight()
 					})
 					.addButtonData(buttonData)
@@ -65,7 +66,7 @@ class HomeIntroduction : Introduction() {
 			target = findViewById<View>(R.id.button_map)
 			val mapButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
-					.setTitle(resources.getString(R.string.tutorial_map_description))
+					.setTitle(resources.getString(R.string.tutorial_map_title))
 					.addButtonData(buttonData)
 					.setShape(RoundedRectangle(target, 8.dp.toFloat(), target.height.toFloat()))
 					.setDescription(resources.getString(R.string.tutorial_map_description))

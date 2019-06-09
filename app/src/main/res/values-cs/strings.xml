@@ -67,7 +67,7 @@
     <string name="latitude">%1$s zeměpisné šířky</string>
     <string name="longitude">%1$s zeměpisné délky</string>
 
-    <string name="next_part">pokračovat</string>
+
 
     <string name="notification_activity">aktivita %s</string>
     <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
@@ -158,8 +158,6 @@
     <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
 
     <string name="show_tips_title">Zobrazovat tipy</string>
-
-    <string name="skip_tips">přeskočit</string>
 
     <string-array name="tracking_options_titles">
         <item>Vypnuto</item>

@@ -38,4 +38,6 @@
     <string name="stop">Stop</string>
     <string name="wifi">Wi-Fi</string>
     <string name="yes">Ano</string>
+    <string name="next_part">pokračovat</string>
+    <string name="skip_tips">přeskočit</string>
 </resources>

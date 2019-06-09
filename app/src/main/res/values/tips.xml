@@ -2,9 +2,6 @@
 <resources>
     <string name="show_tips_title">Show tips</string>
 
-    <string name="next_part">continue</string>
-    <string name="skip_tips">skip</string>
-
 
     <string name="tutorial_welcome_title">Welcome to Signals</string>
     <string name="tutorial_welcome_description">Open-source application for tracking Wi-Fi and Cell networks. You can disable these tips in settings.</string>
