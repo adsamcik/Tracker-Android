@@ -141,10 +141,11 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			heatmap = heatmapCache[key]!!
 		} else {
 			val range = range
-			heatmap = if (range == null)
+			heatmap = if (range == null) {
 				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat.maxHeat)
-			else
+			} else {
 				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
+			}
 			heatmapCache[key] = heatmap
 		}
 
@@ -155,8 +156,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 				heatChange += newHeat - maxHeat.maxHeat
 				maxHeat.maxHeat = newHeat
 
-				if (range == null)
-					heatDao.insert(maxHeat)
+				if (range == null) heatDao.insert(maxHeat)
 
 				if (!heatUpdateScheduled.get()) {
 					heatUpdateScheduled.set(true)
