@@ -11,6 +11,7 @@ import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.MutableLiveData
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
@@ -86,8 +87,7 @@ class TrackerService : LifecycleService() {
 			it.onNewData(this, dataComponentManager.session, location, collectionData)
 		}
 
-		if (isBackgroundActivated && powerManager.isPowerSaveMode)
-			stopSelf()
+		if (isBackgroundActivated && powerManager.isPowerSaveMode) stopSelf()
 
 		this.previousLocation = location
 
@@ -177,8 +177,7 @@ class TrackerService : LifecycleService() {
 		if (isBackgroundActivated) {
 			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)
 			TrackerLocker.isLocked.observe(this) {
-				if (it)
-					stopSelf()
+				if (it) stopSelf()
 			}
 		} else
 			ActivityService.requestActivity(this, this::class, minUpdateDelayInSeconds)
@@ -216,6 +215,9 @@ class TrackerService : LifecycleService() {
 		postComponentList.forEach { it.onEnable(this) }
 
 		//Challenges
+
+		//todo action string should be saved in single constant
+		LocalBroadcastManager.getInstance(this).sendBroadcast(Intent("trackerSessionFinished"))
 
 		//todo add hook to listen on tracker changes
 		/*

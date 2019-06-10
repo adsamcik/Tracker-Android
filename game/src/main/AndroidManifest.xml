@@ -1,5 +1,7 @@
 <manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:dist="http://schemas.android.com/apk/distribution"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.adsamcik.signalcollector.game">
 
     <dist:module
@@ -8,5 +10,16 @@
         dist:title="@string/title_game">
         <dist:fusing dist:include="true"/>
     </dist:module>
+
+
+    <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon">
+        <receiver
+            android:name=".receiver.OnSessionFinishedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="trackerSessionFinished"/>
+            </intent-filter>
+        </receiver>
+    </application>
 </manifest>
 
