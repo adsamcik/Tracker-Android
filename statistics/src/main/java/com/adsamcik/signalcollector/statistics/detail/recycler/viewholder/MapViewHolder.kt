@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 
 import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.signalcollector.commonmap.ColorMap
-import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -11,7 +11,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.PolylineOptions
 
-class MapViewHolder(val map: MapView) : ViewHolder<MapStatisticsData>(map) {
+class MapViewHolder(val map: MapView) : MultiTypeViewHolder<MapStatisticsData>(map) {
 	private var googleMap: GoogleMap? = null
 
 	override fun bind(value: MapStatisticsData, colorController: ColorController) {

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.recycler
+package com.adsamcik.signalcollector.common.recycler.decoration
 
 import android.graphics.Rect
 import android.view.View

@@ -17,12 +17,13 @@ import com.adsamcik.signalcollector.common.data.LengthUnit
 import com.adsamcik.signalcollector.common.data.Location
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
+import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData
 import com.adsamcik.signalcollector.database.AppDatabase
 import com.adsamcik.signalcollector.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
-import com.adsamcik.signalcollector.statistics.detail.recycler.StatsDetailAdapter
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.InformationViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.LineChartViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHolderCreator
@@ -38,6 +39,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+
+typealias StatsDetailAdapter = MultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>
 
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel

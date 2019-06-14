@@ -29,7 +29,7 @@ import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.common.recycler.SimpleMarginDecoration
+import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho

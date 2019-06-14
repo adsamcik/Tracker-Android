@@ -6,13 +6,13 @@ import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorData
 import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.statistics.detail.recycler.ViewHolder
+import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.LineChartStatisticsData
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 
-class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart) : ViewHolder<LineChartStatisticsData>(root) {
+class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart) : MultiTypeViewHolder<LineChartStatisticsData>(root) {
 
 
 	private fun onColorChange(colorData: ColorData) {
