@@ -5,29 +5,30 @@ object Libraries {
 	object Versions {
 		const val constraintLayout = "2.0.0-beta1"
 		const val coreKtx = "1.1.0-beta01"
-		const val appcompat = "1.1.0-alpha05"
+		const val appcompat = "1.1.0-beta01"
 		const val room = "2.1.0-rc01"
-		const val fragment = "1.1.0-alpha09"
+		const val fragment = "1.1.0-beta01"
 		const val kotlin = "1.3.31"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
-		const val work = "2.1.0-alpha02"
+		const val work = "2.1.0-alpha03"
 		const val lifecycle = "2.2.0-alpha01"
-		const val preference = "1.1.0-alpha05"
+		const val preference = "1.1.0-beta01"
 		const val material = "1.1.0-alpha07"
+		const val coroutines = "1.3.0-M1"
 
 		const val maps = "16.1.0"
 		const val location = "16.0.0"
 		const val firebaseCore = "16.0.9"
-		const val recyclerView = "1.1.0-alpha05"
+		const val recyclerView = "1.1.0-alpha06"
 		const val paging = "2.1.0"
 
 		const val crashlytics = "2.10.1"
 
-		const val fileChooser = "1.1.19"
+		const val fileChooser = "1.2.0"
 
 		const val playServicesBase = "16.1.0"
-		const val playCore = "1.6.0"
+		const val playCore = "1.6.1"
 
 		const val sublimePicker = "2.1.2"
 		const val spotlight = "2.1.0"
@@ -68,12 +69,12 @@ object Libraries {
 			implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
 
 			//Recycler
-			implementation("com.adsamcik.android-components:recycler:0.4.0")
+			implementation("com.adsamcik.android-components:recycler:0.4.1")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
 			implementation("android.arch.paging:runtime:${Versions.paging}")
 
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
-			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.2.1")
+			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
 			implementation("androidx.fragment:fragment:${Versions.fragment}")
 			implementation("com.google.android.material:material:${Versions.material}")
 			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
