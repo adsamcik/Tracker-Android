@@ -229,7 +229,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun updateData(dataEcho: CollectionDataEcho) {
-		val context = getNonNullContext()
+		val context = requireContext()
 		val collectionData = dataEcho.collectionData
 
 		textview_time.text = DateFormat.getTimeFormat(context).format(Date(collectionData.time))
@@ -269,7 +269,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun updateLocationUI(location: Location?) {
 		if (location != null) {
-			val context = getNonNullContext()
+			val context = requireContext()
 			val resources = context.resources
 			val lengthSystem = Preferences.getLengthSystem(context)
 			val horizontalAccuracy = location.horizontalAccuracy
@@ -299,7 +299,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		val resources = resources
 		session_collections.text = resources.getQuantityString(R.plurals.info_session_collections, session.collections, session.collections)
 
-		val lengthSystem = Preferences.getLengthSystem(getNonNullContext())
+		val lengthSystem = Preferences.getLengthSystem(requireContext())
 
 		session_distance.text = resources.getString(R.string.info_session_distance, resources.formatDistance(session.distanceInM, 1, lengthSystem))
 

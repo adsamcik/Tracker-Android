@@ -1,7 +1,5 @@
 package com.adsamcik.signalcollector.common.misc.extension
 
-import android.content.Context
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction
 
@@ -24,5 +22,3 @@ inline fun FragmentManager.transaction(func: FragmentTransaction.() -> FragmentT
 inline fun FragmentManager.transactionStateLoss(func: FragmentTransaction.() -> FragmentTransaction) {
 	beginTransaction().func().commitAllowingStateLoss()
 }
-
-fun Fragment.getNonNullContext(): Context = context ?: throw NullPointerException("Context is null")
