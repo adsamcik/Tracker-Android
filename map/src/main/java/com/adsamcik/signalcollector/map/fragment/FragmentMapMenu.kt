@@ -8,7 +8,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.signalcollector.common.misc.extension.getNonNullContext
+import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LATITUDE
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LONGITUDE
@@ -17,7 +17,6 @@ import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LON
 import com.adsamcik.signalcollector.map.MapLayer
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
-import com.adsamcik.signalcollector.common.useMock
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
 class FragmentMapMenu : Fragment(), IOnDemandView {
@@ -31,7 +30,7 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
 	override fun onStart() {
 		super.onStart()
-		val adapter = MapFilterableAdapter(getNonNullContext(), com.adsamcik.signalcollector.common.R.layout.recycler_item) { it.name }
+		val adapter = MapFilterableAdapter(requireContext(), com.adsamcik.signalcollector.common.R.layout.recycler_item) { it.name }
 
 		if (useMock) {
 			adapter.addAll(arrayListOf(MapLayer("WiFi"),
