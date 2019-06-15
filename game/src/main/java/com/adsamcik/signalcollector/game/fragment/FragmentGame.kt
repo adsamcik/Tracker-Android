@@ -4,64 +4,60 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
+import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
-import kotlinx.coroutines.CoroutineStart
+import com.adsamcik.signalcollector.game.fragment.recycler.GameRecyclerType
+import com.adsamcik.signalcollector.game.fragment.recycler.creator.ChallengeRecyclerCreator
+import com.adsamcik.signalcollector.game.fragment.recycler.data.ChallengeRecyclerData
+import com.adsamcik.signalcollector.game.fragment.recycler.data.GameRecyclerData
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
+typealias GameAdapter = MultiTypeAdapter<GameRecyclerType, GameRecyclerData>
+
 @Suppress("unused")
-class FragmentGame : Fragment(), IOnDemandView {
-	private lateinit var recyclerViewChallenges: RecyclerView
-	private lateinit var refreshLayout: SwipeRefreshLayout
-
-	private lateinit var colorController: ColorController
-
+class FragmentGame : CoreUIFragment(), IOnDemandView {
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val rootView = inflater.inflate(R.layout.fragment_game, container, false)
 
-		recyclerViewChallenges = rootView.findViewById(R.id.recyclerview_challenges)
+		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler)
+		//updateChallenges()
 
-		refreshLayout = rootView.findViewById(R.id.swiperefresh_activites)
-		//todo add color scheme support to ColorController
-		//refreshLayout.setColorSchemeResources(R.color.color_primary)
-		refreshLayout.setProgressViewOffset(true, 0, 40.dp)
-		refreshLayout.setOnRefreshListener { this.updateData(ChallengeManager.activeChallenges.value) }
-
-		//updateData()
-
-		val context = context!!
-		recyclerViewChallenges.adapter = ChallengeAdapter(context, arrayOf())
-		recyclerViewChallenges.layoutManager = LinearLayoutManager(context)
-		colorController = ColorManager.createController()
+		val context = requireContext()
+		@Suppress("unchecked_cast")
+		val adapter = GameAdapter(colorController).apply {
+			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
+		}.also { recycler.adapter = it }
+		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
+		recycler.layoutManager = LinearLayoutManager(context)
 		colorController.watchView(ColorView(rootView, 1))
-		colorController.watchAdapterView(ColorView(recyclerViewChallenges, 1, recursive = true, rootIsBackground = false))
+		colorController.watchRecyclerView(ColorView(recycler, 1, recursive = true, rootIsBackground = false))
 
-		ChallengeManager.activeChallenges.observe(this) { updateData(it) }
+		val challengeAdapter = ChallengeAdapter(context, arrayOf())
+		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter), AppendPriority.Any)
+
+		ChallengeManager.activeChallenges.observe(this) { updateChallenges(challengeAdapter, it) }
 
 		ChallengeManager.initialize(context)
 
 		return rootView
 	}
 
-	private fun updateData(challengeList: List<ChallengeInstance<*>>) {
+	private fun updateChallenges(challengeAdapter: ChallengeAdapter, challengeList: List<ChallengeInstance<*>>) {
 		val challengeArray = challengeList.toTypedArray()
-		GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-			(recyclerViewChallenges.adapter as ChallengeAdapter).updateData(challengeArray)
-			refreshLayout.isRefreshing = false
+
+		launch(Dispatchers.Main) {
+			challengeAdapter.updateData(challengeArray)
 		}
 	}
 
