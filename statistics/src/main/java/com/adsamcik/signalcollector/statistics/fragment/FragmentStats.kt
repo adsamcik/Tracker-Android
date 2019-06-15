@@ -66,7 +66,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		this.fragmentView = fragmentView
 
-		colorController.watchAdapterView(ColorView(recyclerView, 1, recursive = true, rootIsBackground = true))
+		colorController.watchRecyclerView(ColorView(recyclerView, 1, recursive = true, rootIsBackground = true))
 
 		return fragmentView
 	}

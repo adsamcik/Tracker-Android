@@ -120,7 +120,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		recycler.adapter = adapter
 
-		colorController.watchAdapterView(ColorView(recycler, 0, rootIsBackground = false))
+		colorController.watchRecyclerView(ColorView(recycler, 0, rootIsBackground = false))
 
 		val startDate = Date(session.start)
 		val endDate = Date(session.end)

@@ -91,7 +91,7 @@ class LicenseActivity : DetailActivity() {
 
 		setTitle(R.string.open_source_licenses)
 
-		colorController.watchAdapterView(ColorView(recycler, 0))
+		colorController.watchRecyclerView(ColorView(recycler, 0))
 	}
 
 	private class Adapter : RecyclerView.Adapter<Adapter.ViewHolder>(), IViewChange {

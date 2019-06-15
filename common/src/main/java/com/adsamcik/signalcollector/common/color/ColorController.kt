@@ -105,7 +105,7 @@ class ColorController {
 	 * Adapter needs to implement [IViewChange] interface for the best and most reliable color updating.
 	 * However it will somehow work even without it, but it might not be reliable.
 	 */
-	fun watchAdapterView(colorView: ColorView) {
+	fun watchRecyclerView(colorView: ColorView) {
 		if (!colorView.recursive) throw IllegalArgumentException("Recycler view cannot be non recursive")
 
 		colorView.view as RecyclerView
@@ -158,11 +158,11 @@ class ColorController {
 
 	/**
 	 * Request to stop watching adapter view.
-	 * This is required to call if AdapterView was added with [watchAdapterView] function, otherwise it will not be unsubscribed properly.
+	 * This is required to call if AdapterView was added with [watchRecyclerView] function, otherwise it will not be unsubscribed properly.
 	 *
 	 * @param view AdapterView to unsubscribe
 	 */
-	fun stopWatchingAdapterView(view: AdapterView<*>) {
+	fun stopWatchingRecyclerView(view: RecyclerView) {
 		val adapter = view.adapter
 		if (adapter is IViewChange) {
 			adapter.onViewChangedListener = null
@@ -174,7 +174,7 @@ class ColorController {
 
 	/**
 	 * Request to stop watching adapter view.
-	 * This is required to call if AdapterView was added with [watchAdapterView] function, otherwise it will not be unsubscribed properly.
+	 * This is required to call if AdapterView was added with [watchRecyclerView] function, otherwise it will not be unsubscribed properly.
 	 *
 	 * @param id Id of the AdapterView to unsubscribe
 	 */

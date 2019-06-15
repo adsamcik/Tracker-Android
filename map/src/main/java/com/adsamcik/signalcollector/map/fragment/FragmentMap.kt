@@ -415,7 +415,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			payload.height = map_menu_parent.height
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
-				colorController!!.watchAdapterView(ColorView(it.view!!, 2))
+				colorController!!.watchRecyclerView(ColorView(it.view!!, 2))
 				if (mapLayers.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
