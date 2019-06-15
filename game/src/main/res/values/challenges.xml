@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="challenge_list_title">Challenges</string>
     <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
 
     <string name="challenge_error_name">Please update your app to latest version.</string>

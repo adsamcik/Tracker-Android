@@ -29,8 +29,6 @@
     <string name="export_file_name">File name</string>
     <string name="export_default_file_name">SignalsExportData</string>
 
-    <string name="challenge_list_title">Challenges</string>
-
     <string name="dev_notification_dummy">Hello World!</string>
     <string name="dev_activity_recognition_hide">Filter</string>
     <string name="dev_activity_recognition_show">Show all</string>
