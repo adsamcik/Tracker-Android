@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.google.android.gms.location.LocationServices
@@ -25,9 +24,8 @@ abstract class CoreUIActivity : CoreActivity() {
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
-		Reporter.initialize(this)
-		initializeColors()
 		super.onCreate(savedInstanceState)
+		initializeColors()
 	}
 
 	@CallSuper
