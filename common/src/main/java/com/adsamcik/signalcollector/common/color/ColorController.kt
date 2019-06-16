@@ -12,8 +12,10 @@ import android.widget.AdapterView
 import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
+import androidx.annotation.MainThread
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.recyclerview.widget.RecyclerView
@@ -21,10 +23,14 @@ import com.adsamcik.signalcollector.common.color.ColorManager.backgroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorManager.foregroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
 import com.adsamcik.signalcollector.common.misc.extension.contains
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.InvalidClassException
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+import kotlin.coroutines.CoroutineContext
 
 typealias ColorListener = (colorData: ColorData) -> Unit
 
@@ -60,7 +66,13 @@ data class ColorData(@ColorInt val baseColor: Int, @ColorInt val foregroundColor
 /**
  * ColorController class that handles color updates of views in a given Activity or Fragment
  */
-class ColorController {
+@AnyThread
+class ColorController : CoroutineScope {
+	private val job = SupervisorJob()
+
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Main + job
+
 	private val watchedViews = ArrayList<ColorView>(5)
 
 	/**
@@ -68,6 +80,39 @@ class ColorController {
 	 *
 	 */
 	private val colorChangeListeners = ArrayList<ColorListener>(0)
+
+	private var suspendLock = ReentrantLock()
+	private var updateRequestedWhileSuspended: Boolean = false
+		get() {
+			suspendLock.withLock {
+				return field
+			}
+		}
+		set(value) {
+			suspendLock.withLock {
+				field = value
+			}
+		}
+
+	/**
+	 * Is suspended controls whether color controller updates it's views or not.
+	 * It is useful when views are temporarily invisible so they do not need to be resubscribed.
+	 */
+	var isSuspended: Boolean = false
+		get() {
+			suspendLock.withLock {
+				return field
+			}
+		}
+		set(value) {
+			suspendLock.withLock {
+				if (!value && updateRequestedWhileSuspended) {
+					updateRequestedWhileSuspended = false
+					update()
+				}
+				field = value
+			}
+		}
 
 	/**
 	 * Add given [colorView] to the list of watched Views
@@ -109,20 +154,21 @@ class ColorController {
 	fun watchRecyclerView(colorView: ColorView) {
 		if (colorView.view !is RecyclerView) throw InvalidClassException("Color view must be of type ${RecyclerView::class}")
 
-		val adapter = colorView.view.adapter
-		if (adapter is IViewChange) {
-			adapter.onViewChangedListener = {
-				updateStyle(it, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
-			}
-		} else {
-			colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
-				override fun onChildViewRemoved(parent: View, child: View) {}
-
-				override fun onChildViewAdded(parent: View, child: View) {
-					updateStyle(child, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
+		launch(Dispatchers.Main) {
+			val adapter = colorView.view.adapter
+			if (adapter is IViewChange) {
+				adapter.onViewChangedListener = {
+					updateStyle(it, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
 				}
+			} else {
+				colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+					override fun onChildViewRemoved(parent: View, child: View) {}
 
-			})
+					override fun onChildViewAdded(parent: View, child: View) {
+						updateStyle(child, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
+					}
+				})
+			}
 		}
 		watchView(colorView)
 	}
@@ -163,11 +209,13 @@ class ColorController {
 	 * @param view AdapterView to unsubscribe
 	 */
 	fun stopWatchingRecyclerView(view: RecyclerView) {
-		val adapter = view.adapter
-		if (adapter is IViewChange) {
-			adapter.onViewChangedListener = null
-		} else {
-			view.setOnHierarchyChangeListener(null)
+		launch(Dispatchers.Main) {
+			val adapter = view.adapter
+			if (adapter is IViewChange) {
+				adapter.onViewChangedListener = null
+			} else {
+				view.setOnHierarchyChangeListener(null)
+			}
 		}
 		stopWatchingView(view)
 	}
@@ -226,13 +274,14 @@ class ColorController {
 	 * Internal update function which should be called only by ColorManager
 	 */
 	internal fun update() {
-		GlobalScope.launch(Dispatchers.Main) {
-			synchronized(watchedViews) {
-				watchedViews.forEach {
-					updateInternal(it)
+		if (isSuspended)
+			launch(Dispatchers.Main) {
+				synchronized(watchedViews) {
+					watchedViews.forEach {
+						updateInternal(it)
+					}
 				}
 			}
-		}
 
 		val colorData = ColorManager.currentColorData
 
@@ -245,9 +294,12 @@ class ColorController {
 		val backgroundColor = backgroundColorFor(colorView)
 		val foregroundColor = foregroundColorFor(colorView)
 
-		updateStyle(colorView.view, colorView.layer, colorView.maxDepth, backgroundColor, foregroundColor)
+		launch(Dispatchers.Main) {
+			updateStyle(colorView.view, colorView.layer, colorView.maxDepth, backgroundColor, foregroundColor)
+		}
 	}
 
+	@MainThread
 	private fun updateStyle(view: View, layer: Int, depthLeft: Int, @ColorInt color: Int, @ColorInt fgColor: Int) {
 		var newLayer = layer
 		if (updateBackgroundDrawable(view, layerColor(color, layer))) newLayer++
@@ -264,6 +316,7 @@ class ColorController {
 		}
 	}
 
+	@MainThread
 	private fun updateStyleForeground(view: View, @ColorInt fgColor: Int) {
 		when (view) {
 			is ImageView -> {
@@ -283,6 +336,7 @@ class ColorController {
 		}
 	}
 
+	@MainThread
 	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
 		val background = view.background
 		if (view is androidx.cardview.widget.CardView) {
