@@ -274,14 +274,18 @@ class ColorController : CoroutineScope {
 	 * Internal update function which should be called only by ColorManager
 	 */
 	internal fun update() {
-		if (isSuspended)
-			launch(Dispatchers.Main) {
-				synchronized(watchedViews) {
-					watchedViews.forEach {
-						updateInternal(it)
-					}
+		if (isSuspended) {
+			updateRequestedWhileSuspended = true
+			return
+		}
+
+		launch(Dispatchers.Main) {
+			synchronized(watchedViews) {
+				watchedViews.forEach {
+					updateInternal(it)
 				}
 			}
+		}
 
 		val colorData = ColorManager.currentColorData
 

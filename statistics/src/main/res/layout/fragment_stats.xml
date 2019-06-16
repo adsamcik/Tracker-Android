@@ -9,6 +9,7 @@
         android:id="@+id/recycler_stats"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#FFFFFFFF"
         android:clipToPadding="false"
         android:focusable="false"
         android:listSelector="@android:color/transparent"

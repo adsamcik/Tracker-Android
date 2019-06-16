@@ -41,6 +41,10 @@ abstract class DetailActivity : CoreUIActivity() {
 		top_panel_root.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
 		colorController.watchView(ColorView(top_panel_root, configuration.titleBarLayer))
+
+		if (configuration.useColorControllerForContent) {
+			colorController.watchView(ColorView(content_detail_root, 0))
+		}
 	}
 
 	override fun onBackPressed() {
@@ -154,5 +158,5 @@ abstract class DetailActivity : CoreUIActivity() {
 		const val CONTENT_ID: Int = 2668368
 	}
 
-	data class Configuration(var titleBarLayer: Int = 0, var elevation: Int? = null)
+	data class Configuration(var titleBarLayer: Int = 0, var elevation: Int? = null, var useColorControllerForContent: Boolean = false)
 }

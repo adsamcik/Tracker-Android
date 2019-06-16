@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
@@ -13,9 +12,8 @@ import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.recycler.card.table.TableCard
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.database.AppDatabase
@@ -28,24 +26,19 @@ import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivi
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
 
 @Suppress("unused")
-class FragmentStats : Fragment(), IOnDemandView {
+class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private lateinit var fragmentView: View
 
 	private lateinit var adapter: ChangeTableAdapter
 
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
-	private lateinit var colorController: ColorController
-
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val activity = activity!!
-		colorController = ColorManager.createController()
-
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
 		adapter = ChangeTableAdapter(activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
@@ -65,29 +58,24 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		this.fragmentView = fragmentView
 
-		colorController.watchRecyclerView(ColorView(recyclerView, 1, isRecursive = true))
+		colorController.watchRecyclerView(ColorView(recyclerView, layer = 1))
+		colorController.watchView(ColorView(fragmentView, layer = 1, maxDepth = 0))
 
 		return fragmentView
 	}
 
-	override fun onDestroyView() {
-		ColorManager.recycleController(colorController)
-		super.onDestroyView()
-	}
-
 	private fun updateStats() {
-		val activity = activity!!
-		val appContext = activity.applicationContext
+		val context = requireContext()
 
 		adapter.clear()
 
-		val resources = activity.resources
+		val resources = context.resources
 
-		GlobalScope.launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = true }
+		launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = true }
 
 
-		GlobalScope.launch {
-			val database = AppDatabase.getDatabase(activity)
+		launch(Dispatchers.Default) {
+			val database = AppDatabase.getDatabase(context)
 			val sessionDao = database.sessionDao()
 			val wifiDao = database.wifiDao()
 			val cellDao = database.cellDao()
@@ -100,13 +88,13 @@ class FragmentStats : Fragment(), IOnDemandView {
 			calendar.add(Calendar.WEEK_OF_YEAR, -1)
 			val weekAgo = calendar.timeInMillis
 
-			DatabaseMaintenance().run(activity)
+			DatabaseMaintenance().run(context)
 
-			val lengthSystem = Preferences.getLengthSystem(activity)
+			val lengthSystem = Preferences.getLengthSystem(context)
 
 			val sumSessionData = sessionDao.getSummary()
 			val summaryStats = TableStat(resources.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
-					StatData(resources.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(appContext)),
+					StatData(resources.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(context)),
 					StatData(resources.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
 					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, lengthSystem)),
 					StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
@@ -119,7 +107,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			val lastMonthSummary = sessionDao.getSummary(weekAgo, now)
 
 			val weeklyStats = TableStat(resources.getString(R.string.stats_weekly_title), showPosition = false, data = listOf(
-					StatData(resources.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(appContext)),
+					StatData(resources.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(context)),
 					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(lastMonthSummary.distanceInM, 1, lengthSystem)),
 					StatData(resources.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
 					StatData(resources.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
@@ -149,7 +137,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 				addTableStat(it, AppendPriority(AppendBehavior.End))
 			}
 
-			GlobalScope.launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = false }
+			launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = false }
 		}
 	}
 
@@ -166,7 +154,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			tableList.add(SortableAdapter.SortableData(table, appendPriority))
 		}
 
-		GlobalScope.launch(Dispatchers.Main) { adapter.addAll(tableList) }
+		launch(Dispatchers.Main) { adapter.addAll(tableList) }
 	}
 
 	private fun addSessionData(sessionList: List<TrackerSession>, priority: AppendPriority) {
@@ -190,7 +178,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 			tableList.add(SortableAdapter.SortableData(table, priority))
 		}
 
-		GlobalScope.launch(Dispatchers.Main) { adapter.addAll(tableList) }
+		launch(Dispatchers.Main) { adapter.addAll(tableList) }
 	}
 
 	private fun generateStatData(index: Int): List<StatData> {

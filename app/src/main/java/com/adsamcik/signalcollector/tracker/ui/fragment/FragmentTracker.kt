@@ -215,7 +215,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		cellInfo?.setColorManager(colorController)
 		wifiInfo?.setColorManager(colorController)
 
-		colorController.watchRecyclerView(ColorView(tracker_recycler, 0))
+		colorController.watchRecyclerView(ColorView(tracker_recycler, 1))
 	}
 
 	private fun updateTrackerButton(state: Boolean) {

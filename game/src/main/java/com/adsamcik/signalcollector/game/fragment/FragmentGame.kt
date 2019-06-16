@@ -43,7 +43,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		recycler.layoutManager = LinearLayoutManager(context)
 		recycler.addItemDecoration(CardItemDecoration())
 
-		colorController.watchView(ColorView(rootView, 1))
+		colorController.watchView(ColorView(rootView, 1, 0))
 		colorController.watchRecyclerView(ColorView(recycler, 1))
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())

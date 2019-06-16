@@ -7,6 +7,7 @@ import androidx.preference.PreferenceScreen
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
+import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.transaction
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
@@ -19,7 +20,7 @@ import com.adsamcik.signalcollector.preference.pages.*
  * It is based upon Android's [Preference].
  */
 class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
-	lateinit var fragment: FragmentSettings
+	val fragment: FragmentSettings = FragmentSettings()
 
 	private val backstack = mutableListOf<PreferenceScreen>()
 
@@ -29,20 +30,23 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.elevation = 4.dp
-		configuration.titleBarLayer = 2
+		configuration.titleBarLayer = 1
+		configuration.useColorControllerForContent = true
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
 		createLinearContentParent(false)
-		fragment = FragmentSettings()
 
 		initializeModuleSettingsList()
 
 		supportFragmentManager.transaction {
 			replace(CONTENT_ID, fragment, FragmentSettings.TAG)
-			runOnCommit { setPage(fragment, RootPage(moduleSettingsList)) }
+			runOnCommit {
+				colorController.watchRecyclerView(ColorView(fragment.listView, 0))
+				setPage(fragment, RootPage(moduleSettingsList))
+			}
 		}
 
 		title = getString(R.string.settings_title)
