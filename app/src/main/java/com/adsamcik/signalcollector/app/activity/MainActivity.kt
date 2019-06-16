@@ -237,11 +237,11 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun initializeColorElements() {
-		colorController.watchView(ColorView(root, 0, recursive = false, rootIsBackground = true, ignoreRoot = false))
+		colorController.watchView(ColorView(root, 0, maxDepth = 0))
 
-		colorController.watchView(ColorView(button_stats, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
-		colorController.watchView(ColorView(button_map, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
-		colorController.watchView(ColorView(button_game, 1, recursive = false, rootIsBackground = false, ignoreRoot = false, backgroundIsForeground = true))
+		colorController.watchView(ColorView(button_stats, 1, maxDepth = 0, isInverted = true))
+		colorController.watchView(ColorView(button_map, 1, maxDepth = 0, isInverted = true))
+		colorController.watchView(ColorView(button_game, 1, maxDepth = 0, isInverted = true))
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {

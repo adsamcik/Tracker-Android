@@ -40,7 +40,7 @@ abstract class DetailActivity : CoreUIActivity() {
 		val desiredElevation = configuration.elevation ?: 4.dp * configuration.titleBarLayer
 		top_panel_root.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
-		colorController.watchView(ColorView(top_panel_root, configuration.titleBarLayer, recursive = true, rootIsBackground = true))
+		colorController.watchView(ColorView(top_panel_root, configuration.titleBarLayer))
 	}
 
 	override fun onBackPressed() {

@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.common.misc.extension.contains
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.io.InvalidClassException
 
 typealias ColorListener = (colorData: ColorData) -> Unit
 
@@ -106,20 +107,19 @@ class ColorController {
 	 * However it will somehow work even without it, but it might not be reliable.
 	 */
 	fun watchRecyclerView(colorView: ColorView) {
-		if (!colorView.recursive) throw IllegalArgumentException("Recycler view cannot be non recursive")
+		if (colorView.view !is RecyclerView) throw InvalidClassException("Color view must be of type ${RecyclerView::class}")
 
-		colorView.view as RecyclerView
 		val adapter = colorView.view.adapter
 		if (adapter is IViewChange) {
 			adapter.onViewChangedListener = {
-				updateStyleRecursive(it, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
+				updateStyle(it, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
 			}
 		} else {
 			colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
 				override fun onChildViewRemoved(parent: View, child: View) {}
 
 				override fun onChildViewAdded(parent: View, child: View) {
-					updateStyleRecursive(child, backgroundColorFor(colorView), foregroundColorFor(colorView), colorView.layer + 1)
+					updateStyle(child, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
 				}
 
 			})
@@ -178,7 +178,7 @@ class ColorController {
 	 *
 	 * @param id Id of the AdapterView to unsubscribe
 	 */
-	fun stopWatchingAdapterView(@IdRes id: Int) {
+	fun stopWatchingRecyclerView(@IdRes id: Int) {
 		synchronized(watchedViews) {
 			val index = watchedViews.indexOfFirst { it.view.id == id }
 			if (index >= 0) {
@@ -245,32 +245,20 @@ class ColorController {
 		val backgroundColor = backgroundColorFor(colorView)
 		val foregroundColor = foregroundColorFor(colorView)
 
-		if (!colorView.ignoreRoot) {
-			val layerColor = layerColor(backgroundColor, colorView.layer)
-			if (colorView.rootIsBackground) {
-				colorView.view.setBackgroundColor(layerColor)
-			} else {
-				updateBackgroundDrawable(colorView.view, layerColor)
-			}
-
-			updateStyleForeground(colorView.view, foregroundColor)
-		}
-
-		if (colorView.recursive && colorView.view is ViewGroup) {
-			val layer = if (!colorView.ignoreRoot) colorView.layer + 1 else colorView.layer
-			for (i in 0 until colorView.view.childCount) {
-				updateStyleRecursive(colorView.view.getChildAt(i), backgroundColor, foregroundColor, layer)
-			}
-		}
+		updateStyle(colorView.view, colorView.layer, colorView.maxDepth, backgroundColor, foregroundColor)
 	}
 
-	private fun updateStyleRecursive(view: View, @ColorInt color: Int, @ColorInt fgColor: Int, layer: Int) {
+	private fun updateStyle(view: View, layer: Int, depthLeft: Int, @ColorInt color: Int, @ColorInt fgColor: Int) {
 		var newLayer = layer
 		if (updateBackgroundDrawable(view, layerColor(color, layer))) newLayer++
 
 		if (view is ViewGroup) {
-			for (i in 0 until view.childCount)
-				updateStyleRecursive(view.getChildAt(i), color, fgColor, newLayer)
+			val newDepthLeft = depthLeft - 1
+			if (newDepthLeft < 0) return
+
+			for (i in 0 until view.childCount) {
+				updateStyle(view.getChildAt(i), newLayer, newDepthLeft, color, fgColor)
+			}
 		} else {
 			updateStyleForeground(view, fgColor)
 		}
@@ -282,8 +270,9 @@ class ColorController {
 				view.setColorFilter(fgColor)
 			}
 			is TextView -> {
-				if (view is CheckBox)
+				if (view is CheckBox) {
 					view.buttonTintList = ColorStateList.valueOf(fgColor)
+				}
 
 				val alpha = view.currentTextColor.alpha
 				val newTextColor = ColorUtils.setAlphaComponent(fgColor, alpha)

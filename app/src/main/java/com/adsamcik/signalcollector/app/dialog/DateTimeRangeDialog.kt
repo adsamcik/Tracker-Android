@@ -73,8 +73,8 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 
 		linearLayout.addView(sublimePicker)
 
-		colorController.watchView(ColorView(sublimePicker.findViewById(R.id.date_picker_header), 0, true))
-		colorController.watchView(ColorView(text, 0, false))
+		colorController.watchView(ColorView(sublimePicker.findViewById(R.id.date_picker_header), 0))
+		colorController.watchView(ColorView(text, 0, 0))
 
 		return linearLayout
 	}

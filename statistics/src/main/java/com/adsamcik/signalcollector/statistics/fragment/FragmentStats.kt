@@ -58,7 +58,6 @@ class FragmentStats : Fragment(), IOnDemandView {
 		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dp)
 
 		val recyclerView = fragmentView!!.recycler_stats
-		recyclerView.setRecyclerListener { }
 		updateStats()
 		recyclerView.adapter = adapter
 		val decoration = CardItemDecoration()
@@ -66,7 +65,7 @@ class FragmentStats : Fragment(), IOnDemandView {
 
 		this.fragmentView = fragmentView
 
-		colorController.watchRecyclerView(ColorView(recyclerView, 1, recursive = true, rootIsBackground = true))
+		colorController.watchRecyclerView(ColorView(recyclerView, 1, isRecursive = true))
 
 		return fragmentView
 	}

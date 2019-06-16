@@ -209,8 +209,8 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	private fun initializeColorElements() {
 		colorController = ColorManager.createController()
-		colorController.watchView(ColorView(top_panel_root, 1, recursive = true, rootIsBackground = false))
-		colorController.watchView(ColorView(bar_info_top, 1, recursive = true, rootIsBackground = false))
+		colorController.watchView(ColorView(top_panel_root, 1))
+		colorController.watchView(ColorView(bar_info_top, 1))
 
 		cellInfo?.setColorManager(colorController)
 		wifiInfo?.setColorManager(colorController)

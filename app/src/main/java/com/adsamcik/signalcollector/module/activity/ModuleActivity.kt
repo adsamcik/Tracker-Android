@@ -93,8 +93,8 @@ class ModuleActivity : DetailActivity() {
 		val adapter = ModuleAdapter()
 
 
-		colorController.watchView(ColorView(root, 0, recursive = true))
-		colorController.watchRecyclerView(ColorView(recycler, 0, ignoreRoot = true))
+		colorController.watchView(ColorView(root, 0))
+		colorController.watchRecyclerView(ColorView(recycler, 0))
 
 		val moduleInfoList = Module.getActiveModuleInfo(manager)
 

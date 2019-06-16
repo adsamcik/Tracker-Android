@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendPriority
+import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
@@ -40,8 +41,10 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
 		recycler.layoutManager = LinearLayoutManager(context)
+		recycler.addItemDecoration(CardItemDecoration())
+
 		colorController.watchView(ColorView(rootView, 1))
-		colorController.watchRecyclerView(ColorView(recycler, 1, recursive = true, rootIsBackground = false))
+		colorController.watchRecyclerView(ColorView(recycler, 1))
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
 		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter), AppendPriority.Any)

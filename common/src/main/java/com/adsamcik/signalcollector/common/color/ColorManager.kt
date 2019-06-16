@@ -53,7 +53,7 @@ object ColorManager {
 	 * Returns proper base foreground color for given ColorView
 	 */
 	@ColorInt
-	fun foregroundColorFor(colorView: ColorView): Int = foregroundColorFor(colorView.backgroundIsForeground)
+	fun foregroundColorFor(colorView: ColorView): Int = foregroundColorFor(colorView.isInverted)
 
 	/**
 	 * Returns proper base foreground color based on [backgroundIsForeground]
@@ -67,7 +67,7 @@ object ColorManager {
 	 * Returns proper base background color for given ColorView
 	 */
 	@ColorInt
-	fun backgroundColorFor(colorView: ColorView): Int = backgroundColorFor(colorView.backgroundIsForeground)
+	fun backgroundColorFor(colorView: ColorView): Int = backgroundColorFor(colorView.isInverted)
 
 	/**
 	 * Returns proper base background color based on [backgroundIsForeground]

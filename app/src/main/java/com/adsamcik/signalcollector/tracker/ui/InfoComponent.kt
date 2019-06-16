@@ -101,7 +101,7 @@ class InfoComponent : FrameLayout {
 	 */
 	internal fun setColorManager(colorController: ColorController) {
 		this.colorController = colorController
-		colorController.watchView(ColorView(this, 1, recursive = true, rootIsBackground = false, ignoreRoot = true))
+		colorController.watchView(ColorView(this, 1))
 	}
 
 	/**

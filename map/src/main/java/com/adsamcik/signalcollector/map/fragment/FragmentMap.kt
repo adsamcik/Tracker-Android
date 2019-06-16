@@ -312,8 +312,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 		val colorManager = colorController
 				?: throw NullPointerException("ColorController should be already initialized")
-		colorManager.watchView(ColorView(map_menu_button, 2, recursive = false, rootIsBackground = false))
-		colorManager.watchView(ColorView(layout_map_controls, 3, recursive = true, rootIsBackground = false))
+		colorManager.watchView(ColorView(map_menu_button, 2, 0))
+		colorManager.watchView(ColorView(layout_map_controls, 3))
 	}
 
 	/**
@@ -429,7 +429,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			}
 			payload.onBeforeDestroyed = {
 				fragmentMapMenu.set(null)
-				colorController!!.stopWatchingAdapterView(R.id.recycler)
+				colorController!!.stopWatchingRecyclerView(R.id.recycler)
 			}
 
 			map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->

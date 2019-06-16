@@ -20,7 +20,7 @@
             android:paddingTop="8dp"
             android:paddingEnd="@dimen/content_padding"
             android:paddingBottom="8dp"
-            android:text="@string/challenge_list_title"/>
+            tools:text="@string/challenge_list_title"/>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler"
