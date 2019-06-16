@@ -45,7 +45,7 @@ object IntroductionManager {
 						.setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 230))
 						.setAnimation(AccelerateDecelerateInterpolator())
 						.setOnSpotlightEndedListener {
-							Preferences.getPref(activity).edit { setBoolean(introduction.key, true) }
+							Preferences.getPref(activity).edit { setBoolean(introduction.preference, true) }
 							introduction.onDone()
 							onDone()
 						}

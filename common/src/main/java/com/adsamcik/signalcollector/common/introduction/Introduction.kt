@@ -4,7 +4,8 @@ import androidx.fragment.app.FragmentActivity
 import com.takusemba.spotlight.Target
 
 abstract class Introduction {
-	abstract val key: String
+	protected abstract val key: String
+
 	val preference: String get() = "$prefix:$key"
 
 	private val onDoneListenerList = mutableListOf<() -> Unit>()
