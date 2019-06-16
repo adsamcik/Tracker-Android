@@ -106,11 +106,11 @@ class ColorController : CoroutineScope {
 		}
 		set(value) {
 			suspendLock.withLock {
+				field = value
 				if (!value && updateRequestedWhileSuspended) {
 					updateRequestedWhileSuspended = false
 					update()
 				}
-				field = value
 			}
 		}
 

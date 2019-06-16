@@ -56,6 +56,10 @@ class ExportActivity : DetailActivity() {
 		return monthAgo..now
 	}
 
+	override fun onConfigure(configuration: Configuration) {
+		configuration.useColorControllerForContent = true
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 

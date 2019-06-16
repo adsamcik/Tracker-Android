@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.license
 
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -34,13 +35,14 @@ class LicenseActivity : DetailActivity() {
 	override fun onConfigure(configuration: Configuration) {
 		configuration.elevation = 4.dp
 		configuration.titleBarLayer = 1
+		configuration.useColorControllerForContent = false
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
 		val frameLayout = createFrameContentLayout(false)
-
+		frameLayout.setBackgroundColor(Color.WHITE)
 
 		val adapter = Adapter()
 		val recycler = RecyclerView(this)
@@ -92,6 +94,7 @@ class LicenseActivity : DetailActivity() {
 		setTitle(R.string.open_source_licenses)
 
 		colorController.watchRecyclerView(ColorView(recycler, 0))
+		colorController.watchView(ColorView(frameLayout, 0, 0))
 	}
 
 	private class Adapter : RecyclerView.Adapter<Adapter.ViewHolder>(), IViewChange {
@@ -101,6 +104,7 @@ class LicenseActivity : DetailActivity() {
 
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 			val root = LayoutInflater.from(parent.context).inflate(R.layout.layout_license_item, parent, false)
+			onViewChangedListener?.invoke(root)
 			return ViewHolder(root.findViewById(R.id.button), root)
 		}
 
@@ -111,8 +115,6 @@ class LicenseActivity : DetailActivity() {
 			holder.button.text = license.name
 			holder.button.tag = license
 			holder.button.setOnClickListener(this::onButtonClicked)
-
-			onViewChangedListener?.invoke(holder.itemView)
 		}
 
 		private fun onButtonClicked(view: View) {
