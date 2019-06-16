@@ -76,7 +76,8 @@ class FloatValueSliderPreference : Preference {
 		val slider = holder.findViewById(R.id.slider) as FloatValueSlider
 		val textView = holder.findViewById(R.id.slider_value) as TextView
 
-		val valuesResource = mValuesResource ?: throw NullPointerException("Value resource must be set!")
+		val valuesResource = mValuesResource
+				?: throw NullPointerException("Value resource must be set!")
 
 		val stringArray = context.resources.getStringArray(valuesResource)
 

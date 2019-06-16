@@ -38,7 +38,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppThemeLight"
         tools:ignore="GoogleAppIndexingWarning">
-        <activity android:name=".activity.session.SessionActivityActivity" />
+        <activity android:name=".activity.session.SessionActivityActivity"/>
         <activity android:name=".module.activity.ModuleActivity"/>
 
         <meta-data
@@ -102,7 +102,7 @@
 
         <activity
             android:name=".debug.activity.StatusActivity"
-            android:exported="true" />
+            android:exported="true"/>
 
         <receiver android:name=".app.receiver.BootReceiver">
             <intent-filter>
@@ -133,7 +133,7 @@
 
         <meta-data
             android:name="firebase_crashlytics_collection_enabled"
-            android:value="false" />
+            android:value="false"/>
 
     </application>
 

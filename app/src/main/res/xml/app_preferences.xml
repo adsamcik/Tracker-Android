@@ -252,8 +252,8 @@
             android:title="@string/show_tips_title"/>
 
         <androidx.preference.SwitchPreferenceCompat
-            android:key="@string/settings_error_reporting_key"
             android:defaultValue="@string/settings_error_reporting_default"
+            android:key="@string/settings_error_reporting_key"
             android:summary="@string/settings_error_reporting_summary"
             android:title="@string/settings_error_reporting_title"/>
 

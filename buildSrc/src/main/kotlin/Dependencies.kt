@@ -6,7 +6,7 @@ object Libraries {
 		const val constraintLayout = "2.0.0-beta1"
 		const val coreKtx = "1.1.0-beta01"
 		const val appcompat = "1.1.0-beta01"
-		const val room = "2.1.0-rc01"
+		const val room = "2.1.0"
 		const val fragment = "1.1.0-beta01"
 		const val kotlin = "1.3.31"
 		const val dokka = "0.9.18"

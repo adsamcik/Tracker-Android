@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    app:layout_flexGrow="1"
-    app:layout_flexShrink="1"
     app:flow_maxElementsWrap="3"
-    app:layout_flexBasisPercent="40%"/>
+    app:layout_flexBasisPercent="40%"
+    app:layout_flexGrow="1"
+    app:layout_flexShrink="1"/>
