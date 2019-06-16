@@ -40,6 +40,18 @@ abstract class CoreUIFragment : CoreFragment() {
 	}
 
 	@CallSuper
+	override fun onPause() {
+		colorController.isSuspended = true
+		super.onPause()
+	}
+
+	@CallSuper
+	override fun onResume() {
+		colorController.isSuspended = false
+		super.onResume()
+	}
+
+	@CallSuper
 	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
 		if (requestCode == themeLocationRequestCode) {
 			if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {

@@ -34,6 +34,18 @@ abstract class CoreUIActivity : CoreActivity() {
 		super.onDestroy()
 	}
 
+	@CallSuper
+	override fun onPause() {
+		colorController.isSuspended = true
+		super.onPause()
+	}
+
+	@CallSuper
+	override fun onResume() {
+		colorController.isSuspended = false
+		super.onResume()
+	}
+
 	private fun initializeColors() {
 		ColorManager.initializeFromPreferences(this)
 		initializeSunriseSunset()
