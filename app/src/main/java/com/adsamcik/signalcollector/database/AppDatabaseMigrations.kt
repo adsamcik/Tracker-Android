@@ -68,3 +68,15 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
 		}
 	}
 }
+
+val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+	override fun migrate(database: SupportSQLiteDatabase) {
+		with(database) {
+			execSQL("CREATE TABLE IF NOT EXISTS tracker_session_tmp (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `distance_on_foot` REAL NOT NULL, `distance_in_vehicle` REAL NOT NULL, `steps` INTEGER NOT NULL, `session_activity_id` INTEGER)")
+
+			execSQL("INSERT INTO tracker_session_tmp SELECT `id`, `start`, `end`, `collections`, `distance`, `distance_on_foot`, `distance_in_vehicle`, `steps`, null from tracker_session")
+			execSQL("DROP TABLE tracker_session")
+			execSQL("ALTER TABLE tracker_session_tmp RENAME TO tracker_session")
+		}
+	}
+}

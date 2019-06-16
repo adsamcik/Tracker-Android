@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
 	DatabaseWifiData::class,
 	DatabaseCellData::class,
 	DatabaseMapMaxHeat::class],
-		version = 6)
+		version = 7)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -34,7 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 		private fun createInstance(context: Context): AppDatabase {
 			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 					.build()
 
 			instance_ = instance
