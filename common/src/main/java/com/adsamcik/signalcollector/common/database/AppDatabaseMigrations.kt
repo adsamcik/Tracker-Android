@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.database
+package com.adsamcik.signalcollector.common.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase

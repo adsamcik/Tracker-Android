@@ -34,7 +34,7 @@ import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.adsamcik.signalcollector.tracker.ui.InfoComponent

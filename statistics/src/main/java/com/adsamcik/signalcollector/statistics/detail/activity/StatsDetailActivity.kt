@@ -19,8 +19,8 @@ import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
@@ -30,7 +30,7 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHo
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationStatisticsData
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.LineChartStatisticsData
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.github.mikephil.charting.data.Entry
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.play.core.splitcompat.SplitCompat

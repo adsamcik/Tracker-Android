@@ -14,11 +14,11 @@ import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.dao.SessionDataDao
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.google.android.gms.location.LocationResult
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

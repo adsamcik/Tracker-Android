@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.activity.recognizer
 
 import androidx.annotation.IntRange
 import com.adsamcik.signalcollector.activity.SessionActivity
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 
 interface ActivityRecognizer {
 	/**

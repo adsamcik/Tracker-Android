@@ -1,10 +1,10 @@
-package com.adsamcik.signalcollector.database.dao
+package com.adsamcik.signalcollector.common.database.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
+import com.adsamcik.signalcollector.common.database.data.DatabaseMapMaxHeat
 
 @Dao
 interface MapHeatDao {

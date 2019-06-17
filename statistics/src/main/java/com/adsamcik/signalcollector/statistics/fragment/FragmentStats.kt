@@ -16,14 +16,14 @@ import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.DatabaseMaintenance
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.statistics.ChangeTableAdapter
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.common.misc.extension.formatDistance
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.math.RoundingMode

@@ -5,7 +5,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceScreen
 import com.adsamcik.signalcollector.common.dialog.ConfirmDialog
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
-import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.preference.FloatValueSliderPreference
 import kotlinx.coroutines.GlobalScope

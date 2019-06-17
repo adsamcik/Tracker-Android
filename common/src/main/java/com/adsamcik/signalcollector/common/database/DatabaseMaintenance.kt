@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.database
+package com.adsamcik.signalcollector.common.database
 
 import android.content.Context
 

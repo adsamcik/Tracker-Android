@@ -1,11 +1,11 @@
-package com.adsamcik.signalcollector.database.dao
+package com.adsamcik.signalcollector.common.database.dao
 
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.signalcollector.database.data.TrackerSessionSummary
-import com.adsamcik.signalcollector.database.data.TrackerSessionTimeSummary
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.data.TrackerSessionSummary
+import com.adsamcik.signalcollector.common.database.data.TrackerSessionTimeSummary
 
 @Dao
 interface SessionDataDao : BaseDao<TrackerSession> {

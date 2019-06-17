@@ -8,7 +8,7 @@ import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.data.*
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.google.android.gms.location.LocationResult
 
 class DataComponentManager(context: Context) {

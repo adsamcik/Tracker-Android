@@ -25,11 +25,6 @@ android {
 		versionCode = 296
 		versionName = "7.0α13 Offline"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		javaCompileOptions {
-			annotationProcessorOptions {
-				arguments = mapOf("room.schemaLocation" to "$projectDir/schemas")
-			}
-		}
 	}
 
 	with(compileOptions) {

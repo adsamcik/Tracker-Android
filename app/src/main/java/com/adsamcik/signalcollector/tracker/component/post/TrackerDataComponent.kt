@@ -2,15 +2,15 @@ package com.adsamcik.signalcollector.tracker.component.post
 
 import android.content.Context
 import android.location.Location
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.dao.CellDataDao
-import com.adsamcik.signalcollector.database.dao.LocationDataDao
-import com.adsamcik.signalcollector.database.dao.WifiDataDao
-import com.adsamcik.signalcollector.database.data.DatabaseCellData
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.dao.CellDataDao
+import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
+import com.adsamcik.signalcollector.common.database.dao.WifiDataDao
+import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 

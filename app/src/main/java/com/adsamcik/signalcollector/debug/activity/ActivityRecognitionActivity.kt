@@ -11,8 +11,8 @@ import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.adapter.StringFilterableAdapter
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.database.DebugDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseDebugActivity
+import com.adsamcik.signalcollector.common.database.DebugDatabase
+import com.adsamcik.signalcollector.common.database.data.DatabaseDebugActivity
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers

@@ -1,11 +1,11 @@
-package com.adsamcik.signalcollector.database
+package com.adsamcik.signalcollector.common.database
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.adsamcik.signalcollector.database.dao.ActivityDebugDao
-import com.adsamcik.signalcollector.database.data.DatabaseDebugActivity
+import com.adsamcik.signalcollector.common.database.dao.ActivityDebugDao
+import com.adsamcik.signalcollector.common.database.data.DatabaseDebugActivity
 
 @Database(entities = [DatabaseDebugActivity::class], version = 1)
 abstract class DebugDatabase : RoomDatabase() {

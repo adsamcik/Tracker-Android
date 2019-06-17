@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.map.heatmap.creators
 
 import android.content.Context
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 
 class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	private val dao = AppDatabase.getDatabase(context).wifiDao()

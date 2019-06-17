@@ -2,12 +2,12 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 
 import android.content.Context
 import androidx.room.PrimaryKey
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 
 class ExplorerChallengeInstance(context: Context,
                                 entry: ChallengeEntry,

@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 
 class StepChallengeInstance(data: ChallengeEntry, title: String, descriptionTemplate: String, extra: StepChallengeEntity)
 	: ChallengeInstance<StepChallengeEntity>(data, title, descriptionTemplate, extra) {

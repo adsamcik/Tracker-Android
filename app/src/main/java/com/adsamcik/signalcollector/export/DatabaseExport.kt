@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.export
 
 import android.content.Context
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import java.io.File
 
 class DatabaseExport : IExport {

@@ -1,10 +1,10 @@
-package com.adsamcik.signalcollector.database.dao
+package com.adsamcik.signalcollector.common.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.common.data.CellType
-import com.adsamcik.signalcollector.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
 
 @Dao
 interface CellDataDao : BaseDao<DatabaseCellData> {

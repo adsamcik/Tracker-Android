@@ -1,11 +1,11 @@
-package com.adsamcik.signalcollector.database.dao
+package com.adsamcik.signalcollector.common.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.common.data.Location
-import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 
 @Dao
 interface LocationDataDao : BaseDao<DatabaseLocation> {

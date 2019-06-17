@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.map.heatmap.creators
 
 import com.adsamcik.signalcollector.common.misc.extension.isPowerOfTwo
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile

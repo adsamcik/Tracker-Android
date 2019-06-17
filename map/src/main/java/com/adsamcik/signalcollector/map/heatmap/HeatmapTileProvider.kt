@@ -6,8 +6,8 @@ import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.misc.extension.toDate
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.database.AppDatabase
-import com.adsamcik.signalcollector.database.data.DatabaseMapMaxHeat
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.map.LayerType
 import com.adsamcik.signalcollector.map.MapFunctions
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator

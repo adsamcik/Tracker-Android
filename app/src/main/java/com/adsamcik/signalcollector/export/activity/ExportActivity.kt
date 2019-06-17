@@ -15,7 +15,7 @@ import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.cloneCalendar
-import com.adsamcik.signalcollector.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions

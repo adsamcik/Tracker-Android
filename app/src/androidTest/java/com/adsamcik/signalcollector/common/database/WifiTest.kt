@@ -1,9 +1,9 @@
-package com.adsamcik.signalcollector.database
+package com.adsamcik.signalcollector.common.database
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.adsamcik.signalcollector.database.dao.WifiDataDao
-import com.adsamcik.signalcollector.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.common.database.dao.WifiDataDao
+import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test

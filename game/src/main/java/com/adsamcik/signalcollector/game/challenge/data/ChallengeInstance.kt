@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.game.challenge.data
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryExtra
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
 
 abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 		val data: ChallengeEntry,

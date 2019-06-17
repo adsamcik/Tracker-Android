@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.data.session
+package com.adsamcik.signalcollector.common.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity

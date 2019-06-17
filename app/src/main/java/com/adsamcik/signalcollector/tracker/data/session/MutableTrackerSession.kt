@@ -1,5 +1,7 @@
 package com.adsamcik.signalcollector.tracker.data.session
 
+import com.adsamcik.signalcollector.common.data.TrackerSession
+
 class MutableTrackerSession(
 		id: Long = 0,
 		start: Long,

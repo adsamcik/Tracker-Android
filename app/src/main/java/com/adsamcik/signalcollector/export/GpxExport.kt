@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.misc.extension.applicationName
 import com.adsamcik.signalcollector.common.misc.extension.formatAsDateTime
-import com.adsamcik.signalcollector.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
 import java.io.File

@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.database.data
+package com.adsamcik.signalcollector.common.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Ignore

@@ -1,13 +1,13 @@
-package com.adsamcik.signalcollector.database
+package com.adsamcik.signalcollector.common.database
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.signalcollector.database.dao.*
-import com.adsamcik.signalcollector.database.data.*
-import com.adsamcik.signalcollector.tracker.data.session.TrackerSession
+import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.dao.*
+import com.adsamcik.signalcollector.common.database.data.*
 
 
 @Database(entities = [DatabaseLocation::class,

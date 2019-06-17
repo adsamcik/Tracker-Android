@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.database.dao
+package com.adsamcik.signalcollector.common.database.dao
 
 import androidx.room.*
 
