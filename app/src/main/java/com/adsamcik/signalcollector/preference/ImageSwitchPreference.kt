@@ -66,8 +66,9 @@ class ImageSwitchPreference : Preference {
 		val drawables = resources.obtainTypedArray(drawablesResource)
 
 
-		if (titles.size != drawables.length())
+		if (titles.size != drawables.length()) {
 			throw RuntimeException("Drawables and titles are not equal in size")
+		}
 
 
 		for (i in 0..titles.lastIndex) {
@@ -92,11 +93,13 @@ class ImageSwitchPreference : Preference {
 		val item = SwitchItem(title, image)
 		mItems.add(item)
 
-		if (mInitialized)
+		if (mInitialized) {
 			initializeItem(item, mItems.lastIndex)
+		}
 
-		if (mItems.size == mSelected + 1)
+		if (mItems.size == mSelected + 1) {
 			select(mSelected)
+		}
 	}
 
 	private fun onClick(index: Int) {
@@ -104,8 +107,7 @@ class ImageSwitchPreference : Preference {
 	}
 
 	private fun select(index: Int) {
-		if (!callChangeListener(index) || !persistInt(index))
-			return
+		if (!callChangeListener(index) || !persistInt(index)) return
 
 		when {
 			mSelected == index -> return
@@ -125,8 +127,9 @@ class ImageSwitchPreference : Preference {
 	}
 
 	override fun onSetInitialValue(defaultValue: Any?) {
-		if (defaultValue != null)
+		if (defaultValue != null) {
 			mInitialValue = defaultValue as Int
+		}
 	}
 
 
