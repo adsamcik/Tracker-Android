@@ -28,7 +28,6 @@ android {
 
 dependencies {
 	Libraries.core(this)
-	Libraries.work(this)
 	Libraries.draggable(this)
 	Libraries.database(this)
 	Libraries.preference(this)

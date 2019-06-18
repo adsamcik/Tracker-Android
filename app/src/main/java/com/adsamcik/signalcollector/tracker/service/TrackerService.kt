@@ -17,6 +17,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Reporter
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -186,6 +187,8 @@ class TrackerService : LifecycleService() {
 
 		isServiceRunning.value = true
 
+		LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(TrackerSession.RECEIVER_SESSION_STARTED))
+
 		return START_NOT_STICKY
 	}
 
@@ -214,29 +217,7 @@ class TrackerService : LifecycleService() {
 		preComponentList.forEach { it.onDisable(this) }
 		postComponentList.forEach { it.onEnable(this) }
 
-		//Challenges
-
-		//todo action string should be saved in single constant
-		LocalBroadcastManager.getInstance(this).sendBroadcast(Intent("trackerSessionFinished"))
-
-		//todo add hook to listen on tracker changes
-		/*
-		GlobalScope.launch {
-			ChallengeDatabase.getDatabase(this@TrackerService).sessionDao.insert(dataComponentManager.session)
-		}
-
-		val workManager = WorkManager.getInstance(this)
-
-		if (Preferences.getPref(this).getBooleanRes(R.string.settings_game_challenge_enable_key, R.string.settings_game_challenge_enable_default)) {
-			val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
-					.setInitialDelay(1, TimeUnit.HOURS)
-					.addTag("ChallengeQueue")
-					.setConstraints(Constraints.Builder()
-							.setRequiresBatteryNotLow(true)
-							.build()
-					).build()
-			workManager.enqueue(workRequest)
-		}*/
+		LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(TrackerSession.RECEIVER_SESSION_ENDED))
 	}
 
 

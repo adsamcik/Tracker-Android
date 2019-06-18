@@ -15,7 +15,7 @@ class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChalleng
 
 	override val type: ChallengeType = ChallengeType.WalkDistance
 
-	override fun createInstance(context: Context, startAt: Long): WalkDistanceChallengeInstance {
+	override fun newInstance(context: Context, startAt: Long): WalkDistanceChallengeInstance {
 		return WalkDistanceChallengeBuilder(this).build(context, startAt)
 	}
 

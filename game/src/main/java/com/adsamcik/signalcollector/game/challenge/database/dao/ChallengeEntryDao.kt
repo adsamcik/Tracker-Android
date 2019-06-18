@@ -14,10 +14,14 @@ interface ChallengeEntryDao : BaseDao<ChallengeEntry> {
 	@Query("SELECT * FROM entry WHERE start_time <= :time AND end_time >= :time")
 	fun getActiveEntry(time: Long): List<ChallengeEntry>
 
+	@Query("SELECT * FROM entry WHERE id = :id")
+	fun get(id: Long): ChallengeEntry
+
 	@Transaction
 	fun insertSetId(item: ChallengeEntry) {
 		val id = insert(item)
-		if (id != -1L)
+		if (id != -1L) {
 			item.id = id
+		}
 	}
 }

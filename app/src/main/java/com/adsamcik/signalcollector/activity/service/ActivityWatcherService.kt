@@ -126,8 +126,9 @@ class ActivityWatcherService : LifecycleService() {
 			if (updateInterval > 0 && autoTracking > 0) {
 				ActivityService.requestAutoTracking(context, LaunchActivity::class, updateInterval)
 				if (watcherPreference && !trackerLocked && !trackerRunning) {
-					if (instance == null)
+					if (instance == null) {
 						ContextCompat.startForegroundService(context, Intent(context, ActivityWatcherService::class.java))
+					}
 					return
 				}
 			}

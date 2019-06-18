@@ -16,7 +16,7 @@ class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstanc
 
 	override val type: ChallengeType = ChallengeType.Explorer
 
-	override fun createInstance(context: Context, startAt: Long): ExplorerChallengeInstance {
+	override fun newInstance(context: Context, startAt: Long): ExplorerChallengeInstance {
 		return ExplorerChallengeBuilder(this).build(context, startAt)
 	}
 

@@ -1,9 +1,9 @@
 package com.adsamcik.signalcollector.game.challenge.data
 
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryExtra
-import com.adsamcik.signalcollector.common.data.TrackerSession
 
 abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 		val data: ChallengeEntry,
@@ -31,18 +31,15 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 	/**
 	 * Runs a batch process on a specified session
 	 */
-	abstract fun processSession(session: TrackerSession)
+	protected abstract fun processSession(session: TrackerSession)
 
-	fun batchProcess(sessionList: List<TrackerSession>, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
+	fun process(session: TrackerSession, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
 		if (extra.isCompleted) return
 
-		sessionList.forEach {
-			processSession(it)
-			if (checkCompletionConditions()) {
-				extra.isCompleted = true
-				onChallengeCompletedListener.invoke(this)
-				return@forEach
-			}
+		processSession(session)
+		if (checkCompletionConditions()) {
+			extra.isCompleted = true
+			onChallengeCompletedListener.invoke(this)
 		}
 	}
 }

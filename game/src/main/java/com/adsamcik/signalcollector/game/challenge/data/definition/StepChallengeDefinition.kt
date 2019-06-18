@@ -15,7 +15,7 @@ class StepChallengeDefinition : ChallengeDefinition<StepChallengeInstance>(R.str
 	override val minDurationMultiplier: Double = 0.5
 	override val maxDurationMultiplier: Double = 4.0
 
-	override fun createInstance(context: Context, startAt: Long): StepChallengeInstance {
+	override fun newInstance(context: Context, startAt: Long): StepChallengeInstance {
 		return StepChallengeBuilder(this).build(context, startAt)
 	}
 }

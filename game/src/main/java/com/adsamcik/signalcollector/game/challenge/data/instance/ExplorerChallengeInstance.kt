@@ -2,12 +2,12 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 
 import android.content.Context
 import androidx.room.PrimaryKey
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.signalcollector.common.data.TrackerSession
 
 class ExplorerChallengeInstance(context: Context,
                                 entry: ChallengeEntry,
@@ -37,7 +37,6 @@ class ExplorerChallengeInstance(context: Context,
 		}.distinctBy { it }
 		return dao.newLocations(newList, time, accuracyInM).size
 	}
-
 
 	override fun processSession(session: TrackerSession) {
 		val locationList = dao.getAllBetween(session.start, session.end)

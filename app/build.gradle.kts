@@ -116,7 +116,6 @@ dependencies {
 
 	//Room
 	Libraries.database(this)
-	Libraries.work(this)
 
 
 	Libraries.test(this)

@@ -6,18 +6,20 @@
 
     <dist:module
         dist:instant="false"
-        dist:onDemand="true"
-        dist:title="@string/title_game">
+        dist:onDemand="true">
         <dist:fusing dist:include="true"/>
     </dist:module>
 
 
     <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon">
         <receiver
-            android:name=".receiver.OnSessionFinishedReceiver"
+            android:name="com.adsamcik.signalcollector.game.challenge.receiver.ChallengeSessionReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="trackerSessionFinished"/>
+                <action android:name="tracker.intent.action.SESSION_START"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="tracker.intent.action.SESSION_END"/>
             </intent-filter>
         </receiver>
     </application>

@@ -80,6 +80,8 @@ object Libraries {
 			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
 			implementation("com.google.android.play:core:${Versions.playCore}")
 
+			work(this)
+
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
 
 			androidTestImplementation("androidx.test:runner:1.1.1")
@@ -95,7 +97,7 @@ object Libraries {
 		}
 	}
 
-	fun work(dependencyHandler: DependencyHandler) {
+	private fun work(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("androidx.work:work-runtime-ktx:${Versions.work}")
 			androidTestImplementation("androidx.work:work-testing:${Versions.work}")

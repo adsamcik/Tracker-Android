@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.game.challenge
 
 import android.content.Context
+import androidx.annotation.AnyThread
+import androidx.annotation.WorkerThread
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.NonNullLiveData
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
@@ -11,6 +13,7 @@ import com.adsamcik.signalcollector.game.challenge.data.definition.StepChallenge
 import com.adsamcik.signalcollector.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeLoader
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -33,17 +36,21 @@ object ChallengeManager {
 	 */
 	val activeChallenges: NonNullLiveData<List<ChallengeInstance<*>>> get() = mutableActiveChallenges
 
-
+	@WorkerThread
 	private fun initFromDb(context: Context): List<ChallengeInstance<*>> {
-		val resources = context.resources
 		val database = ChallengeDatabase.getDatabase(context)
 		val active = database.entryDao.getActiveEntry(System.currentTimeMillis())
-		return active.map { ChallengeLoader.loadChallenge(context, resources, database, it) }
+		return active.map { ChallengeLoader.loadChallenge(context, it) }
 	}
 
-	fun initialize(context: Context) {
-		GlobalScope.launch {
+	private fun persistChallenges(context: Context) {
+		ChallengeDatabase.getDatabase(context).entryDao.update(mutableActiveChallengeList_.map { it.data })
 
+	}
+
+	@AnyThread
+	fun initialize(context: Context) {
+		GlobalScope.launch(Dispatchers.Default) {
 			val active = initFromDb(context)
 
 			mutableActiveChallengeList_.clear()
@@ -59,14 +66,12 @@ object ChallengeManager {
 		}
 	}
 
-	//todo decide on paralelization
-	fun processSession(sessionList: List<TrackerSession>, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
-		val challenges = mutableActiveChallengeList_
-		challenges.forEach { it.batchProcess(sessionList, onChallengeCompletedListener) }
+	fun processSession(session: TrackerSession, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
+		mutableActiveChallengeList_.forEach { it.process(session, onChallengeCompletedListener) }
 	}
 
 
-	fun activateRandomChallenge(context: Context): ChallengeInstance<*>? {
+	private fun activateRandomChallenge(context: Context): ChallengeInstance<*>? {
 		val possibleChallenges = enabledChallengeList.filterNot { definition -> mutableActiveChallengeList_.any { definition.type == it.data.type } }
 
 		if (possibleChallenges.isEmpty()) {
@@ -75,6 +80,6 @@ object ChallengeManager {
 
 		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
 		val selectedChallenge = possibleChallenges[selectedChallengeIndex]
-		return selectedChallenge.createInstance(context, System.currentTimeMillis())
+		return selectedChallenge.newInstance(context, System.currentTimeMillis())
 	}
 }

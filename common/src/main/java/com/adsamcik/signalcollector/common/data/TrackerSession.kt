@@ -47,4 +47,9 @@ open class TrackerSession(
 	@ColumnInfo(name = "session_activity_id")
 	open var sessionActivityId: Int? = sessionActivityId
 		protected set
+
+	companion object {
+		const val RECEIVER_SESSION_STARTED = "tracker.intent.action.SESSION_START"
+		const val RECEIVER_SESSION_ENDED = "tracker.intent.action.SESSION_END"
+	}
 }
