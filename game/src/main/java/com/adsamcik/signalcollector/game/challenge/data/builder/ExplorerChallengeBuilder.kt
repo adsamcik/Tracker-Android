@@ -26,7 +26,7 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 	}
 
 	override fun buildChallenge(context: Context, entry: ChallengeEntry): ExplorerChallengeInstance {
-		return ExplorerChallengeInstance(context, entry, title, description, ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0))
+		return ExplorerChallengeInstance(entry, definition, ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0))
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: ExplorerChallengeInstance) {

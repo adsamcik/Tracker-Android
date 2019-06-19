@@ -1,7 +1,5 @@
 <manifest
-    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:dist="http://schemas.android.com/apk/distribution"
-    xmlns:tools="http://schemas.android.com/tools"
     package="com.adsamcik.signalcollector.game">
 
     <dist:module
@@ -10,18 +8,5 @@
         <dist:fusing dist:include="true"/>
     </dist:module>
 
-
-    <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon">
-        <receiver
-            android:name="com.adsamcik.signalcollector.game.challenge.receiver.ChallengeSessionReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="tracker.intent.action.SESSION_START"/>
-            </intent-filter>
-            <intent-filter>
-                <action android:name="tracker.intent.action.SESSION_END"/>
-            </intent-filter>
-        </receiver>
-    </application>
 </manifest>
 

@@ -14,7 +14,7 @@ import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
 import java.util.*
 
-class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
+class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*, *>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
 
 	class ViewHolder(itemView: View,
 	                 val titleTextView: AppCompatTextView,
@@ -26,7 +26,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 
 	private val mInflater: LayoutInflater = mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
 
-	fun updateData(challenges: Array<ChallengeInstance<*>>) {
+	fun updateData(challenges: Array<ChallengeInstance<*, *>>) {
 		this.mDataSource = challenges
 		notifyDataSetChanged()
 	}
@@ -46,9 +46,10 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 	override fun getItemCount(): Int = mDataSource.size
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+		val context = holder.itemView.context
 		val challenge = mDataSource[position]
-		holder.titleTextView.text = challenge.title
-		holder.descriptionTextView.text = challenge.description
+		holder.titleTextView.text = challenge.getTitle(context)
+		holder.descriptionTextView.text = challenge.getDescription(context)
 		holder.difficultyTextView.text = challenge.difficulty.name.replace('_', ' ').toLowerCase(Locale.getDefault())
 
 		holder.progressBar.progress = (challenge.progress * 100.0).toInt()

@@ -27,7 +27,7 @@ class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallenge
 	}
 
 	override fun buildChallenge(context: Context, entry: ChallengeEntry): WalkDistanceChallengeInstance {
-		return WalkDistanceChallengeInstance(context, entry, title, description, WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
+		return WalkDistanceChallengeInstance(entry, definition, WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: WalkDistanceChallengeInstance) {

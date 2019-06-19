@@ -11,7 +11,10 @@ import com.adsamcik.signalcollector.common.database.data.TrackerSessionTimeSumma
 interface SessionDataDao : BaseDao<TrackerSession> {
 
 	@Query("SELECT * FROM tracker_session WHERE id = :id")
-	fun get(id: Long): LiveData<TrackerSession>
+	fun get(id: Long): TrackerSession?
+
+	@Query("SELECT * FROM tracker_session WHERE id = :id")
+	fun getLive(id: Long): LiveData<TrackerSession>
 
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>

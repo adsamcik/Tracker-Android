@@ -8,14 +8,11 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceCha
 class WalkDistanceChallengePersistence : ChallengePersistence<WalkDistanceChallengeInstance> {
 	override fun load(context: Context, entryId: Long): WalkDistanceChallengeInstance {
 		val database = getDatabase(context)
-		val resources = context.resources
 		val entry = database.entryDao.get(entryId)
 		val entity = database.walkDistanceDao.getByEntry(entryId)
 		val definition = WalkDistanceChallengeDefinition()
-		return WalkDistanceChallengeInstance(context,
-				entry,
-				resources.getString(definition.titleRes),
-				resources.getString(definition.descriptionRes),
+		return WalkDistanceChallengeInstance(entry,
+				definition,
 				entity
 		)
 	}

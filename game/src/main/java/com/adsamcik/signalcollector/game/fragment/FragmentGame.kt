@@ -56,7 +56,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		return rootView
 	}
 
-	private fun updateChallenges(challengeAdapter: ChallengeAdapter, challengeList: List<ChallengeInstance<*>>) {
+	private fun updateChallenges(challengeAdapter: ChallengeAdapter, challengeList: List<ChallengeInstance<*, *>>) {
 		val challengeArray = challengeList.toTypedArray()
 
 		launch(Dispatchers.Main) {

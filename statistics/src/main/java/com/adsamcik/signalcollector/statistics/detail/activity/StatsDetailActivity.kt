@@ -15,12 +15,13 @@ import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.LengthUnit
 import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData
-import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
@@ -30,7 +31,6 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.creator.MapViewHo
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationStatisticsData
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.LineChartStatisticsData
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
-import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.github.mikephil.charting.data.Entry
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.play.core.splitcompat.SplitCompat
@@ -310,7 +310,7 @@ class StatsDetailActivity : DetailActivity() {
 			initialized = true
 
 			val database = AppDatabase.getDatabase(context)
-			session = database.sessionDao().get(sessionId)
+			session = database.sessionDao().getLive(sessionId)
 		}
 	}
 

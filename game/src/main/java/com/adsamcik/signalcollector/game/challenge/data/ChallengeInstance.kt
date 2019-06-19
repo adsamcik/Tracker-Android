@@ -1,14 +1,14 @@
 package com.adsamcik.signalcollector.game.challenge.data
 
+import android.content.Context
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryExtra
 
-abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
+abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : ChallengeInstance<ExtraData, Instance>>(
 		val data: ChallengeEntry,
-		val title: String,
-		protected val descriptionTemplate: String,
+		val definition: ChallengeDefinition<Instance>,
 		val extra: ExtraData) {
 
 	val startTime: Long get() = data.startTime
@@ -22,24 +22,29 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra>(
 	 */
 	val duration: Long get() = data.endTime - data.startTime
 
-	abstract val description: String
-
 	abstract val progress: Double
+
+	abstract fun getDescription(context: Context): String
+
+	fun getTitle(context: Context): String = context.getString(definition.titleRes)
+
+	protected abstract val persistence: ChallengePersistence<Instance>
 
 	protected abstract fun checkCompletionConditions(): Boolean
 
 	/**
 	 * Runs a batch process on a specified session
 	 */
-	protected abstract fun processSession(session: TrackerSession)
+	protected abstract fun processSession(context: Context, session: TrackerSession)
 
-	fun process(session: TrackerSession, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
+	fun process(context: Context, session: TrackerSession, onChallengeCompletedListener: (Instance) -> Unit) {
 		if (extra.isCompleted) return
 
-		processSession(session)
+		processSession(context, session)
 		if (checkCompletionConditions()) {
 			extra.isCompleted = true
-			onChallengeCompletedListener.invoke(this)
+			onChallengeCompletedListener.invoke(this as Instance)
 		}
+		persistence.persist(context, this as Instance)
 	}
 }

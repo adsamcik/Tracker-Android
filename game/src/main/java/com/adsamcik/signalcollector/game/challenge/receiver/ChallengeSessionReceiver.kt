@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.game.challenge.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.work.*
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.extension.getPositiveLongExtraReportNull
@@ -42,7 +41,6 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {
-		Log.d("Challenge", "Challenge!")
 		//The receiver might be subscribed even though the challenges are disabled. Subscribing on demand could be really complicated.
 		if (Preferences.getPref(context).getBooleanRes(R.string.settings_game_challenge_enable_key, R.string.settings_game_challenge_enable_default)) {
 			when (intent.action) {
@@ -54,6 +52,6 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 
 	companion object {
 		const val ARG_ID = "id"
-		const val DELAY_IN_MINUTES = 0L
+		const val DELAY_IN_MINUTES = 60L
 	}
 }

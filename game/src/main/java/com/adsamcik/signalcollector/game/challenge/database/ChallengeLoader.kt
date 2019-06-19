@@ -11,7 +11,7 @@ import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 
 object ChallengeLoader {
 	@WorkerThread
-	fun loadChallenge(context: Context, entry: ChallengeEntry): ChallengeInstance<*> {
+	fun loadChallenge(context: Context, entry: ChallengeEntry): ChallengeInstance<*, *> {
 		return when (entry.type) {
 			ChallengeType.Explorer -> ExplorerChallengePersistence().load(context, entry.id)
 			ChallengeType.WalkDistance -> WalkDistanceChallengePersistence().load(context, entry.id)

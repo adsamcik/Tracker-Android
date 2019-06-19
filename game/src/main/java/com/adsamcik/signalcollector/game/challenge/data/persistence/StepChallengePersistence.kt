@@ -8,14 +8,12 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.StepChallengeIn
 class StepChallengePersistence : ChallengePersistence<StepChallengeInstance> {
 	override fun load(context: Context, entryId: Long): StepChallengeInstance {
 		val database = getDatabase(context)
-		val resources = context.resources
 		val entry = database.entryDao.get(entryId)
 		val entity = database.stepDao.getByEntry(entryId)
 		val definition = StepChallengeDefinition()
 		return StepChallengeInstance(
 				entry,
-				resources.getString(definition.titleRes),
-				resources.getString(definition.descriptionRes),
+				definition,
 				entity
 		)
 	}

@@ -14,14 +14,11 @@ class ExplorerChallengePersistence : ChallengePersistence<ExplorerChallengeInsta
 
 	override fun load(context: Context, entryId: Long): ExplorerChallengeInstance {
 		val database = getDatabase(context)
-		val resources = context.resources
 		val entry = database.entryDao.get(entryId)
 		val entity = database.explorerDao.getByEntry(entryId)
 		val definition = ExplorerChallengeDefinition()
-		return ExplorerChallengeInstance(context,
-				entry,
-				resources.getString(definition.titleRes),
-				resources.getString(definition.descriptionRes),
+		return ExplorerChallengeInstance(entry,
+				definition,
 				entity
 		)
 	}

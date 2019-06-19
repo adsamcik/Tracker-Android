@@ -8,7 +8,7 @@ import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 
-abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private val definition: ChallengeDefinition<ChallengeType>) {
+abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(private val definition: ChallengeDefinition<ChallengeType>) {
 	protected var difficultyMultiplier: Double = 1.0
 
 	protected var duration: Long = 0L
@@ -19,9 +19,6 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 
 	protected var durationMultiplierNormalized: Double = 0.0
 		private set
-
-	protected lateinit var description: String
-	protected lateinit var title: String
 
 	protected open val difficulty: ChallengeDifficulty
 		get() = when {
@@ -43,12 +40,6 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 		duration = (definition.defaultDuration * durationMultiplier).toLong()
 	}
 
-	private fun loadResources(context: Context) {
-		val resources = context.resources
-		title = resources.getString(definition.titleRes)
-		description = resources.getString(definition.descriptionRes)
-	}
-
 	abstract fun selectChallengeSpecificParameters()
 
 	private fun createEntry(database: ChallengeDatabase, startAt: Long): ChallengeEntry {
@@ -67,7 +58,6 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*>>(private va
 
 		selectDuration()
 		selectChallengeSpecificParameters()
-		loadResources(context)
 
 		val entry = createEntry(database, startAt)
 

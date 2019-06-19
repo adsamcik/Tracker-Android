@@ -25,20 +25,16 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
-		val trackerSession = AppDatabase.getDatabase(applicationContext).sessionDao().get(sessionId).value
+		val trackerSession = AppDatabase.getDatabase(applicationContext).sessionDao().get(sessionId)
 				?: return Result.failure()
 
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources
 
-		notificationManager.notify(1, NotificationCompat.Builder(applicationContext, resources.getString(R.string.channel_challenges_id))
-				.setContentTitle("Working on challenges")
-				.build())
-
-		ChallengeManager.processSession(trackerSession) {
-
+		ChallengeManager.processSession(applicationContext, trackerSession) {
 			notificationManager.notify(0, NotificationCompat.Builder(applicationContext, resources.getString(R.string.channel_challenges_id))
 					.setContentTitle("Completed challenge ${it.data.type.name}")
+					.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
 					.build())
 		}
 

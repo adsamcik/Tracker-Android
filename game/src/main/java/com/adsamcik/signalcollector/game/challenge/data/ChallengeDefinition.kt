@@ -6,7 +6,7 @@ import androidx.annotation.StringRes
 /**
  * Definition containing basic data for each challenge
  */
-abstract class ChallengeDefinition<ChallengeInstanceType : ChallengeInstance<*>>(
+abstract class ChallengeDefinition<ChallengeInstanceType : ChallengeInstance<*, *>>(
 		@StringRes val titleRes: Int,
 		@StringRes val descriptionRes: Int,
 		val defaultDuration: Long) {

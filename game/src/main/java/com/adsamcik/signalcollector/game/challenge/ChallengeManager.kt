@@ -25,26 +25,26 @@ object ChallengeManager {
 	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(), WalkDistanceChallengeDefinition(), StepChallengeDefinition())
 
 	//todo do not hold this indefinitely
-	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*>> = mutableListOf()
+	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*, *>> = mutableListOf()
 
 	private const val MAX_CHALLENGE_COUNT = 3
 
-	private val mutableActiveChallenges: NonNullLiveMutableData<List<ChallengeInstance<*>>> = NonNullLiveMutableData(mutableActiveChallengeList_)
+	private val mutableActiveChallenges: NonNullLiveMutableData<List<ChallengeInstance<*, *>>> = NonNullLiveMutableData(mutableActiveChallengeList_)
 
 	/**
 	 * Returns immutable list of active challenges
 	 */
-	val activeChallenges: NonNullLiveData<List<ChallengeInstance<*>>> get() = mutableActiveChallenges
+	val activeChallenges: NonNullLiveData<List<ChallengeInstance<*, *>>> get() = mutableActiveChallenges
 
 	@WorkerThread
-	private fun initFromDb(context: Context): List<ChallengeInstance<*>> {
+	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
 		val database = ChallengeDatabase.getDatabase(context)
 		val active = database.entryDao.getActiveEntry(System.currentTimeMillis())
 		return active.map { ChallengeLoader.loadChallenge(context, it) }
 	}
 
 	private fun persistChallenges(context: Context) {
-		ChallengeDatabase.getDatabase(context).entryDao.update(mutableActiveChallengeList_.map { it.data })
+		mutableActiveChallengeList_.forEach { it.data }
 
 	}
 
@@ -66,12 +66,12 @@ object ChallengeManager {
 		}
 	}
 
-	fun processSession(session: TrackerSession, onChallengeCompletedListener: (ChallengeInstance<*>) -> Unit) {
-		mutableActiveChallengeList_.forEach { it.process(session, onChallengeCompletedListener) }
+	fun processSession(context: Context, session: TrackerSession, onChallengeCompletedListener: (ChallengeInstance<*, *>) -> Unit) {
+		mutableActiveChallengeList_.forEach { it.process(context, session, onChallengeCompletedListener) }
 	}
 
 
-	private fun activateRandomChallenge(context: Context): ChallengeInstance<*>? {
+	private fun activateRandomChallenge(context: Context): ChallengeInstance<*, *>? {
 		val possibleChallenges = enabledChallengeList.filterNot { definition -> mutableActiveChallengeList_.any { definition.type == it.data.type } }
 
 		if (possibleChallenges.isEmpty()) {

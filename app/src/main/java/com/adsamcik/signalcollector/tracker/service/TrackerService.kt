@@ -217,7 +217,10 @@ class TrackerService : LifecycleService() {
 		preComponentList.forEach { it.onDisable(this) }
 		postComponentList.forEach { it.onEnable(this) }
 
-		LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(TrackerSession.RECEIVER_SESSION_ENDED))
+		val sessionEndedIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
+			putExtra(TrackerSession.ARG_ID, dataComponentManager.session.id)
+		}
+		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionEndedIntent)
 	}
 
 
