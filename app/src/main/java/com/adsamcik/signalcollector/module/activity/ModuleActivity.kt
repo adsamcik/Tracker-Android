@@ -111,8 +111,9 @@ class ModuleActivity : DetailActivity() {
 
 		recycler.post {
 			val allVisible = layoutManager.findLastCompletelyVisibleItemPosition() == adapter.itemCount - 1
-			if (allVisible)
+			if (allVisible) {
 				recycler.overScrollMode = View.OVER_SCROLL_NEVER
+			}
 		}
 
 		button_cancel.setOnClickListener { finish() }
@@ -134,8 +135,7 @@ class ModuleActivity : DetailActivity() {
 			manager.deferredUninstall(toRemove.map { it.module.moduleName })
 		}
 
-		if (toInstall.isEmpty())
-			finish()
+		if (toInstall.isEmpty()) finish()
 	}
 
 
