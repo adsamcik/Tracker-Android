@@ -13,9 +13,9 @@ import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.activity.DetailActivity
+import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.extension.cloneCalendar
-import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
@@ -24,6 +24,7 @@ import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PI
 import com.google.android.material.snackbar.Snackbar
 import com.obsez.android.lib.filechooser.ChooserDialog
 import kotlinx.android.synthetic.main.layout_data_export.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -164,7 +165,7 @@ class ExportActivity : DetailActivity() {
 		val from = this.range.start
 		val to = this.range.endInclusive
 
-		launch {
+		launch(Dispatchers.Default) {
 			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 			if (locations.isEmpty()) {
