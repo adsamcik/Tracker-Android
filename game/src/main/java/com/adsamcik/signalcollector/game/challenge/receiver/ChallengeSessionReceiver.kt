@@ -7,6 +7,7 @@ import androidx.work.*
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.extension.getPositiveLongExtraReportNull
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeSessionData
@@ -52,6 +53,6 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 
 	companion object {
 		const val ARG_ID = "id"
-		const val DELAY_IN_MINUTES = 60L
+		val DELAY_IN_MINUTES = if (useMock) 0L else 60L
 	}
 }

@@ -2,11 +2,13 @@ package com.adsamcik.signalcollector.common.color
 
 import android.graphics.Color
 import androidx.annotation.ColorInt
+import kotlin.math.floor
+import kotlin.math.min
 
 /**
  * Brightens given color component with given value and ensures it is not larger than 255
  */
-fun brightenComponent(component: Int, value: Int): Int = Math.min(component + value, 255)
+fun brightenComponent(component: Int, value: Int): Int = min(component + value, 255)
 
 /**
  * Brightens color by components with given value.
@@ -51,4 +53,4 @@ fun perceivedLuminance(@ColorInt color: Int): Double = 0.299 * relRed(color) + 0
  * @param color packed ARGB color
  * @return Value from [Byte.MIN_VALUE] to [Byte.MAX_VALUE]
  */
-fun perceivedRelLuminance(@ColorInt color: Int): Byte = Math.floor((perceivedLuminance(color) - 0.5) * 255).toByte()
+fun perceivedRelLuminance(@ColorInt color: Int): Byte = floor((perceivedLuminance(color) - 0.5) * 255).toByte()

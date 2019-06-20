@@ -16,6 +16,5 @@
         android:paddingTop="@dimen/status_bar_height"
         android:paddingBottom="@dimen/navbar_height_new_padding"
         android:scrollbars="vertical"
-        android:verticalScrollbarPosition="left"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager "/>
+        android:verticalScrollbarPosition="left"/>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

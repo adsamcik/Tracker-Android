@@ -4,9 +4,16 @@
                                               android:layout_width="match_parent"
                                               android:layout_height="wrap_content"
                                               android:orientation="vertical"
-                                              android:padding="@dimen/activity_horizontal_margin"
                                               tools:ignore="HardcodedText">
 
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/challenge_title"
+        style="@style/Base.TextAppearance.AppCompat.Subhead"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAllCaps="true"
+        android:textStyle="bold"
+        tools:text="Lorem ipsum dolor sit amet"/>
     <ProgressBar
         android:id="@+id/challenge_progress"
         style="@style/Widget.AppCompat.ProgressBar.Horizontal"
@@ -18,13 +25,14 @@
         android:progressTint="@color/color_primary"/>
 
     <androidx.appcompat.widget.AppCompatTextView
-        android:id="@+id/challenge_title"
-        style="@style/Base.TextAppearance.AppCompat.Subhead"
+        android:id="@+id/challenge_progress_text"
+        style="@style/TextAppearance.AppCompat.Caption"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Lorem ipsum dolor sit amet"
-        android:textAllCaps="true"
-        android:textStyle="bold"/>
+        android:gravity="center"
+        android:textAlignment="center"
+        tools:text="50%"/>
+
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
@@ -38,8 +46,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="2"
             android:ellipsize="end"
-            android:text="Tougher than lorem"
-            android:textStyle="italic"/>
+            android:textStyle="italic"
+            tools:text="Tougher than lorem"/>
 
         <androidx.appcompat.widget.AppCompatTextView
             android:id="@+id/challenge_time_left"
@@ -49,8 +57,8 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:gravity="end"
-            android:text="10 days 8 hours 5 minutes"
-            android:textStyle="italic"/>
+            android:textStyle="italic"
+            tools:text="10 days 8 hours 5 minutes"/>
     </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.appcompat.widget.AppCompatTextView
@@ -58,5 +66,5 @@
         style="@style/Base.TextAppearance.AppCompat.Body1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Far far away, behind the word mountains, far from the countries Vokalia and Consonantia, there live the blind texts."/>
+        tools:text="Far far away, behind the word mountains, far from the countries Vokalia and Consonantia, there live the blind texts."/>
 </androidx.appcompat.widget.LinearLayoutCompat>

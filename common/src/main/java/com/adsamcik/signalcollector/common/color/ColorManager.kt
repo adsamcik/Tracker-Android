@@ -20,6 +20,7 @@ import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
 import kotlin.concurrent.withLock
+import kotlin.math.abs
 
 /**
  * Class that handles globally calculation of current color
@@ -371,9 +372,9 @@ object ColorManager {
 
 			val currentColor = colorList[currentIndex]
 			val targetColor = colorList[nextIndex]
-			val rDiff = Math.abs(Color.red(currentColor) - Color.red(targetColor))
-			val gDiff = Math.abs(Color.green(currentColor) - Color.green(targetColor))
-			val bDiff = Math.abs(Color.blue(currentColor) - Color.blue(targetColor))
+			val rDiff = abs(Color.red(currentColor) - Color.red(targetColor))
+			val gDiff = abs(Color.green(currentColor) - Color.green(targetColor))
+			val bDiff = abs(Color.blue(currentColor) - Color.blue(targetColor))
 			val totalDiff = rDiff + gDiff + bDiff
 			return if (totalDiff == 0) 1 else totalDiff
 		}

@@ -35,7 +35,6 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		//updateChallenges()
 
 		val context = requireContext()
-		@Suppress("unchecked_cast")
 		val adapter = GameAdapter(colorController).apply {
 			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
 		}.also { recycler.adapter = it }

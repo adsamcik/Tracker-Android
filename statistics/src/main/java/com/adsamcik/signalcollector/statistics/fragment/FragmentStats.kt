@@ -5,6 +5,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.FragmentActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendBehavior
@@ -13,18 +15,17 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.statistics.ChangeTableAdapter
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
-import com.adsamcik.signalcollector.common.data.TrackerSession
-import kotlinx.android.synthetic.main.fragment_stats.view.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
@@ -38,7 +39,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-		val activity = activity!!
+		val activity = requireActivity()
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
 		adapter = ChangeTableAdapter(activity.packageManager.getActivityInfo(activity.componentName, 0).themeResource)
@@ -50,11 +51,12 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		//swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
 		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dp)
 
-		val recyclerView = fragmentView!!.recycler_stats
+		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
+			this.adapter = this@FragmentStats.adapter
+			layoutManager = LinearLayoutManager(activity)
+			addItemDecoration(CardItemDecoration())
+		}
 		updateStats()
-		recyclerView.adapter = adapter
-		val decoration = CardItemDecoration()
-		recyclerView.addItemDecoration(decoration)
 
 		this.fragmentView = fragmentView
 

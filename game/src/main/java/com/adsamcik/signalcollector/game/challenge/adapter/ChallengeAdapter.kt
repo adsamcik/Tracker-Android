@@ -5,7 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ProgressBar
-import androidx.appcompat.widget.AppCompatTextView
+import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.common.misc.extension.formatAsDuration
@@ -17,11 +17,12 @@ import java.util.*
 class ChallengeAdapter(mContext: Context, private var mDataSource: Array<ChallengeInstance<*, *>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
 
 	class ViewHolder(itemView: View,
-	                 val titleTextView: AppCompatTextView,
-	                 val descriptionTextView: AppCompatTextView,
-	                 val difficultyTextView: AppCompatTextView,
-	                 val timeTextView: AppCompatTextView,
-	                 val progressBar: ProgressBar) : RecyclerView.ViewHolder(itemView)
+	                 val titleTextView: TextView,
+	                 val descriptionTextView: TextView,
+	                 val difficultyTextView: TextView,
+	                 val timeTextView: TextView,
+	                 val progressBar: ProgressBar,
+	                 val progressText: TextView) : RecyclerView.ViewHolder(itemView)
 
 
 	private val mInflater: LayoutInflater = mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
@@ -40,7 +41,8 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 				view.challenge_description,
 				view.challenge_difficulty,
 				view.challenge_time_left,
-				view.challenge_progress)
+				view.challenge_progress,
+				view.challenge_progress_text)
 	}
 
 	override fun getItemCount(): Int = mDataSource.size
@@ -50,13 +52,13 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 		val challenge = mDataSource[position]
 		holder.titleTextView.text = challenge.getTitle(context)
 		holder.descriptionTextView.text = challenge.getDescription(context)
-		holder.difficultyTextView.text = challenge.difficulty.name.replace('_', ' ').toLowerCase(Locale.getDefault())
+		holder.difficultyTextView.text = context.getString(challenge.difficulty.difficultyStringRes)
 
-		holder.progressBar.progress = (challenge.progress * 100.0).toInt()
+		val progress = (challenge.progress * 100.0).toInt()
+		holder.progressBar.progress = progress
+		holder.progressText.text = String.format(Locale.getDefault(), "%d%%", progress)
+
 		holder.timeTextView.text = (challenge.endTime - System.currentTimeMillis()).formatAsDuration(holder.itemView.context)
-
-		//val color = ColorUtils.setAlphaComponent(ContextCompat.getColorRes(context!!, R.color.background_success), (challenge.progress * 25.5).roundToInt())
-		//fragmentView.setBackgroundColor(color)
 
 		onViewChangedListener?.invoke(holder.itemView)
 	}

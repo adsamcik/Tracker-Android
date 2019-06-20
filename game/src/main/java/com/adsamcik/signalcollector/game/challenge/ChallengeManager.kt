@@ -43,13 +43,13 @@ object ChallengeManager {
 		return active.map { ChallengeLoader.loadChallenge(context, it) }
 	}
 
-	private fun persistChallenges(context: Context) {
-		mutableActiveChallengeList_.forEach { it.data }
-
+	@AnyThread
+	fun initialize(context: Context) {
+		initialize(context, null)
 	}
 
 	@AnyThread
-	fun initialize(context: Context) {
+	fun initialize(context: Context, onInitialized: (() -> Unit)?) {
 		GlobalScope.launch(Dispatchers.Default) {
 			val active = initFromDb(context)
 
@@ -57,26 +57,34 @@ object ChallengeManager {
 			mutableActiveChallengeList_.addAll(active)
 			while (mutableActiveChallengeList_.size < MAX_CHALLENGE_COUNT) {
 				val newChallenge = activateRandomChallenge(context = context)
-				if (newChallenge != null)
+				if (newChallenge != null) {
 					mutableActiveChallengeList_.add(newChallenge)
-				else
+				} else {
 					break
+				}
 			}
 			mutableActiveChallenges.postValue(mutableActiveChallengeList_)
+			onInitialized?.invoke()
 		}
 	}
 
 	fun processSession(context: Context, session: TrackerSession, onChallengeCompletedListener: (ChallengeInstance<*, *>) -> Unit) {
-		mutableActiveChallengeList_.forEach { it.process(context, session, onChallengeCompletedListener) }
+		if (mutableActiveChallengeList_.isEmpty()) {
+			initialize(context) {
+				if (mutableActiveChallengeList_.isEmpty()) return@initialize
+
+				processSession(context, session, onChallengeCompletedListener)
+			}
+		} else {
+			mutableActiveChallengeList_.forEach { it.process(context, session, onChallengeCompletedListener) }
+		}
 	}
 
 
 	private fun activateRandomChallenge(context: Context): ChallengeInstance<*, *>? {
 		val possibleChallenges = enabledChallengeList.filterNot { definition -> mutableActiveChallengeList_.any { definition.type == it.data.type } }
 
-		if (possibleChallenges.isEmpty()) {
-			return null
-		}
+		if (possibleChallenges.isEmpty()) return null
 
 		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
 		val selectedChallenge = possibleChallenges[selectedChallengeIndex]
