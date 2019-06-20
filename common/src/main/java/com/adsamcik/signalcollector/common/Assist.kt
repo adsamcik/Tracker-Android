@@ -201,6 +201,7 @@ object Assist {
 		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.scrollY, y).setDuration(millis.toLong()).start()
 	}
 
+	//todo consider using WindowInsets
 	fun getStatusBarHeight(context: Context): Int {
 		val resources = context.resources
 		val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
