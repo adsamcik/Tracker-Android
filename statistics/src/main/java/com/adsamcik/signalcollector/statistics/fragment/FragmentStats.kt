@@ -12,8 +12,8 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.recycler.card.CardItemDecoration
 import com.adsamcik.recycler.card.table.TableCard
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
@@ -21,6 +21,7 @@ import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.statistics.ChangeTableAdapter
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
@@ -46,15 +47,23 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
+		//todo unify this in some way so it can be easily reused for any recycler currently also in FragmentGame
+		val contentPadding = activity.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding).toInt()
+		val statusBarHeight = Assist.getStatusBarHeight(activity)
+		val navBarSize = Assist.getNavigationBarSize(activity)
+		val navBarHeight = navBarSize.second.y
+
 		swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
 		swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
 		//swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
-		swipeRefreshLayout.setProgressViewOffset(true, 0, 40.dp)
+		swipeRefreshLayout.setProgressViewOffset(true, 0, statusBarHeight)
 
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
 			this.adapter = this@FragmentStats.adapter
 			layoutManager = LinearLayoutManager(activity)
-			addItemDecoration(CardItemDecoration())
+			addItemDecoration(SimpleMarginDecoration(
+					firstRowMargin = statusBarHeight + contentPadding,
+					lastRowMargin = navBarHeight + contentPadding))
 		}
 		updateStats()
 

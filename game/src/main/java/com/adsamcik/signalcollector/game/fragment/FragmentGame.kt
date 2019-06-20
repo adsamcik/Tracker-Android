@@ -9,9 +9,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendPriority
-import com.adsamcik.recycler.card.CardItemDecoration
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
+import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
@@ -40,7 +41,16 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
 		recycler.layoutManager = LinearLayoutManager(context)
-		recycler.addItemDecoration(CardItemDecoration())
+
+
+		val contentPadding = context.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding).toInt()
+		val statusBarHeight = Assist.getStatusBarHeight(context)
+		val navBarSize = Assist.getNavigationBarSize(context)
+		val navBarHeight = navBarSize.second.y
+
+		recycler.addItemDecoration(SimpleMarginDecoration(
+				firstRowMargin = statusBarHeight + contentPadding,
+				lastRowMargin = navBarHeight + contentPadding))
 
 		colorController.watchView(ColorView(rootView, 1, 0))
 		colorController.watchRecyclerView(ColorView(recycler, 1))

@@ -13,8 +13,6 @@
         android:clipToPadding="false"
         android:focusable="false"
         android:listSelector="@android:color/transparent"
-        android:paddingTop="@dimen/status_bar_height"
-        android:paddingBottom="@dimen/navbar_height_new_padding"
         android:scrollbars="vertical"
         android:verticalScrollbarPosition="left"/>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
