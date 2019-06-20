@@ -109,8 +109,9 @@ class StatsDetailActivity : DetailActivity() {
 			override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {}
 
 			override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-				if (layoutManager.findFirstCompletelyVisibleItemPosition() == 0)
+				if (layoutManager.findFirstCompletelyVisibleItemPosition() == 0) {
 					recycler.smoothScrollToPosition(0)
+				}
 			}
 
 			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) {}
