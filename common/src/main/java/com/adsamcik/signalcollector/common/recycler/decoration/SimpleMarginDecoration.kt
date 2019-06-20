@@ -12,7 +12,10 @@ import com.adsamcik.signalcollector.common.misc.extension.dp
 /**
  * Implementation of [RecyclerView.ItemDecoration] for [CardListAdapter]. It will add uniform margin to all sides.
  */
-class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp, private val horizontalMargin: Int = 16.dp) : RecyclerView.ItemDecoration() {
+class SimpleMarginDecoration(private val spaceBetweenItems: Int = 16.dp,
+                             private val horizontalMargin: Int = 16.dp,
+                             private val firstRowMargin: Int = 16.dp,
+                             private val lastRowMargin: Int = 16.dp) : RecyclerView.ItemDecoration() {
 	override fun getItemOffsets(outRect: Rect, view: View,
 	                            parent: RecyclerView, state: RecyclerView.State) {
 
@@ -25,11 +28,14 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp, private va
 			}
 
 			val position = parent.getChildAdapterPosition(view)
-			if (position < columnCount) top = verticalMargin
+			top = if (position < columnCount) firstRowMargin
+			else spaceBetweenItems
+
+			val itemCount = parent.adapter?.itemCount ?: 0
+			if (position >= itemCount - columnCount) bottom = lastRowMargin
 
 			left = horizontalMargin
 			right = horizontalMargin
-			bottom = verticalMargin
 		}
 	}
 }
