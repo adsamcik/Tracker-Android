@@ -3,23 +3,23 @@ import org.gradle.kotlin.dsl.kotlin
 
 object Libraries {
 	object Versions {
-		const val constraintLayout = "2.0.0-beta1"
-		const val coreKtx = "1.1.0-beta01"
+		const val constraintLayout = "2.0.0-beta2"
+		const val coreKtx = "1.1.0-rc01"
 		const val appcompat = "1.1.0-beta01"
 		const val room = "2.1.0"
 		const val fragment = "1.1.0-beta01"
-		const val kotlin = "1.3.31"
+		const val kotlin = "1.3.40"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
-		const val work = "2.1.0-alpha03"
+		const val work = "2.1.0-beta01"
 		const val lifecycle = "2.2.0-alpha01"
 		const val preference = "1.1.0-beta01"
 		const val material = "1.1.0-alpha07"
 		const val coroutines = "1.3.0-M1"
 
-		const val maps = "16.1.0"
-		const val location = "16.0.0"
-		const val firebaseCore = "16.0.9"
+		const val maps = "17.0.0"
+		const val location = "17.0.0"
+		const val firebaseCore = "17.0.0"
 		const val recyclerView = "1.1.0-alpha06"
 		const val paging = "2.1.0"
 
