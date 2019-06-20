@@ -12,19 +12,24 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
-import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
+import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
-import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.google.android.gms.location.LocationResult
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
-class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
+class SessionTrackerComponent : DataTrackerComponent, SensorEventListener, CoroutineScope {
+	private val job = SupervisorJob()
+
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Default + job
+
 	private var mutableSession: MutableTrackerSession = MutableTrackerSession(System.currentTimeMillis())
 
 	val session: TrackerSession
@@ -58,7 +63,7 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener {
 				}
 			}
 
-			GlobalScope.launch {
+			launch {
 				sessionDao.update(this@apply)
 			}
 		}

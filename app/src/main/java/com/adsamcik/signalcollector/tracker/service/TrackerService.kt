@@ -130,9 +130,6 @@ class TrackerService : LifecycleService() {
 					R.drawable.ic_pause_circle_filled_black_24dp,
 					Shortcuts.ShortcutAction.STOP_COLLECTION)
 		}
-
-		//Challenge cancel
-		//WorkManager.getInstance(this).cancelAllWorkByTag("ChallengeQueue")
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
