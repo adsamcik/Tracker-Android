@@ -22,7 +22,7 @@ import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.Assist.navbarSize
+import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
@@ -201,7 +201,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		val activity = activity
 		//map_menu_button is null in some rare cases. I am not entirely sure when it happens, but it seems to be quite rare so checking for null is probably OK atm
 		if (activity != null && map_menu_button != null) {
-			val (position, navbarHeight) = navbarSize(activity)
+			val (position, navbarHeight) = getNavigationBarSize(activity)
 			//check payloads
 			when (opened) {
 				true -> {

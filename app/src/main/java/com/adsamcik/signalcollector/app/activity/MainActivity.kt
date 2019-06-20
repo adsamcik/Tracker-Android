@@ -220,7 +220,7 @@ class MainActivity : CoreUIActivity() {
 			navigationOffset = navigation_guideline.guidelineEnd
 		}
 
-		val (position, navDim) = Assist.navbarSize(this)
+		val (position, navDim) = Assist.getNavigationBarSize(this)
 		if (navDim.x > navDim.y) {
 			navDim.x = 0
 		} else {

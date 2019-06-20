@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.common.misc.keyboard
 import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
-import com.adsamcik.signalcollector.common.Assist.navbarSize
+import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.inputMethodManager
 
@@ -49,7 +49,7 @@ class KeyboardManager(private val rootView: View) {
 	}
 
 	private fun calculateDefaultDiff() {
-		defaultDiff = calculateHeightDiff() - navbarSize(rootView.context).second.y
+		defaultDiff = calculateHeightDiff() - getNavigationBarSize(rootView.context).second.y
 	}
 
 	/**

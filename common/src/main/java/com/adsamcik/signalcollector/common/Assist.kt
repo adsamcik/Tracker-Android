@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.misc.extension.dp
 import com.adsamcik.signalcollector.common.misc.extension.locationManager
 import com.adsamcik.signalcollector.common.misc.extension.windowManager
@@ -61,7 +62,7 @@ object Assist {
 	 * @param context Context
 	 * @return (Position, Size)
 	 */
-	fun navbarSize(context: Context): Pair<NavBarPosition, Point> {
+	fun getNavigationBarSize(context: Context): Pair<NavBarPosition, Int2> {
 		val display = context.windowManager.defaultDisplay
 
 		val appUsableSize = Point()
@@ -75,15 +76,16 @@ object Assist {
 		if (appUsableSize.x < realScreenSize.x) {
 			//App supports only phones so there should be no scenario where orientation is 0 or 180
 			return Pair(
-					if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < 26) NavBarPosition.RIGHT
-					else NavBarPosition.LEFT,
-					Point(realScreenSize.x - appUsableSize.x, appUsableSize.y))
+					if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < 26) NavBarPosition.RIGHT else NavBarPosition.LEFT,
+					Int2(realScreenSize.x - appUsableSize.x, appUsableSize.y))
 		}
 
 		// navigation bar at the bottom
 		return if (appUsableSize.y < realScreenSize.y) {
-			Pair(NavBarPosition.BOTTOM, Point(appUsableSize.x, realScreenSize.y - appUsableSize.y))
-		} else Pair(NavBarPosition.UNKNOWN, Point())
+			Pair(NavBarPosition.BOTTOM, Int2(appUsableSize.x, realScreenSize.y - appUsableSize.y))
+		} else {
+			Pair(NavBarPosition.UNKNOWN, Int2())
+		}
 	}
 
 	/**
@@ -210,6 +212,6 @@ object Assist {
 	}
 
 	fun ensureLooper() {
-		if(Looper.myLooper() == null) Looper.prepare()
+		if (Looper.myLooper() == null) Looper.prepare()
 	}
 }
