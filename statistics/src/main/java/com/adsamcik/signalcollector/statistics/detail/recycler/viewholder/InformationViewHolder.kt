@@ -15,7 +15,7 @@ class InformationViewHolder(view: View) : MultiTypeViewHolder<InformationStatist
 		val resources = itemView.resources
 		iconView.setImageDrawable(resources.getDrawable(value.iconRes, itemView.context.theme))
 		titleView.setText(value.titleRes)
-		valueView.text = value.typeValue.toString()
+		valueView.text = value.value
 	}
 
 }
