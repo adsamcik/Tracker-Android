@@ -143,6 +143,7 @@ object Libraries {
 
 	fun fileChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
+			//todo update to version that supports Android P when ready
 			implementation("com.obsez.android.lib.filechooser:filechooser:${Versions.fileChooser}")
 		}
 	}
