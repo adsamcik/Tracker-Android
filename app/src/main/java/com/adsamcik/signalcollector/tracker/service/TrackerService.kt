@@ -18,6 +18,7 @@ import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.exception.PermissionException
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -157,15 +158,16 @@ class TrackerService : LifecycleService() {
 				}
 
 				override fun onLocationAvailability(availability: LocationAvailability) {
-					if (!availability.isLocationAvailable)
+					if (!availability.isLocationAvailable) {
 						notificationComponent.onLocationDataChange(this@TrackerService, null)
+					}
 				}
 
 			}
 
 			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
 		} else {
-			Reporter.report(Exception("Tracker does not have sufficient permissions"))
+			Reporter.report(PermissionException("Tracker does not have sufficient permissions"))
 			stopSelf()
 			return Service.START_NOT_STICKY
 		}
@@ -180,8 +182,9 @@ class TrackerService : LifecycleService() {
 			TrackerLocker.isLocked.observe(this) {
 				if (it) stopSelf()
 			}
-		} else
+		} else {
 			ActivityService.requestActivity(this, this::class, minUpdateDelayInSeconds)
+		}
 
 		ActivityWatcherService.poke(this, trackerRunning = true)
 
