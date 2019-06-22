@@ -1,13 +1,8 @@
 package com.adsamcik.signalcollector.app.activity
 
-import android.os.Build
 import android.os.Bundle
-import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.activity.CoreActivity
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
-import com.adsamcik.signalcollector.notification.NotificationChannels
-import com.adsamcik.signalcollector.shortcut.Shortcuts
-import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 
 
 /**
@@ -20,14 +15,6 @@ class LaunchActivity : CoreActivity() {
 		super.onCreate(savedInstanceState)
 
 		startActivity<MainActivity> { }
-
-		if (Build.VERSION.SDK_INT >= 25) Shortcuts.initializeShortcuts(this)
-
-		if (Build.VERSION.SDK_INT >= 26) NotificationChannels.prepareChannels(this)
-
-		ActivityWatcherService.poke(this)
-
-		TrackerLocker.initializeFromPersistence(this)
 
 		overridePendingTransition(0, 0)
 		finish()
