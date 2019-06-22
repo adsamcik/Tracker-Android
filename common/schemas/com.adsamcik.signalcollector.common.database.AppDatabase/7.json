@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "fa0d4b9e02e0794bd1dddc373f3f06e3",
+    "identityHash": "010a3688802d8899a480ee5af110c588",
     "entities": [
       {
         "tableName": "location_data",
@@ -111,7 +111,7 @@
       },
       {
         "tableName": "tracker_session",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `distance_on_foot` REAL NOT NULL, `distance_in_vehicle` REAL NOT NULL, `steps` INTEGER NOT NULL, `session_activity_id` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `user_initiated` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `distance_on_foot` REAL NOT NULL, `distance_in_vehicle` REAL NOT NULL, `steps` INTEGER NOT NULL, `session_activity_id` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -128,6 +128,12 @@
           {
             "fieldPath": "end",
             "columnName": "end",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUserInitiated",
+            "columnName": "user_initiated",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -408,7 +414,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fa0d4b9e02e0794bd1dddc373f3f06e3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '010a3688802d8899a480ee5af110c588')"
     ]
   }
 }

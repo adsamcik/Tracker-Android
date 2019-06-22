@@ -107,19 +107,6 @@ class TrackerService : LifecycleService() {
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
 
-		preComponentList.apply {
-			add(PreLocationTrackerComponent())
-		}.forEach { it.onEnable(this) }
-
-		dataComponentManager = DataComponentManager(this).apply { onEnable() }
-
-		postComponentList.apply {
-			NotificationComponent().also {
-				notificationComponent = it
-				add(it)
-			}
-			add(TrackerDataComponent())
-		}.forEach { it.onEnable(this) }
 
 		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
@@ -130,6 +117,22 @@ class TrackerService : LifecycleService() {
 					R.drawable.ic_pause_circle_filled_black_24dp,
 					Shortcuts.ShortcutAction.STOP_COLLECTION)
 		}
+	}
+
+	private fun initializeComponents(isSessionUserInitiated: Boolean) {
+		preComponentList.apply {
+			add(PreLocationTrackerComponent())
+		}.forEach { it.onEnable(this) }
+
+		dataComponentManager = DataComponentManager(this).apply { onEnable(isSessionUserInitiated) }
+
+		postComponentList.apply {
+			NotificationComponent().also {
+				notificationComponent = it
+				add(it)
+			}
+			add(TrackerDataComponent())
+		}.forEach { it.onEnable(this) }
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -170,6 +173,7 @@ class TrackerService : LifecycleService() {
 		}
 
 		isBackgroundActivated = intent.getBooleanExtra("backTrack", false)
+		initializeComponents(isSessionUserInitiated = !isBackgroundActivated)
 
 		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
 		startForeground(notificationId, notification)
@@ -187,8 +191,8 @@ class TrackerService : LifecycleService() {
 
 		isServiceRunning.value = true
 
-		LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(TrackerSession.RECEIVER_SESSION_STARTED))
-
+		val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
+		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionStartIntent)
 		return START_NOT_STICKY
 	}
 
@@ -217,10 +221,10 @@ class TrackerService : LifecycleService() {
 		preComponentList.forEach { it.onDisable(this) }
 		postComponentList.forEach { it.onEnable(this) }
 
-		val sessionEndedIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
-			putExtra(TrackerSession.ARG_ID, dataComponentManager.session.id)
+		val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
+			putExtra(TrackerSession.RECEIVER_SESSION_ID, dataComponentManager.session.id)
 		}
-		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionEndedIntent)
+		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionEndIntent)
 	}
 
 

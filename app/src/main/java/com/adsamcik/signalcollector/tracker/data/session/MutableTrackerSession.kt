@@ -6,17 +6,24 @@ class MutableTrackerSession(
 		id: Long = 0,
 		start: Long,
 		end: Long,
+		isUserInitiated: Boolean,
 		collections: Int,
 		distanceInM: Float,
 		distanceOnFootInM: Float,
 		distanceInVehicleInM: Float,
 		steps: Int,
-		sessionActivityId: Int? = null) : TrackerSession(id, start, end, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps, sessionActivityId) {
+		sessionActivityId: Int? = null) : TrackerSession(id, start, end, isUserInitiated, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps, sessionActivityId) {
 
 	override var id: Long
 		get() = super.id
 		public set(value) {
 			super.id = value
+		}
+
+	override var isUserInitiated: Boolean
+		get() = super.isUserInitiated
+		set(value) {
+			super.isUserInitiated = value
 		}
 
 	override var collections: Int
@@ -67,11 +74,12 @@ class MutableTrackerSession(
 			super.sessionActivityId = value
 		}
 
-	constructor(start: Long) : this(0, start, start, 0, 0f, 0f, 0f, 0)
+	constructor(start: Long, isUserInitiated: Boolean) : this(0, start, start, isUserInitiated, 0, 0f, 0f, 0f, 0)
 
 	constructor(session: TrackerSession) : this(session.id,
 			session.start,
 			session.end,
+			session.isUserInitiated,
 			session.collections,
 			session.distanceInM,
 			session.distanceOnFootInM,

@@ -20,17 +20,20 @@ import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserve
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import com.google.android.gms.location.LocationResult
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
-class SessionTrackerComponent : DataTrackerComponent, SensorEventListener, CoroutineScope {
+class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent, SensorEventListener, CoroutineScope {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
-	private var mutableSession: MutableTrackerSession = MutableTrackerSession(System.currentTimeMillis())
+	private var mutableSession: MutableTrackerSession = MutableTrackerSession(System.currentTimeMillis(), isUserInitiated)
 
 	val session: TrackerSession
 		get() = mutableSession
@@ -80,7 +83,7 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener, Corou
 			end = System.currentTimeMillis()
 		}
 
-		GlobalScope.launch { sessionDao.update(mutableSession) }
+		launch { sessionDao.update(mutableSession) }
 	}
 
 	override fun onEnable(context: Context) {
@@ -96,9 +99,9 @@ class SessionTrackerComponent : DataTrackerComponent, SensorEventListener, Corou
 
 		sessionDao = AppDatabase.getDatabase(context).sessionDao()
 
-		mutableSession = MutableTrackerSession(System.currentTimeMillis())
+		mutableSession = MutableTrackerSession(System.currentTimeMillis(), isUserInitiated)
 
-		GlobalScope.launch {
+		launch {
 			sessionDao.insert(mutableSession).also { mutableSession.id = it }
 		}
 	}

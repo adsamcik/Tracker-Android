@@ -34,7 +34,6 @@ import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.adsamcik.signalcollector.tracker.ui.InfoComponent
@@ -194,6 +193,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		}
 	}
 
+	//todo improve this
 	private fun mock() {
 		val collectionData = MutableCollectionData(System.currentTimeMillis())
 		val location = Location(collectionData.time, 15.0, 15.0, 123.0, 6f, 3f, 10f, 15f)
@@ -202,7 +202,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		collectionData.wifi = WifiData(location, System.currentTimeMillis(), listOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		collectionData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
 
-		val session = TrackerSession(0, System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), 56, 5410f, 15f, 5000f, 154)
+		val session = TrackerSession(0, System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), true, 56, 5410f, 15f, 5000f, 154)
 
 		updateData(CollectionDataEcho(location, collectionData, session))
 	}

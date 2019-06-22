@@ -9,6 +9,7 @@ open class TrackerSession(
 		id: Long = 0,
 		start: Long = 0,
 		end: Long = 0,
+		isUserInitiated: Boolean = false,
 		collections: Int = 0,
 		distanceInM: Float = 0f,
 		distanceOnFootInM: Float = 0f,
@@ -24,6 +25,11 @@ open class TrackerSession(
 		protected set
 
 	open var end: Long = end
+		protected set
+
+	//todo Write migration for this
+	@ColumnInfo(name = "user_initiated")
+	open var isUserInitiated: Boolean = isUserInitiated
 		protected set
 
 	open var collections: Int = collections
@@ -51,7 +57,6 @@ open class TrackerSession(
 	companion object {
 		const val RECEIVER_SESSION_STARTED = "tracker.intent.action.SESSION_START"
 		const val RECEIVER_SESSION_ENDED = "tracker.intent.action.SESSION_END"
-
-		const val ARG_ID = "id"
+		const val RECEIVER_SESSION_ID = "id"
 	}
 }

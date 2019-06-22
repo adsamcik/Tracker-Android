@@ -5,10 +5,10 @@ import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.data.*
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.google.android.gms.location.LocationResult
 
 class DataComponentManager(context: Context) {
@@ -27,8 +27,8 @@ class DataComponentManager(context: Context) {
 		get() = sessionComponent.session
 
 
-	fun onEnable() {
-		sessionComponent = SessionTrackerComponent()
+	fun onEnable(isUserInitiated: Boolean) {
+		sessionComponent = SessionTrackerComponent(isUserInitiated)
 		dataComponentList.add(sessionComponent)
 
 		dataComponentList.forEach { it.onEnable(appContext) }
