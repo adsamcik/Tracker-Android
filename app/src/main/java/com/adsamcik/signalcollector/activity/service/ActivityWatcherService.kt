@@ -9,7 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
+import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager
@@ -63,7 +63,7 @@ class ActivityWatcherService : LifecycleService() {
 	}
 
 	private fun updateNotification(): Notification {
-		val intent = Intent(this, LaunchActivity::class.java)
+		val intent = Intent(this, MainActivity::class.java)
 		val builder = NotificationCompat.Builder(this, getString(R.string.channel_activity_watcher_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
@@ -124,7 +124,7 @@ class ActivityWatcherService : LifecycleService() {
 		         trackerRunning: Boolean = TrackerService.isServiceRunning.value) {
 
 			if (updateInterval > 0 && autoTracking > 0) {
-				ActivityService.requestAutoTracking(context, LaunchActivity::class, updateInterval)
+				ActivityService.requestAutoTracking(context, ActivityWatcherService::class, updateInterval)
 				if (watcherPreference && !trackerLocked && !trackerRunning) {
 					if (instance == null) {
 						ContextCompat.startForegroundService(context, Intent(context, ActivityWatcherService::class.java))

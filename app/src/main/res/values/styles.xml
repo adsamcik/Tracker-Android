@@ -1,6 +1,12 @@
 <resources>
+    <style name="AppTheme.Launcher">
+        <item name="android:windowBackground">@drawable/background_splash</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="colorPrimaryDark">@color/color_accent</item>
+    </style>
 
-    <style name="AppThemeLight" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
         <item name="colorPrimary">@color/color_primary</item>
         <item name="colorPrimaryDark">@color/color_primary_dark</item>
         <item name="colorAccent">@color/color_accent</item>
@@ -10,19 +16,13 @@
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
     </style>
 
-    <style name="AppThemeTransluscent" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
+    <style name="AppTheme.Transluscent" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
         <item name="android:windowTranslucentNavigation">true</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="android:windowBackground">@null</item>
-    </style>
-
-    <style name="SplashTheme" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
-        <item name="android:windowBackground">@drawable/background_splash</item>
-        <item name="android:windowTranslucentNavigation">true</item>
-        <item name="android:windowTranslucentStatus">true</item>
     </style>
 
     <style name="Divider">

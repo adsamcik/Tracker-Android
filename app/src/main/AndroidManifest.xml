@@ -36,7 +36,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/AppThemeLight"
+        android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
         <activity android:name=".activity.session.SessionActivityActivity"/>
         <activity android:name=".module.activity.ModuleActivity"/>
@@ -56,28 +56,23 @@
         </provider>
 
         <activity
-            android:name=".app.activity.LaunchActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/SplashTheme">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-        </activity>
-        <activity
             android:name=".shortcut.ShortcutActivity"
             android:screenOrientation="portrait"
-            android:theme="@style/SplashTheme">
+            android:theme="@style/AppTheme.Launcher">
         </activity>
         <activity
             android:name=".app.activity.MainActivity"
             android:exported="true"
             android:launchMode="singleInstance"
             android:resizeableActivity="true"
-            android:theme="@style/AppThemeTransluscent"
+            android:theme="@style/AppTheme.Launcher"
             android:windowSoftInputMode="adjustResize"
-            tools:targetApi="n"/>
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
         <activity
             android:name=".debug.activity.ActivityRecognitionActivity"
             android:screenOrientation="portrait"/>

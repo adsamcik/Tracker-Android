@@ -10,12 +10,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.LaunchActivity
+import com.adsamcik.signalcollector.app.activity.MainActivity
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.extension.formatDistance
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
-import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.math.RoundingMode
@@ -48,7 +48,7 @@ class NotificationComponent : PostTrackerComponent {
 
 	private fun generateNotification(context: Context, location: Location? = null, data: CollectionData? = null): Notification {
 		val resources = context.resources
-		val intent = Intent(context, LaunchActivity::class.java)
+		val intent = Intent(context, MainActivity::class.java)
 
 		val builder = NotificationCompat.Builder(context, resources.getString(R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
