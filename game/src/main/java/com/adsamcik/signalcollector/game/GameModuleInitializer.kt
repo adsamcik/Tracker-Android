@@ -7,6 +7,7 @@ import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.module.ModuleInitializer
 import com.adsamcik.signalcollector.game.challenge.receiver.ChallengeSessionReceiver
 
+@Suppress("unused")
 class GameModuleInitializer : ModuleInitializer {
 	private fun initializeTrackerSessionReceivers(applicationContext: Context) {
 		val localBroadcast = LocalBroadcastManager.getInstance(applicationContext)
