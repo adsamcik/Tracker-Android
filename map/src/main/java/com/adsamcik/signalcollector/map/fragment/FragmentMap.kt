@@ -28,10 +28,10 @@ import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.SnackMaker
-import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.common.misc.extension.marginBottom
-import com.adsamcik.signalcollector.common.misc.extension.transaction
-import com.adsamcik.signalcollector.common.misc.extension.transactionStateLoss
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.marginBottom
+import com.adsamcik.signalcollector.common.extension.transaction
+import com.adsamcik.signalcollector.common.extension.transactionStateLoss
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition

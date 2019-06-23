@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.utility
 
-import com.adsamcik.signalcollector.common.misc.extension.contains
-import com.adsamcik.signalcollector.common.misc.extension.toDate
+import com.adsamcik.signalcollector.common.extension.contains
+import com.adsamcik.signalcollector.common.extension.toDate
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith

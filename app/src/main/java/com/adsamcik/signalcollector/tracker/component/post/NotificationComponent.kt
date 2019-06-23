@@ -13,9 +13,9 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
-import com.adsamcik.signalcollector.common.misc.extension.formatDistance
-import com.adsamcik.signalcollector.common.misc.extension.notificationManager
-import com.adsamcik.signalcollector.common.misc.extension.requireValue
+import com.adsamcik.signalcollector.common.extension.formatDistance
+import com.adsamcik.signalcollector.common.extension.notificationManager
+import com.adsamcik.signalcollector.common.extension.requireValue
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver

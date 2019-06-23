@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.creator
 
 import android.view.ViewGroup
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolderCreator
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData

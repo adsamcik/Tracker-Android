@@ -5,7 +5,7 @@ import android.view.View
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.introduction.Introduction
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.extension.dp
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Target
 import com.takusemba.spotlight.shapes.Circle

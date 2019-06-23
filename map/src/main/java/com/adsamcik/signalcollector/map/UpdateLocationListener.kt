@@ -13,7 +13,7 @@ import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.misc.extension.sensorManager
+import com.adsamcik.signalcollector.common.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult

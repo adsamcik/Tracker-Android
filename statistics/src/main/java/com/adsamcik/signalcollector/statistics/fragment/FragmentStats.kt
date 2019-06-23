@@ -19,7 +19,7 @@ import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
-import com.adsamcik.signalcollector.common.misc.extension.*
+import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.statistics.ChangeTableAdapter

@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.GroupedActivity
-import com.adsamcik.signalcollector.common.misc.extension.notificationManager
+import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService

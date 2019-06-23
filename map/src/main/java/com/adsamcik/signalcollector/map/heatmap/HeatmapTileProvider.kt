@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.common.misc.Int2
-import com.adsamcik.signalcollector.common.misc.extension.toDate
+import com.adsamcik.signalcollector.common.extension.toDate
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseMapMaxHeat

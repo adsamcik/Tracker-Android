@@ -14,7 +14,7 @@ import androidx.core.view.setMargins
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.extension.dp
 
 /**
  * Custom implementation of Preference that allows use of ImageButtons to switch between different states

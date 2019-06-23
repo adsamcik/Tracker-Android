@@ -10,7 +10,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.common.misc.SnackMaker
-import com.adsamcik.signalcollector.common.misc.extension.startActivity
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.license.LicenseActivity

@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.preference.pages
 
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.misc.extension.startActivity
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.export.DatabaseExport
 import com.adsamcik.signalcollector.export.GpxExport
 import com.adsamcik.signalcollector.export.KmlExport

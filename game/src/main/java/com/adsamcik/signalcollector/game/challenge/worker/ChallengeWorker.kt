@@ -6,8 +6,8 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.misc.extension.getPositiveLongReportNull
-import com.adsamcik.signalcollector.common.misc.extension.notificationManager
+import com.adsamcik.signalcollector.common.extension.getPositiveLongReportNull
+import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 

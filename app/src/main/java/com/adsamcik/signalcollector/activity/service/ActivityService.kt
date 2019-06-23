@@ -13,10 +13,10 @@ import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
-import com.adsamcik.signalcollector.common.misc.extension.powerManager
-import com.adsamcik.signalcollector.common.misc.extension.requireValue
-import com.adsamcik.signalcollector.common.misc.extension.startForegroundService
-import com.adsamcik.signalcollector.common.misc.extension.stopService
+import com.adsamcik.signalcollector.common.extension.powerManager
+import com.adsamcik.signalcollector.common.extension.requireValue
+import com.adsamcik.signalcollector.common.extension.startForegroundService
+import com.adsamcik.signalcollector.common.extension.stopService
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker

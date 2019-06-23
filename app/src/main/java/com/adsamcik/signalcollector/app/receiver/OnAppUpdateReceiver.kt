@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.common.misc.extension.appVersion
+import com.adsamcik.signalcollector.common.extension.appVersion
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 

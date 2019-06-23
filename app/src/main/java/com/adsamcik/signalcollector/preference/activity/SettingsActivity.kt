@@ -8,8 +8,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.common.misc.extension.transaction
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings

@@ -21,9 +21,9 @@ import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.exception.PermissionException
+import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.misc.NonNullLiveData
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
-import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager

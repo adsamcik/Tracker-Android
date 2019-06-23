@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.misc.extension
+package com.adsamcik.signalcollector.common.extension
 
 import android.os.Build
 import com.adsamcik.signalcollector.common.Constants

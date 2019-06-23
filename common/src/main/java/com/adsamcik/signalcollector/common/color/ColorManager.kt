@@ -13,7 +13,7 @@ import androidx.core.graphics.red
 import com.adsamcik.signalcollector.common.BuildConfig
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.R
-import com.adsamcik.signalcollector.common.misc.extension.toTimeSinceMidnight
+import com.adsamcik.signalcollector.common.extension.toTimeSinceMidnight
 import com.adsamcik.signalcollector.common.preference.Preferences
 import java.text.SimpleDateFormat
 import java.util.*

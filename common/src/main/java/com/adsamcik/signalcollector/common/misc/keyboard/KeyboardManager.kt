@@ -4,8 +4,8 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
-import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.common.misc.extension.inputMethodManager
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.inputMethodManager
 
 
 typealias KeyboardListener = (state: Boolean, keyboardHeight: Int) -> Unit

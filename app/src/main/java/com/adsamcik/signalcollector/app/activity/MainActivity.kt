@@ -14,9 +14,9 @@ import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.activity.CoreUIActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
-import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.common.misc.extension.guidelineEnd
-import com.adsamcik.signalcollector.common.misc.extension.transaction
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.guidelineEnd
+import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.PayloadFragment

@@ -5,7 +5,7 @@ import android.content.res.Resources
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatTextView
-import com.adsamcik.signalcollector.common.misc.extension.detach
+import com.adsamcik.signalcollector.common.extension.detach
 import com.adsamcik.signalcollector.tracker.ui.recycler.TrackerInfoAdapter
 
 abstract class TrackerInfo(@StringRes val nameRes: Int, @DrawableRes val iconRes: Int) {

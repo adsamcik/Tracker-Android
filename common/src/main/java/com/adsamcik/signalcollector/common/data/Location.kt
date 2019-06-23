@@ -2,10 +2,10 @@ package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
 import androidx.room.ColumnInfo
-import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions.EARTH_CIRCUMFERENCE
-import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions.METER_DEGREE_LATITUDE
-import com.adsamcik.signalcollector.common.misc.extension.deg2rad
-import com.adsamcik.signalcollector.common.misc.extension.round
+import com.adsamcik.signalcollector.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
+import com.adsamcik.signalcollector.common.extension.LocationExtensions.METER_DEGREE_LATITUDE
+import com.adsamcik.signalcollector.common.extension.deg2rad
+import com.adsamcik.signalcollector.common.extension.round
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlin.math.sqrt

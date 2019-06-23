@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.game.challenge.data.builder
 
 import android.content.Context
-import com.adsamcik.signalcollector.common.misc.extension.additiveInverse
-import com.adsamcik.signalcollector.common.misc.extension.rescale
+import com.adsamcik.signalcollector.common.extension.additiveInverse
+import com.adsamcik.signalcollector.common.extension.rescale
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeBuilder
 import com.adsamcik.signalcollector.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity

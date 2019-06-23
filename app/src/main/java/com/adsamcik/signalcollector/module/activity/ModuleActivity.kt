@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.color.IViewChange
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.ModuleInfo

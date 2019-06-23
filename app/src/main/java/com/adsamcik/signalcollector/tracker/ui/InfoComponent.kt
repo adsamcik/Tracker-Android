@@ -12,8 +12,8 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.common.misc.extension.layoutInflater
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.layoutInflater
 
 /**
  * Component that shows custom data with title and items.

@@ -7,7 +7,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.recycler.card.CardListAdapter
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.extension.dp
 
 /**
  * Implementation of [RecyclerView.ItemDecoration] for [CardListAdapter]. It will add uniform margin to all sides.

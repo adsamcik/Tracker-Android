@@ -22,7 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.color.ColorManager.backgroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorManager.foregroundColorFor
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
-import com.adsamcik.signalcollector.common.misc.extension.contains
+import com.adsamcik.signalcollector.common.extension.contains
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

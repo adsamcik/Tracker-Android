@@ -6,7 +6,7 @@ import androidx.annotation.RawRes
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorData
 import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.misc.extension.remove
+import com.adsamcik.signalcollector.common.extension.remove
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers

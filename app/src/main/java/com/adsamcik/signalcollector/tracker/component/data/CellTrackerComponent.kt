@@ -9,8 +9,8 @@ import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.data.ActivityInfo
-import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
-import com.adsamcik.signalcollector.common.misc.extension.telephonyManager
+import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.common.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 

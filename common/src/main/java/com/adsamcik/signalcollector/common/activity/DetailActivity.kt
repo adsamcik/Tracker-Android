@@ -12,7 +12,7 @@ import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.misc.extension.dp
+import com.adsamcik.signalcollector.common.extension.dp
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
 /**

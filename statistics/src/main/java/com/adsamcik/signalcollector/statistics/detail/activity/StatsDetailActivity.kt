@@ -18,7 +18,7 @@ import com.adsamcik.signalcollector.common.data.Location
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.common.misc.extension.*
+import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData

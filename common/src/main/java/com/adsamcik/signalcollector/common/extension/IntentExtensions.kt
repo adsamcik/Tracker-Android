@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.misc.extension
+package com.adsamcik.signalcollector.common.extension
 
 import android.content.Intent
 import com.adsamcik.signalcollector.common.Reporter

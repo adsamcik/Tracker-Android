@@ -12,8 +12,8 @@ import android.os.SystemClock
 import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
-import com.adsamcik.signalcollector.common.misc.extension.LocationExtensions
-import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.common.extension.LocationExtensions
+import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs

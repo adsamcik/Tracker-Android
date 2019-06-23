@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.game.challenge.data
 
 import android.content.Context
 import com.adsamcik.signalcollector.common.misc.Probability
-import com.adsamcik.signalcollector.common.misc.extension.normalize
-import com.adsamcik.signalcollector.common.misc.extension.rescale
+import com.adsamcik.signalcollector.common.extension.normalize
+import com.adsamcik.signalcollector.common.extension.rescale
 import com.adsamcik.signalcollector.game.challenge.ChallengeDifficulty
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry

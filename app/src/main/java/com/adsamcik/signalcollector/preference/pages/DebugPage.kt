@@ -8,7 +8,7 @@ import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.dialog.ConfirmDialog
-import com.adsamcik.signalcollector.common.misc.extension.startActivity
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity

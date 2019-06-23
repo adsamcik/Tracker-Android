@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.work.*
 import com.adsamcik.signalcollector.common.data.TrackerSession
-import com.adsamcik.signalcollector.common.misc.extension.getPositiveLongExtraReportNull
+import com.adsamcik.signalcollector.common.extension.getPositiveLongExtraReportNull
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.game.R

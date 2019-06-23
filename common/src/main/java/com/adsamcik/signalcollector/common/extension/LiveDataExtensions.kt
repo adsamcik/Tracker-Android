@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.misc.extension
+package com.adsamcik.signalcollector.common.extension
 
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData

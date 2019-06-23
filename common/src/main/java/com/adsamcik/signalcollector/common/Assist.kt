@@ -13,9 +13,9 @@ import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.misc.Int2
-import com.adsamcik.signalcollector.common.misc.extension.dp
-import com.adsamcik.signalcollector.common.misc.extension.locationManager
-import com.adsamcik.signalcollector.common.misc.extension.windowManager
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.locationManager
+import com.adsamcik.signalcollector.common.extension.windowManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.google.android.gms.common.ConnectionResult

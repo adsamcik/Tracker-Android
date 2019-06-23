@@ -4,8 +4,8 @@ import android.os.Bundle
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.common.Reporter
-import com.adsamcik.signalcollector.common.misc.extension.startForegroundService
-import com.adsamcik.signalcollector.common.misc.extension.stopService
+import com.adsamcik.signalcollector.common.extension.startForegroundService
+import com.adsamcik.signalcollector.common.extension.stopService
 import com.adsamcik.signalcollector.shortcut.Shortcuts.ShortcutAction
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 

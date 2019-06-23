@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.misc.extension
+package com.adsamcik.signalcollector.common.extension
 
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction

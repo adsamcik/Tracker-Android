@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.color.IViewChange
-import com.adsamcik.signalcollector.common.misc.extension.formatAsDuration
+import com.adsamcik.signalcollector.common.extension.formatAsDuration
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*

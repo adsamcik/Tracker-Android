@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.game.challenge.data.instance
 
 import android.content.Context
 import com.adsamcik.signalcollector.common.data.TrackerSession
-import com.adsamcik.signalcollector.common.misc.extension.formatDistance
+import com.adsamcik.signalcollector.common.extension.formatDistance
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeDefinition
 import com.adsamcik.signalcollector.game.challenge.data.ChallengeInstance
