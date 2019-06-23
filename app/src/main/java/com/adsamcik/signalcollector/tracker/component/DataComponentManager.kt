@@ -58,9 +58,11 @@ class DataComponentManager(context: Context) : CoroutineScope {
 	}
 
 	suspend fun onDisable() = coroutineScope {
-		PreferenceObserver.removeObserver(appContext, R.string.settings_location_enabled_key, locationTrackerObserver)
-		PreferenceObserver.removeObserver(appContext, R.string.settings_wifi_enabled_key, wifiTrackerObserver)
-		PreferenceObserver.removeObserver(appContext, R.string.settings_cell_enabled_key, cellTrackerObserver)
+		launch(this@DataComponentManager.coroutineContext) {
+			PreferenceObserver.removeObserver(appContext, R.string.settings_location_enabled_key, locationTrackerObserver)
+			PreferenceObserver.removeObserver(appContext, R.string.settings_wifi_enabled_key, wifiTrackerObserver)
+			PreferenceObserver.removeObserver(appContext, R.string.settings_cell_enabled_key, cellTrackerObserver)
+		}
 
 		dataComponentList.map { async { it.onDisable(appContext) } }.awaitAll()
 		dataComponentList.clear()

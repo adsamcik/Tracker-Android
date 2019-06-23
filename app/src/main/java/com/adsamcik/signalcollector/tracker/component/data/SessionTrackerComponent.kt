@@ -73,8 +73,10 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 	}
 
 	override suspend fun onDisable(context: Context) {
-		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
-		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
+		withContext(coroutineContext) {
+			PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
+			PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
+		}
 
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
@@ -89,8 +91,10 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 	}
 
 	override suspend fun onEnable(context: Context) {
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
+		withContext(coroutineContext) {
+			PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
+			PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
+		}
 
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
