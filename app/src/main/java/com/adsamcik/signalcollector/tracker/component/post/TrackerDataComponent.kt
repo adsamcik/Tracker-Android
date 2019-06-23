@@ -10,6 +10,7 @@ import com.adsamcik.signalcollector.common.database.dao.WifiDataDao
 import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -19,13 +20,13 @@ class TrackerDataComponent : PostTrackerComponent {
 	private var cellDao: CellDataDao? = null
 	private var wifiDao: WifiDataDao? = null
 
-	override fun onDisable(context: Context) {
+	override suspend fun onDisable(context: Context) {
 		locationDao = null
 		cellDao = null
 		wifiDao = null
 	}
 
-	override fun onEnable(context: Context) {
+	override suspend fun onEnable(context: Context) {
 		val database = AppDatabase.getDatabase(context)
 		locationDao = database.locationDao()
 		cellDao = database.cellDao()

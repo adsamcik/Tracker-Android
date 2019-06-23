@@ -13,6 +13,7 @@ import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.LocationExtensions
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs
@@ -27,7 +28,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 	private var wifiLastScanRequest: Long = 0
 	private var wifiScanRequested: Boolean = false
 
-	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
 		if (wifiScanData != null) {
 			val location = locationResult.lastLocation
 			val locations = locationResult.locations
@@ -75,7 +76,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	override fun onEnable(context: Context) {
+	override suspend fun onEnable(context: Context) {
 		wifiManager = context.getSystemServiceTyped(Context.WIFI_SERVICE)
 
 		//Let's not waste precious scan requests on Pie and newer
@@ -90,7 +91,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	override fun onDisable(context: Context) {
+	override suspend fun onDisable(context: Context) {
 		context.unregisterReceiver(wifiReceiver)
 	}
 

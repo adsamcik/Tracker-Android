@@ -3,11 +3,12 @@ package com.adsamcik.signalcollector.tracker.component.data
 import android.content.Context
 import android.location.Location
 import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 
 class ActivityTrackerComponent : DataTrackerComponent {
-	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
 		//todo decide whether better approximation is useful
 		/*ar resolvedActivity = activity
 		val location = locationResult.lastLocation
@@ -20,8 +21,8 @@ class ActivityTrackerComponent : DataTrackerComponent {
 		collectionData.activity = activity
 	}
 
-	override fun onDisable(context: Context) {}
+	override suspend fun onDisable(context: Context) {}
 
-	override fun onEnable(context: Context) {}
+	override suspend fun onEnable(context: Context) {}
 
 }

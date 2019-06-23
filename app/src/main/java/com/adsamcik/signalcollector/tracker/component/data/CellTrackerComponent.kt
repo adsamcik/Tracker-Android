@@ -11,6 +11,7 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.extension.telephonyManager
+import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 
@@ -20,7 +21,7 @@ class CellTrackerComponent : DataTrackerComponent {
 	private var telephonyManager: TelephonyManager? = null
 	private var subscriptionManager: SubscriptionManager? = null
 
-	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
 		val context = context ?: throw NullPointerException("Context must not be null")
 		if (!Assist.isAirplaneModeEnabled(context)) {
 			val telephonyManager = telephonyManager
@@ -34,13 +35,13 @@ class CellTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	override fun onEnable(context: Context) {
+	override suspend fun onEnable(context: Context) {
 		this.context = context
 		telephonyManager = context.telephonyManager
 		if (Build.VERSION.SDK_INT >= 22) subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
 	}
 
-	override fun onDisable(context: Context) {
+	override suspend fun onDisable(context: Context) {
 		this.context = null
 		telephonyManager = null
 	}

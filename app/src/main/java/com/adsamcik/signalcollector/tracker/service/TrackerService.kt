@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import android.os.PowerManager
+import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.LiveData
@@ -26,30 +27,45 @@ import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager
+import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
-import com.adsamcik.signalcollector.tracker.component.post.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
 import com.adsamcik.signalcollector.tracker.component.pre.PreLocationTrackerComponent
-import com.adsamcik.signalcollector.tracker.component.pre.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.gms.location.*
-import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
+import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
 
-class TrackerService : LifecycleService() {
+class TrackerService : LifecycleService(), CoroutineScope {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
+
+	private val job = SupervisorJob()
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Main + job
 
 	/**
 	 * Previous location of collection
 	 */
-	private var previousLocation: Location? = null
+	private var lastLocation: Location? = null
 
-	private lateinit var locationCallback: LocationCallback
+	private val locationCallback: LocationCallback = object : LocationCallback() {
+		override fun onLocationResult(result: LocationResult) {
+			launch(Dispatchers.Default) { updateData(result) }
+		}
 
-	private lateinit var notificationComponent: NotificationComponent
+		override fun onLocationAvailability(availability: LocationAvailability) {
+			if (!availability.isLocationAvailable) {
+				notificationComponent.onLocationDataChange(this@TrackerService, null)
+			}
+		}
+	}
+
+	private val notificationComponent: NotificationComponent = NotificationComponent()
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private lateinit var dataComponentManager: DataComponentManager
@@ -62,12 +78,13 @@ class TrackerService : LifecycleService() {
 	/**
 	 * Collects data from necessary places and sensors and creates new MutableCollectionData instance
 	 */
-	private fun updateData(locationResult: LocationResult) {
-		val previousLocation = previousLocation
+	@WorkerThread
+	private suspend fun updateData(locationResult: LocationResult) {
+		val previousLocation = lastLocation
 		val location = locationResult.lastLocation
 		val distance = if (previousLocation == null) 0f else location.distanceTo(previousLocation)
 		if (location.isFromMockProvider) {
-			this.previousLocation = null
+			this.lastLocation = null
 			return
 		}
 		//location.time is bugged... basically they subtract timezone from UTC.
@@ -97,7 +114,7 @@ class TrackerService : LifecycleService() {
 
 		if (!sessionInfo.isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
-		this.previousLocation = location
+		this.lastLocation = location
 
 		lastCollectionDataMutable.postValue(CollectionDataEcho(location, collectionData, dataComponentManager.session))
 
@@ -125,7 +142,7 @@ class TrackerService : LifecycleService() {
 		}
 	}
 
-	private fun initializeComponents(isSessionUserInitiated: Boolean) {
+	private suspend fun initializeComponents(isSessionUserInitiated: Boolean) {
 		preComponentList.apply {
 			add(PreLocationTrackerComponent())
 		}.forEach { it.onEnable(this) }
@@ -133,10 +150,7 @@ class TrackerService : LifecycleService() {
 		dataComponentManager = DataComponentManager(this).apply { onEnable(isSessionUserInitiated) }
 
 		postComponentList.apply {
-			NotificationComponent().also {
-				notificationComponent = it
-				add(it)
-			}
+			add(notificationComponent)
 			add(TrackerDataComponent())
 		}.forEach { it.onEnable(this) }
 	}
@@ -148,60 +162,51 @@ class TrackerService : LifecycleService() {
 		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default)
 		val minDistanceInMeters = preferences.getIntRes(R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default)
 
-		//Enable location update
-		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-			val client = LocationServices.getFusedLocationProviderClient(this)
-			val request = LocationRequest.create().apply {
-				interval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
-				fastestInterval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
-				smallestDisplacement = minDistanceInMeters.toFloat()
-				priority = PRIORITY_HIGH_ACCURACY
-			}
-
-			locationCallback = object : LocationCallback() {
-				override fun onLocationResult(result: LocationResult) {
-					updateData(result)
-				}
-
-				override fun onLocationAvailability(availability: LocationAvailability) {
-					if (!availability.isLocationAvailable) {
-						notificationComponent.onLocationDataChange(this@TrackerService, null)
-					}
-				}
-
-			}
-
-			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
-		} else {
+		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 			Reporter.report(PermissionException("Tracker does not have sufficient permissions"))
 			stopSelf()
 			return Service.START_NOT_STICKY
 		}
 
 		val isUserInitiated = intent.getBooleanExtra(ARG_IS_USER_INITIATED, false)
-		initializeComponents(isSessionUserInitiated = isUserInitiated)
+
+		isServiceRunningMutable.value = true
+
+		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
+		sessionInfoMutable.value = this.sessionInfo
+
 
 		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
 		startForeground(notificationId, notification)
 
-		if (!isUserInitiated) {
-			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)
-			TrackerLocker.isLocked.observe(this) {
-				if (it) stopSelf()
+		launch(job) {
+			if (!isUserInitiated) {
+				ActivityService.requestAutoTracking(this@TrackerService, this@TrackerService::class, minUpdateDelayInSeconds)
+				TrackerLocker.isLocked.observe(this@TrackerService) {
+					if (it) stopSelf()
+				}
+			} else {
+				ActivityService.requestActivity(this@TrackerService, this::class, minUpdateDelayInSeconds)
 			}
-		} else {
-			ActivityService.requestActivity(this, this::class, minUpdateDelayInSeconds)
+
+			ActivityWatcherService.poke(this@TrackerService, trackerRunning = true)
+
+			initializeComponents(isSessionUserInitiated = isUserInitiated)
+
+			val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
+			LocalBroadcastManager.getInstance(this@TrackerService).sendBroadcast(sessionStartIntent)
+
+			val client = LocationServices.getFusedLocationProviderClient(this@TrackerService)
+			val request = LocationRequest.create().apply {
+				interval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
+				fastestInterval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
+				smallestDisplacement = minDistanceInMeters.toFloat()
+				priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+			}
+
+			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
 		}
 
-		ActivityWatcherService.poke(this, trackerRunning = true)
-
-		isServiceRunningMutable.value = true
-
-		sessionInfo = TrackerSessionInfo(isUserInitiated)
-		sessionInfoMutable.postValue(sessionInfo)
-
-		val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
-		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionStartIntent)
 		return START_NOT_STICKY
 	}
 
@@ -211,6 +216,7 @@ class TrackerService : LifecycleService() {
 
 		stopForeground(true)
 		isServiceRunningMutable.value = false
+		sessionInfoMutable.value = null
 
 		ActivityWatcherService.poke(this, trackerRunning = false)
 		ActivityService.removeActivityRequest(this, this::class)
@@ -226,9 +232,13 @@ class TrackerService : LifecycleService() {
 					Shortcuts.ShortcutAction.START_COLLECTION)
 		}
 
-		dataComponentManager.onDisable()
-		preComponentList.forEach { it.onDisable(this) }
-		postComponentList.forEach { it.onEnable(this) }
+		//This work needs to be done, but might take extra time so it's fine to do it in GlobalScope
+		val appContext = applicationContext
+		GlobalScope.launch {
+			dataComponentManager.onDisable()
+			preComponentList.forEach { it.onDisable(appContext) }
+			postComponentList.forEach { it.onEnable(appContext) }
+		}
 
 		val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
 			putExtra(TrackerSession.RECEIVER_SESSION_ID, dataComponentManager.session.id)

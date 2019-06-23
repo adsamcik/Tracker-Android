@@ -17,6 +17,7 @@ import com.adsamcik.signalcollector.common.extension.formatDistance
 import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.extension.requireValue
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
@@ -26,11 +27,15 @@ import java.text.DecimalFormat
 class NotificationComponent : PostTrackerComponent {
 	private var notificationManager: NotificationManager? = null
 
-	override fun onDisable(context: Context) {
+	private val requireNotificationManager: NotificationManager
+		get() = notificationManager
+				?: throw NullPointerException("Notification manager must be initialized")
+
+	override suspend fun onDisable(context: Context) {
 		notificationManager = null
 	}
 
-	override fun onEnable(context: Context) {
+	override suspend fun onEnable(context: Context) {
 		notificationManager = context.notificationManager
 	}
 
@@ -46,7 +51,7 @@ class NotificationComponent : PostTrackerComponent {
 		return NOTIFICATION_ID to generateNotification(context)
 	}
 
-	private fun notify(notification: Notification) = notificationManager!!.notify(NOTIFICATION_ID, notification)
+	private fun notify(notification: Notification) = requireNotificationManager.notify(NOTIFICATION_ID, notification)
 
 	private fun generateNotification(context: Context, location: Location? = null, data: CollectionData? = null): Notification {
 		val resources = context.resources

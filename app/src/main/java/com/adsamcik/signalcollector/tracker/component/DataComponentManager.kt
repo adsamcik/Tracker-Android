@@ -10,29 +10,32 @@ import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserve
 import com.adsamcik.signalcollector.tracker.component.data.*
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
+import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
 
-class DataComponentManager(context: Context) {
+class DataComponentManager(context: Context) : CoroutineScope {
 	private val appContext = context.applicationContext
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
+	private val job = SupervisorJob()
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Main + job
+
 	private val locationTrackerObserver = Observer<Boolean> {
-		onChange(it) { LocationTrackerComponent() }
-		onChange(it) { ActivityTrackerComponent() }
+		launch {
+			onChange(it) { LocationTrackerComponent() }
+			onChange(it) { ActivityTrackerComponent() }
+		}
 	}
-	private val wifiTrackerObserver = Observer<Boolean> { onChange(it) { WifiTrackerComponent() } }
-	private val cellTrackerObserver = Observer<Boolean> { onChange(it) { CellTrackerComponent() } }
+	private val wifiTrackerObserver = Observer<Boolean> { launch { onChange(it) { WifiTrackerComponent() } } }
+	private val cellTrackerObserver = Observer<Boolean> { launch { onChange(it) { CellTrackerComponent() } } }
 
 	private lateinit var sessionComponent: SessionTrackerComponent
 	val session: TrackerSession
 		get() = sessionComponent.session
 
 
-	fun onEnable(isUserInitiated: Boolean) {
-		sessionComponent = SessionTrackerComponent(isUserInitiated)
-		dataComponentList.add(sessionComponent)
-
-		dataComponentList.forEach { it.onEnable(appContext) }
-
+	suspend fun onEnable(isUserInitiated: Boolean) = coroutineScope {
 		PreferenceObserver.observe(appContext,
 				keyRes = R.string.settings_location_enabled_key,
 				defaultRes = R.string.settings_location_enabled_default,
@@ -47,21 +50,31 @@ class DataComponentManager(context: Context) {
 				keyRes = R.string.settings_cell_enabled_key,
 				defaultRes = R.string.settings_cell_enabled_default,
 				observer = cellTrackerObserver)
+
+		sessionComponent = SessionTrackerComponent(isUserInitiated)
+		dataComponentList.add(sessionComponent)
+
+		dataComponentList.map { async { it.onEnable(appContext) } }.awaitAll()
 	}
 
-	fun onDisable() {
+	suspend fun onDisable() = coroutineScope {
 		PreferenceObserver.removeObserver(appContext, R.string.settings_location_enabled_key, locationTrackerObserver)
 		PreferenceObserver.removeObserver(appContext, R.string.settings_wifi_enabled_key, wifiTrackerObserver)
 		PreferenceObserver.removeObserver(appContext, R.string.settings_cell_enabled_key, cellTrackerObserver)
-		dataComponentList.forEach { it.onDisable(appContext) }
+
+		dataComponentList.map { async { it.onDisable(appContext) } }.awaitAll()
 		dataComponentList.clear()
 	}
 
-	fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
-		dataComponentList.forEach { it.onLocationUpdated(locationResult, previousLocation, distance, activity, collectionData) }
+	suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+		withContext(coroutineContext) {
+			dataComponentList.map {
+				async { it.onLocationUpdated(locationResult, previousLocation, distance, activity, collectionData) }
+			}.awaitAll()
+		}
 	}
 
-	private inline fun <reified T> onChange(value: Boolean, factory: () -> T) where T : DataTrackerComponent {
+	private suspend inline fun <reified T> onChange(value: Boolean, factory: () -> T) where T : DataTrackerComponent {
 		if (value) {
 			addInstance(factory())
 		} else {
@@ -69,13 +82,13 @@ class DataComponentManager(context: Context) {
 		}
 	}
 
-	private fun <T> addInstance(instance: T) where T : DataTrackerComponent {
+	private suspend fun <T> addInstance(instance: T) where T : DataTrackerComponent {
 		assert(dataComponentList.none { it::class == instance::class }) { "Instance cannot be added again!" }
 		dataComponentList.add(instance)
 		instance.onEnable(appContext)
 	}
 
-	private inline fun <reified T> removeInstance() where T : DataTrackerComponent {
+	private suspend inline fun <reified T> removeInstance() where T : DataTrackerComponent {
 		val index = dataComponentList.indexOfFirst { it::class == T::class }
 		if (index >= 0) {
 			dataComponentList[index].onDisable(appContext)

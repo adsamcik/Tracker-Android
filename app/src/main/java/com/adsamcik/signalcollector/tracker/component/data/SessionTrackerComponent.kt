@@ -17,21 +17,21 @@ import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
+import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import com.google.android.gms.location.LocationResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
 class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent, SensorEventListener, CoroutineScope {
 	private val job = SupervisorJob()
-
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Default + job
+		get() = Dispatchers.Main + job
 
 	private var mutableSession: MutableTrackerSession = MutableTrackerSession(Time.nowMillis, isUserInitiated)
 
@@ -48,9 +48,9 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 
 	private lateinit var sessionDao: SessionDataDao
 
-	override fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
 		val location = locationResult.lastLocation
-		mutableSession.apply {
+		mutableSession.run {
 			distanceInM += distance
 			collections++
 			end = Time.nowMillis
@@ -66,13 +66,13 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 				}
 			}
 
-			launch {
-				sessionDao.update(this@apply)
+			withContext(Dispatchers.Default) {
+				sessionDao.update(this@run)
 			}
 		}
 	}
 
-	override fun onDisable(context: Context) {
+	override suspend fun onDisable(context: Context) {
 		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
 		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
 
@@ -83,10 +83,12 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 			end = Time.nowMillis
 		}
 
-		launch { sessionDao.update(mutableSession) }
+		withContext(Dispatchers.Default) {
+			sessionDao.update(mutableSession)
+		}
 	}
 
-	override fun onEnable(context: Context) {
+	override suspend fun onEnable(context: Context) {
 		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
 		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
 
@@ -101,7 +103,7 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 
 		mutableSession = MutableTrackerSession(Time.nowMillis, isUserInitiated)
 
-		launch {
+		withContext(Dispatchers.Default) {
 			sessionDao.insert(mutableSession).also { mutableSession.id = it }
 		}
 	}

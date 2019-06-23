@@ -1,8 +1,12 @@
 package com.adsamcik.signalcollector.tracker.component
 
 import android.content.Context
+import androidx.annotation.MainThread
 
 interface TrackerComponent {
-	fun onDisable(context: Context)
-	fun onEnable(context: Context)
+	@MainThread
+	suspend fun onDisable(context: Context)
+
+	@MainThread
+	suspend fun onEnable(context: Context)
 }
