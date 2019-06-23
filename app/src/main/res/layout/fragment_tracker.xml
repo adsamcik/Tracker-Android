@@ -61,6 +61,7 @@
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
         android:translationZ="-1dp"
+        android:background="#FFFFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

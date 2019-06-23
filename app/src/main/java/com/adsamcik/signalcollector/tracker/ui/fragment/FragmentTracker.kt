@@ -35,7 +35,6 @@ import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
-import com.adsamcik.signalcollector.tracker.ui.InfoComponent
 import com.adsamcik.signalcollector.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.activity_ui.*
@@ -43,9 +42,6 @@ import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
 class FragmentTracker : CoreUIFragment(), LifecycleObserver {
-	private var wifiInfo: InfoComponent? = null
-	private var cellInfo: InfoComponent? = null
-
 	private lateinit var adapter: TrackerInfoAdapter
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -200,11 +196,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	private fun initializeColorElements() {
 		colorController.apply {
 			watchView(ColorView(top_panel_root, 1))
-
-			cellInfo?.setColorManager(this)
-			wifiInfo?.setColorManager(this)
-
-			watchRecyclerView(ColorView(tracker_recycler, 1))
+			watchRecyclerView(ColorView(tracker_recycler, 0))
 		}
 	}
 
