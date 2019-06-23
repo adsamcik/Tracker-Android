@@ -17,19 +17,18 @@ import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
-import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginBottom
 import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.extension.transactionStateLoss
+import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
@@ -55,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @Suppress("unused")
-class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
+class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
 	private var locationListener: UpdateLocationListener? = null
 	private var mapController: MapController? = null
 
@@ -73,8 +72,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private var keyboardManager: KeyboardManager? = null
 	private var searchOriginalMargin = 0
 	private var keyboardInitialized = AtomicBoolean(false)
-
-	private var colorController: ColorController? = null
 
 	private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
 
@@ -164,7 +161,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	}
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-		val activity = activity!!
+		val activity = requireActivity()
 		hasPermissions = checkLocationPermission(activity, true)
 		val fragmentView: View
 		if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
@@ -176,8 +173,6 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			return fragmentView
 		}
 
-		colorController = ColorManager.createController()
-
 		return fragmentView
 	}
 
@@ -187,7 +182,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		map?.let { ColorMap.removeListener(it) }
 		map = null
 
-		colorController?.let { ColorManager.recycleController(it) }
+		colorController.let { ColorManager.recycleController(it) }
 	}
 
 	/**
@@ -246,7 +241,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 					?: throw NullPointerException("KeyboardManager should never be null when keyboardInitialized is true")
 			keyboardManager.onDisplaySizeChanged()
 		} else {
-			val keyboardManager = keyboardManager ?: KeyboardManager(view!!.rootView).also {
+			val keyboardManager = keyboardManager ?: KeyboardManager(requireView().rootView).also {
 				searchOriginalMargin = (map_ui_parent.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams).bottomMargin
 				keyboardManager = it
 			}
@@ -307,10 +302,8 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			locationListener?.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
 
-		val colorManager = colorController
-				?: throw NullPointerException("ColorController should be already initialized")
-		colorManager.watchView(ColorView(map_menu_button, 2, 0))
-		colorManager.watchView(ColorView(layout_map_controls, 3))
+		colorController.watchView(ColorView(map_menu_button, MAP_MENU_BUTTON_LAYER, 0))
+		colorController.watchView(ColorView(layout_map_controls, MAP_CONTROLS_LAYER))
 	}
 
 	/**
@@ -332,13 +325,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			val addresses = geocoder.getFromLocationName(searchText, 1)
 			val locationListener = locationListener
 			if (addresses?.isNotEmpty() == true && map != null && locationListener != null) {
-				val address = addresses[0]
+				val address = addresses.first()
 				locationListener.stopUsingUserPosition(button_map_my_location, true)
-				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude), 13f)
+				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude), ANIMATE_TO_ZOOM)
 			}
 		} catch (e: IOException) {
-			//Crashlytics.report(e)
-			view?.let { SnackMaker(it).addMessage(R.string.map_search_no_geocoder) }
+			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)
 		}
 	}
 
@@ -413,7 +405,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			payload.height = map_menu_parent.height
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
-				colorController!!.watchRecyclerView(ColorView(it.requireView(), 2))
+				colorController.watchRecyclerView(ColorView(it.requireView(), 2))
 				if (mapLayers.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
@@ -427,15 +419,16 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			}
 			payload.onBeforeDestroyed = {
 				fragmentMapMenu.set(null)
-				colorController!!.stopWatchingRecyclerView(R.id.recycler)
+				colorController.stopWatchingRecyclerView(R.id.recycler)
 			}
 
 			map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
 				if (hasStateChanged) {
-					if (state == DraggableImageButton.State.TARGET)
+					if (state == DraggableImageButton.State.TARGET) {
 						animateMenuDrawable(R.drawable.up_to_down)
-					else if (state == DraggableImageButton.State.INITIAL)
+					} else if (state == DraggableImageButton.State.INITIAL) {
 						animateMenuDrawable(R.drawable.down_to_up)
+					}
 				}
 			}
 			//payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
@@ -443,7 +436,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			map_menu_button.addPayload(payload)
 			if (mapLayers.isNotEmpty()) {
 				map_menu_button.visibility = VISIBLE
-				colorController!!.notifyChangeOn(map_menu_button)
+				colorController.notifyChangeOn(map_menu_button)
 			}
 		}
 
@@ -460,6 +453,11 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 
 	companion object {
 		private const val PERMISSION_LOCATION_CODE = 200
+
+		private const val ANIMATE_TO_ZOOM = 13f
+
+		private const val MAP_MENU_BUTTON_LAYER = 2
+		private const val MAP_CONTROLS_LAYER = 3
 	}
 
 }
