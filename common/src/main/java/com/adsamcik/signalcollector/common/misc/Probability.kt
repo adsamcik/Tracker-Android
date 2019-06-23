@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.common.misc
 
+import com.adsamcik.signalcollector.common.Time
 import kotlin.math.*
 import kotlin.random.Random
 

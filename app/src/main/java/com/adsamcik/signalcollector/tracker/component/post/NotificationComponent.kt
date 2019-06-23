@@ -11,6 +11,7 @@ import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.MainActivity
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.extension.formatDistance
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager

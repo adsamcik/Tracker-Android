@@ -6,6 +6,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.dialog.ConfirmDialog
 import com.adsamcik.signalcollector.common.misc.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.Preferences

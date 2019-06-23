@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.common.misc.extension.formatAsDuration
 import com.adsamcik.signalcollector.game.R
