@@ -17,7 +17,7 @@ class ActivityTrackerComponent : DataTrackerComponent {
 			val speedLowerBound = (speed - (accuracy / 2f)).coerceAtLeast(0f)
 			if (speedLowerBound > 2f && activity.activity)
 		}*/
-		collectionData.setActivity(activity)
+		collectionData.activity = activity
 	}
 
 	override fun onDisable(context: Context) {}

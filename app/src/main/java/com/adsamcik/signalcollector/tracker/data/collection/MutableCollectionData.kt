@@ -28,40 +28,27 @@ data class MutableCollectionData(
 
 
 	/**
-	 * Sets collection location
+	 * Sets collection location.
 	 *
 	 * @param location location
 	 * @return this
 	 */
-	fun setLocation(location: android.location.Location): MutableCollectionData {
+	fun setLocation(location: android.location.Location) {
 		this.location = Location(location)
-		return this
 	}
 
 	/**
-	 * Sets wifi and time of wifi collection
+	 * Sets wifi and time of wifi collection.
 	 *
 	 * @param data data
 	 * @param time time of collection
 	 * @return this
 	 */
-	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?): MutableCollectionData {
+	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?) {
 		if (data != null && time > 0) {
 			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }
 			this.wifi = WifiData(Location(location), time, scannedWifi)
 		}
-		return this
-	}
-
-	/**
-	 * Sets activity
-	 *
-	 * @param activity activity
-	 * @return this
-	 */
-	fun setActivity(activity: ActivityInfo): MutableCollectionData {
-		this.activity = activity
-		return this
 	}
 
 	fun addCell(telephonyManager: TelephonyManager) {
@@ -88,7 +75,9 @@ data class MutableCollectionData(
 				mcc = it.mccString
 				mnc = it.mncString
 			} else {
+				@Suppress("deprecation")
 				mcc = it.mcc.toString()
+				@Suppress("deprecation")
 				mnc = it.mnc.toString()
 			}
 
