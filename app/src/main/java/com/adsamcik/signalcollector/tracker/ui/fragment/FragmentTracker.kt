@@ -194,14 +194,14 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	//todo improve this
 	private fun mock() {
-		val collectionData = MutableCollectionData(System.currentTimeMillis())
+		val collectionData = MutableCollectionData(Time.nowMillis)
 		val location = Location(collectionData.time, 15.0, 15.0, 123.0, 6f, 3f, 10f, 15f)
 		collectionData.location = location
 		collectionData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
-		collectionData.wifi = WifiData(location, System.currentTimeMillis(), listOf(WifiInfo(), WifiInfo(), WifiInfo()))
+		collectionData.wifi = WifiData(location, Time.nowMillis, listOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		collectionData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
 
-		val session = TrackerSession(0, System.currentTimeMillis() - 5 * Constants.MINUTE_IN_MILLISECONDS, System.currentTimeMillis(), true, 56, 5410f, 15f, 5000f, 154)
+		val session = TrackerSession(0, Time.nowMillis - 5 * Constants.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56, 5410f, 15f, 5000f, 154)
 
 		updateData(CollectionDataEcho(location, collectionData, session))
 	}

@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.common.database
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.CellInfo
 import com.adsamcik.signalcollector.common.data.CellType
 import com.adsamcik.signalcollector.common.database.dao.CellDataDao
@@ -22,8 +23,8 @@ class CellTest {
 
 	@Test
 	fun testInsert() {
-		val data1 = DatabaseCellData(null, System.currentTimeMillis(), System.currentTimeMillis() - 1, CellInfo("Testafon", CellType.LTE, 5, "123", "321", 10, -50, 3))
-		val data2 = DatabaseCellData(null, System.currentTimeMillis(), System.currentTimeMillis() - 1, CellInfo("Testafon", CellType.LTE, 6, "123", "321", 10, -50, 3))
+		val data1 = DatabaseCellData(null, Time.nowMillis, Time.nowMillis - 1, CellInfo("Testafon", CellType.LTE, 5, "123", "321", 10, -50, 3))
+		val data2 = DatabaseCellData(null, Time.nowMillis, Time.nowMillis - 1, CellInfo("Testafon", CellType.LTE, 6, "123", "321", 10, -50, 3))
 
 		val array = listOf(data1, data2)
 		cellDao.upsert(array)

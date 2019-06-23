@@ -39,7 +39,7 @@ object ChallengeManager {
 	@WorkerThread
 	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
 		val database = ChallengeDatabase.getDatabase(context)
-		val active = database.entryDao.getActiveEntry(System.currentTimeMillis())
+		val active = database.entryDao.getActiveEntry(Time.nowMillis)
 		return active.map { ChallengeLoader.loadChallenge(context, it) }
 	}
 
@@ -88,6 +88,6 @@ object ChallengeManager {
 
 		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
 		val selectedChallenge = possibleChallenges[selectedChallengeIndex]
-		return selectedChallenge.newInstance(context, System.currentTimeMillis())
+		return selectedChallenge.newInstance(context, Time.nowMillis)
 	}
 }

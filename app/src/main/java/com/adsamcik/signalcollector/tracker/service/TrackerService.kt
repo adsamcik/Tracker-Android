@@ -87,7 +87,7 @@ class TrackerService : LifecycleService() {
 			return
 		}
 
-		val collectionData = MutableCollectionData(System.currentTimeMillis())
+		val collectionData = MutableCollectionData(Time.nowMillis)
 
 		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, collectionData)
 

@@ -11,6 +11,7 @@ import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -67,7 +68,7 @@ class ActivityWatcherService : LifecycleService() {
 		val builder = NotificationCompat.Builder(this, getString(R.string.channel_activity_watcher_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
-				.setWhen(System.currentTimeMillis())  // the time stamp
+				.setWhen(Time.nowMillis)  // the time stamp
 				.setVibrate(null)
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
 				.setColor(ContextCompat.getColor(this, R.color.color_accent))

@@ -19,7 +19,7 @@ import java.util.*
  */
 @JsonClass(generateAdapter = true)
 data class MutableCollectionData(
-		override val time: Long = System.currentTimeMillis(),
+		override val time: Long = Time.nowMillis,
 		override var location: Location? = null,
 		override var activity: ActivityInfo? = null,
 		override var cell: CellData? = null,

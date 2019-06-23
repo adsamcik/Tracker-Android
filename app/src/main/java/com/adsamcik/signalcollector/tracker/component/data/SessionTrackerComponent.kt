@@ -33,7 +33,7 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
-	private var mutableSession: MutableTrackerSession = MutableTrackerSession(System.currentTimeMillis(), isUserInitiated)
+	private var mutableSession: MutableTrackerSession = MutableTrackerSession(Time.nowMillis, isUserInitiated)
 
 	val session: TrackerSession
 		get() = mutableSession
@@ -53,7 +53,7 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 		mutableSession.apply {
 			distanceInM += distance
 			collections++
-			end = System.currentTimeMillis()
+			end = Time.nowMillis
 
 			if (previousLocation != null &&
 					(location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos < max(Constants.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Constants.SECOND_IN_NANOSECONDS) ||
@@ -80,7 +80,7 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 		sensorManager.unregisterListener(this)
 
 		mutableSession.apply {
-			end = System.currentTimeMillis()
+			end = Time.nowMillis
 		}
 
 		launch { sessionDao.update(mutableSession) }
@@ -99,7 +99,7 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 
 		sessionDao = AppDatabase.getDatabase(context).sessionDao()
 
-		mutableSession = MutableTrackerSession(System.currentTimeMillis(), isUserInitiated)
+		mutableSession = MutableTrackerSession(Time.nowMillis, isUserInitiated)
 
 		launch {
 			sessionDao.insert(mutableSession).also { mutableSession.id = it }

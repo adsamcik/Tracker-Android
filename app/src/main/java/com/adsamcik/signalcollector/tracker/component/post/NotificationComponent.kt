@@ -55,7 +55,7 @@ class NotificationComponent : PostTrackerComponent {
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setSmallIcon(R.drawable.ic_signals)  // the done icon
 				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
-				.setWhen(System.currentTimeMillis())  // the time stamp
+				.setWhen(Time.nowMillis)  // the time stamp
 				.setColor(ContextCompat.getColor(context, R.color.color_accent))
 				.setContentIntent(TaskStackBuilder.create(context).run {
 					addNextIntentWithParentStack(intent)

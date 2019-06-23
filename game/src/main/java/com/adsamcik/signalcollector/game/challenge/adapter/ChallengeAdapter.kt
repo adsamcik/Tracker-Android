@@ -58,7 +58,7 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 		holder.progressBar.progress = progress
 		holder.progressText.text = String.format(Locale.getDefault(), "%d%%", progress)
 
-		holder.timeTextView.text = (challenge.endTime - System.currentTimeMillis()).formatAsDuration(holder.itemView.context)
+		holder.timeTextView.text = (challenge.endTime - Time.nowMillis).formatAsDuration(holder.itemView.context)
 
 		onViewChangedListener?.invoke(holder.itemView)
 	}

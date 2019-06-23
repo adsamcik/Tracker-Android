@@ -55,7 +55,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 				setBoolean(keyDevActivityTracking, setEnabled)
 				if (setEnabled) {
 					start_stop_button.text = getString(R.string.stop)
-					setLong(keyDevActivityTracking, System.currentTimeMillis())
+					setLong(keyDevActivityTracking, Time.nowMillis)
 				} else
 					start_stop_button.text = getString(R.string.start)
 			}
@@ -114,7 +114,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 
 				val keyStartTime = context.resources.getString(R.string.settings_activity_debug_tracking_start_time_key)
 
-				if ((System.currentTimeMillis() - preferences.getLong(keyStartTime)) / DAY_IN_MILLISECONDS > 0) {
+				if ((Time.nowMillis - preferences.getLong(keyStartTime)) / DAY_IN_MILLISECONDS > 0) {
 					preferences.edit {
 						setBoolean(keyDevActivityTracking, false)
 					}

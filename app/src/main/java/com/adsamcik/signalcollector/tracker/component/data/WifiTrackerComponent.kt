@@ -98,7 +98,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 		override fun onReceive(context: Context, intent: Intent) {
 			synchronized(wifiScanTime) {
 				wifiScanRequested = false
-				wifiScanTime = System.currentTimeMillis()
+				wifiScanTime = Time.nowMillis
 				wifiScanTimeRelative = SystemClock.elapsedRealtime()
 				val result = wifiManager.scanResults
 				wifiScanData = result.toTypedArray()

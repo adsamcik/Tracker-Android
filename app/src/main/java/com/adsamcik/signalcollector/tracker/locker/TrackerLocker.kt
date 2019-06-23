@@ -44,7 +44,7 @@ object TrackerLocker {
 	/**
 	 * Returns true if time lock is active
 	 */
-	val isTimeLocked: Boolean get() = System.currentTimeMillis() < lockedUntilTime
+	val isTimeLocked: Boolean get() = Time.nowMillis < lockedUntilTime
 
 	/**
 	 * Returns true if tracking is locked until recharge
@@ -140,7 +140,7 @@ object TrackerLocker {
 	 * Cannot be locked for less than a second
 	 */
 	fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
-		val lockUntilTime = System.currentTimeMillis() + lockTimeInMillis
+		val lockUntilTime = Time.nowMillis + lockTimeInMillis
 		if (lockTimeInMillis < Constants.SECOND_IN_MILLISECONDS || lockUntilTime <= this.lockedUntilTime)
 			return
 

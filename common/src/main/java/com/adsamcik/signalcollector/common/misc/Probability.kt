@@ -4,7 +4,7 @@ import kotlin.math.*
 import kotlin.random.Random
 
 object Probability {
-	val random: Random = Random(System.currentTimeMillis())
+	val random: Random = Random(Time.nowMillis)
 
 	/**
 	 * Returns random number with uniform distribution

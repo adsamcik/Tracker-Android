@@ -33,7 +33,7 @@ class DebugPage : PreferencePage {
 				val context = it.context
 				val helloWorld = getString(R.string.dev_notification_dummy)
 				val color = ContextCompat.getColor(context, R.color.color_primary)
-				val rng = Random(System.currentTimeMillis())
+				val rng = Random(Time.nowMillis)
 				val facts = resources.getStringArray(R.array.lorem_ipsum_facts)
 				val notificationBuilder = NotificationCompat.Builder(context, getString(R.string.channel_other_id))
 						.setSmallIcon(R.drawable.ic_signals)
@@ -42,7 +42,7 @@ class DebugPage : PreferencePage {
 						.setLights(color, 2000, 5000)
 						.setContentTitle(getString(R.string.did_you_know))
 						.setContentText(facts[rng.nextInt(facts.size)])
-						.setWhen(System.currentTimeMillis())
+						.setWhen(Time.nowMillis)
 				val notificationManager = it.context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 				notificationManager.notify(Notifications.uniqueNotificationId(), notificationBuilder.build())
 				false
