@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
@@ -22,11 +21,11 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
@@ -42,11 +41,8 @@ import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.android.synthetic.main.fragment_tracker.view.*
-import java.util.*
 
-class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
-	private lateinit var colorController: ColorController
-
+class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	private var wifiInfo: InfoComponent? = null
 	private var cellInfo: InfoComponent? = null
 
@@ -91,11 +87,6 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	override fun onStart() {
 		super.onStart()
-
-		icon_activity.visibility = GONE
-		textview_altitude.visibility = GONE
-		textview_horizontal_accuracy.visibility = GONE
-
 
 		button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
 
@@ -207,9 +198,8 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorController = ColorManager.createController().apply {
+		colorController.apply {
 			watchView(ColorView(top_panel_root, 1))
-			watchView(ColorView(bar_info_top, 1))
 
 			cellInfo?.setColorManager(this)
 			wifiInfo?.setColorManager(this)
@@ -229,79 +219,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun updateData(dataEcho: CollectionDataEcho) {
-		val context = requireContext()
-		val collectionData = dataEcho.collectionData
-
-		textview_time.text = DateFormat.getTimeFormat(context).format(Date(collectionData.time))
-
-		updateActivityUI(collectionData.activity)
-		updateLocationUI(collectionData.location)
-		updateSessionUI(dataEcho.session)
-
-		adapter.update(collectionData)
-	}
-
-	private fun updateActivityUI(activityInfo: ActivityInfo?) {
-		when (activityInfo?.groupedActivity) {
-			GroupedActivity.STILL -> {
-				icon_activity.setImageResource(R.drawable.ic_outline_still_24px)
-				icon_activity.contentDescription = getString(R.string.activity_idle)
-				icon_activity.visibility = VISIBLE
-			}
-			GroupedActivity.ON_FOOT -> {
-				icon_activity.setImageResource(R.drawable.ic_directions_walk_white_24dp)
-				icon_activity.contentDescription = getString(R.string.activity_on_foot)
-				icon_activity.visibility = VISIBLE
-			}
-			GroupedActivity.IN_VEHICLE -> {
-				icon_activity.setImageResource(R.drawable.ic_directions_car_white_24dp)
-				icon_activity.contentDescription = getString(R.string.activity_in_vehicle)
-				icon_activity.visibility = VISIBLE
-			}
-			GroupedActivity.UNKNOWN -> {
-				icon_activity.setImageResource(R.drawable.ic_help_white_24dp)
-				icon_activity.contentDescription = getString(R.string.activity_unknown)
-				icon_activity.visibility = VISIBLE
-			}
-			else -> icon_activity.visibility = GONE
-		}
-	}
-
-	private fun updateLocationUI(location: Location?) {
-		if (location != null) {
-			val context = requireContext()
-			val resources = context.resources
-			val lengthSystem = Preferences.getLengthSystem(context)
-			val horizontalAccuracy = location.horizontalAccuracy
-			if (horizontalAccuracy != null) {
-				textview_horizontal_accuracy.visibility = VISIBLE
-				textview_horizontal_accuracy.text = getString(R.string.info_accuracy, resources.formatDistance(horizontalAccuracy, 0, lengthSystem))
-			} else {
-				textview_horizontal_accuracy.visibility = GONE
-			}
-
-			//todo add vertical accuracy
-
-			val altitude = location.altitude
-			if (altitude != null) {
-				textview_altitude.text = getString(R.string.info_altitude, resources.formatDistance(altitude, 2, lengthSystem))
-				textview_altitude.visibility = VISIBLE
-			} else {
-				textview_altitude.visibility = GONE
-			}
-		} else {
-			textview_horizontal_accuracy.visibility = GONE
-			textview_altitude.visibility = GONE
-		}
-	}
-
-	private fun updateSessionUI(session: TrackerSession) {
-		val resources = resources
-		session_collections.text = resources.getQuantityString(R.plurals.info_session_collections, session.collections, session.collections)
-
-		val lengthSystem = Preferences.getLengthSystem(requireContext())
-
-		session_distance.text = resources.getString(R.string.info_session_distance, resources.formatDistance(session.distanceInM, 1, lengthSystem))
+		adapter.update(dataEcho.collectionData, dataEcho.session)
 	}
 
 	companion object {

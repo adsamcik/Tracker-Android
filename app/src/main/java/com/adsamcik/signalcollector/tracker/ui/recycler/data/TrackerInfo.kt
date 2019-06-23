@@ -2,26 +2,31 @@ package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
 import android.content.Context
 import android.content.res.Resources
-import androidx.annotation.DrawableRes
+import android.widget.TextView
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatTextView
 import com.adsamcik.signalcollector.common.extension.detach
 import com.adsamcik.signalcollector.tracker.ui.recycler.TrackerInfoAdapter
 
-abstract class TrackerInfo(@StringRes val nameRes: Int, @DrawableRes val iconRes: Int) {
+abstract class TrackerInfo(@StringRes val nameRes: Int) {
+
+	abstract val iconRes: Int
+
 	//Todo make lastIndex safe
 	fun bind(holder: TrackerInfoAdapter.ViewHolder) {
-		holder.title.setText(nameRes)
-		holder.title.apply {
+		val infoFieldHolder = InfoFieldHolder(holder)
+
+		bindTitle(holder.title)
+		bindContent(infoFieldHolder)
+	}
+
+	protected open fun bindTitle(title: TextView) {
+		title.apply {
 			setText(nameRes)
 
 			val icon = resources.getDrawable(iconRes, context.theme)
 			setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
 		}
-
-		val infoFieldHolder = InfoFieldHolder(holder)
-
-		bindContent(infoFieldHolder)
 	}
 
 	protected abstract fun bindContent(holder: InfoFieldHolder)

@@ -16,21 +16,11 @@
         android:clipChildren="false"
         android:clipToPadding="false"
         android:elevation="4dp"
-        android:gravity="bottom"
+        android:gravity="bottom|right"
         android:orientation="horizontal"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <TextView
-            android:id="@+id/textview_time"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:paddingStart="@dimen/activity_horizontal_margin"
-            android:paddingEnd="@dimen/activity_horizontal_margin"
-            android:textColor="@color/text_primary"
-            tools:text="06:00:00"/>
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="RtlHardcoded">
 
         <ImageButton
             android:id="@+id/button_tracking_lock"
@@ -61,118 +51,6 @@
             app:srcCompat="@drawable/ic_settings_black_24dp"/>
     </androidx.appcompat.widget.LinearLayoutCompat>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/bar_info_top"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/content_padding"
-        android:layout_marginTop="@dimen/content_padding"
-        android:layout_marginEnd="@dimen/content_padding"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <ImageView
-            android:id="@+id/image_storage"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="@string/description_storage"
-            android:padding="4dp"
-            android:tint="@android:color/white"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_storage_black_24dp"/>
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/session_collections"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:singleLine="true"
-            app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
-            app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
-            app:layout_constraintStart_toEndOf="@id/image_storage"
-            tools:text="170 collections"
-            />
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/session_distance"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
-            app:layout_constraintStart_toEndOf="@id/image_storage"
-            app:layout_constraintTop_toBottomOf="@id/guideline_info_horizontal"
-            tools:text="1500 m distance"
-            />
-
-        <ImageView
-            android:id="@+id/icon_activity"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="4dp"
-            android:tint="@android:color/white"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_help_white_24dp"
-            tools:ignore="ContentDescription"/>
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/textview_altitude"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:singleLine="true"
-            android:textAlignment="textEnd"
-            app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
-            app:layout_constraintEnd_toStartOf="@id/icon_activity"
-            app:layout_constraintStart_toEndOf="@id/guideline_info_vertical"
-            tools:text="237 m altitude"
-            />
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/textview_horizontal_accuracy"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            android:textAlignment="textEnd"
-            app:layout_constraintEnd_toStartOf="@id/icon_activity"
-            app:layout_constraintHorizontal_bias="1"
-            app:layout_constraintStart_toEndOf="@id/guideline_info_vertical"
-            app:layout_constraintTop_toBottomOf="@id/guideline_info_horizontal"
-            tools:text="8 m accuracy"
-            />
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline_info_vertical"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            app:layout_constraintGuide_percent="0.5"/>
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline_info_horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            app:layout_constraintGuide_percent="0.5"/>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/tracker_recycler"
         android:layout_width="match_parent"
@@ -186,6 +64,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bar_info_top"/>
+        app:layout_constraintTop_toBottomOf="@id/top_panel_root"/>
 
 </androidx.appcompat.widget.LinearLayoutCompat>

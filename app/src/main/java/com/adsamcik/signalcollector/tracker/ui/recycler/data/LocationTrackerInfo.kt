@@ -7,7 +7,9 @@ import com.adsamcik.signalcollector.common.extension.formatDistance
 import com.adsamcik.signalcollector.common.extension.formatSpeed
 import com.adsamcik.signalcollector.common.preference.Preferences
 
-class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE, R.drawable.ic_outline_location_on_24px) {
+class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
+	override val iconRes: Int = R.drawable.ic_outline_location_on_24px
+
 	override fun bindContent(holder: InfoFieldHolder) {
 		val context = holder.context
 		val resources = holder.resources

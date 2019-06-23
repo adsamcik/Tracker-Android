@@ -2,8 +2,20 @@ package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.CellData
+import com.adsamcik.signalcollector.common.data.CellType
 
-class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE, R.drawable.ic_outline_network_cell_24px) {
+class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
+
+	override val iconRes: Int
+		get() = when (cellData.registeredCells.firstOrNull()?.type) {
+			null -> R.drawable.signal_off
+			CellType.Unknown -> R.drawable.signal
+			CellType.GSM, CellType.CDMA -> R.drawable.signal_2g
+			CellType.WCDMA -> R.drawable.signal_3g
+			CellType.LTE -> R.drawable.signal_4g
+			CellType.NR -> R.drawable.signal_5g
+		}
+
 	override fun bindContent(holder: InfoFieldHolder) {
 		val resources = holder.resources
 		cellData.registeredCells.forEach {
