@@ -9,8 +9,8 @@ import android.util.SparseArray
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ActivityRequestInfo
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Reporter
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.extension.powerManager
@@ -212,7 +212,7 @@ class ActivityService : IntentService("ActivityService") {
 		private fun initializeActivityClient(context: Context, delayInS: Int): Boolean {
 			return if (Assist.checkPlayServices(context)) {
 				val activityRecognitionClient = ActivityRecognition.getClient(context)
-				mTask = activityRecognitionClient.requestActivityUpdates((delayInS * Constants.SECOND_IN_MILLISECONDS), getActivityDetectionPendingIntent(context))
+				mTask = activityRecognitionClient.requestActivityUpdates((delayInS * Time.SECOND_IN_MILLISECONDS), getActivityDetectionPendingIntent(context))
 				//todo add handling of task failure
 				true
 			} else {

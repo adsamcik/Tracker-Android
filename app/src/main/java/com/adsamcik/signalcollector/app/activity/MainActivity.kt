@@ -10,13 +10,13 @@ import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.HomeIntroduction
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.CoreUIActivity
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.guidelineEnd
 import com.adsamcik.signalcollector.common.extension.transaction
+import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.PayloadFragment
@@ -83,7 +83,7 @@ class MainActivity : CoreUIActivity() {
 		statsPayload.initialTranslation = Point(-size.x, 0)
 		statsPayload.backgroundColor = Color.WHITE
 		statsPayload.targetTranslationZ = 7.dp.toFloat()
-		statsPayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
+		statsPayload.destroyPayloadAfter = 15 * Time.SECOND_IN_MILLISECONDS
 		button_stats.addPayload(statsPayload)
 	}
 
@@ -114,7 +114,7 @@ class MainActivity : CoreUIActivity() {
 		mapPayload.initialTranslation = Point(0, realSize.y)
 		mapPayload.backgroundColor = Color.WHITE
 		mapPayload.setTranslationZ(16.dp.toFloat())
-		mapPayload.destroyPayloadAfter = 30 * Constants.SECOND_IN_MILLISECONDS
+		mapPayload.destroyPayloadAfter = 30 * Time.SECOND_IN_MILLISECONDS
 
 		button_map.addPayload(mapPayload)
 	}
@@ -141,7 +141,7 @@ class MainActivity : CoreUIActivity() {
 		gamePayload.initialTranslation = Point(size.x, 0)
 		gamePayload.backgroundColor = Color.WHITE
 		gamePayload.targetTranslationZ = 7.dp.toFloat()
-		gamePayload.destroyPayloadAfter = 15 * Constants.SECOND_IN_MILLISECONDS
+		gamePayload.destroyPayloadAfter = 15 * Time.SECOND_IN_MILLISECONDS
 
 		button_game.addPayload(gamePayload)
 	}

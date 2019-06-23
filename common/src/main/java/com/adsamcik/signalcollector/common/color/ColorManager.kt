@@ -11,8 +11,8 @@ import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
 import com.adsamcik.signalcollector.common.BuildConfig
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.R
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.extension.toTimeSinceMidnight
 import com.adsamcik.signalcollector.common.preference.Preferences
 import java.text.SimpleDateFormat
@@ -307,7 +307,7 @@ object ColorManager {
 		val sunriseTime = sunsetRise.nextSunrise().toTimeSinceMidnight()
 
 		val dayTime = (sunsetTime - sunriseTime) / 2 + sunriseTime
-		val nightTime = ((Constants.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Constants.DAY_IN_MILLISECONDS)
+		val nightTime = ((Time.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Time.DAY_IN_MILLISECONDS)
 
 		if (time > sunsetTime) {
 			if (nightTime > sunsetTime) {
@@ -318,13 +318,13 @@ object ColorManager {
 					currentIndex = 2
 				} else {
 					//Between night and sunrise when night is before midnight and time is before midnight
-					changeLength = 24 * Constants.HOUR_IN_MILLISECONDS - nightTime + sunriseTime
+					changeLength = Time.DAY_IN_MILLISECONDS - nightTime + sunriseTime
 					progress = time - nightTime
 					currentIndex = 3
 				}
 			} else {
 				//Between sunset and night when night is after midnight and time is before midnight
-				changeLength = 24 * Constants.HOUR_IN_MILLISECONDS - sunsetTime + nightTime
+				changeLength = Time.DAY_IN_MILLISECONDS - sunsetTime + nightTime
 				progress = time - sunsetTime
 				currentIndex = 2
 			}
@@ -341,14 +341,14 @@ object ColorManager {
 		} else {
 			if (nightTime > sunsetTime) {
 				//Between night and sunrise when night is before midnight and time is after midnight
-				val beforeMidnight = 24 * Constants.HOUR_IN_MILLISECONDS - nightTime
+				val beforeMidnight = Time.DAY_IN_MILLISECONDS - nightTime
 				changeLength = beforeMidnight + sunriseTime
 				progress = time + beforeMidnight
 				currentIndex = 3
 			} else {
 				if (time < nightTime) {
 					//Between sunset and night when night is after midnight and time is after midnight
-					val beforeMidnight = 24 * Constants.HOUR_IN_MILLISECONDS - sunsetTime
+					val beforeMidnight = Time.DAY_IN_MILLISECONDS - sunsetTime
 					changeLength = beforeMidnight + nightTime
 					progress = time + beforeMidnight
 					currentIndex = 2

@@ -5,7 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.extension.stopService
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
@@ -22,7 +22,7 @@ class TrackerNotificationReceiver : BroadcastReceiver() {
 			LOCK_TIME_ACTION -> {
 				val minutes = intent.getIntExtra(STOP_MINUTES_EXTRA, -1)
 				if (minutes > 0) {
-					TrackerLocker.lockTimeLock(context, Constants.MINUTE_IN_MILLISECONDS * minutes)
+					TrackerLocker.lockTimeLock(context, Time.MINUTE_IN_MILLISECONDS * minutes)
 				}
 			}
 			else -> Log.w(TAG, "Unknown value $value")

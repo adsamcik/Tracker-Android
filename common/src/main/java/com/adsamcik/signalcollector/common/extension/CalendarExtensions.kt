@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.common.extension
 
 import android.os.Build
-import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Time
 import java.util.*
 
 fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calendar {
@@ -61,6 +61,6 @@ fun Calendar.cloneCalendar(): Calendar {
 /**
  * Returns time since midnight in milliseconds
  */
-fun Calendar.toTimeSinceMidnight(): Long = get(Calendar.HOUR_OF_DAY) * Constants.HOUR_IN_MILLISECONDS +
-		get(Calendar.MINUTE) * Constants.MINUTE_IN_MILLISECONDS +
-		get(Calendar.SECOND) * Constants.SECOND_IN_MILLISECONDS
+fun Calendar.toTimeSinceMidnight(): Long = get(Calendar.HOUR_OF_DAY) * Time.HOUR_IN_MILLISECONDS +
+		get(Calendar.MINUTE) * Time.MINUTE_IN_MILLISECONDS +
+		get(Calendar.SECOND) * Time.SECOND_IN_MILLISECONDS

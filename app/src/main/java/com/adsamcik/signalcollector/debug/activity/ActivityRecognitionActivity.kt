@@ -6,14 +6,13 @@ import android.view.View
 import android.widget.Button
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.Constants.DAY_IN_MILLISECONDS
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.adapter.StringFilterableAdapter
 import com.adsamcik.signalcollector.common.data.ActivityInfo
-import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.database.DebugDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseDebugActivity
+import com.adsamcik.signalcollector.common.preference.Preferences
 import kotlinx.android.synthetic.main.layout_activity_recognition.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +114,7 @@ class ActivityRecognitionActivity : DetailActivity() {
 
 				val keyStartTime = context.resources.getString(R.string.settings_activity_debug_tracking_start_time_key)
 
-				if ((Time.nowMillis - preferences.getLong(keyStartTime)) / DAY_IN_MILLISECONDS > 0) {
+				if ((Time.nowMillis - preferences.getLong(keyStartTime)) / Time.DAY_IN_MILLISECONDS > 0) {
 					preferences.edit {
 						setBoolean(keyDevActivityTracking, false)
 					}

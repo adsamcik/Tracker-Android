@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.LengthUnit
@@ -180,7 +180,7 @@ class StatsDetailActivity : DetailActivity() {
 			val current = locations[i]
 			val currentAltitude = current.altitude
 			val timeDifference = current.time - previous.time
-			val secondsElapsed = timeDifference.toDouble() / Constants.SECOND_IN_MILLISECONDS.toDouble()
+			val secondsElapsed = timeDifference.toDouble() / Time.SECOND_IN_MILLISECONDS.toDouble()
 
 			if (secondsElapsed <= 70.0) {
 				val distance = if (currentAltitude != null && previousAltitude != null) {
@@ -200,7 +200,7 @@ class StatsDetailActivity : DetailActivity() {
 			previousAltitude = currentAltitude
 		}
 
-		val avgSpeed = speedSum / (timeSum / Constants.SECOND_IN_MILLISECONDS)
+		val avgSpeed = speedSum / (timeSum / Time.SECOND_IN_MILLISECONDS)
 		val lengthSystem = Preferences.getLengthSystem(this)
 		val speedFormat = Preferences.getSpeedFormat(this)
 		val dataList = listOf(
@@ -273,7 +273,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		val timePattern = "hh:mm"
 
-		return if ((startDate.time / Constants.DAY_IN_MILLISECONDS) == (endDate.time / Constants.DAY_IN_MILLISECONDS)) {
+		return if ((startDate.time / Time.DAY_IN_MILLISECONDS) == (endDate.time / Time.DAY_IN_MILLISECONDS)) {
 			val dateFormat = SimpleDateFormat("d MMMM", Locale.getDefault())
 			val timeFormat = SimpleDateFormat(timePattern, Locale.getDefault())
 			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"

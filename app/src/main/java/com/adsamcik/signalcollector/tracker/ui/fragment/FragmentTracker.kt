@@ -19,15 +19,18 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.*
+import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.Reporter
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.*
-import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
+import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
@@ -99,7 +102,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		button_tracking.setOnClickListener {
 			val activity = activity!!
 			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
-				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED)
+				TrackerLocker.lockTimeLock(activity, Time.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED)
 				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, LOCK_WHEN_CANCELLED, LOCK_WHEN_CANCELLED))
 			} else {
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
@@ -198,7 +201,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		collectionData.wifi = WifiData(location, Time.nowMillis, listOf(WifiInfo(), WifiInfo(), WifiInfo()))
 		collectionData.cell = CellData(arrayOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
 
-		val session = TrackerSession(0, Time.nowMillis - 5 * Constants.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56, 5410f, 15f, 5000f, 154)
+		val session = TrackerSession(0, Time.nowMillis - 5 * Time.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56, 5410f, 15f, 5000f, 154)
 
 		updateData(CollectionDataEcho(location, collectionData, session))
 	}

@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.common.extension
 
 import android.content.Context
 import android.content.res.Resources
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.R
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.misc.LengthSystem
 import com.adsamcik.signalcollector.common.misc.SpeedFormat
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -42,10 +42,9 @@ fun Int.formatReadable(): String {
 
 fun Long.formatAsDuration(context: Context): String {
 	val resources = context.resources
-	if (this == 0L)
-		return resources.getString(R.string.second_short, 0)
+	if (this == 0L) return resources.getString(R.string.second_short, 0)
 
-	var seconds = this / Constants.SECOND_IN_MILLISECONDS
+	var seconds = this / Time.SECOND_IN_MILLISECONDS
 	var minutes = 0L
 	var hours = 0L
 	var days = 0L
@@ -67,24 +66,28 @@ fun Long.formatAsDuration(context: Context): String {
 
 	val builder = StringBuilder(50)
 
-	if (days > 0)
+	if (days > 0) {
 		builder.append(resources.getString(R.string.day_short, days))
+	}
 
 	if (hours > 0) {
-		if (builder.isNotBlank())
+		if (builder.isNotBlank()) {
 			builder.append(' ')
+		}
 		builder.append(resources.getString(R.string.hour_short, hours))
 	}
 
 	if (minutes > 0) {
-		if (builder.isNotBlank())
+		if (builder.isNotBlank()) {
 			builder.append(' ')
+		}
 		builder.append(resources.getString(R.string.minute_short, minutes))
 	}
 
 	if (seconds > 0) {
-		if (builder.isNotBlank())
+		if (builder.isNotBlank()) {
 			builder.append(' ')
+		}
 		builder.append(resources.getString(R.string.second_short, seconds))
 	}
 

@@ -9,7 +9,6 @@ import android.hardware.SensorManager
 import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
@@ -57,7 +56,7 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 			end = Time.nowMillis
 
 			if (previousLocation != null &&
-					(location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos < max(Constants.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Constants.SECOND_IN_NANOSECONDS) ||
+					(location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
 							distance <= minDistanceInMeters * 2f)) {
 				when (activity.groupedActivity) {
 					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance

@@ -9,7 +9,6 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.SystemClock
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.LocationExtensions
@@ -53,7 +52,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 	private fun requestScan() {
 		val now = SystemClock.elapsedRealtime()
 		if (Build.VERSION.SDK_INT >= 28) {
-			if (now - wifiLastScanRequest > Constants.SECOND_IN_MILLISECONDS * 15 && (wifiScanTime == -1L || now - wifiScanTimeRelative > Constants.SECOND_IN_MILLISECONDS * 10)) {
+			if (now - wifiLastScanRequest > Time.SECOND_IN_MILLISECONDS * 15 && (wifiScanTime == -1L || now - wifiScanTimeRelative > Time.SECOND_IN_MILLISECONDS * 10)) {
 				@Suppress("deprecation")
 				wifiScanRequested = wifiManager.startScan()
 				wifiLastScanRequest = now

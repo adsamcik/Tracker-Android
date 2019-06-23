@@ -10,7 +10,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.MainActivity
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.extension.notificationManager
@@ -42,7 +41,7 @@ class ActivityWatcherService : LifecycleService() {
 
 		notificationManager = (this as Context).notificationManager
 
-		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Constants.SECOND_IN_MILLISECONDS) {
+		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS) {
 			val newActivityInfo = ActivityService.lastActivity
 			if (newActivityInfo != activityInfo) {
 				activityInfo = newActivityInfo

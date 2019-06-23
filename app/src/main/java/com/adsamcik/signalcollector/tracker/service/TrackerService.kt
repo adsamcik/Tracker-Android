@@ -16,7 +16,6 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
@@ -78,7 +77,7 @@ class TrackerService : LifecycleService() {
 			return
 		}*/
 
-		wakeLock.acquire(Constants.MINUTE_IN_MILLISECONDS)
+		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
 
 		val activityInfo = ActivityService.lastActivity
 
@@ -153,8 +152,8 @@ class TrackerService : LifecycleService() {
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 			val client = LocationServices.getFusedLocationProviderClient(this)
 			val request = LocationRequest.create().apply {
-				interval = minUpdateDelayInSeconds * Constants.SECOND_IN_MILLISECONDS
-				fastestInterval = minUpdateDelayInSeconds * Constants.SECOND_IN_MILLISECONDS
+				interval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
+				fastestInterval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
 				smallestDisplacement = minDistanceInMeters.toFloat()
 				priority = PRIORITY_HIGH_ACCURACY
 			}
