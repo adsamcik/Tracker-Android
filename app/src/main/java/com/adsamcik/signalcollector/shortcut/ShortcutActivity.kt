@@ -35,7 +35,7 @@ class ShortcutActivity : AppCompatActivity() {
 		when (action) {
 			Shortcuts.ShortcutAction.START_COLLECTION -> {
 				startForegroundService<TrackerService> {
-					putExtra("backTrack", false)
+					putExtra(TrackerService.ARG_IS_USER_INITIATED, true)
 				}
 			}
 			Shortcuts.ShortcutAction.STOP_COLLECTION -> {

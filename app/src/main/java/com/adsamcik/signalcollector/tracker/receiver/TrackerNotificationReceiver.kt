@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.adsamcik.signalcollector.common.Constants
+import com.adsamcik.signalcollector.common.misc.extension.stopService
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 
@@ -13,15 +14,16 @@ class TrackerNotificationReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		when (val value = intent.getIntExtra(ACTION_STRING, -1)) {
 			STOP_TRACKING_ACTION -> {
-				context.stopService(Intent(context, TrackerService::class.java))
+				context.stopService<TrackerService>()
 			}
 			LOCK_RECHARGE_ACTION -> {
 				TrackerLocker.lockUntilRecharge(context)
 			}
 			LOCK_TIME_ACTION -> {
 				val minutes = intent.getIntExtra(STOP_MINUTES_EXTRA, -1)
-				if (minutes > 0)
+				if (minutes > 0) {
 					TrackerLocker.lockTimeLock(context, Constants.MINUTE_IN_MILLISECONDS * minutes)
+				}
 			}
 			else -> Log.w(TAG, "Unknown value $value")
 		}

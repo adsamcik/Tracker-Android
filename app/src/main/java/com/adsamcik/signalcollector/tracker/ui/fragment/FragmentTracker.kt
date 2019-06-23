@@ -176,7 +176,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 					}
 
 					activity.startForegroundService<TrackerService> {
-						putExtra("backTrack", false)
+						putExtra(TrackerService.ARG_IS_USER_INITIATED, true)
 					}
 
 					updateTrackerButton(true)

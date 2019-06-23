@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.common.database
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.database.dao.WifiDataDao
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import org.junit.Assert

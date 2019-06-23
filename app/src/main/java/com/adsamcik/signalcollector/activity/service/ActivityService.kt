@@ -55,7 +55,7 @@ class ActivityService : IntentService("ActivityService") {
 					Assist.canTrack(this)) {
 
 				startForegroundService<TrackerService> {
-					putExtra("backTrack", true)
+					putExtra(TrackerService.ARG_IS_USER_INITIATED, false)
 				}
 
 				ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "started tracking")
