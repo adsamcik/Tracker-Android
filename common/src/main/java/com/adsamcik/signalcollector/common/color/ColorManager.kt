@@ -23,8 +23,8 @@ import kotlin.concurrent.withLock
 import kotlin.math.abs
 
 /**
- * Class that handles globally calculation of current color
- * It needs to be updated with proper location to have accurate color transitions
+ * Class that handles globally calculation of current color.
+ * It needs to be updated with proper location to have accurate color transitions.
  */
 @AnyThread
 object ColorManager {
@@ -49,6 +49,9 @@ object ColorManager {
 		private set
 
 	private val controllerLock = ReentrantLock()
+
+	private const val TEXT_ALPHA = 222
+	private const val BRIGHTEN_PER_LEVEL = 17
 
 	/**
 	 * Returns proper base foreground color for given ColorView
@@ -83,8 +86,8 @@ object ColorManager {
 	 */
 	fun createController(): ColorController {
 		if (darkTextColor == 0) {
-			darkTextColor = Color.argb(222, 0, 0, 0)
-			lightTextColor = Color.argb(222, 255, 255, 255)
+			darkTextColor = ColorUtils.setAlphaComponent(Color.WHITE, TEXT_ALPHA)
+			lightTextColor = ColorUtils.setAlphaComponent(Color.BLACK, TEXT_ALPHA)
 		}
 
 		val colorManager = ColorController()
@@ -125,7 +128,7 @@ object ColorManager {
 					if (!timerActive) startUpdate()
 				}
 			} else if (colorList.size == 1) {
-				update(colorList[0])
+				update(colorList.first())
 			}
 		}
 	}
@@ -140,7 +143,7 @@ object ColorManager {
 		return if (layer == 0) {
 			color
 		} else {
-			brightenColor(color, 17 * layer)
+			brightenColor(color, BRIGHTEN_PER_LEVEL * layer)
 		}
 	}
 
@@ -213,7 +216,7 @@ object ColorManager {
 					startUpdate()
 				}
 			} else {
-				update(colorList[0])
+				update(colorList.first())
 			}
 		}
 	}
@@ -456,4 +459,6 @@ object ColorManager {
 			deltaUpdate(delta)
 		}
 	}
+
+
 }
