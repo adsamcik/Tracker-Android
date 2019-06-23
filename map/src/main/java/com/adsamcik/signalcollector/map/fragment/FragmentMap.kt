@@ -26,12 +26,12 @@ import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
 import com.adsamcik.signalcollector.common.color.ColorController
 import com.adsamcik.signalcollector.common.color.ColorManager
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.introduction.IntroductionManager
-import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginBottom
 import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.extension.transactionStateLoss
+import com.adsamcik.signalcollector.common.introduction.IntroductionManager
+import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
@@ -54,6 +54,7 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
+@Suppress("unused")
 class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallback, IOnDemandView {
 	private var locationListener: UpdateLocationListener? = null
 	private var mapController: MapController? = null
@@ -186,11 +187,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 		map?.let { ColorMap.removeListener(it) }
 		map = null
 
-		val colorManager = colorController
-		if (colorManager != null) {
-			ColorManager.recycleController(colorManager)
-		}
-
+		colorController?.let { ColorManager.recycleController(it) }
 	}
 
 	/**
@@ -321,11 +318,12 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	 * Does not rely on Google Maps search API because this way it does not have to deal with API call restrictions
 	 */
 	private fun search(searchText: String) {
+		val view = requireView()
 		if (searchText.isBlank()) {
-			SnackMaker(view!!).addMessage(R.string.map_search_no_text)
+			SnackMaker(view).addMessage(R.string.map_search_no_text)
 			return
 		} else if (!Geocoder.isPresent()) {
-			SnackMaker(view!!).addMessage(R.string.map_search_no_geocoder)
+			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)
 			return
 		}
 
@@ -405,7 +403,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	private fun initializeMenuButton(mapLayers: List<MapLayer>) {
 		//uses post to make sure heights and widths are available
 		map_menu_parent.post {
-			val activity = activity!!
+			val activity = requireActivity()
 			val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_button)
 			payload.initialTranslation = Point(0, map_menu_parent.height)
 			payload.stickToTarget = true
@@ -415,7 +413,7 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 			payload.height = map_menu_parent.height
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
-				colorController!!.watchRecyclerView(ColorView(it.view!!, 2))
+				colorController!!.watchRecyclerView(ColorView(it.requireView(), 2))
 				if (mapLayers.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
@@ -453,7 +451,9 @@ class FragmentMap : Fragment(), GoogleMap.OnCameraIdleListener, OnMapReadyCallba
 	}
 
 	override fun onCameraIdle() {
-		val bounds = map!!.projection.visibleRegion.latLngBounds
+		val map = map ?: return
+
+		val bounds = map.projection.visibleRegion.latLngBounds
 		mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
 		fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 	}
