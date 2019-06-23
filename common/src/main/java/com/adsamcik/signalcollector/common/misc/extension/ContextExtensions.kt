@@ -49,7 +49,7 @@ inline fun <reified T : Any> Activity.startActivity(
 inline fun <reified T : Any> Fragment.startActivity(
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}) {
-	context!!.startActivity<T>(options, init)
+	requireContext().startActivity<T>(options, init)
 }
 
 /**

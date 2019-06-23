@@ -30,7 +30,7 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 	var clearCallback: (() -> Unit)? = null
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-		val context = context!!
+		val context = requireContext()
 		colorController = ColorManager.createController()
 
 		val linearLayout = LinearLayout(context)

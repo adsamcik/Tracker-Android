@@ -176,7 +176,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			table.title = "${session.start.formatAsShortDateTime()} - ${session.end.formatAsShortDateTime()}"
 
 			val resources = resources
-			val lengthSystem = Preferences.getLengthSystem(context!!)
+			val lengthSystem = Preferences.getLengthSystem(requireContext())
 
 			table.addData(resources.getString(R.string.stats_distance_total), resources.formatDistance(session.distanceInM, 1, lengthSystem))
 			table.addData(resources.getString(R.string.stats_collections), session.collections.formatReadable())
