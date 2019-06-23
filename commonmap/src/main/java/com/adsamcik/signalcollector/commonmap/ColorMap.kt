@@ -90,7 +90,7 @@ object ColorMap {
 	@RawRes
 	private fun getMapStyleRes(colorData: ColorData): Int {
 		return when {
-			colorData.saturation > 0.8f -> R.raw.map_style_vibrant
+			colorData.saturation > 0.6f -> R.raw.map_style_vibrant
 			colorData.perceivedLuminance > 24 -> R.raw.map_style_light
 			colorData.perceivedLuminance < -48 -> R.raw.map_style_dark
 			else -> R.raw.map_style_grey
