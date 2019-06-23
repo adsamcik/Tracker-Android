@@ -101,17 +101,16 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 		button_tracking.setOnClickListener {
 			val activity = activity!!
-			if (TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated) {
-				val lockedForMinutes = 60
-				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * lockedForMinutes)
-				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, lockedForMinutes, lockedForMinutes))
+			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
+				TrackerLocker.lockTimeLock(activity, Constants.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED)
+				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, LOCK_WHEN_CANCELLED, LOCK_WHEN_CANCELLED))
 			} else {
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
 			}
 		}
 
 		button_tracking_lock.setOnClickListener {
-			val context = context!!
+			val context = requireContext()
 			TrackerLocker.unlockTimeLock(context)
 			TrackerLocker.unlockRechargeLock(context)
 		}
@@ -126,7 +125,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 			updateTrackerButton(it)
 		}
 
-		TrackerService.trackerEcho.observe(this) {
+		TrackerService.lastCollectionData.observe(this) {
 			if (it != null && it.session.start > 0) {
 				updateData(it)
 			}
@@ -141,7 +140,7 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 
 	override fun onResume() {
 		super.onResume()
-		val context = context!!
+		val context = requireContext()
 
 		val orientation = Assist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
@@ -208,14 +207,15 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorController = ColorManager.createController()
-		colorController.watchView(ColorView(top_panel_root, 1))
-		colorController.watchView(ColorView(bar_info_top, 1))
+		colorController = ColorManager.createController().apply {
+			watchView(ColorView(top_panel_root, 1))
+			watchView(ColorView(bar_info_top, 1))
 
-		cellInfo?.setColorManager(colorController)
-		wifiInfo?.setColorManager(colorController)
+			cellInfo?.setColorManager(this)
+			wifiInfo?.setColorManager(this)
 
-		colorController.watchRecyclerView(ColorView(tracker_recycler, 1))
+			watchRecyclerView(ColorView(tracker_recycler, 1))
+		}
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
@@ -302,6 +302,9 @@ class FragmentTracker : androidx.fragment.app.Fragment(), LifecycleObserver {
 		val lengthSystem = Preferences.getLengthSystem(requireContext())
 
 		session_distance.text = resources.getString(R.string.info_session_distance, resources.formatDistance(session.distanceInM, 1, lengthSystem))
+	}
 
+	companion object {
+		const val LOCK_WHEN_CANCELLED = 60
 	}
 }

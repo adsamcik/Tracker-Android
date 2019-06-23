@@ -14,6 +14,7 @@ import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.misc.extension.formatDistance
 import com.adsamcik.signalcollector.common.misc.extension.notificationManager
+import com.adsamcik.signalcollector.common.misc.extension.requireValue
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
@@ -61,20 +62,24 @@ class NotificationComponent : PostTrackerComponent {
 					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
 				})
 
+		val trackingSessionInfo = TrackerService.sessionInfo.requireValue
+
 		val stopIntent = Intent(context, TrackerNotificationReceiver::class.java)
-		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, if (TrackerService.isBackgroundActivated) TrackerNotificationReceiver.LOCK_RECHARGE_ACTION else TrackerNotificationReceiver.STOP_TRACKING_ACTION)
+
+		val notificationAction = if (trackingSessionInfo.isInitiatedByUser) TrackerNotificationReceiver.STOP_TRACKING_ACTION else TrackerNotificationReceiver.LOCK_RECHARGE_ACTION
+
+		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, notificationAction)
 		val stop = PendingIntent.getBroadcast(context, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
-		if (TrackerService.isBackgroundActivated) {
+		if (trackingSessionInfo.isInitiatedByUser) {
+			builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, resources.getString(R.string.notification_stop), stop)
+		} else {
 			builder.addAction(R.drawable.ic_battery_alert_black_24dp, resources.getString(R.string.notification_stop_til_recharge), stop)
 
-			val stopForMinutes = 30
 			val stopForMinutesIntent = Intent(context, TrackerNotificationReceiver::class.java)
 			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, TrackerNotificationReceiver.STOP_MINUTES_EXTRA)
 			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
 			val stopForMinutesAction = PendingIntent.getBroadcast(context, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
 			builder.addAction(R.drawable.ic_stop_black_24dp, resources.getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)
-		} else {
-			builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, resources.getString(R.string.notification_stop), stop)
 		}
 
 		when {
@@ -121,7 +126,7 @@ class NotificationComponent : PostTrackerComponent {
 
 		val cell = d.cell
 		if (cell != null && cell.registeredCells.isNotEmpty()) {
-			val mainCell = cell.registeredCells[0]
+			val mainCell = cell.registeredCells.first()
 			sb
 					.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm))
 					.append(' ')
@@ -136,6 +141,7 @@ class NotificationComponent : PostTrackerComponent {
 
 	companion object {
 		const val NOTIFICATION_ID = -7643
+		const val stopForMinutes = 30
 	}
 
 }

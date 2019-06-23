@@ -94,12 +94,15 @@ object TrackerLocker {
 
 	private fun refreshLockState(context: Context) {
 		val isLockedRightNow = isLockedRightNow()
-		if (isLockedRightNow != isLocked.value)
+		if (isLockedRightNow != isLocked.value) {
 			isLocked.postValue(isLockedRightNow)
+		}
+
 		pokeWatcherService(context)
 
-		if (isLockedRightNow && TrackerService.isServiceRunning.value && TrackerService.isBackgroundActivated)
+		if (isLockedRightNow && TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
 			context.stopService<TrackerService>()
+		}
 	}
 
 	/**

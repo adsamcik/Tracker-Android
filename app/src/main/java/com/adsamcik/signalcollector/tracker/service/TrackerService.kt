@@ -10,6 +10,7 @@ import android.os.Looper
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.signalcollector.R
@@ -19,6 +20,7 @@ import com.adsamcik.signalcollector.common.Constants
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.exception.PermissionException
+import com.adsamcik.signalcollector.common.misc.NonNullLiveData
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.misc.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -31,6 +33,7 @@ import com.adsamcik.signalcollector.tracker.component.pre.PreLocationTrackerComp
 import com.adsamcik.signalcollector.tracker.component.pre.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
@@ -51,6 +54,9 @@ class TrackerService : LifecycleService() {
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private lateinit var dataComponentManager: DataComponentManager
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
+
+	//Kept here and used internally in case something went wrong and service was launched again with different info
+	private lateinit var sessionInfo: TrackerSessionInfo
 
 
 	/**
@@ -89,11 +95,11 @@ class TrackerService : LifecycleService() {
 			it.onNewData(this, dataComponentManager.session, location, collectionData)
 		}
 
-		if (isBackgroundActivated && powerManager.isPowerSaveMode) stopSelf()
+		if (!sessionInfo.isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
 		this.previousLocation = location
 
-		trackerEcho.postValue(CollectionDataEcho(location, collectionData, dataComponentManager.session))
+		lastCollectionDataMutable.postValue(CollectionDataEcho(location, collectionData, dataComponentManager.session))
 
 		wakeLock.release()
 	}
@@ -172,13 +178,13 @@ class TrackerService : LifecycleService() {
 			return Service.START_NOT_STICKY
 		}
 
-		isBackgroundActivated = intent.getBooleanExtra("backTrack", false)
-		initializeComponents(isSessionUserInitiated = !isBackgroundActivated)
+		val isUserInitiated = intent.getBooleanExtra(ARG_IS_USER_INITIATED, false)
+		initializeComponents(isSessionUserInitiated = isUserInitiated)
 
 		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
 		startForeground(notificationId, notification)
 
-		if (isBackgroundActivated) {
+		if (!isUserInitiated) {
 			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)
 			TrackerLocker.isLocked.observe(this) {
 				if (it) stopSelf()
@@ -189,7 +195,10 @@ class TrackerService : LifecycleService() {
 
 		ActivityWatcherService.poke(this, trackerRunning = true)
 
-		isServiceRunning.value = true
+		isServiceRunningMutable.value = true
+
+		sessionInfo = TrackerSessionInfo(isUserInitiated)
+		sessionInfoMutable.postValue(sessionInfo)
 
 		val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
 		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionStartIntent)
@@ -201,7 +210,7 @@ class TrackerService : LifecycleService() {
 		super.onDestroy()
 
 		stopForeground(true)
-		isServiceRunning.value = false
+		isServiceRunningMutable.value = false
 
 		ActivityWatcherService.poke(this, trackerRunning = false)
 		ActivityService.removeActivityRequest(this, this::class)
@@ -229,22 +238,30 @@ class TrackerService : LifecycleService() {
 
 
 	companion object {
+		private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
+
 		/**
 		 * LiveData containing information about whether the service is currently running
 		 */
-		val isServiceRunning: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
+		val isServiceRunning: NonNullLiveData<Boolean> get() = isServiceRunningMutable
+
+		private val lastCollectionDataMutable: MutableLiveData<CollectionDataEcho> = MutableLiveData()
 
 		/**
-		 * MutableCollectionData from previous collection
+		 * Collection data from last collection
 		 */
-		var trackerEcho: MutableLiveData<CollectionDataEcho> = MutableLiveData()
+		val lastCollectionData: LiveData<CollectionDataEcho> get() = lastCollectionDataMutable
+
+
+		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo> = MutableLiveData()
 
 		/**
-		 * Checks if tracker was activated in background
-		 *
-		 * @return true if activated by the app
+		 * Current information about session.
+		 * Null when no session is active.
 		 */
-		var isBackgroundActivated: Boolean = false
-			private set
+		val sessionInfo: LiveData<TrackerSessionInfo> get() = sessionInfoMutable
+
+
+		const val ARG_IS_USER_INITIATED = "userInitiated"
 	}
 }

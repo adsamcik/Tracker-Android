@@ -14,6 +14,7 @@ import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.misc.extension.powerManager
+import com.adsamcik.signalcollector.common.misc.extension.requireValue
 import com.adsamcik.signalcollector.common.misc.extension.startForegroundService
 import com.adsamcik.signalcollector.common.misc.extension.stopService
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -42,7 +43,7 @@ class ActivityService : IntentService("ActivityService") {
 		lastActivity = detectedActivity
 		if (mBackgroundTracking && detectedActivity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerService.isServiceRunning.value) {
-				if (TrackerService.isBackgroundActivated && !canContinueBackgroundTracking(this, detectedActivity.groupedActivity)) {
+				if (!TrackerService.sessionInfo.requireValue.isInitiatedByUser && !canContinueBackgroundTracking(this, detectedActivity.groupedActivity)) {
 					stopService<TrackerService>()
 					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "stopped tracking")
 				} else {
