@@ -40,7 +40,7 @@ class VehicleActivityRecognizer : ActivityRecognizer {
 	}
 
 	data class ActivitySum(var count: Int = 0, var confidenceSum: Int = 0) {
-		val confidence get() = confidenceSum / count
+		val confidence get() = if (count == 0) 0 else confidenceSum / count
 	}
 
 	companion object {

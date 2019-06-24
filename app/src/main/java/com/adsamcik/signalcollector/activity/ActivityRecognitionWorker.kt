@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.activity
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.adsamcik.signalcollector.activity.recognizer.ActivityRecognitionResult
 import com.adsamcik.signalcollector.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.signalcollector.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.signalcollector.common.Reporter
@@ -23,7 +24,17 @@ class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters
 				?: return@coroutineScope fail("Session with id $sessionId not found.")
 		val locationCollection = database.locationDao().getAllBetween(session.start, session.end)
 
-		val deferredResults = activeRecognizers.map { async { Pair(it, it.resolve(session, locationCollection)) } }
+		val deferredResults = activeRecognizers.map {
+			async {
+				val result = try {
+					 it.resolve(session, locationCollection)
+				} catch (e: Exception) {
+					Reporter.report(e)
+					ActivityRecognitionResult(null, 0)
+				}
+				Pair(it, result)
+			}
+		}
 
 		val results = deferredResults.mapNotNull {
 			val result = it.await()
