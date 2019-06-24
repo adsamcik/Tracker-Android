@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.dao.*
 import com.adsamcik.signalcollector.common.database.data.*
@@ -14,7 +15,8 @@ import com.adsamcik.signalcollector.common.database.data.*
 	TrackerSession::class,
 	DatabaseWifiData::class,
 	DatabaseCellData::class,
-	DatabaseMapMaxHeat::class],
+	DatabaseMapMaxHeat::class,
+	SessionActivity::class],
 		version = 7)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +30,8 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun cellDao(): CellDataDao
 
 	abstract fun mapHeatDao(): MapHeatDao
+
+	abstract fun activityDao(): ActivityDao
 
 	companion object {
 		private var instance_: AppDatabase? = null

@@ -40,7 +40,7 @@ class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters
 				?: throw NullPointerException()
 
 		val mutableSession = MutableTrackerSession(session)
-		mutableSession.sessionActivityId = activityRecognitionResult.second.requireRecognizedActivity.ordinal
+		mutableSession.sessionActivityId = activityRecognitionResult.second.requireRecognizedActivity.id
 
 		database.sessionDao().update(mutableSession)
 

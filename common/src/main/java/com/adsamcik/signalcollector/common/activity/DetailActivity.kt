@@ -7,6 +7,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
+import androidx.annotation.MainThread
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
@@ -51,11 +52,13 @@ abstract class DetailActivity : CoreUIActivity() {
 		finish()
 	}
 
+	@MainThread
 	override fun setTitle(title: CharSequence) {
 		super.setTitle(title)
 		content_detail_title.text = title
 	}
 
+	@MainThread
 	override fun setTitle(titleId: Int) {
 		title = getString(titleId)
 	}

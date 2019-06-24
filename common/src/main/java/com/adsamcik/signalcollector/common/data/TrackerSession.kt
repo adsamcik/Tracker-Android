@@ -15,7 +15,7 @@ open class TrackerSession(
 		distanceOnFootInM: Float = 0f,
 		distanceInVehicleInM: Float = 0f,
 		steps: Int = 0,
-		sessionActivityId: Int? = null) {
+		sessionActivityId: Long? = null) {
 
 	@PrimaryKey(autoGenerate = true)
 	open var id: Long = id
@@ -51,7 +51,7 @@ open class TrackerSession(
 		protected set
 
 	@ColumnInfo(name = "session_activity_id")
-	open var sessionActivityId: Int? = sessionActivityId
+	open var sessionActivityId: Long? = sessionActivityId
 		protected set
 
 	companion object {

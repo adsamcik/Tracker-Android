@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
+import androidx.annotation.MainThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.DefaultItemAnimator
@@ -10,11 +11,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.signalcollector.activity.NativeSessionActivity
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.LengthUnit
 import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
@@ -82,6 +85,7 @@ class StatsDetailActivity : DetailActivity() {
 		}
 	}
 
+	@MainThread
 	private fun initializeSessionData(session: TrackerSession) {
 		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
 		val layoutManager = LinearLayoutManager(this)
@@ -123,16 +127,47 @@ class StatsDetailActivity : DetailActivity() {
 
 		colorController.watchRecyclerView(ColorView(recycler, 0))
 
-		val startDate = Date(session.start)
-		val endDate = Date(session.end)
-		val startCalendar = startDate.toCalendar()
-		val endCalendar = endDate.toCalendar()
-		val title = createTitle(startCalendar, "run")
+		val endCalendar = Date(session.end).toCalendar()
+		val startCalendar = Date(session.start).toCalendar()
 
-		setTitle(title)
+		setTitle(session)
 
 		date_time.text = formatRange(startCalendar, endCalendar)
 	}
+
+	private fun setTitle(session: TrackerSession) {
+		val startCalendar = Date(session.start).toCalendar()
+
+		val activityId = session.sessionActivityId
+
+		launch(Dispatchers.Default) {
+			val sessionActivity = when {
+				activityId == null -> null
+				activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(this@StatsDetailActivity)
+				else -> if (activityId == 0L || activityId == -1L) {
+					null
+				} else {
+					val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity).activityDao()
+					activityDao.get(activityId)
+				}
+			} ?: SessionActivity(0L, "", null)
+
+			val title = createTitle(startCalendar, sessionActivity)
+			val drawableName = sessionActivity.iconName
+					?: com.adsamcik.signalcollector.common.R.drawable::ic_baseline_device_unknown.name
+			val drawableId = resources.getIdentifier(drawableName, "drawable", packageName)
+
+			if (drawableId == 0) throw NullPointerException("Resource with name $drawableName not found")
+
+			val drawable = resources.getDrawable(drawableId, theme)
+
+			launch(Dispatchers.Main) {
+				setTitle(title)
+				activity.setImageDrawable(drawable)
+			}
+		}
+	}
+
 
 	private fun addBasicStats(session: TrackerSession, adapter: StatsDetailAdapter) {
 		val resources = resources
@@ -287,17 +322,18 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	//Todo replace with new activity object once ready
-	private fun createTitle(date: Calendar, activity: String): String {
+	private fun createTitle(date: Calendar, activity: SessionActivity): String {
+		val activityName = activity.name
 		val hour = date[Calendar.HOUR_OF_DAY]
 		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(date.time).capitalize()
 		return if (hour < 6 || hour > 22) {
-			getString(R.string.stats_night, day, activity)
+			getString(R.string.stats_night, day, activityName)
 		} else if (hour < 12) {
-			getString(R.string.stats_morning, day, activity)
+			getString(R.string.stats_morning, day, activityName)
 		} else if (hour < 17) {
-			getString(R.string.stats_afternoon, day, activity)
+			getString(R.string.stats_afternoon, day, activityName)
 		} else {
-			getString(R.string.stats_evening, day, activity)
+			getString(R.string.stats_evening, day, activityName)
 		}
 	}
 
