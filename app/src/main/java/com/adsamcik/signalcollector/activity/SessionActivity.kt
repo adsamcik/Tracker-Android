@@ -12,6 +12,13 @@ data class SessionActivity(
 		@PrimaryKey var id: String
 )
 
-data class NativeSessionActivity(val id: String, var titleRes: Int, var iconRes: Int) {
+/*data class NativeSessionActivity(val id: String, var titleRes: Int, var iconRes: Int) {
 	val sessionActivity get() = SessionActivity(id)
+}*/
+
+enum class NativeSessionActivity {
+	RUN,
+	WALK,
+	BICYCLE,
+	VEHICLE
 }

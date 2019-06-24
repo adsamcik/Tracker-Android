@@ -22,7 +22,7 @@ class MutableTrackerSession(
 
 	override var isUserInitiated: Boolean
 		get() = super.isUserInitiated
-		set(value) {
+		public set(value) {
 			super.isUserInitiated = value
 		}
 
@@ -70,7 +70,7 @@ class MutableTrackerSession(
 
 	override var sessionActivityId: Int?
 		get() = super.sessionActivityId
-		set(value) {
+		public set(value) {
 			super.sessionActivityId = value
 		}
 

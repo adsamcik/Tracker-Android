@@ -1,8 +1,9 @@
 package com.adsamcik.signalcollector.activity.recognizer
 
 import androidx.annotation.IntRange
-import com.adsamcik.signalcollector.activity.SessionActivity
+import com.adsamcik.signalcollector.activity.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 
 interface ActivityRecognizer {
 	/**
@@ -14,7 +15,9 @@ interface ActivityRecognizer {
 	 */
 	val precisionConfidence: Int
 
-	fun resolve(session: TrackerSession): SessionActivity
+	fun resolve(session: TrackerSession, locationCollection: Collection<DatabaseLocation>): ActivityRecognitionResult
 }
 
-data class ActivityRecognitionResult(val activityId: Int, @IntRange(from = 0, to = 100) val confidence: Int)
+data class ActivityRecognitionResult(val recognizedActivity: NativeSessionActivity?, @IntRange(from = 0, to = 100) val confidence: Int) {
+	val requireRecognizedActivity: NativeSessionActivity = recognizedActivity ?: throw NullPointerException("Recognized activity was null")
+}

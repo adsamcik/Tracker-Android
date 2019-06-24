@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.common.database.dao
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.TrackerSessionSummary
 import com.adsamcik.signalcollector.common.database.data.TrackerSessionTimeSummary
@@ -35,6 +37,21 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 
 	@Query("SELECT * FROM tracker_session WHERE start >= :from AND start <= :to ORDER BY start DESC")
 	fun getBetween(from: Long, to: Long): List<TrackerSession>
+
+	@Query("SELECT * FROM tracker_session ORDER BY id DESC LIMIT :count")
+	fun getLast(count: Int): TrackerSession?
+
+	@Transaction
+	fun continueTrackerSession(maxAgeMillis: Long): TrackerSession {
+		val lastSession = getLast(1)
+		return if (lastSession != null && Time.nowMillis - lastSession.end <= maxAgeMillis) {
+			lastSession
+		} else {
+			//Common package does not contain MutableTrackerSession by design
+			val id = insert(TrackerSession())
+			TrackerSession(id)
+		}
+	}
 
 	@Query("SELECT COUNT(*) FROM tracker_session")
 	fun count(): Long
