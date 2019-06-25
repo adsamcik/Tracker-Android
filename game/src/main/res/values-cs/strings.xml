@@ -17,4 +17,5 @@
     <string name="notification_challenge_done_title">%1$s výzva dokončena</string>
     <string name="notification_challenge_unknown_title">Neznámá výzva dokončena</string>
     <string name="settings_game_challenge_enable_title">Povolit výzvy</string>
+    <string name="challenge_list_title">Výzvy</string>
 </resources>

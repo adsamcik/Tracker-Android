@@ -186,10 +186,10 @@
     <string name="module_download_progress">Staženo %1$s / %2$s</string>
     <string name="module_downloading">Stahuji modul %s</string>
     <string name="module_error">Selhala instalace modulu %s (číslo chyby %d)</string>
-    <string name="module_game_title">Hry</string>
+    <string name="module_game_title">hry</string>
     <string name="module_installing">Instaluje se modul %s</string>
-    <string name="module_map_title">Mapa</string>
-    <string name="module_statistics_title">Statistiky</string>
+    <string name="module_map_title">mapa</string>
+    <string name="module_statistics_title">statistiky</string>
     <string name="module_success">Instalace byla úspěšně dokončena</string>
     <string name="sessioncategory_add">Přidat kategorii</string>
     <string name="sessioncategory_add_contentdescription">Přidat kategorii</string>
@@ -211,4 +211,12 @@
     <string name="horizontal_accuracy">horizontální přesnost</string>
     <string name="in_range">v dosahu</string>
     <string name="date_long_press_range_selection">Dlouhým stistkem a táhnutím z data aktivuje výběr časového období</string>
+    <string name="tracker_activity_card_title">Aktivita</string>
+    <string name="tracker_activity_confidence">Jistota</string>
+    <string name="tracker_activity_title">Aktivita</string>
+    <string name="tracker_collections_title">Záznamů</string>
+    <string name="tracker_distance_title">Vzdáelnost</string>
+    <string name="tracker_session_age">Začátek relace</string>
+    <string name="tracker_session_card_title">Relace</string>
+    <string name="tracker_steps">Kroky</string>
 </resources>

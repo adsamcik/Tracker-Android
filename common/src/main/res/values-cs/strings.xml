@@ -40,4 +40,11 @@
     <string name="yes">Ano</string>
     <string name="next_part">pokračovat</string>
     <string name="skip_tips">přeskočit</string>
+    <string name="activity_bicycle">kolo</string>
+    <string name="activity_run">běh</string>
+    <string name="activity_vehicle">vozidlo</string>
+    <string name="activity_walk">chůze</string>
+    <string name="per_hour_abbr">%s/h</string>
+    <string name="per_minute_abbr">%s/m</string>
+    <string name="per_second_abbr">%s/s</string>
 </resources>
