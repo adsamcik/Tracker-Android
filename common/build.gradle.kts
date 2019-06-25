@@ -21,6 +21,9 @@ android {
 		}
 	}
 
+	sourceSets {
+		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+	}
 
 	with(compileOptions) {
 		sourceCompatibility = JavaVersion.VERSION_1_8
