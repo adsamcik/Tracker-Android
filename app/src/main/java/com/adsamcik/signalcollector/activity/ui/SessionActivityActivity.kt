@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.activity.session
+package com.adsamcik.signalcollector.activity.ui
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity

@@ -38,7 +38,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
-        <activity android:name=".activity.session.SessionActivityActivity"/>
+        <activity android:name=".activity.ui.SessionActivityActivity"/>
         <activity android:name=".module.activity.ModuleActivity"/>
 
         <meta-data
