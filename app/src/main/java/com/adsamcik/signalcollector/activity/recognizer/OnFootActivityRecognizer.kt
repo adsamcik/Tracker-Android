@@ -17,8 +17,7 @@ class OnFootActivityRecognizer : ActivityRecognizer {
 
 		locationCollection.forEach {
 			when (it.activityInfo.activity) {
-				DetectedActivity.ON_FOOT -> onFoot
-				DetectedActivity.WALKING -> walk
+				DetectedActivity.WALKING, DetectedActivity.ON_FOOT -> walk
 				DetectedActivity.RUNNING -> run
 				DetectedActivity.STILL -> still
 				else -> other
@@ -32,11 +31,12 @@ class OnFootActivityRecognizer : ActivityRecognizer {
 			return ActivityRecognitionResult(null, 0)
 		}
 
-		if (walk.count / WALK_DENOMINATOR > run.count) {
-			return ActivityRecognitionResult(NativeSessionActivity.WALK, walk.confidence)
+		//just a little run should make it enough to consider it running session
+		if (run.confidenceSum > walk.confidenceSum / WALK_DENOMINATOR) {
+			return ActivityRecognitionResult(NativeSessionActivity.RUN, run.confidence)
 		}
 
-		return ActivityRecognitionResult(NativeSessionActivity.RUN, run.confidence)
+		return ActivityRecognitionResult(NativeSessionActivity.WALK, walk.confidence)
 	}
 
 	data class ActivitySum(var count: Int = 0, var confidenceSum: Int = 0) {
