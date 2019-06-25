@@ -168,11 +168,12 @@ class MigrationTest {
 				assertEquals(2, getInt(0))
 				assertEquals(400, getInt(1))
 				assertEquals(600, getInt(2))
-				assertEquals(20, getInt(3))
-				assertEquals(2000, getInt(4))
-				assertEquals(0, getInt(5))
+				assertEquals(0, getInt(3))
+				assertEquals(20, getInt(4))
+				assertEquals(2000, getInt(5))
 				assertEquals(0, getInt(6))
-				assertEquals(100, getInt(7))
+				assertEquals(0, getInt(7))
+				assertEquals(100, getInt(8))
 			}
 		}
 	}
