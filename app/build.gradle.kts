@@ -22,8 +22,8 @@ android {
 		applicationId = "com.adsamcik.signalcollector"
 		minSdkVersion(Android.min)
 		targetSdkVersion(Android.target)
-		versionCode = 296
-		versionName = "7.0α13 Offline"
+		versionCode = 297
+		versionName = "7.0α14 Offline"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
 
