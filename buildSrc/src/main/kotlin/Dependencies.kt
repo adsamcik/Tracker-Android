@@ -11,7 +11,7 @@ object Libraries {
 		const val kotlin = "1.3.40"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
-		const val work = "2.1.0-beta01"
+		const val work = "2.1.0-beta02"
 		const val lifecycle = "2.2.0-alpha01"
 		const val preference = "1.1.0-beta01"
 		const val material = "1.1.0-alpha07"
@@ -27,7 +27,7 @@ object Libraries {
 
 		const val fileChooser = "1.2.0"
 
-		const val playServicesBase = "16.1.0"
+		const val playServicesBase = "17.0.0"
 		const val playCore = "1.6.1"
 
 		const val sublimePicker = "2.1.2"
