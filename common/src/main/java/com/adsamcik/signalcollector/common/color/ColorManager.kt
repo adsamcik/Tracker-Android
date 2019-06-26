@@ -40,7 +40,7 @@ object ColorManager {
 
 	private var currentIndex = 0
 
-	private val nextIndex get () = (currentIndex + 1).rem(colorList.size)
+	private val nextIndex get() = (currentIndex + 1).rem(colorList.size)
 
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
@@ -92,9 +92,9 @@ object ColorManager {
 
 		val colorManager = ColorController()
 
-		controllerLock.lock()
-		controllerCollection.add(colorManager)
-		controllerLock.unlock()
+		controllerLock.withLock {
+			controllerCollection.add(colorManager)
+		}
 
 		ensureUpdate()
 
@@ -150,17 +150,15 @@ object ColorManager {
 	/**
 	 * Add all given colors to colorList. This is usually not the way you want to initialize the colors. Consider using load from preferences.
 	 *
-	 * @param varargs colors to add
+	 * @param colors colors to add
 	 */
-	fun addColors(@ColorInt vararg varargs: Int) {
+	fun addColors(@ColorInt colors: Collection<Int>) {
 		synchronized(colorList) {
-			if (varargs.isEmpty())
-				throw RuntimeException("You can't just add no colors.")
+			if (colors.isEmpty()) {
+				throw IllegalArgumentException("You can't just add no colors.")
+			}
 
-			//Has to be added one by one because it is vararg
-			colorList.ensureCapacity(colorList.size + varargs.size)
-			varargs.forEach { colorList.add(it) }
-
+			colorList.addAll(colors)
 			ensureUpdate()
 		}
 	}
@@ -191,10 +189,7 @@ object ColorManager {
 	 */
 	private fun update(@ColorInt color: Int) {
 		val perceivedLuminance = perceivedRelLuminance(layerColor(color, 1))
-		val fgColor: Int = if (perceivedLuminance > 0)
-			darkTextColor
-		else
-			lightTextColor
+		val fgColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
 
 		val baseColorHSL = FloatArray(3)
 		ColorUtils.RGBToHSL(color.red, color.green, color.blue, baseColorHSL)
@@ -407,15 +402,15 @@ object ColorManager {
 			val day = preferences.getColorRes(R.string.settings_color_day_key, R.color.settings_color_day_default)
 
 			if (mode == 0) {
-				addColors(day)
+				addColors(listOf(day))
 			} else {
 				val night = preferences.getColorRes(R.string.settings_color_night_key, R.color.settings_color_night_default)
 				if (mode == 1) {
-					addColors(day, night)
+					addColors(listOf(day, night))
 				} else {
 					val morning = preferences.getColorRes(R.string.settings_color_morning_key, R.color.settings_color_morning_default)
 					val evening = preferences.getColorRes(R.string.settings_color_evening_key, R.color.settings_color_evening_default)
-					addColors(morning, day, evening, night)
+					addColors(listOf(morning, day, evening, night))
 				}
 			}
 		}
