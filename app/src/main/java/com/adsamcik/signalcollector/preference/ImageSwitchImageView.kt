@@ -1,6 +1,5 @@
 package com.adsamcik.signalcollector.preference
 
-import android.R
 import android.content.Context
 import android.content.res.ColorStateList
 import android.util.AttributeSet
@@ -21,8 +20,8 @@ class ImageSwitchImageView : AppCompatImageView, ColorableView {
 
 		imageTintList = ColorStateList(
 				arrayOf(
-						intArrayOf(-R.attr.state_selected),
-						intArrayOf(R.attr.state_selected)
+						intArrayOf(-android.R.attr.state_selected),
+						intArrayOf(android.R.attr.state_selected)
 				),
 				intArrayOf(
 						notSelectedColor,
@@ -36,6 +35,6 @@ class ImageSwitchImageView : AppCompatImageView, ColorableView {
 
 	companion object {
 		const val SELECTED_ALPHA = 255
-		const val NOT_SELECTED_ALPHA = 170
+		const val NOT_SELECTED_ALPHA = 128
 	}
 }
