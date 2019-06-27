@@ -34,6 +34,7 @@ typealias ColorListener = (colorData: ColorData) -> Unit
  * ColorController class that handles color updates of views in a given Activity or Fragment.
  */
 @AnyThread
+//todo add support for local custom Views
 class ColorController : CoroutineScope {
 	private val job = SupervisorJob()
 
