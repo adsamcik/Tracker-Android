@@ -14,12 +14,12 @@ data class ColorData(@ColorInt val baseColor: Int, @ColorInt val foregroundColor
 	fun foregroundColorFor(colorView: ColorView): Int = foregroundColorFor(colorView.isInverted)
 
 	/**
-	 * Returns proper base foreground color based on [backgroundIsForeground]
+	 * Returns proper base foreground color based on [isInverted]
 	 *
-	 * @param backgroundIsForeground True if background and foreground should be inverted
+	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun foregroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) ColorManager.currentColorData.baseColor else ColorManager.currentColorData.foregroundColor
+	fun foregroundColorFor(isInverted: Boolean): Int = if (isInverted) baseColor else foregroundColor
 
 	/**
 	 * Returns proper base background color for given ColorView
@@ -28,12 +28,12 @@ data class ColorData(@ColorInt val baseColor: Int, @ColorInt val foregroundColor
 	fun backgroundColorFor(colorView: ColorView): Int = backgroundColorFor(colorView.isInverted)
 
 	/**
-	 * Returns proper base background color based on [backgroundIsForeground]
+	 * Returns proper base background color based on [isInverted]
 	 *
-	 * @param backgroundIsForeground True if background and foreground should be inverted
+	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun backgroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) ColorManager.currentColorData.foregroundColor else ColorManager.currentColorData.baseColor
+	fun backgroundColorFor(isInverted: Boolean): Int = if (isInverted) foregroundColor else baseColor
 
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
