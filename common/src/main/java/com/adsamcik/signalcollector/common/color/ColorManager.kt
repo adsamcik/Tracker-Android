@@ -54,34 +54,6 @@ object ColorManager {
 	private const val BRIGHTEN_PER_LEVEL = 17
 
 	/**
-	 * Returns proper base foreground color for given ColorView
-	 */
-	@ColorInt
-	fun foregroundColorFor(colorView: ColorView): Int = foregroundColorFor(colorView.isInverted)
-
-	/**
-	 * Returns proper base foreground color based on [backgroundIsForeground]
-	 *
-	 * @param backgroundIsForeground True if background and foreground should be inverted
-	 */
-	@ColorInt
-	fun foregroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentColorData.baseColor else currentColorData.foregroundColor
-
-	/**
-	 * Returns proper base background color for given ColorView
-	 */
-	@ColorInt
-	fun backgroundColorFor(colorView: ColorView): Int = backgroundColorFor(colorView.isInverted)
-
-	/**
-	 * Returns proper base background color based on [backgroundIsForeground]
-	 *
-	 * @param backgroundIsForeground True if background and foreground should be inverted
-	 */
-	@ColorInt
-	fun backgroundColorFor(backgroundIsForeground: Boolean): Int = if (backgroundIsForeground) currentColorData.foregroundColor else currentColorData.baseColor
-
-	/**
 	 * Creates color manager instance
 	 */
 	fun createController(): ColorController {
@@ -194,11 +166,12 @@ object ColorManager {
 		val baseColorHSL = FloatArray(3)
 		ColorUtils.RGBToHSL(color.red, color.green, color.blue, baseColorHSL)
 
-		currentColorData = ColorData(color, fgColor, baseColorHSL, perceivedLuminance)
+		val colorData = ColorData(color, fgColor, baseColorHSL, perceivedLuminance)
+		currentColorData = colorData
 
 		controllerLock.withLock {
 			controllerCollection.forEach {
-				it.update()
+				it.update(colorData)
 			}
 		}
 	}

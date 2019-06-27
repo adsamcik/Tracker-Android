@@ -8,10 +8,7 @@ import android.graphics.PorterDuffColorFilter
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.CheckBox
-import android.widget.ImageView
-import android.widget.TextView
+import android.widget.*
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
@@ -19,8 +16,7 @@ import androidx.annotation.MainThread
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.color.ColorManager.backgroundColorFor
-import com.adsamcik.signalcollector.common.color.ColorManager.foregroundColorFor
+import com.adsamcik.signalcollector.common.color.ColorManager.currentColorData
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
 import com.adsamcik.signalcollector.common.extension.contains
 import kotlinx.coroutines.CoroutineScope
@@ -34,35 +30,6 @@ import kotlin.coroutines.CoroutineContext
 
 typealias ColorListener = (colorData: ColorData) -> Unit
 
-data class ColorData(@ColorInt val baseColor: Int, @ColorInt val foregroundColor: Int, private val baseColorHSL: FloatArray, val perceivedLuminance: Byte) {
-
-	val luminance get() = baseColorHSL[2]
-	val saturation get() = baseColorHSL[1]
-	val hue get() = baseColorHSL[0]
-
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (javaClass != other?.javaClass) return false
-
-		other as ColorData
-
-		if (baseColor != other.baseColor) return false
-		if (foregroundColor != other.foregroundColor) return false
-		if (!baseColorHSL.contentEquals(other.baseColorHSL)) return false
-		if (perceivedLuminance != other.perceivedLuminance) return false
-
-		return true
-	}
-
-	override fun hashCode(): Int {
-		var result = baseColor
-		result = 31 * result + foregroundColor
-		result = 31 * result + baseColorHSL.contentHashCode()
-		result = 31 * result + perceivedLuminance
-		return result
-	}
-}
-
 /**
  * ColorController class that handles color updates of views in a given Activity or Fragment
  */
@@ -73,7 +40,7 @@ class ColorController : CoroutineScope {
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
 
-	private val watchedViews = ArrayList<ColorView>(5)
+	private val watchedViewList = mutableListOf<ColorView>()
 
 	/**
 	 * Colors listener array. Holds all listeners.
@@ -109,7 +76,7 @@ class ColorController : CoroutineScope {
 				field = value
 				if (!value && updateRequestedWhileSuspended) {
 					updateRequestedWhileSuspended = false
-					update()
+					update(ColorManager.currentColorData)
 				}
 			}
 		}
@@ -119,10 +86,10 @@ class ColorController : CoroutineScope {
 	 *
 	 */
 	fun watchView(colorView: ColorView) {
-		synchronized(watchedViews) {
-			watchedViews.add(colorView)
+		synchronized(watchedViewList) {
+			watchedViewList.add(colorView)
 		}
-		updateInternal(colorView)
+		updateInternal(colorView, currentColorData)
 	}
 
 	/**
@@ -133,13 +100,13 @@ class ColorController : CoroutineScope {
 	 */
 	fun notifyChangeOn(view: View) {
 		var find: ColorView? = null
-		synchronized(watchedViews) {
-			find = watchedViews.find { it.view == view }
-					?: watchedViews.find { it.view.contains(view) }
+		synchronized(watchedViewList) {
+			find = watchedViewList.find { it.view == view }
+					?: watchedViewList.find { it.view.contains(view) }
 		}
 
 		if (find != null) {
-			updateInternal(find!!)
+			updateInternal(find!!, currentColorData)
 		} else {
 			throw IllegalArgumentException("View is not subscribed")
 		}
@@ -158,14 +125,26 @@ class ColorController : CoroutineScope {
 			val adapter = colorView.view.adapter
 			if (adapter is IViewChange) {
 				adapter.onViewChangedListener = {
-					updateStyle(it, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
+					val colorData = currentColorData
+					updateStyle(colorData,
+							colorData.backgroundColorFor(colorView),
+							colorData.foregroundColorFor(colorView),
+							it,
+							colorView.layer + 1,
+							colorView.maxDepth)
 				}
 			} else {
 				colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
 					override fun onChildViewRemoved(parent: View, child: View) {}
 
 					override fun onChildViewAdded(parent: View, child: View) {
-						updateStyle(child, colorView.layer + 1, colorView.maxDepth, backgroundColorFor(colorView), foregroundColorFor(colorView))
+						val colorData = currentColorData
+						updateStyle(colorData,
+								colorData.backgroundColorFor(colorView),
+								colorData.foregroundColorFor(colorView),
+								child,
+								colorView.layer + 1,
+								colorView.maxDepth)
 					}
 				})
 			}
@@ -178,9 +157,9 @@ class ColorController : CoroutineScope {
 	 * Only the first [ColorView] that matches the predicate will be removed.
 	 */
 	fun stopWatchingView(predicate: (ColorView) -> Boolean) {
-		synchronized(watchedViews) {
-			val index = watchedViews.indexOfFirst(predicate)
-			if (index >= 0) watchedViews.removeAt(index)
+		synchronized(watchedViewList) {
+			val index = watchedViewList.indexOfFirst(predicate)
+			if (index >= 0) watchedViewList.removeAt(index)
 		}
 	}
 
@@ -227,11 +206,11 @@ class ColorController : CoroutineScope {
 	 * @param id Id of the AdapterView to unsubscribe
 	 */
 	fun stopWatchingRecyclerView(@IdRes id: Int) {
-		synchronized(watchedViews) {
-			val index = watchedViews.indexOfFirst { it.view.id == id }
+		synchronized(watchedViewList) {
+			val index = watchedViewList.indexOfFirst { it.view.id == id }
 			if (index >= 0) {
-				(watchedViews[index].view as ViewGroup).setOnHierarchyChangeListener(null)
-				watchedViews.removeAt(index)
+				(watchedViewList[index].view as ViewGroup).setOnHierarchyChangeListener(null)
+				watchedViewList.removeAt(index)
 			}
 		}
 	}
@@ -240,8 +219,8 @@ class ColorController : CoroutineScope {
 	 * Triggers cleanup of all watched [ColorView] and [ColorListener] removing them from watch lists.
 	 */
 	fun cleanup() {
-		synchronized(watchedViews) {
-			watchedViews.clear()
+		synchronized(watchedViewList) {
+			watchedViewList.clear()
 		}
 
 		synchronized(colorChangeListeners) {
@@ -257,7 +236,7 @@ class ColorController : CoroutineScope {
 	fun addListener(colorListener: ColorListener) {
 		synchronized(colorChangeListeners) {
 			colorChangeListeners.add(colorListener)
-			colorListener.invoke(ColorManager.currentColorData)
+			colorListener.invoke(currentColorData)
 		}
 	}
 
@@ -273,69 +252,88 @@ class ColorController : CoroutineScope {
 	/**
 	 * Internal update function which should be called only by ColorManager
 	 */
-	internal fun update() {
+	internal fun update(colorData: ColorData) {
 		if (isSuspended) {
 			updateRequestedWhileSuspended = true
 			return
 		}
 
 		launch(Dispatchers.Main) {
-			synchronized(watchedViews) {
-				watchedViews.forEach {
-					updateInternal(it)
+			synchronized(watchedViewList) {
+				watchedViewList.forEach { colorView ->
+					updateInternal(colorView, colorData)
 				}
 			}
 		}
-
-		val colorData = ColorManager.currentColorData
-
 		synchronized(colorChangeListeners) {
 			colorChangeListeners.forEach { it.invoke(colorData) }
 		}
 	}
 
-	private fun updateInternal(colorView: ColorView) {
-		val backgroundColor = backgroundColorFor(colorView)
-		val foregroundColor = foregroundColorFor(colorView)
+	private fun updateInternal(colorView: ColorView, colorData: ColorData) {
+		val backgroundColor = colorData.backgroundColorFor(colorView)
+		val foregroundColor = colorData.foregroundColorFor(colorView)
 
 		launch(Dispatchers.Main) {
-			updateStyle(colorView.view, colorView.layer, colorView.maxDepth, backgroundColor, foregroundColor)
+			updateStyle(colorData, backgroundColor, foregroundColor, colorView.view, colorView.layer, colorView.maxDepth)
 		}
 	}
 
 	@MainThread
-	private fun updateStyle(view: View, layer: Int, depthLeft: Int, @ColorInt color: Int, @ColorInt fgColor: Int) {
+	private fun updateStyle(colorData: ColorData,
+	                        @ColorInt backgroundColor: Int,
+	                        @ColorInt foregroundColor: Int,
+	                        view: View,
+	                        layer: Int,
+	                        depthLeft: Int) {
 		var newLayer = layer
-		if (updateBackgroundDrawable(view, layerColor(color, layer))) newLayer++
+
+		val wasBackgroundUpdated = updateBackgroundDrawable(view, layerColor(backgroundColor, layer))
+		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
 			val newDepthLeft = depthLeft - 1
 			if (newDepthLeft < 0) return
 
 			for (i in 0 until view.childCount) {
-				updateStyle(view.getChildAt(i), newLayer, newDepthLeft, color, fgColor)
+				updateStyle(colorData, backgroundColor, foregroundColor, view.getChildAt(i), newLayer, newDepthLeft)
 			}
 		} else {
-			updateStyleForeground(view, fgColor)
+			updateStyleForeground(view, foregroundColor)
 		}
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: View, @ColorInt fgColor: Int) {
+	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
 		when (view) {
+			is ColorableView -> {
+				view.onColorChanged(currentColorData)
+			}
 			is ImageView -> {
-				view.setColorFilter(fgColor)
+				view.setColorFilter(foregroundColor)
 			}
 			is TextView -> {
 				if (view is CheckBox) {
-					view.buttonTintList = ColorStateList.valueOf(fgColor)
+					view.buttonTintList = ColorStateList.valueOf(foregroundColor)
 				}
 
 				val alpha = view.currentTextColor.alpha
-				val newTextColor = ColorUtils.setAlphaComponent(fgColor, alpha)
+				val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
 				view.setTextColor(newTextColor)
 				view.setHintTextColor(brightenColor(newTextColor, 1))
-				view.compoundDrawables.forEach { it?.setTint(fgColor) }
+				view.compoundDrawables.forEach { it?.setTint(foregroundColor) }
+			}
+			is SeekBar -> {
+				view.thumbTintList = ColorStateList(
+						arrayOf(
+								intArrayOf(-android.R.attr.state_enabled),
+								intArrayOf(android.R.attr.state_enabled),
+								intArrayOf(android.R.attr.state_pressed)
+						),
+						intArrayOf(
+								ColorUtils.setAlphaComponent(foregroundColor, 128),
+								foregroundColor,
+								ColorUtils.setAlphaComponent(foregroundColor, 255)))
 			}
 		}
 	}

@@ -14,7 +14,6 @@
                 android:defaultValue="@string/settings_tracking_activity_default"
                 android:key="@string/settings_tracking_activity_key"
                 app:drawables="@array/tracking_options_drawables"
-                app:foregroundStateColors="@color/image_switch_colors"
                 app:titles="@array/tracking_options_titles"/>
 
             <androidx.preference.CheckBoxPreference
