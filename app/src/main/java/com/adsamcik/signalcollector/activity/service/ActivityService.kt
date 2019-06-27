@@ -49,11 +49,7 @@ class ActivityService : IntentService("ActivityService") {
 				} else {
 					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, null)
 				}
-			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) &&
-					!TrackerLocker.isLocked.value &&
-					!mPowerManager.isPowerSaveMode &&
-					Assist.canTrack(this)) {
-
+			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) && canTrackerServiceBeStarted()) {
 				startForegroundService<TrackerService> {
 					putExtra(TrackerService.ARG_IS_USER_INITIATED, false)
 				}
@@ -70,6 +66,8 @@ class ActivityService : IntentService("ActivityService") {
 			);
 		}*/
 	}
+
+	private fun canTrackerServiceBeStarted() = !TrackerLocker.isLocked.value && !mPowerManager.isPowerSaveMode && Assist.canTrack(this)
 
 	/**
 	 * Singleton part of the service that holds information about active requests and last known activity.
@@ -100,26 +98,8 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param updateRate update rate in seconds
 		 * @return true if success
 		 */
-		fun requestActivity(context: Context, tClass: KClass<*>, updateRate: Int): Boolean =
+		fun requestActivity(context: Context, tClass: KClass<*>, updateRate: Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)): Boolean =
 				requestActivityInternal(context, tClass, updateRate, false)
-
-		/**
-		 * Request activity updates
-		 *
-		 * @param context context
-		 * @param tClass  class that requests update
-		 * @return true if success
-		 */
-		fun requestActivity(context: Context, tClass: KClass<*>): Boolean {
-			val preferences = Preferences.getPref(context)
-			val preference = preferences.getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
-			return requestActivityInternal(context, tClass, preference, false)
-		}
-
-		fun requestAutoTracking(context: Context, tClass: KClass<*>) {
-			val updateRate = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
-			requestAutoTracking(context, tClass, updateRate)
-		}
 
 		/**
 		 * Request auto tracking updates
@@ -129,14 +109,13 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param tClass  class that requests update
 		 * @return true if success
 		 */
-		fun requestAutoTracking(context: Context, tClass: KClass<*>, updateRate: Int): Boolean {
+		fun requestAutoTracking(context: Context, tClass: KClass<*>, updateRate: Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)): Boolean {
 			val preferences = Preferences.getPref(context)
 
-			if (preferences.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default) > 0) {
-				if (requestActivityInternal(context, tClass, updateRate, true)) {
-					mBackgroundTracking = true
-					return true
-				}
+			if (preferences.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default) > 0 &&
+					requestActivityInternal(context, tClass, updateRate, true)) {
+				mBackgroundTracking = true
+				return true
 			}
 			return false
 		}
@@ -196,8 +175,9 @@ class ActivityService : IntentService("ActivityService") {
 		 * Eg. if 2 requests have different update delays, extreme request will have the value of the smaller delay
 		 */
 		private fun generateExtremeRequest(): ActivityRequestInfo {
-			if (mActiveRequests.size() == 0)
+			if (mActiveRequests.size() == 0) {
 				return ActivityRequestInfo(Integer.MIN_VALUE, false)
+			}
 
 			var backgroundTracking = false
 			var min = Integer.MAX_VALUE
@@ -231,6 +211,8 @@ class ActivityService : IntentService("ActivityService") {
 			return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent, PendingIntent.FLAG_UPDATE_CURRENT)
 		}
 
+		private fun isActivityIdle(groupedActivity: GroupedActivity) = groupedActivity == GroupedActivity.UNKNOWN || groupedActivity == GroupedActivity.STILL
+
 		/**
 		 * Checks if background tracking can be activated
 		 *
@@ -239,8 +221,7 @@ class ActivityService : IntentService("ActivityService") {
 		 */
 		private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 			with(Preferences.getPref(context)) {
-				if (groupedActivity == GroupedActivity.UNKNOWN ||
-						groupedActivity == GroupedActivity.STILL ||
+				if (isActivityIdle(groupedActivity) ||
 						TrackerService.isServiceRunning.value ||
 						getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default)) {
 					return false
@@ -253,14 +234,13 @@ class ActivityService : IntentService("ActivityService") {
 		}
 
 		/**
-		 * Checks if background tracking should stop
+		 * Checks if background tracking should stop.
 		 *
 		 * @param groupedActivity evaluated activity
 		 * @return true if background tracking can continue running
 		 */
 		private fun canContinueBackgroundTracking(context: Context, groupedActivity: GroupedActivity): Boolean {
-			if (groupedActivity == GroupedActivity.STILL)
-				return false
+			if (groupedActivity == GroupedActivity.STILL) return false
 
 			val preference = Preferences.getPref(context).getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
 			val prefActivity = GroupedActivity.values()[preference]
