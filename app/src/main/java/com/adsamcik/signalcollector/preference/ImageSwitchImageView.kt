@@ -13,10 +13,11 @@ class ImageSwitchImageView : AppCompatImageView, ColorableView {
 	private var lastColor: Int = 0
 
 	override fun onColorChanged(colorData: ColorData) {
-		if (colorData.foregroundColor == lastColor) return
+		val foregroundColor = colorData.foregroundColor(false)
+		if (foregroundColor == lastColor) return
 
-		val selectedColor = ColorUtils.setAlphaComponent(colorData.foregroundColor, SELECTED_ALPHA)
-		val notSelectedColor = ColorUtils.setAlphaComponent(colorData.foregroundColor, NOT_SELECTED_ALPHA)
+		val selectedColor = ColorUtils.setAlphaComponent(foregroundColor, SELECTED_ALPHA)
+		val notSelectedColor = ColorUtils.setAlphaComponent(foregroundColor, NOT_SELECTED_ALPHA)
 
 		imageTintList = ColorStateList(
 				arrayOf(

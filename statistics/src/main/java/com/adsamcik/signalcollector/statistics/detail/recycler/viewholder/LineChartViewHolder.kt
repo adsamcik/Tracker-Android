@@ -16,15 +16,17 @@ class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart)
 
 
 	private fun onColorChange(colorData: ColorData) {
+		val foregroundColor = colorData.foregroundColor(false)
+
 		chart.data.dataSets.forEach {
 			if (it is LineDataSet) {
-				it.color = colorData.foregroundColor
+				it.color = foregroundColor
 			}
 		}
 
 		chart.axisRight.apply {
-			axisLineColor = colorData.foregroundColor
-			textColor = colorData.foregroundColor
+			axisLineColor = foregroundColor
+			textColor = foregroundColor
 		}
 	}
 

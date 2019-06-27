@@ -7,9 +7,6 @@ import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
-import androidx.core.graphics.blue
-import androidx.core.graphics.green
-import androidx.core.graphics.red
 import com.adsamcik.signalcollector.common.BuildConfig
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.Time
@@ -45,7 +42,7 @@ object ColorManager {
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
 
-	var currentColorData = ColorData(0, 0, floatArrayOf(), 0)
+	var currentColorData = ColorData(0, 0)
 		private set
 
 	private val controllerLock = ReentrantLock()
@@ -58,8 +55,8 @@ object ColorManager {
 	 */
 	fun createController(): ColorController {
 		if (darkTextColor == 0) {
-			darkTextColor = ColorUtils.setAlphaComponent(Color.WHITE, TEXT_ALPHA)
-			lightTextColor = ColorUtils.setAlphaComponent(Color.BLACK, TEXT_ALPHA)
+			lightTextColor = ColorUtils.setAlphaComponent(Color.WHITE, TEXT_ALPHA)
+			darkTextColor = ColorUtils.setAlphaComponent(Color.BLACK, TEXT_ALPHA)
 		}
 
 		val colorManager = ColorController()
@@ -159,14 +156,13 @@ object ColorManager {
 	/**
 	 * Update function is called with new color and handles updating of all the colorManagers.
 	 */
-	private fun update(@ColorInt color: Int) {
-		val perceivedLuminance = perceivedRelLuminance(layerColor(color, 1))
-		val fgColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
+	private fun update(@ColorInt backgroundColor: Int) {
+		val perceivedLuminance = perceivedRelLuminance(backgroundColor)
+		val foregroundColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
 
-		val baseColorHSL = FloatArray(3)
-		ColorUtils.RGBToHSL(color.red, color.green, color.blue, baseColorHSL)
+		val colorData = ColorData(backgroundColor, foregroundColor)
 
-		val colorData = ColorData(color, fgColor, baseColorHSL, perceivedLuminance)
+
 		currentColorData = colorData
 
 		controllerLock.withLock {
