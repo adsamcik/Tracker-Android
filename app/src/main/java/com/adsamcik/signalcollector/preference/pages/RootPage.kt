@@ -8,9 +8,9 @@ import androidx.preference.PreferenceGroup
 import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.common.misc.SnackMaker
-import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.license.LicenseActivity
@@ -103,7 +103,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		} else {
 			modules.forEach {
 				val preferenceScreen = preferenceManager.createPreferenceScreen(context)
-				preferenceScreen.setTitle(it.key.titleRes)
+				preferenceScreen.title = context.getString(it.key.titleRes).capitalize()
 				preferenceScreen.key = "module-${it.key.moduleName}"
 				preferenceScreen.setIcon(it.value.iconRes)
 				it.value.onCreatePreferenceScreen(preferenceScreen)
