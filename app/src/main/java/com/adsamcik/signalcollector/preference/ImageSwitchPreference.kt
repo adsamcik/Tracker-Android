@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.preference
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.TypedArray
-import android.graphics.Color
 import android.util.AttributeSet
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -17,14 +16,16 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.extension.dp
 
 /**
- * Custom implementation of Preference that allows use of ImageButtons to switch between different states
+ * Custom implementation of Preference that allows use of ImageButtons to switch between different states.
  */
 class ImageSwitchPreference : Preference {
 	private var mForegroundColors: ColorStateList? = null
 
-	private var mItems = ArrayList<SwitchItem>()
-	private var mTextView: TextView? = null
-	private var mImageRoot: ViewGroup? = null
+	private val mItems = mutableListOf<SwitchItem>()
+	private val mItemViews = mutableMapOf<Int, ImageView>()
+
+	private lateinit var mTextView: TextView
+	private lateinit var mImageRoot: ViewGroup
 
 	private var mInitialized = false
 	private var mInitialValue: Int = -1
@@ -34,18 +35,18 @@ class ImageSwitchPreference : Preference {
 	private var mSelected: Int = -1
 
 	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
-		initAttributes(context, attrs!!)
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
+		initAttributes(context, attrs)
 	}
 
 	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
-		initAttributes(context, attrs!!)
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+		initAttributes(context, attrs)
 	}
 
 	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
-		initAttributes(context, attrs!!)
+	constructor(context: Context, attrs: AttributeSet) : super(context, attrs) {
+		initAttributes(context, attrs)
 	}
 
 	@Suppress("unused")
@@ -57,9 +58,6 @@ class ImageSwitchPreference : Preference {
 		val titlesResource = attributes.getResourceId(R.styleable.ImageSwitchPreference_titles, 0)
 		val drawablesResource = attributes.getResourceId(R.styleable.ImageSwitchPreference_drawables, 0)
 
-		mForegroundColors = attributes.getColorStateList(R.styleable.ImageSwitchPreference_foregroundStateColors)
-				?: ColorStateList(arrayOf(intArrayOf(android.R.attr.state_enabled), intArrayOf(android.R.attr.state_selected)), intArrayOf(Color.GRAY, Color.BLUE))
-
 		attributes.recycle()
 
 		val titles = resources.getStringArray(titlesResource)
@@ -67,7 +65,7 @@ class ImageSwitchPreference : Preference {
 
 
 		if (titles.size != drawables.length()) {
-			throw RuntimeException("Drawables and titles are not equal in size")
+			throw IllegalArgumentException("Drawable and title arrays are not equal in size")
 		}
 
 
@@ -112,12 +110,12 @@ class ImageSwitchPreference : Preference {
 		when {
 			mSelected == index -> return
 			index < 0 -> return
-			mSelected >= 0 -> mItems[mSelected].imageView!!.isSelected = false
+			mSelected >= 0 -> mItems[mSelected].requireImageView.isSelected = false
 		}
 
 		val newItem = mItems[index]
-		newItem.imageView!!.isSelected = true
-		mTextView!!.text = newItem.title
+		newItem.requireImageView.isSelected = true
+		mTextView.text = newItem.title
 
 		mSelected = index
 	}
@@ -134,14 +132,17 @@ class ImageSwitchPreference : Preference {
 
 
 	private fun initializeItem(item: SwitchItem, index: Int) {
-		val view = item.imageView ?: ImageView(context).apply {
-			imageTintList = mForegroundColors
+		val view = item.imageView ?: ImageSwitchImageView(context).apply {
+			if (mForegroundColors != null) imageTintList = mForegroundColors
+
 			val layoutParams = LinearLayout.LayoutParams(mImageSizePx, mImageSizePx)
 			layoutParams.setMargins(mMarginPx)
 			this.layoutParams = layoutParams
-			mImageRoot!!.addView(this)
+			mImageRoot.addView(this)
 			item.imageView = this
 		}
+
+		mItemViews[index] = view
 
 		view.run {
 			contentDescription = item.title
@@ -164,5 +165,8 @@ class ImageSwitchPreference : Preference {
 		mInitialized = true
 	}
 
-	data class SwitchItem(val title: String, @DrawableRes val drawable: Int, var imageView: ImageView? = null)
+	data class SwitchItem(val title: String, @DrawableRes val drawable: Int, var imageView: ImageView? = null) {
+		val requireImageView: ImageView
+			get() = imageView ?: throw NullPointerException("ImageView was null")
+	}
 }
