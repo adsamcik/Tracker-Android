@@ -31,7 +31,7 @@ import kotlin.coroutines.CoroutineContext
 typealias ColorListener = (colorData: ColorData) -> Unit
 
 /**
- * ColorController class that handles color updates of views in a given Activity or Fragment
+ * ColorController class that handles color updates of views in a given Activity or Fragment.
  */
 @AnyThread
 class ColorController : CoroutineScope {
@@ -76,7 +76,7 @@ class ColorController : CoroutineScope {
 				field = value
 				if (!value && updateRequestedWhileSuspended) {
 					updateRequestedWhileSuspended = false
-					update(ColorManager.currentColorData)
+					update(currentColorData)
 				}
 			}
 		}
