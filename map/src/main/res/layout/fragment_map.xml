@@ -54,7 +54,7 @@
             android:layout_height="24dp"
             android:background="@drawable/background_map_menu"
             android:elevation="4dp"
-            android:src="@drawable/ic_arrow_upward_black_24dp"
+            android:src="@drawable/ic_arrow_upward_black"
             app:axis="Y"
             app:interpolator="Decelerate"
             app:targetAnchor="top"

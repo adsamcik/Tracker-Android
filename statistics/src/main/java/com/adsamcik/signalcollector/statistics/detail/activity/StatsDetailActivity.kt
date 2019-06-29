@@ -178,7 +178,7 @@ class StatsDetailActivity : DetailActivity() {
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_white_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_shoe_print, R.string.stats_steps, session.steps.formatReadable()),
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute_24px, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
 		adapter.addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 	}

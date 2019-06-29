@@ -79,7 +79,7 @@ class NotificationComponent : PostTrackerComponent {
 		if (trackingSessionInfo.isInitiatedByUser) {
 			builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, resources.getString(R.string.notification_stop), stop)
 		} else {
-			builder.addAction(R.drawable.ic_battery_alert_black_24dp, resources.getString(R.string.notification_stop_til_recharge), stop)
+			builder.addAction(R.drawable.ic_battery_alert_black, resources.getString(R.string.notification_stop_til_recharge), stop)
 
 			val stopForMinutesIntent = Intent(context, TrackerNotificationReceiver::class.java)
 			stopForMinutesIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, TrackerNotificationReceiver.STOP_MINUTES_EXTRA)

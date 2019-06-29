@@ -24,7 +24,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/back"
             android:scaleType="centerInside"
-            app:srcCompat="@drawable/ic_arrow_back_black_24dp"/>
+            app:srcCompat="@drawable/ic_arrow_back_black"/>
 
         <androidx.appcompat.widget.AppCompatTextView
             android:id="@+id/content_detail_title"
