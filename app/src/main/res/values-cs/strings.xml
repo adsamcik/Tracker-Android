@@ -185,7 +185,7 @@
     <string name="export_file_name">Název souboru</string>
     <string name="module_download_progress">Staženo %1$s / %2$s</string>
     <string name="module_downloading">Stahuji modul %s</string>
-    <string name="module_error">Selhala instalace modulu %s (číslo chyby %d)</string>
+    <string name="module_error">Selhala instalace modulu %1$s (číslo chyby %2$d)</string>
     <string name="module_game_title">hry</string>
     <string name="module_installing">Instaluje se modul %s</string>
     <string name="module_map_title">mapa</string>
