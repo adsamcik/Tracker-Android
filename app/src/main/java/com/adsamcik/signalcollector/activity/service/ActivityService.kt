@@ -18,7 +18,6 @@ import com.adsamcik.signalcollector.common.extension.requireValue
 import com.adsamcik.signalcollector.common.extension.startForegroundService
 import com.adsamcik.signalcollector.common.extension.stopService
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.google.android.gms.location.ActivityRecognition
@@ -45,18 +44,11 @@ class ActivityService : IntentService("ActivityService") {
 			if (TrackerService.isServiceRunning.value) {
 				if (!TrackerService.sessionInfo.requireValue.isInitiatedByUser && !canContinueBackgroundTracking(this, detectedActivity.groupedActivity)) {
 					stopService<TrackerService>()
-					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "stopped tracking")
-				} else {
-					ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, null)
 				}
 			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) && canTrackerServiceBeStarted()) {
 				startForegroundService<TrackerService> {
 					putExtra(TrackerService.ARG_IS_USER_INITIATED, false)
 				}
-
-				ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, "started tracking")
-			} else {
-				ActivityRecognitionActivity.addLineIfDebug(this, result.time, detectedActivity, null)
 			}
 		}
 

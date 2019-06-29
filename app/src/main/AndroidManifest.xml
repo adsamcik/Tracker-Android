@@ -38,7 +38,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
-        <activity android:name=".activity.ui.SessionActivityActivity"/>
+        <activity
+            android:name=".activity.ui.SessionActivityActivity"
+            android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".module.activity.ModuleActivity"/>
 
         <meta-data
@@ -73,9 +75,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity
-            android:name=".debug.activity.ActivityRecognitionActivity"
-            android:screenOrientation="portrait"/>
         <activity
             android:name=".export.activity.ExportActivity"
             android:screenOrientation="portrait">

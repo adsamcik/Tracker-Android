@@ -8,6 +8,7 @@ import androidx.preference.PreferenceGroup
 import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.ui.SessionActivityActivity
 import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.common.misc.SnackMaker
@@ -16,7 +17,6 @@ import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.license.LicenseActivity
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.activity.ModuleActivity
-import com.adsamcik.signalcollector.preference.findDirectPreferenceByTitle
 import com.adsamcik.signalcollector.preference.findPreference
 import com.adsamcik.signalcollector.preference.findPreferenceTyped
 import com.adsamcik.signalcollector.preference.setOnClickListener
@@ -37,14 +37,17 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			it.context.startActivity<LicenseActivity> {}
 		}
 
+		caller.setOnClickListener(R.string.settings_activity_key) {
+			it.context.startActivity<SessionActivityActivity> { }
+		}
+
 		val resources = caller.resources
 
-		val devKeyRes = R.string.settings_debug_key
-		val devDefaultRes = R.string.settings_debug_default
-		val debugTitle = resources.getString(R.string.settings_debug_title)
+		val devEnabledKeyRes = R.string.settings_debug_enabled_key
+		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
 
-		caller.findDirectPreferenceByTitle(debugTitle).apply {
-			isVisible = Preferences.getPref(context).getBooleanRes(devKeyRes, devDefaultRes)
+		val debugPreference = caller.findPreference(R.string.settings_debug_key).apply {
+			isVisible = Preferences.getPref(context).getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
 		}
 
 		caller.findPreference(R.string.show_tips_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
@@ -63,7 +66,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			val context = it.context
 			val preferences = Preferences.getPref(context)
 
-			if (preferences.getBooleanRes(devKeyRes, devDefaultRes)) {
+			if (preferences.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)) {
 				showToast(context, resources.getString(R.string.settings_debug_already_available))
 				return@setOnPreferenceClickListener false
 			}
@@ -71,11 +74,11 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			clickCount++
 			if (clickCount >= 7) {
 				preferences.edit {
-					setBoolean(devKeyRes, true)
+					setBoolean(devEnabledKeyRes, true)
 				}
 				showToast(context, resources.getString(R.string.settings_debug_available))
-				caller.findDirectPreferenceByTitle(debugTitle).isVisible = true
-				caller.findPreferenceTyped<SwitchPreferenceCompat>(devKeyRes).isChecked = true
+				debugPreference.isVisible = true
+				caller.findPreferenceTyped<SwitchPreferenceCompat>(devEnabledKeyRes).isChecked = true
 			} else if (clickCount >= 4) {
 				val remainingClickCount = 7 - clickCount
 				showToast(context, resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount, remainingClickCount))

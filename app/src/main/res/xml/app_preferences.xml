@@ -172,6 +172,11 @@
     </androidx.preference.PreferenceScreen>
 
     <androidx.preference.Preference
+        android:key="@string/settings_activity_key"
+        android:title="@string/settings_activity_title"
+        app:icon="@drawable/ic_outline_directions_run_24px"/>
+
+    <androidx.preference.Preference
         android:key="@string/settings_module_enable_key"
         android:title="@string/settings_module_enable_title"
         app:icon="@drawable/ic_modules"/>
@@ -180,48 +185,6 @@
         android:key="@string/settings_module_group_key"
         android:title="@string/settings_module_group_title">
     </androidx.preference.PreferenceCategory>
-
-    <androidx.preference.PreferenceScreen
-        android:title="@string/settings_debug_title"
-        app:icon="@drawable/ic_outline_developer_mode_24px">
-
-        <androidx.preference.PreferenceCategory>
-
-            <androidx.preference.SwitchPreferenceCompat
-                android:key="@string/settings_debug_key"
-                android:title="@string/settings_debug_enabled"/>
-        </androidx.preference.PreferenceCategory>
-
-        <androidx.preference.PreferenceCategory>
-
-            <androidx.preference.Preference
-                android:key="@string/settings_activity_status_key"
-                android:title="@string/settings_activity_status_title"/>
-
-            <androidx.preference.Preference
-                android:key="@string/settings_debug_activity_key"
-                android:title="@string/settings_debug_activity_title"/>
-
-            <androidx.preference.Preference
-                android:key="@string/settings_hello_world_key"
-                android:title="@string/settings_hello_world_title"/>
-        </androidx.preference.PreferenceCategory>
-
-        <androidx.preference.PreferenceCategory>
-
-            <androidx.preference.Preference
-                android:key="@string/settings_clear_data_key"
-                android:title="@string/settings_clear_data_title"/>
-
-            <androidx.preference.Preference
-                android:key="@string/settings_clear_cache_key"
-                android:title="@string/settings_clear_cache_title"/>
-
-            <androidx.preference.Preference
-                android:key="@string/settings_clear_preferences_key"
-                android:title="@string/settings_clear_preferences_title"/>
-        </androidx.preference.PreferenceCategory>
-    </androidx.preference.PreferenceScreen>
 
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_other_title">
@@ -260,6 +223,49 @@
             android:icon="@drawable/ic_open_source_licenses"
             android:key="@string/settings_licenses_key"
             android:title="@string/settings_licenses_title"/>
+
+        <androidx.preference.PreferenceScreen
+            android:title="@string/settings_debug_title"
+            android:key="@string/settings_debug_key"
+            app:icon="@drawable/ic_outline_developer_mode_24px">
+
+            <androidx.preference.PreferenceCategory>
+
+                <androidx.preference.SwitchPreferenceCompat
+                    android:key="@string/settings_debug_enabled_key"
+                    android:title="@string/settings_debug_enabled"/>
+            </androidx.preference.PreferenceCategory>
+
+            <androidx.preference.PreferenceCategory>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_activity_status_key"
+                    android:title="@string/settings_activity_status_title"/>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_debug_activity_key"
+                    android:title="@string/settings_debug_activity_title"/>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_hello_world_key"
+                    android:title="@string/settings_hello_world_title"/>
+            </androidx.preference.PreferenceCategory>
+
+            <androidx.preference.PreferenceCategory>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_clear_data_key"
+                    android:title="@string/settings_clear_data_title"/>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_clear_cache_key"
+                    android:title="@string/settings_clear_cache_title"/>
+
+                <androidx.preference.Preference
+                    android:key="@string/settings_clear_preferences_key"
+                    android:title="@string/settings_clear_preferences_title"/>
+            </androidx.preference.PreferenceCategory>
+        </androidx.preference.PreferenceScreen>
 
         <androidx.preference.Preference
             android:key="@string/settings_app_version_key"/>

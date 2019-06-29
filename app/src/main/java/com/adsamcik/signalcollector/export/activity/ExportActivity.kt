@@ -14,8 +14,8 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.extension.cloneCalendar
+import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
@@ -140,14 +140,17 @@ class ExportActivity : DetailActivity() {
 	private fun checkExternalStoragePermissions(): Boolean {
 		if (Build.VERSION.SDK_INT > 22) {
 			val requiredPermissions = mutableListOf<String>()
-			if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+			if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
 				requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+			}
 
-			if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+			if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
 				requiredPermissions.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+			}
 
-			if (requiredPermissions.isNotEmpty())
+			if (requiredPermissions.isNotEmpty()) {
 				requestPermissions(requiredPermissions.toTypedArray(), PERMISSION_REQUEST_EXTERNAL_STORAGE)
+			}
 
 			return requiredPermissions.isEmpty()
 

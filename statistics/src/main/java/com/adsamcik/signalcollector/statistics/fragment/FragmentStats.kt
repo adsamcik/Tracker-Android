@@ -18,8 +18,8 @@ import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
-import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.statistics.ChangeTableAdapter
@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.util.*
 
 @Suppress("unused")
+//todo move this to the main package so basic overview can be accessed and activities set
 class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private lateinit var fragmentView: View
 

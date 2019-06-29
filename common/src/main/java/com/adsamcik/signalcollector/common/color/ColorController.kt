@@ -5,6 +5,7 @@ import android.graphics.BlendMode
 import android.graphics.BlendModeColorFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +16,7 @@ import androidx.annotation.IdRes
 import androidx.annotation.MainThread
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
+import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.color.ColorManager.currentColorData
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
@@ -35,6 +37,7 @@ typealias ColorListener = (colorData: ColorData) -> Unit
  */
 @AnyThread
 //todo add support for local custom Views
+//todo refactor so the class is smaller
 class ColorController : CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -305,37 +308,57 @@ class ColorController : CoroutineScope {
 	}
 
 	@MainThread
+	private fun updateStyleForeground(drawable: Drawable, @ColorInt foregroundColor: Int) {
+		drawable.setTint(foregroundColor)
+	}
+
+	@MainThread
+	private fun updateStyleForeground(view: TextView, @ColorInt foregroundColor: Int) {
+		if (view is CheckBox) {
+			view.buttonTintList = ColorStateList.valueOf(foregroundColor)
+		}
+
+		val alpha = view.currentTextColor.alpha
+		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
+		view.setTextColor(newTextColor)
+		view.setHintTextColor(brightenColor(newTextColor, 1))
+		view.compoundDrawables.forEach { if (it != null) updateStyleForeground(it, foregroundColor) }
+	}
+
+	@MainThread
+	private fun updateStyleForeground(view: SeekBar, @ColorInt foregroundColor: Int) {
+		view.thumbTintList = ColorStateList(
+				arrayOf(
+						intArrayOf(-android.R.attr.state_enabled),
+						intArrayOf(android.R.attr.state_enabled),
+						intArrayOf(android.R.attr.state_pressed)
+				),
+				intArrayOf(
+						ColorUtils.setAlphaComponent(foregroundColor, 128),
+						foregroundColor,
+						ColorUtils.setAlphaComponent(foregroundColor, 255)))
+	}
+
+	@MainThread
+	private fun updateStyleForeground(view: RecyclerView, @ColorInt foregroundColor: Int) {
+		for (i in 0 until view.itemDecorationCount) {
+			when (val decoration = view.getItemDecorationAt(i)) {
+				is DividerItemDecoration -> {
+					val drawable = decoration.drawable
+					if (drawable != null) updateStyleForeground(drawable, foregroundColor)
+				}
+			}
+		}
+	}
+
+	@MainThread
 	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
 		when (view) {
-			is ColorableView -> {
-				view.onColorChanged(currentColorData)
-			}
-			is ImageView -> {
-				view.setColorFilter(foregroundColor)
-			}
-			is TextView -> {
-				if (view is CheckBox) {
-					view.buttonTintList = ColorStateList.valueOf(foregroundColor)
-				}
-
-				val alpha = view.currentTextColor.alpha
-				val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
-				view.setTextColor(newTextColor)
-				view.setHintTextColor(brightenColor(newTextColor, 1))
-				view.compoundDrawables.forEach { it?.setTint(foregroundColor) }
-			}
-			is SeekBar -> {
-				view.thumbTintList = ColorStateList(
-						arrayOf(
-								intArrayOf(-android.R.attr.state_enabled),
-								intArrayOf(android.R.attr.state_enabled),
-								intArrayOf(android.R.attr.state_pressed)
-						),
-						intArrayOf(
-								ColorUtils.setAlphaComponent(foregroundColor, 128),
-								foregroundColor,
-								ColorUtils.setAlphaComponent(foregroundColor, 255)))
-			}
+			is ColorableView -> view.onColorChanged(currentColorData)
+			is ImageView -> view.setColorFilter(foregroundColor)
+			is TextView -> updateStyleForeground(view, foregroundColor)
+			is RecyclerView -> updateStyleForeground(view, foregroundColor)
+			is SeekBar -> updateStyleForeground(view, foregroundColor)
 		}
 	}
 

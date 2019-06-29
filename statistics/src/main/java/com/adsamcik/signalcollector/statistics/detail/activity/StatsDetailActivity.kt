@@ -153,13 +153,8 @@ class StatsDetailActivity : DetailActivity() {
 			} ?: SessionActivity(0L, "", null)
 
 			val title = createTitle(startCalendar, sessionActivity)
-			val drawableName = sessionActivity.iconName
-					?: com.adsamcik.signalcollector.common.R.drawable::ic_baseline_device_unknown.name
-			val drawableId = resources.getIdentifier(drawableName, "drawable", packageName)
 
-			if (drawableId == 0) throw NullPointerException("Resource with name $drawableName not found")
-
-			val drawable = resources.getDrawable(drawableId, theme)
+			val drawable = sessionActivity.getIcon(this@StatsDetailActivity)
 
 			launch(Dispatchers.Main) {
 				setTitle(title)

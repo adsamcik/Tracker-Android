@@ -1,26 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:tools="http://schemas.android.com/tools"
-              android:layout_width="match_parent"
-              android:layout_height="48dp"
-              android:orientation="horizontal">
-
-    <androidx.appcompat.widget.AppCompatTextView
-        style="@style/TextAppearance.AppCompat.Subhead"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:drawablePadding="@dimen/content_padding"
-        android:gravity="center_vertical"
-        tools:drawableStart="@drawable/ic_outline_directions_run_24px"
-        tools:text="@string/activity_run"
-        />
-
-    <androidx.appcompat.widget.AppCompatImageButton
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_width="48dp"
-        android:layout_height="match_parent"
-        android:layout_weight="0"
-        android:src="@drawable/ic_baseline_edit"/>
-
-</LinearLayout>
+<androidx.appcompat.widget.AppCompatTextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/TextAppearance.AppCompat.Subhead"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:paddingStart="@dimen/content_padding"
+    android:paddingEnd="@dimen/content_padding"
+    android:layout_weight="1"
+    android:drawablePadding="@dimen/content_padding"
+    android:gravity="center_vertical"
+    tools:drawableStart="@drawable/ic_outline_directions_run_24px"
+    tools:text="@string/activity_run"/>

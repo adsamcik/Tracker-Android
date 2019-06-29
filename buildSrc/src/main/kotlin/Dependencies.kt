@@ -69,7 +69,7 @@ object Libraries {
 			implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
 
 			//Recycler
-			implementation("com.adsamcik.android-components:recycler:0.4.1")
+			implementation("com.adsamcik.android-components:recycler:0.4.2")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
 			implementation("android.arch.paging:runtime:${Versions.paging}")
 

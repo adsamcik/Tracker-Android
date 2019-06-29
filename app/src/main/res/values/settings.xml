@@ -9,6 +9,8 @@
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
+    <string name="settings_debug_key" translatable="false">debugSection</string>
+
     <!--- TRACKING -->
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
     <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
@@ -56,7 +58,7 @@
     </string-array>
 
     <integer-array name="tracking_options_drawables">
-        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_close_black</item>
         <item>@drawable/ic_directions_walk_white_24dp</item>
         <item>@drawable/ic_directions_car_white_24dp</item>
     </integer-array>
@@ -171,12 +173,21 @@
     <string name="settings_module_group_title">Module settings</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>
 
+    <!-- ACTIVITIES -->
+    <string name="settings_activity_title">Activities</string>
+    <string name="settings_activity_key" translatable="false">activities</string>
+
+    <!-- LANGUAGE -->
+    <string name="settings_language_title">Application language</string>
+    <string name="settings_language_summary">Current language: %s</string>
+    <string name="settings_language_key" translatable="false">language</string>
+
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
     <string name="settings_debug_available">You now have access to developer options</string>
     <string name="settings_debug_enabled">Dev options enabled</string>
-    <string name="settings_debug_key" translatable="false">showDevSettings</string>
-    <string name="settings_debug_default" translatable="false">false</string>
+    <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
+    <string name="settings_debug_enabled_default" translatable="false">false</string>
     <plurals name="settings_debug_available_in">
         <item quantity="one">%d tap left to enable developer options</item>
         <item quantity="other">%d taps left to enable developer options</item>

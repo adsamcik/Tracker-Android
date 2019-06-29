@@ -10,7 +10,6 @@ import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.dialog.ConfirmDialog
 import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.debug.activity.ActivityRecognitionActivity
 import com.adsamcik.signalcollector.debug.activity.StatusActivity
 import com.adsamcik.signalcollector.notification.Notifications
 import com.adsamcik.signalcollector.preference.findPreference
@@ -22,10 +21,6 @@ class DebugPage : PreferencePage {
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
-			caller.setOnClickListener(R.string.settings_debug_activity_key) {
-				startActivity<ActivityRecognitionActivity> { }
-			}
-
 			caller.setOnClickListener(R.string.settings_activity_status_key) {
 				startActivity<StatusActivity> { }
 			}

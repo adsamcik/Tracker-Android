@@ -46,4 +46,10 @@
     <!-- Introduction -->
     <string name="next_part">continue</string>
     <string name="skip_tips">skip</string>
+
+    <!-- Activity managamenet -->
+    <string name="activity_name">Activity name</string>
+
+    <!-- unused for now -->
+    <string name="activity_icon">Activity icon</string>
 </resources>
