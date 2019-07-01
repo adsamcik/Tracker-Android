@@ -20,12 +20,12 @@ class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivit
 			val icon = item.getIcon(context)
 			setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
 		}
+		onViewChangedListener?.invoke(holder.itemView)
 	}
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerActivityViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
 		val rootView = inflater.inflate(R.layout.layout_activity_item, parent, false)
-		onViewChangedListener?.invoke(rootView)
 		return RecyclerActivityViewHolder(rootView, rootView as TextView)
 	}
 }

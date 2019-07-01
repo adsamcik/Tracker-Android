@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
+import android.view.ViewGroup
 import androidx.annotation.MainThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
@@ -63,9 +64,9 @@ class StatsDetailActivity : DetailActivity() {
 
 		MapsInitializer.initialize(this)
 
-		inflateContent(R.layout.activity_stats_detail)
+		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_stats_detail)
 
-		colorController.watchView(ColorView(root_stats_detail, 0))
+		colorController.watchView(ColorView(rootContentView.findViewById(R.id.root_stats_detail), 0))
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
 

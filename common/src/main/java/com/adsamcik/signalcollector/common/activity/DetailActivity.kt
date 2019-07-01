@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.common.activity
 
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -153,8 +154,11 @@ abstract class DetailActivity : CoreUIActivity() {
 		return contentParent
 	}
 
-	protected fun inflateContent(@LayoutRes resource: Int) {
-		layoutInflater.inflate(resource, content_detail_root, true)
+	protected fun <RootView : View> inflateContent(@LayoutRes resource: Int): RootView {
+		val rootContentView = layoutInflater.inflate(resource, content_detail_root, false)
+		content_detail_root.addView(rootContentView)
+		@Suppress("unchecked_cast")
+		return rootContentView as RootView
 	}
 
 	companion object {

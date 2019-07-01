@@ -84,7 +84,7 @@ class ModuleActivity : DetailActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		inflateContent(R.layout.activity_module)
+		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_module)
 
 		setTitle(R.string.settings_module_group_title)
 
@@ -92,8 +92,9 @@ class ModuleActivity : DetailActivity() {
 
 		val adapter = ModuleAdapter()
 
+		val recycler = rootContentView.findViewById<RecyclerView>(R.id.recycler)
 
-		colorController.watchView(ColorView(root, 0))
+		colorController.watchView(ColorView(rootContentView, 0))
 		colorController.watchRecyclerView(ColorView(recycler, 0))
 
 		val moduleInfoList = Module.getActiveModuleInfo(manager)

@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.activity.ui
 
 import android.os.Bundle
+import android.view.ViewGroup
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -14,6 +15,7 @@ import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.activity_session_activity.*
@@ -25,14 +27,16 @@ import kotlinx.coroutines.launch
 class SessionActivityActivity : DetailActivity() {
 
 	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper<SessionActivity>
+	private lateinit var keyboardManager: KeyboardManager
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		inflateContent(com.adsamcik.signalcollector.R.layout.activity_session_activity)
+		val rootView = inflateContent<ViewGroup>(com.adsamcik.signalcollector.R.layout.activity_session_activity)
+		keyboardManager = KeyboardManager(rootView)
 
 		val adapter = ActivityRecyclerAdapter()
 
-		val recycler = findViewById<RecyclerView>(com.adsamcik.signalcollector.R.id.recycler).apply {
+		val recycler = rootView.findViewById<RecyclerView>(com.adsamcik.signalcollector.R.id.recycler).apply {
 			setAdapter(adapter)
 			val layoutManager = LinearLayoutManager(this@SessionActivityActivity)
 			this.layoutManager = layoutManager
@@ -44,7 +48,7 @@ class SessionActivityActivity : DetailActivity() {
 
 		swipeTouchHelper = ContextualSwipeTouchHelper(this, adapter) { it.id >= 0 }
 		ItemTouchHelper(swipeTouchHelper).attachToRecyclerView(recycler)
-		val fab = findViewById<FloatingActionButton>(com.adsamcik.signalcollector.R.id.fab).apply {
+		val fab = rootView.findViewById<FloatingActionButton>(com.adsamcik.signalcollector.R.id.fab).apply {
 			setOnClickListener { isExpanded = true }
 		}
 
@@ -53,6 +57,7 @@ class SessionActivityActivity : DetailActivity() {
 		button_ok.setOnClickListener {
 			adapter.add(SortableAdapter.SortableData(SessionActivity(5, input_name.text.toString(), null)))
 			fab.isExpanded = false
+			keyboardManager.hideKeyboard()
 		}
 
 		launch(Dispatchers.Default) {
@@ -71,6 +76,8 @@ class SessionActivityActivity : DetailActivity() {
 				adapter.addAll(itemCollection)
 			}
 		}
+
+		initializeColorController()
 	}
 
 	private fun initializeColorController() {
