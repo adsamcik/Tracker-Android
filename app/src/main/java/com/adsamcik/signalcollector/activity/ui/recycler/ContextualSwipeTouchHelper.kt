@@ -1,21 +1,25 @@
 package com.adsamcik.signalcollector.activity.ui.recycler
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.common.color.ColorData
 import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.data.SessionActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
-class ContextualSwipeTouchHelper<T>(context: Context, val adapter: SortableAdapter<T, *>, private val canSwipeCallback: (T) -> Boolean) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecyclerAdapter, private val canSwipeCallback: (SessionActivity) -> Boolean) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
 	private val icon: Drawable = context.getDrawable(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_remove_circle_outline)!!
 
 	private val colorController = ColorManager.createController()
 
-	private val maskPaint = Paint(Color.BLACK).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
 	private val backgroundPaint = Paint()
 	private val foregroundPaint = Paint()
 
@@ -56,7 +60,9 @@ class ContextualSwipeTouchHelper<T>(context: Context, val adapter: SortableAdapt
 		when (direction) {
 			ItemTouchHelper.LEFT, ItemTouchHelper.RIGHT -> {
 				val position = viewHolder.adapterPosition
-				adapter.removeAt(position)
+				GlobalScope.launch(Dispatchers.Default) {
+					adapter.removeAtPermanently(viewHolder.itemView.context, position)
+				}
 			}
 		}
 	}

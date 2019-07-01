@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
 //todo add icon
 @Entity(tableName = "activity", indices = [Index("name")])
 data class SessionActivity(
-		@PrimaryKey var id: Long,
+		@PrimaryKey(autoGenerate = true) var id: Long,
 		var name: String,
 		val iconName: String?
 ) {

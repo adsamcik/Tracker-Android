@@ -16,7 +16,6 @@ import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
-import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.activity_session_activity.*
 import kotlinx.android.synthetic.main.layout_add_activity.*
@@ -26,7 +25,7 @@ import kotlinx.coroutines.launch
 
 class SessionActivityActivity : DetailActivity() {
 
-	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper<SessionActivity>
+	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper
 	private lateinit var keyboardManager: KeyboardManager
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,7 +42,6 @@ class SessionActivityActivity : DetailActivity() {
 
 			val dividerItemDecoration = DividerItemDecoration(this@SessionActivityActivity, layoutManager.orientation)
 			addItemDecoration(dividerItemDecoration)
-			addItemDecoration(SimpleMarginDecoration(horizontalMargin = 0))
 		}
 
 		swipeTouchHelper = ContextualSwipeTouchHelper(this, adapter) { it.id >= 0 }
@@ -55,9 +53,16 @@ class SessionActivityActivity : DetailActivity() {
 		button_cancel.setOnClickListener { fab.isExpanded = false }
 
 		button_ok.setOnClickListener {
-			adapter.add(SortableAdapter.SortableData(SessionActivity(5, input_name.text.toString(), null)))
+			val context = this@SessionActivityActivity
+
 			fab.isExpanded = false
 			keyboardManager.hideKeyboard()
+
+			launch(Dispatchers.Default) {
+				val newActivity = SessionActivity(0, input_name.text.toString(), null)
+
+				adapter.addItemPersistent(context, newActivity, AppendPriority.Any)
+			}
 		}
 
 		launch(Dispatchers.Default) {

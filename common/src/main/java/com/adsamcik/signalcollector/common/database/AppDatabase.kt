@@ -17,7 +17,7 @@ import com.adsamcik.signalcollector.common.database.data.*
 	DatabaseCellData::class,
 	DatabaseMapMaxHeat::class,
 	SessionActivity::class],
-		version = 7)
+		version = 8)
 @TypeConverters(CellTypeTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -38,7 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 		private fun createInstance(context: Context): AppDatabase {
 			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
-					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 					.build()
 
 			instance_ = instance
