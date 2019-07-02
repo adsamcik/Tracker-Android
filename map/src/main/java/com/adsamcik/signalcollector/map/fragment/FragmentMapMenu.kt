@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.common.useMock
@@ -45,9 +46,11 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 					MapLayer("Filler"),
 					MapLayer("Filler")))
 		}
+		val context = requireContext()
 
 		recycler.adapter = adapter
 		recycler.layoutManager = LinearLayoutManager(context)
+		recycler.addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
 		adapter.onItemClickListener = {
 			onClickListener?.invoke(adapter.getItem(it), it)
 		}
