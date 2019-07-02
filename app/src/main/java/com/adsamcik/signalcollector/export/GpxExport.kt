@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.export
 
 import android.content.Context
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.extension.applicationName
 import com.adsamcik.signalcollector.common.extension.formatAsDateTime
-import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
 import java.io.File

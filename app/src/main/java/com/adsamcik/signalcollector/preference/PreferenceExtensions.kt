@@ -79,8 +79,7 @@ fun PreferenceGroup.findDirectPreferenceByTitle(title: CharSequence): Preference
 		val preference = getPreference(i)
 		val prefTitle = preference.title
 
-		if (prefTitle == title)
-			return preference
+		if (prefTitle == title) return preference
 	}
 	return null
 }

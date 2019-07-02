@@ -5,6 +5,7 @@ import android.content.res.TypedArray
 import android.util.AttributeSet
 import android.widget.TextView
 import androidx.annotation.IntegerRes
+import androidx.core.content.res.getStringOrThrow
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
@@ -32,8 +33,9 @@ class FloatValueSliderPreference : Preference {
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
 		val attributes = context.obtainStyledAttributes(attrs, R.styleable.FloatValueSliderPreference)
 		mValuesResource = attributes.getResourceId(R.styleable.FloatValueSliderPreference_items, 0)
-		if (attributes.hasValue(R.styleable.FloatValueSliderPreference_stringFormat))
-			mTextViewString = attributes.getString(R.styleable.FloatValueSliderPreference_stringFormat)!!
+		if (attributes.hasValue(R.styleable.FloatValueSliderPreference_stringFormat)) {
+			mTextViewString = attributes.getStringOrThrow(R.styleable.FloatValueSliderPreference_stringFormat)
+		}
 
 		attributes.recycle()
 	}
@@ -63,12 +65,13 @@ class FloatValueSliderPreference : Preference {
 	}
 
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
-		return a.getString(index)!!.toFloat()
+		return a.getStringOrThrow(index).toFloat()
 	}
 
 	override fun onSetInitialValue(defaultValue: Any?) {
-		if (defaultValue != null)
+		if (defaultValue != null) {
 			mInitialValue = defaultValue as Float
+		}
 	}
 
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {

@@ -27,7 +27,7 @@ class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters
 		val deferredResults = activeRecognizers.map {
 			async {
 				val result = try {
-					 it.resolve(session, locationCollection)
+					it.resolve(session, locationCollection)
 				} catch (e: Exception) {
 					Reporter.report(e)
 					ActivityRecognitionResult(null, 0)

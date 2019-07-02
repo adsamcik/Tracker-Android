@@ -225,8 +225,8 @@
             android:title="@string/settings_licenses_title"/>
 
         <androidx.preference.PreferenceScreen
-            android:title="@string/settings_debug_title"
             android:key="@string/settings_debug_key"
+            android:title="@string/settings_debug_title"
             app:icon="@drawable/ic_outline_developer_mode_24px">
 
             <androidx.preference.PreferenceCategory>

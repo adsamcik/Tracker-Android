@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
 import android.widget.TextView
-import androidx.annotation.IntegerRes
+import androidx.annotation.ArrayRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.signalcollector.R
@@ -42,8 +42,8 @@ class IntValueSliderPreference : Preference {
 	}
 
 	private var mTextViewString = "%d"
-	@IntegerRes
-	private var mValuesResource: Int? = null
+	@ArrayRes
+	private var mValuesResource: Int = 0
 	private var mInitialValue: Int = 0
 
 	var slider: IntValueSlider? = null
@@ -68,7 +68,7 @@ class IntValueSliderPreference : Preference {
 		val slider = holder.findViewById(R.id.slider) as IntValueSlider
 		val textView = holder.findViewById(R.id.slider_value) as TextView
 
-		slider.setItems(context.resources.getIntArray(mValuesResource!!).toTypedArray())
+		slider.setItems(context.resources.getIntArray(mValuesResource).toTypedArray())
 		//slider.setPadding(8.dpAsPx)
 		slider.setTextView(textView) { String.format(mTextViewString, it) }
 

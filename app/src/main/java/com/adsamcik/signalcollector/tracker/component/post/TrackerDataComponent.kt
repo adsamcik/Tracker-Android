@@ -39,7 +39,8 @@ class TrackerDataComponent : PostTrackerComponent {
 			var locationId: Long? = null
 			val activity = collectionData.activity
 			if (trackedLocation != null && activity != null) {
-				val locationDao = locationDao ?: throw NullPointerException("locationDao should not be null")
+				val locationDao = locationDao
+						?: throw NullPointerException("locationDao should not be null")
 				locationId = locationDao.insert(DatabaseLocation(trackedLocation, activity))
 			}
 

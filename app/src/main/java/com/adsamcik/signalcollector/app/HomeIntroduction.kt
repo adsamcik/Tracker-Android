@@ -4,8 +4,8 @@ import android.graphics.PointF
 import android.view.View
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Target
 import com.takusemba.spotlight.shapes.Circle
