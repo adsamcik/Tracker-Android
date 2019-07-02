@@ -3,12 +3,11 @@ package com.adsamcik.signalcollector.common.color
 import android.graphics.Color
 import androidx.annotation.ColorInt
 import kotlin.math.floor
-import kotlin.math.min
 
 /**
  * Brightens given color component with given value and ensures it is not larger than 255
  */
-fun brightenComponent(component: Int, value: Int): Int = min(component + value, 255)
+fun brightenComponent(component: Int, value: Int): Int = (component + value).coerceIn(0, 255)
 
 /**
  * Brightens color by components with given value.
