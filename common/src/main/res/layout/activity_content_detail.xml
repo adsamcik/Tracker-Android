@@ -19,8 +19,10 @@
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/back_button"
+            style="@style/TextAppearance.MaterialComponents.Button"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:layout_weight="0"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/back"
             android:scaleType="centerInside"
@@ -31,12 +33,12 @@
             style="@style/TextAppearance.MaterialComponents.Subtitle1"
             android:layout_width="match_parent"
             android:layout_height="48dp"
+            android:layout_weight="1"
             android:ellipsize="end"
             android:gravity="center_vertical|start"
             android:maxLines="1"
             android:textAlignment="viewStart"
             tools:text="Lorem ipsum"/>
-
     </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.appcompat.widget.LinearLayoutCompat

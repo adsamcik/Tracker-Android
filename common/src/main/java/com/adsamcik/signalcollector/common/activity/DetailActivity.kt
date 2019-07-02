@@ -1,14 +1,15 @@
 package com.adsamcik.signalcollector.common.activity
 
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import androidx.annotation.CallSuper
-import androidx.annotation.LayoutRes
-import androidx.annotation.MainThread
+import androidx.annotation.*
+import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
@@ -62,6 +63,22 @@ abstract class DetailActivity : CoreUIActivity() {
 	@MainThread
 	override fun setTitle(titleId: Int) {
 		title = getString(titleId)
+	}
+
+	@MainThread
+	protected fun addAction(@DrawableRes iconRes: Int, @StringRes description: Int, onClickListener: View.OnClickListener) {
+		val button = AppCompatImageButton(this).apply {
+			layoutParams = ViewGroup.LayoutParams(48.dp, 48.dp)
+			contentDescription = getString(description)
+			setImageResource(iconRes)
+			scaleType = ImageView.ScaleType.CENTER_INSIDE
+
+			background = Assist.getBackgroundDrawable(Color.BLACK, null)
+
+			setOnClickListener(onClickListener)
+		}
+
+		top_panel_root.addView(button)
 	}
 
 	private fun <T : ViewGroup> initContentLayout(layout: T, scrollable: Boolean, addContentPadding: Boolean) {

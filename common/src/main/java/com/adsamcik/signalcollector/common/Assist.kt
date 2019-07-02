@@ -4,7 +4,10 @@ import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Point
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.RippleDrawable
 import android.location.LocationManager
 import android.os.Build
 import android.os.Looper
@@ -12,10 +15,10 @@ import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.locationManager
 import com.adsamcik.signalcollector.common.extension.windowManager
+import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
@@ -23,6 +26,8 @@ import com.google.android.gms.common.GoogleApiAvailability
 import java.util.*
 import kotlin.math.ln
 import kotlin.math.pow
+
+
 
 
 /**
@@ -214,5 +219,13 @@ object Assist {
 
 	fun ensureLooper() {
 		if (Looper.myLooper() == null) Looper.prepare()
+	}
+
+	fun getBackgroundDrawable(pressedColor: Int, backgroundDrawable: Drawable?): RippleDrawable {
+		return RippleDrawable(getPressedState(pressedColor), backgroundDrawable, null)
+	}
+
+	fun getPressedState(pressedColor: Int): ColorStateList {
+		return ColorStateList(arrayOf(intArrayOf()), intArrayOf(pressedColor))
 	}
 }
