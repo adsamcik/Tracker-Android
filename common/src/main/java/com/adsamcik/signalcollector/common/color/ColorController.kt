@@ -6,6 +6,7 @@ import android.graphics.BlendModeColorFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +19,7 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.color.ColorManager.currentColorData
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
 import com.adsamcik.signalcollector.common.extension.contains
@@ -321,7 +323,7 @@ class ColorController : CoroutineScope {
 		val alpha = view.currentTextColor.alpha
 		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
 		view.setTextColor(newTextColor)
-		view.setHintTextColor(brightenColor(newTextColor, 1))
+		view.setHintTextColor(brightenColor(newTextColor, LIGHTNESS_PER_LEVEL))
 		view.compoundDrawables.forEach { if (it != null) updateStyleForeground(it, foregroundColor) }
 	}
 
@@ -369,17 +371,26 @@ class ColorController : CoroutineScope {
 			view.setCardBackgroundColor(bgColor)
 			return true
 		} else if (background?.isVisible == true) {
-			if (background.alpha < 255) return false
-
-			background.setTint(bgColor)
-			background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {
-				BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
+			if (background is RippleDrawable) {
+				val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
+				background.setColor(Assist.getPressedState(nextLevel))
 			} else {
-				@Suppress("DEPRECATION")
-				PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
+				if (background.alpha < 255) return false
+
+				background.setTint(bgColor)
+				background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {
+					BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
+				} else {
+					@Suppress("DEPRECATION")
+					PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
+				}
 			}
 			return true
 		}
 		return false
+	}
+
+	companion object {
+		const val LIGHTNESS_PER_LEVEL = 25
 	}
 }

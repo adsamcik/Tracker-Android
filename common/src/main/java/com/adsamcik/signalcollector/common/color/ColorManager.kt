@@ -15,7 +15,6 @@ import com.adsamcik.signalcollector.common.preference.Preferences
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.collections.ArrayList
 import kotlin.concurrent.withLock
 import kotlin.math.abs
 
@@ -27,17 +26,22 @@ import kotlin.math.abs
 object ColorManager {
 	//Lock order colorList, colorManagerLock, timer
 
-	private val colorList = ArrayList<@ColorInt Int>()
+	private val colorList = mutableListOf<@ColorInt Int>()
 	private var timer: Timer? = null
 	private var timerActive = false
 
-	private val controllerCollection = ArrayList<ColorController>()
+	private val controllerCollection = mutableListOf<ColorController>()
 
 	private val sunsetRise = SunSetRise()
 
 	private var currentIndex = 0
 
-	private val nextIndex get() = (currentIndex + 1).rem(colorList.size)
+	private val nextIndex: Int
+		get() {
+			synchronized(colorList) {
+				return (currentIndex + 1).rem(colorList.size)
+			}
+		}
 
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
@@ -46,6 +50,7 @@ object ColorManager {
 		private set
 
 	private val controllerLock = ReentrantLock()
+	private val colorListLock = ReentrantLock()
 
 	private const val TEXT_ALPHA = 222
 	private const val BRIGHTEN_PER_LEVEL = 17
@@ -75,23 +80,21 @@ object ColorManager {
 	 * It is also removed from active color managers.
 	 */
 	fun recycleController(colorController: ColorController) {
-		controllerLock.lock()
-		controllerCollection.remove(colorController)
-		colorController.cleanup()
-		if (controllerCollection.isEmpty()) {
-			controllerCollection.trimToSize()
-			controllerLock.unlock()
-			stopUpdate()
-		} else {
-			controllerLock.unlock()
+		var isCollectionEmpty = false
+		controllerLock.withLock {
+			controllerCollection.remove(colorController)
+			colorController.cleanup()
+			isCollectionEmpty = controllerCollection.isEmpty()
 		}
+
+		if (isCollectionEmpty) stopUpdate()
 	}
 
 	/**
 	 * Checks if a timer is running, if not start a new timer.
 	 */
 	fun ensureUpdate() {
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (colorList.size > 1) {
 				synchronized(timerActive) {
 					if (!timerActive) startUpdate()
@@ -122,7 +125,7 @@ object ColorManager {
 	 * @param colors colors to add
 	 */
 	fun addColors(@ColorInt colors: Collection<Int>) {
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (colors.isEmpty()) {
 				throw IllegalArgumentException("You can't just add no colors.")
 			}
@@ -143,7 +146,7 @@ object ColorManager {
 			updateUpdate()
 		}
 
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (colorList.size < 2) {
 				stopUpdate()
 				return
@@ -173,7 +176,7 @@ object ColorManager {
 	}
 
 	private fun updateUpdate() {
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (colorList.size > 1) {
 				synchronized(timerActive) {
 					stopUpdate()
@@ -190,7 +193,7 @@ object ColorManager {
 	 * 1 color should never call an update, because the color never changes.
 	 */
 	private fun startUpdate() {
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (colorList.size >= 2) {
 				synchronized(timerActive) {
 					timerActive = true
@@ -334,7 +337,7 @@ object ColorManager {
 	private fun calculateUpdatePeriod(changeLength: Long) = changeLength / calculateUpdateCount()
 
 	private fun calculateUpdateCount(): Int {
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (colorList.size < 2) throw IllegalStateException("Update rate cannot be calculated for less than 2 colors")
 
 			val currentColor = colorList[currentIndex]
@@ -365,7 +368,7 @@ object ColorManager {
 
 		stopUpdate()
 
-		synchronized(colorList) {
+		colorListLock.withLock {
 			colorList.clear()
 
 			val day = preferences.getColorRes(R.string.settings_color_day_key, R.color.settings_color_day_default)
@@ -391,7 +394,7 @@ object ColorManager {
 	 * It is intended mainly to be used for easy color switching when preference is changed.
 	 */
 	fun updateColorAt(index: Int, @ColorInt color: Int) {
-		synchronized(colorList) {
+		colorListLock.withLock {
 			if (index < 0 || index >= colorList.size) {
 				throw IllegalArgumentException("Index $index is out of bounds. Size is ${colorList.size}.")
 			} else {
@@ -423,6 +426,4 @@ object ColorManager {
 			deltaUpdate(delta)
 		}
 	}
-
-
 }
