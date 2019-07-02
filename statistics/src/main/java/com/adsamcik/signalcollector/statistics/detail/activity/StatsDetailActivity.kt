@@ -214,13 +214,21 @@ class StatsDetailActivity : DetailActivity() {
 			val secondsElapsed = timeDifference.toDouble() / Time.SECOND_IN_MILLISECONDS.toDouble()
 
 			if (secondsElapsed <= 70.0) {
-				val distance = if (currentAltitude != null && previousAltitude != null) {
-					Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
-				} else {
-					Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude, LengthUnit.Meter)
-				}
+				val speed: Double
 
-				val speed = distance / secondsElapsed
+				val recordedSpeed = current.location.speed
+				speed = if (recordedSpeed != null) {
+					recordedSpeed.toDouble()
+				} else {
+
+					val distance = if (currentAltitude != null && previousAltitude != null) {
+						Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
+					} else {
+						Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude, LengthUnit.Meter)
+					}
+
+					distance / secondsElapsed
+				}
 
 				if (speed > maxSpeed) maxSpeed = speed
 				speedSum += speed
