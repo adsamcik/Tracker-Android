@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import android.os.PowerManager
-import android.util.Log
 import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
