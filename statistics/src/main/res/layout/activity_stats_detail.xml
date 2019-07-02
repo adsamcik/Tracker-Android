@@ -5,20 +5,39 @@
                                               android:id="@+id/root_stats_detail"
                                               android:layout_width="match_parent"
                                               android:layout_height="match_parent"
+                                              android:animateLayoutChanges="true"
                                               android:background="#FFFFFF"
                                               android:orientation="vertical">
 
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/add_item_layout"
+        android:layout_width="match_parent"
+        android:background="#FFFFFF"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="@dimen/content_padding"
+            android:text="Change activity"/>
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
 
     <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/header_root"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#FFFFFF"
         android:clipToPadding="false"
         android:elevation="4dp"
         android:orientation="horizontal"
         android:paddingStart="@dimen/content_padding"
         android:paddingEnd="@dimen/content_padding"
-        android:paddingBottom="@dimen/content_padding"
-        android:background="#FFFFFF">
+        android:paddingBottom="@dimen/content_padding">
 
         <androidx.appcompat.widget.AppCompatImageView
             android:id="@+id/activity"

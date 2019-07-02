@@ -2,8 +2,11 @@ package com.adsamcik.signalcollector.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.MainThread
+import androidx.core.view.isVisible
+import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.DefaultItemAnimator
@@ -84,6 +87,18 @@ class StatsDetailActivity : DetailActivity() {
 				initializeSessionData(it)
 			}
 		}
+
+
+
+		addAction(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_edit, R.string.edit_session, View.OnClickListener {
+			if (add_item_layout.isVisible) {
+				add_item_layout.visibility = View.GONE
+				header_root.updatePadding(top = 0)
+			} else {
+				add_item_layout.visibility = View.VISIBLE
+				header_root.updatePadding(top = 16.dp)
+			}
+		})
 	}
 
 	@MainThread

@@ -20,4 +20,6 @@
     <string name="stats_descended">Total descension</string>
     <string name="stats_max_speed">Max speed</string>
     <string name="stats_avg_speed">Avg speed</string>
+
+    <string name="edit_session">Edit session</string>
 </resources>
