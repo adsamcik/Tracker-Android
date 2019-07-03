@@ -12,6 +12,7 @@ import androidx.core.view.setPadding
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginRight
+import com.adsamcik.signalcollector.common.extension.setMargin
 import com.google.android.material.button.MaterialButton
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
 import io.github.luizgrp.sectionedrecyclerviewadapter.StatelessSection
@@ -41,10 +42,10 @@ class SummarySection : StatelessSection(SectionParameters.builder()
 			removeAllViews()
 			itemList.forEach {
 				val button = addButton(context, it)
-				if (childCount > 0) {
+				addView(button)
+				if (childCount == 1) {
 					button.marginRight = 16.dp
 				}
-				addView(button)
 			}
 		}
 	}
