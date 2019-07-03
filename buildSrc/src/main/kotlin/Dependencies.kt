@@ -80,6 +80,8 @@ object Libraries {
 			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
 			implementation("com.google.android.play:core:${Versions.playCore}")
 
+			implementation("com.afollestad.material-dialogs:core:3.0.2")
+
 			work(this)
 
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
@@ -144,7 +146,7 @@ object Libraries {
 	fun fileChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			//todo update to version that supports Android P when ready
-			implementation("com.obsez.android.lib.filechooser:filechooser:${Versions.fileChooser}")
+			implementation("com.afollestad.material-dialogs:files:3.1.0")
 		}
 	}
 

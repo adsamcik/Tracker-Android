@@ -18,11 +18,13 @@ import com.adsamcik.signalcollector.common.extension.cloneCalendar
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.export.ExportResult
 import com.adsamcik.signalcollector.export.IExport
+import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.files.FileFilter
+import com.afollestad.materialdialogs.files.fileChooser
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
 import com.google.android.material.snackbar.Snackbar
-import com.obsez.android.lib.filechooser.ChooserDialog
 import kotlinx.android.synthetic.main.layout_data_export.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -127,14 +129,22 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun exportClick() {
-		ChooserDialog(this@ExportActivity)
+
+		MaterialDialog(this).show {
+			val filter: FileFilter = { it.isDirectory }
+
+			fileChooser(filter = filter, waitForPositiveButton = true, allowFolderCreation = true) { _, file ->
+				export(file)
+			}
+		}
+		/*ChooserDialog(this@ExportActivity)
 				.withFilter(true, false)
 				.cancelOnTouchOutside(true)
 				.withOnCancelListener { it.dismiss() }
 				.withChosenListener { _, pathFile ->
-					export(pathFile)
+
 				}
-				.show()
+				.show()*/
 	}
 
 	private fun checkExternalStoragePermissions(): Boolean {

@@ -28,8 +28,6 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 
-
-
 /**
  * All purpose utility singleton containing various utility functions
  */
@@ -219,6 +217,10 @@ object Assist {
 
 	fun ensureLooper() {
 		if (Looper.myLooper() == null) Looper.prepare()
+	}
+
+	fun isMainThread(): Boolean {
+		return Looper.myLooper() == Looper.getMainLooper()
 	}
 
 	fun getBackgroundDrawable(pressedColor: Int, backgroundDrawable: Drawable?): RippleDrawable {

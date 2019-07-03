@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.activity.recognizer
 
 import androidx.annotation.IntRange
-import com.adsamcik.signalcollector.activity.NativeSessionActivity
+import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 

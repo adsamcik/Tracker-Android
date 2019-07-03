@@ -15,14 +15,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.signalcollector.activity.NativeSessionActivity
+import com.adsamcik.signalcollector.activity.ui.SessionActivitySelection
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.ColorView
-import com.adsamcik.signalcollector.common.data.LengthUnit
-import com.adsamcik.signalcollector.common.data.Location
-import com.adsamcik.signalcollector.common.data.SessionActivity
-import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.extension.*
@@ -97,8 +94,19 @@ class StatsDetailActivity : DetailActivity() {
 			} else {
 				add_item_layout.visibility = View.VISIBLE
 				header_root.updatePadding(top = 16.dp)
+				button_change_activity.setOnClickListener { showActivitySelectionDialog() }
 			}
 		})
+	}
+
+	private fun showActivitySelectionDialog() {
+		launch(Dispatchers.Default) {
+			val activities = SessionActivity.getAll(this@StatsDetailActivity)
+			SessionActivitySelection(this@StatsDetailActivity,
+					activities,
+					viewModel.session.requireValue)
+					.showActivitySelectionDialog()
+		}
 	}
 
 	@MainThread
