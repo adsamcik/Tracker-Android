@@ -27,6 +27,7 @@ import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData
 import com.adsamcik.signalcollector.statistics.R
+import com.adsamcik.signalcollector.statistics.StatsFormat
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 import com.adsamcik.signalcollector.statistics.detail.recycler.creator.InformationViewHolderCreator
@@ -41,7 +42,6 @@ import com.google.android.play.core.splitcompat.SplitCompat
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.*
 
 typealias StatsDetailAdapter = MultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>
@@ -156,7 +156,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		setTitle(session)
 
-		date_time.text = formatRange(startCalendar, endCalendar)
+		date_time.text = StatsFormat.formatRange(startCalendar, endCalendar)
 	}
 
 	private fun setTitle(session: TrackerSession) {
@@ -174,9 +174,9 @@ class StatsDetailActivity : DetailActivity() {
 					val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity).activityDao()
 					activityDao.get(activityId)
 				}
-			} ?: SessionActivity(0L, "", null)
+			} ?: SessionActivity.empty
 
-			val title = createTitle(startCalendar, sessionActivity)
+			val title = StatsFormat.createTitle(this@StatsDetailActivity, startCalendar, sessionActivity)
 
 			val drawable = sessionActivity.getIcon(this@StatsDetailActivity)
 
@@ -324,43 +324,6 @@ class StatsDetailActivity : DetailActivity() {
 	private fun addStatisticsData(adapter: StatsDetailAdapter, data: List<StatisticDetailData>, appendPriority: AppendPriority) {
 		launch(Dispatchers.Main) {
 			adapter.addAll(data.map { SortableAdapter.SortableData(it, appendPriority) })
-		}
-	}
-
-	//todo improve localization support
-	private fun formatRange(start: Calendar, end: Calendar): String {
-		val today = Calendar.getInstance().toDate()
-		val startDate = start.time
-		val endDate = end.time
-
-		val timePattern = "hh:mm"
-
-		return if ((startDate.time / Time.DAY_IN_MILLISECONDS) == (endDate.time / Time.DAY_IN_MILLISECONDS)) {
-			val dateFormat = SimpleDateFormat("d MMMM", Locale.getDefault())
-			val timeFormat = SimpleDateFormat(timePattern, Locale.getDefault())
-			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"
-		} else {
-			val datePattern = if (start.get(Calendar.YEAR) == today.get(Calendar.YEAR)) "d MMMM"
-			else "d MMMM yyyy"
-
-			val format = SimpleDateFormat("$datePattern $timePattern", Locale.getDefault())
-			"${format.format(startDate)} - ${format.format(endDate)}"
-		}
-	}
-
-	//Todo replace with new activity object once ready
-	private fun createTitle(date: Calendar, activity: SessionActivity): String {
-		val activityName = activity.name
-		val hour = date[Calendar.HOUR_OF_DAY]
-		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(date.time).capitalize()
-		return if (hour < 6 || hour > 22) {
-			getString(R.string.stats_night, day, activityName)
-		} else if (hour < 12) {
-			getString(R.string.stats_morning, day, activityName)
-		} else if (hour < 17) {
-			getString(R.string.stats_afternoon, day, activityName)
-		} else {
-			getString(R.string.stats_evening, day, activityName)
 		}
 	}
 

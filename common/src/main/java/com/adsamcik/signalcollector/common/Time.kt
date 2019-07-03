@@ -7,6 +7,10 @@ package com.adsamcik.signalcollector.common
 object Time {
 	val nowMillis: Long get() = System.currentTimeMillis()
 
+	val dayStartMillis: Long get() = roundToDate(nowMillis)
+
+	fun roundToDate(time: Long): Long = time - time.rem(DAY_IN_MILLISECONDS)
+
 	const val HOURS_IN_A_DAY: Long = 24L
 	const val MINUTES_IN_AN_HOUR: Long = 60L
 	const val SECONDS_IN_A_MINUTE: Long = 60L

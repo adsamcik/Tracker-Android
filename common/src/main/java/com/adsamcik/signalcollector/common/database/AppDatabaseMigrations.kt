@@ -86,7 +86,7 @@ val MIGRATION_6_7: Migration = object : Migration(6, 7) {
 val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 	override fun migrate(database: SupportSQLiteDatabase) {
 		with(database) {
-			execSQL("DROP TABLE activity")
+			execSQL("DROP TABLE IF EXISTS activity")
 			execSQL("CREATE TABLE IF NOT EXISTS activity (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `iconName` TEXT)")
 			execSQL("CREATE  INDEX `index_activity_name` ON activity (`name`)")
 		}

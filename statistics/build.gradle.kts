@@ -32,6 +32,7 @@ dependencies {
     Libraries.draggable(this)
     Libraries.map(this)
     Libraries.test(this)
+    Libraries.sectionedRecyclerAdapter(this)
 
     implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 

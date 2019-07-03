@@ -32,6 +32,8 @@ data class SessionActivity(
 	}
 
 	companion object {
+		val empty get() = SessionActivity(0L, "", null)
+
 		@WorkerThread
 		fun getAll(context: Context): List<SessionActivity> {
 			val database = AppDatabase.getDatabase(context)

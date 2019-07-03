@@ -23,6 +23,7 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.color.ColorManager.currentColorData
 import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
 import com.adsamcik.signalcollector.common.extension.contains
+import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -367,25 +368,33 @@ class ColorController : CoroutineScope {
 	@MainThread
 	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
 		val background = view.background
-		if (view is androidx.cardview.widget.CardView) {
-			view.setCardBackgroundColor(bgColor)
-			return true
-		} else if (background?.isVisible == true) {
-			if (background is RippleDrawable) {
-				val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
-				background.setColor(Assist.getPressedState(nextLevel))
-			} else {
-				if (background.alpha < 255) return false
-
-				background.setTint(bgColor)
-				background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {
-					BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
-				} else {
-					@Suppress("DEPRECATION")
-					PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
-				}
+		when {
+			view is androidx.cardview.widget.CardView -> {
+				view.setCardBackgroundColor(bgColor)
+				return true
 			}
-			return true
+			view is MaterialButton -> {
+				val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
+				view.rippleColor = ColorStateList.valueOf(nextLevel)
+				view.setBackgroundColor(bgColor)
+			}
+			background?.isVisible == true -> {
+				if (background is RippleDrawable) {
+					val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
+					background.setColor(Assist.getPressedState(nextLevel))
+				} else {
+					if (background.alpha < 255) return false
+
+					background.setTint(bgColor)
+					background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {
+						BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
+					} else {
+						@Suppress("DEPRECATION")
+						PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
+					}
+				}
+				return true
+			}
 		}
 		return false
 	}

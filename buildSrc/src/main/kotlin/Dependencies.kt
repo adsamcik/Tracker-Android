@@ -145,8 +145,14 @@ object Libraries {
 
 	fun fileChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			//todo update to version that supports Android P when ready
+			//todo update to version that supports Android Q when ready
 			implementation("com.afollestad.material-dialogs:files:3.1.0")
+		}
+	}
+
+	fun sectionedRecyclerAdapter(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("io.github.luizgrp.sectionedrecyclerviewadapter:sectionedrecyclerviewadapter:2.1.0")
 		}
 	}
 

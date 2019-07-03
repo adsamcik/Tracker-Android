@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.common.database.dao
 
 import androidx.lifecycle.LiveData
+import androidx.paging.DataSource
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
@@ -20,6 +21,10 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>
+
+
+	@Query("SELECT * FROM tracker_session ORDER BY start DESC")
+	fun getAllPaged(): DataSource.Factory<Int, TrackerSession>
 
 	@Query("SELECT SUM(`end` - start) as duration, SUM(steps) as steps, SUM(collections) as collections, SUM(distance) as distance, SUM(distance_in_vehicle) as distance_in_vehicle, SUM(distance_on_foot) as distance_on_foot FROM tracker_session")
 	fun getSummary(): TrackerSessionSummary
