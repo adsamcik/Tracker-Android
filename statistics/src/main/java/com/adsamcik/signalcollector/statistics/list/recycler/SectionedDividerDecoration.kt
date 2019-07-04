@@ -89,7 +89,7 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 
 	private fun shouldDecorate(view: View, parent: RecyclerView): Boolean {
 		val position = parent.getChildAdapterPosition(view)
-		return adapter.getItemViewType(position) == SectionedRecyclerViewAdapter.VIEW_TYPE_HEADER
+		return adapter.getSectionItemViewType(position) == SectionedRecyclerViewAdapter.VIEW_TYPE_HEADER
 	}
 
 	private fun drawVertical(canvas: Canvas, parent: RecyclerView) {
@@ -112,6 +112,7 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 		val childCount = parent.childCount
 		for (i in 0 until childCount) {
 			val child = parent.getChildAt(i)
+
 			if (shouldDecorate(child, parent)) {
 				parent.getDecoratedBoundsWithMargins(child, mBounds)
 				val bottom = mBounds.bottom + child.translationY.roundToInt()
