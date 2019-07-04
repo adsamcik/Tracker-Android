@@ -6,8 +6,8 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.color.StyleManager
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,7 +17,7 @@ abstract class CoreUIFragment : CoreFragment() {
 	private var themeLocationRequestCode = 4513
 	private val job = SupervisorJob()
 
-	protected val colorController: ColorController = ColorManager.createController()
+	protected val styleController: StyleController = StyleManager.createController()
 
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
@@ -30,24 +30,24 @@ abstract class CoreUIFragment : CoreFragment() {
 
 	@CallSuper
 	override fun onDestroy() {
-		ColorManager.recycleController(colorController)
+		StyleManager.recycleController(styleController)
 		super.onDestroy()
 	}
 
 	private fun initializeColors() {
-		ColorManager.initializeFromPreferences(requireContext())
+		StyleManager.initializeFromPreferences(requireContext())
 		initializeSunriseSunset()
 	}
 
 	@CallSuper
 	override fun onPause() {
-		colorController.isSuspended = true
+		styleController.isSuspended = true
 		super.onPause()
 	}
 
 	@CallSuper
 	override fun onResume() {
-		colorController.isSuspended = false
+		styleController.isSuspended = false
 		super.onResume()
 	}
 
@@ -67,7 +67,7 @@ abstract class CoreUIFragment : CoreFragment() {
 		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 			fusedLocationClient.lastLocation.addOnCompleteListener {
 				if (it.isSuccessful) {
-					it.result?.let { location -> ColorManager.setLocation(location) }
+					it.result?.let { location -> StyleManager.setLocation(location) }
 				}
 			}
 		} else if (Build.VERSION.SDK_INT >= 23) {

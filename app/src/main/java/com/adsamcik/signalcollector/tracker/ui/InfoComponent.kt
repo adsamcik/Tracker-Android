@@ -10,14 +10,14 @@ import android.widget.TextView
 import androidx.annotation.StyleRes
 import androidx.appcompat.widget.LinearLayoutCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.layoutInflater
 
 /**
  * Component that shows custom data with title and items.
- * Supports ColorController
+ * Supports StyleController
  *
  */
 class InfoComponent : FrameLayout {
@@ -27,7 +27,7 @@ class InfoComponent : FrameLayout {
 
 	private var items: MutableMap<String, TextView> = mutableMapOf()
 
-	private var colorController: ColorController? = null
+	private var styleController: StyleController? = null
 
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
 		initialize(context)
@@ -96,12 +96,12 @@ class InfoComponent : FrameLayout {
 	}
 
 	/**
-	 * Sets a [ColorController] that should manage colors for this [InfoComponent].
+	 * Sets a [StyleController] that should manage colors for this [InfoComponent].
 	 * Add and remove watch is handled automatically.
 	 */
-	internal fun setColorManager(colorController: ColorController) {
-		this.colorController = colorController
-		colorController.watchView(ColorView(this, 1))
+	internal fun setColorManager(styleController: StyleController) {
+		this.styleController = styleController
+		styleController.watchView(StyleView(this, 1))
 	}
 
 	/**
@@ -152,11 +152,11 @@ class InfoComponent : FrameLayout {
 	}
 
 	/**
-	 * Detach the [InfoComponent] from the view. Automatically removes it from [ColorController] if it was set.
+	 * Detach the [InfoComponent] from the view. Automatically removes it from [StyleController] if it was set.
 	 */
 	fun detach() {
 		(parent as ViewGroup).removeView(this)
-		colorController?.stopWatchingView(this)
-		colorController = null
+		styleController?.stopWatchingView(this)
+		styleController = null
 	}
 }

@@ -7,7 +7,8 @@ import androidx.preference.PreferenceScreen
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
@@ -44,7 +45,7 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		supportFragmentManager.transaction {
 			replace(CONTENT_ID, fragment, FragmentSettings.TAG)
 			runOnCommit {
-				colorController.watchRecyclerView(ColorView(fragment.listView, 0))
+				styleController.watchRecyclerView(RecyclerStyleView(fragment.listView, 0))
 				setPage(fragment, RootPage(moduleSettingsList))
 			}
 		}

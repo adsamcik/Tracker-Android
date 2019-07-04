@@ -15,7 +15,8 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.*
@@ -106,8 +107,8 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					lastRowMargin = navBarHeight + contentPadding))
 		}
 
-		colorController.watchRecyclerView(ColorView(recyclerView, layer = 1))
-		colorController.watchView(ColorView(fragmentView, layer = 1, maxDepth = 0))
+		styleController.watchRecyclerView(RecyclerStyleView(recyclerView, layer = 1))
+		styleController.watchView(StyleView(fragmentView, layer = 1, maxDepth = 0))
 
 		return fragmentView
 	}
@@ -141,9 +142,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 						addItemDecoration(SimpleMarginDecoration())
 					}
 
-					colorController.watchView(ColorView(view, 2))
+					styleController.watchView(StyleView(view, 2))
 					setOnDismissListener {
-						colorController.stopWatchingView(view)
+						styleController.stopWatchingView(view)
 					}
 				}
 			}
@@ -180,9 +181,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 						addItemDecoration(SimpleMarginDecoration())
 					}
 
-					colorController.watchView(ColorView(view, 2))
+					styleController.watchView(StyleView(view, 2))
 					setOnDismissListener {
-						colorController.stopWatchingView(view)
+						styleController.stopWatchingView(view)
 					}
 				}
 			}

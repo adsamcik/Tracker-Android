@@ -8,8 +8,8 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.color.ColorData
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.StyleData
+import com.adsamcik.signalcollector.common.color.StyleManager
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecyclerAdapter, private val canSwipeCallback: (SessionActivity) -> Boolean) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
 	private val icon: Drawable = context.getDrawable(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_remove_circle_outline)!!
 
-	private val colorController = ColorManager.createController()
+	private val colorController = StyleManager.createController()
 
 	private val backgroundPaint = Paint()
 	private val foregroundPaint = Paint()
@@ -27,21 +27,21 @@ class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecycler
 		colorController.addListener {
 			updateColor(it)
 		}
-		updateColor(ColorManager.currentColorData)
+		updateColor(StyleManager.styleData)
 	}
 
-	private fun updateColor(colorData: ColorData) {
-		val backgroundColor = colorData.backgroundColor(false)
-		val foregroundColor = colorData.foregroundColor(false)
+	private fun updateColor(styleData: StyleData) {
+		val backgroundColor = styleData.backgroundColor(false)
+		val foregroundColor = styleData.foregroundColor(false)
 
-		backgroundPaint.color = ColorManager.layerColor(backgroundColor, 1)
+		backgroundPaint.color = StyleManager.layerColor(backgroundColor, 1)
 		foregroundPaint.color = foregroundColor
 
 		icon.setTint(foregroundColor)
 	}
 
 	fun onDestroy() {
-		ColorManager.recycleController(colorController)
+		StyleManager.recycleController(colorController)
 	}
 
 	override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {

@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
 import kotlin.math.roundToInt
 
-//Needs to inherit DividerItemDecoration for ColorController
+//Needs to inherit DividerItemDecoration for StyleController
 class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapter, context: Context, orientation: Int) : DividerItemDecoration(context, orientation) {
 
 	companion object {

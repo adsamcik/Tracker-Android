@@ -17,43 +17,45 @@ import androidx.annotation.IdRes
 import androidx.annotation.MainThread
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
+import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.color.ColorManager.currentColorData
-import com.adsamcik.signalcollector.common.color.ColorManager.layerColor
-import com.adsamcik.signalcollector.common.extension.contains
+import com.adsamcik.signalcollector.common.color.StyleManager.layerColor
+import com.adsamcik.signalcollector.common.color.StyleManager.styleData
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.io.InvalidClassException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.CoroutineContext
 
-typealias ColorListener = (colorData: ColorData) -> Unit
+typealias OnStyleChangeListener = (styleData: StyleData) -> Unit
 
 /**
- * ColorController class that handles color updates of views in a given Activity or Fragment.
+ * StyleController class that handles color updates of views in a given Activity or Fragment.
  */
 @AnyThread
 //todo add support for local custom Views
 //todo refactor so the class is smaller
-class ColorController : CoroutineScope {
+class StyleController : CoroutineScope {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
 
-	private val watchedViewList = mutableListOf<ColorView>()
+	private var isDisposed = false
+
+	private val viewList = mutableListOf<StyleView>()
+	private val recyclerList = mutableListOf<RecyclerStyleView>()
 
 	/**
 	 * Colors listener array. Holds all listeners.
 	 *
 	 */
-	private val colorChangeListeners = ArrayList<ColorListener>(0)
+	private val styleChangeListeners = ArrayList<OnStyleChangeListener>(0)
 
 	private var suspendLock = ReentrantLock()
 	private var updateRequestedWhileSuspended: Boolean = false
@@ -83,97 +85,96 @@ class ColorController : CoroutineScope {
 				field = value
 				if (!value && updateRequestedWhileSuspended) {
 					updateRequestedWhileSuspended = false
-					update(currentColorData)
+					update(styleData)
 				}
 			}
 		}
 
 	/**
-	 * Add given [colorView] to the list of watched Views
+	 * Add given [styleView] to the list of watched Views
 	 *
 	 */
-	fun watchView(colorView: ColorView) {
-		synchronized(watchedViewList) {
-			watchedViewList.add(colorView)
+	fun watchView(styleView: StyleView) {
+		synchronized(viewList) {
+			viewList.add(styleView)
 		}
-		updateInternal(colorView, currentColorData)
+		updateInternal(styleView, styleData)
 	}
 
 	/**
-	 * Notifies [ColorController] that change has occurred on given view. View needs to be subscribed to color updates.
-	 * It is recommended to pass root View of ColorView because it does not trigger recursive lookup.
-	 *
-	 * @param view root View of ColorView
-	 */
-	fun notifyChangeOn(view: View) {
-		var find: ColorView? = null
-		synchronized(watchedViewList) {
-			find = watchedViewList.find { it.view == view }
-					?: watchedViewList.find { it.view.contains(view) }
-		}
-
-		if (find != null) {
-			updateInternal(find!!, currentColorData)
-		} else {
-			throw IllegalArgumentException("View is not subscribed")
-		}
-	}
-
-	/**
-	 * Add given [ColorView] that must derive from [AdapterView] to the list of watched view. Provides additional support for recycling so recycled views are styled properly.
+	 * Add given [StyleView] that must derive from [AdapterView] to the list of watched view. Provides additional support for recycling so recycled views are styled properly.
 	 *
 	 * Adapter needs to implement [IViewChange] interface for the best and most reliable color updating.
 	 * However it will somehow work even without it, but it might not be reliable.
 	 */
-	fun watchRecyclerView(colorView: ColorView) {
-		if (colorView.view !is RecyclerView) throw InvalidClassException("Color view must be of type ${RecyclerView::class}")
+	fun watchRecyclerView(styleView: RecyclerStyleView) {
+		synchronized(recyclerList) {
+			recyclerList.add(styleView)
+		}
 
 		launch(Dispatchers.Main) {
-			val adapter = colorView.view.adapter
+			val adapter = styleView.view.adapter
 			if (adapter is IViewChange) {
 				adapter.onViewChangedListener = {
-					val colorData = currentColorData
-					updateStyle(colorData,
-							colorData.backgroundColorFor(colorView),
-							colorData.foregroundColorFor(colorView),
+					val styleData = styleData
+					val backgroundColor = styleData.backgroundColor(styleView.isInverted)
+					val foregroundColor = styleData.foregroundColor(styleView.isInverted)
+					updateStyle(backgroundColor,
+							foregroundColor,
 							it,
-							colorView.layer + 1,
-							colorView.maxDepth)
+							styleView.layer + 1,
+							styleView.maxDepth)
 				}
 			} else {
-				colorView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+				styleView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
 					override fun onChildViewRemoved(parent: View, child: View) {}
 
 					override fun onChildViewAdded(parent: View, child: View) {
-						val colorData = currentColorData
-						updateStyle(colorData,
-								colorData.backgroundColorFor(colorView),
-								colorData.foregroundColorFor(colorView),
+						val styleData = styleData
+						updateStyle(styleData.backgroundColor(styleView.isInverted),
+								styleData.foregroundColor(styleView.isInverted),
 								child,
-								colorView.layer + 1,
-								colorView.maxDepth)
+								styleView.layer + 1,
+								styleView.maxDepth)
 					}
 				})
 			}
+
+			updateInternal(styleView, styleData)
 		}
-		watchView(colorView)
 	}
 
 	/**
-	 * Stop watching [ColorView] based on predicate. This allows more advanced and unpredictable ColorView removals.
-	 * Only the first [ColorView] that matches the predicate will be removed.
+	 * Stop watching [StyleView] based on predicate. This allows more advanced and unpredictable StyleView removals.
+	 * Only the first [StyleView] that matches the predicate will be removed.
 	 */
-	fun stopWatchingView(predicate: (ColorView) -> Boolean) {
-		synchronized(watchedViewList) {
-			val index = watchedViewList.indexOfFirst(predicate)
-			if (index >= 0) watchedViewList.removeAt(index)
+	private fun <T> stopWatching(list: MutableList<T>, predicate: (T) -> Boolean) {
+		synchronized(list) {
+			val index = list.indexOfFirst(predicate)
+			if (index >= 0) list.removeAt(index)
 		}
+	}
+
+	/**
+	 * Stop watching [StyleView] based on predicate. This allows more advanced and unpredictable StyleView removals.
+	 * Only the first [StyleView] that matches the predicate will be removed.
+	 */
+	fun stopWatchingView(predicate: (StyleView) -> Boolean) {
+		stopWatching(viewList, predicate)
+	}
+
+	/**
+	 * Stop watching [StyleView] based on predicate. This allows more advanced and unpredictable StyleView removals.
+	 * Only the first [StyleView] that matches the predicate will be removed.
+	 */
+	fun stopWatchingRecyclerView(predicate: (RecyclerStyleView) -> Boolean) {
+		stopWatching(recyclerList, predicate)
 	}
 
 	/**
 	 * Request to stop watching view.
 	 *
-	 * @param view RootView of ColorView to remove. No child lookups are performed.
+	 * @param view RootView of StyleView to remove. No child lookups are performed.
 	 */
 	fun stopWatchingView(view: View) {
 		stopWatchingView { it.view == view }
@@ -182,7 +183,7 @@ class ColorController : CoroutineScope {
 	/**
 	 * Request to stop watching view with given id
 	 *
-	 * @param id Id of the RootView of ColorView. No child lookups are performed.
+	 * @param id Id of the RootView of StyleView. No child lookups are performed.
 	 */
 	fun stopWatchingView(@IdRes id: Int) {
 		stopWatchingView { it.view.id == id }
@@ -203,7 +204,7 @@ class ColorController : CoroutineScope {
 				view.setOnHierarchyChangeListener(null)
 			}
 		}
-		stopWatchingView(view)
+		stopWatchingRecyclerView { it.view == view }
 	}
 
 	/**
@@ -213,26 +214,32 @@ class ColorController : CoroutineScope {
 	 * @param id Id of the AdapterView to unsubscribe
 	 */
 	fun stopWatchingRecyclerView(@IdRes id: Int) {
-		synchronized(watchedViewList) {
-			val index = watchedViewList.indexOfFirst { it.view.id == id }
+		synchronized(recyclerList) {
+			val index = recyclerList.indexOfFirst { it.view.id == id }
 			if (index >= 0) {
-				(watchedViewList[index].view as ViewGroup).setOnHierarchyChangeListener(null)
-				watchedViewList.removeAt(index)
+				(recyclerList[index].view as ViewGroup).setOnHierarchyChangeListener(null)
+				recyclerList.removeAt(index)
 			}
 		}
 	}
 
 	/**
-	 * Triggers cleanup of all watched [ColorView] and [ColorListener] removing them from watch lists.
+	 * Triggers dispose of all watched [StyleView] and [OnStyleChangeListener] removing them from watch lists.
 	 */
-	fun cleanup() {
-		synchronized(watchedViewList) {
-			watchedViewList.clear()
+	internal fun dispose() {
+		synchronized(viewList) {
+			viewList.clear()
 		}
 
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.clear()
+		synchronized(recyclerList) {
+			recyclerList.clear()
 		}
+
+		synchronized(styleChangeListeners) {
+			styleChangeListeners.clear()
+		}
+
+		isDisposed = true
 	}
 
 	/**
@@ -240,55 +247,84 @@ class ColorController : CoroutineScope {
 	 * For views [watchView] should be used.
 	 * Listener returns only luminance and background color
 	 */
-	fun addListener(colorListener: ColorListener) {
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.add(colorListener)
-			colorListener.invoke(currentColorData)
+	fun addListener(onStyleChangeListener: OnStyleChangeListener) {
+		synchronized(styleChangeListeners) {
+			styleChangeListeners.add(onStyleChangeListener)
+			onStyleChangeListener.invoke(styleData)
 		}
 	}
 
 	/**
 	 * Removes color listener
 	 */
-	fun removeListener(colorListener: ColorListener) {
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.remove(colorListener)
+	fun removeListener(onStyleChangeListener: OnStyleChangeListener) {
+		synchronized(styleChangeListeners) {
+			styleChangeListeners.remove(onStyleChangeListener)
 		}
 	}
 
 	/**
-	 * Internal update function which should be called only by ColorManager
+	 * Internal update function which should be called only by StyleManager
 	 */
-	internal fun update(colorData: ColorData) {
+	internal fun update(styleData: StyleData) {
 		if (isSuspended) {
 			updateRequestedWhileSuspended = true
 			return
 		}
 
 		launch(Dispatchers.Main) {
-			synchronized(watchedViewList) {
-				watchedViewList.forEach { colorView ->
-					updateInternal(colorView, colorData)
+			synchronized(viewList) {
+				viewList.forEach { styleView ->
+					updateInternal(styleView, styleData)
+				}
+			}
+
+			synchronized(recyclerList) {
+				recyclerList.forEach { styleView ->
+					updateInternal(styleView, styleData)
 				}
 			}
 		}
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.forEach { it.invoke(colorData) }
+		synchronized(styleChangeListeners) {
+			styleChangeListeners.forEach { it.invoke(styleData) }
 		}
 	}
 
-	private fun updateInternal(colorView: ColorView, colorData: ColorData) {
-		val backgroundColor = colorData.backgroundColorFor(colorView)
-		val foregroundColor = colorData.foregroundColorFor(colorView)
+	private fun updateInternal(styleView: RecyclerStyleView, styleData: StyleData) {
+		val backgroundColor = styleData.backgroundColorFor(styleView)
+		val foregroundColor = styleData.foregroundColorFor(styleView)
 
 		launch(Dispatchers.Main) {
-			updateStyle(colorData, backgroundColor, foregroundColor, colorView.view, colorView.layer, colorView.maxDepth)
+			updateStyle(styleView, backgroundColor, foregroundColor)
+		}
+	}
+
+	private fun updateInternal(styleView: StyleView, styleData: StyleData) {
+		val backgroundColor = styleData.backgroundColorFor(styleView)
+		val foregroundColor = styleData.foregroundColorFor(styleView)
+
+		launch(Dispatchers.Main) {
+			updateStyle(backgroundColor, foregroundColor, styleView.view, styleView.layer, styleView.maxDepth)
 		}
 	}
 
 	@MainThread
-	private fun updateStyle(colorData: ColorData,
+	private fun updateStyle(styleData: RecyclerStyleView,
 	                        @ColorInt backgroundColor: Int,
+	                        @ColorInt foregroundColor: Int) {
+		if (!styleData.onlyChildren) {
+			updateStyle(backgroundColor, foregroundColor, styleData.view, styleData.layer, 0)
+		}
+
+		val iterator = styleData.view.children.iterator()
+
+		for (item in iterator) {
+			updateStyle(backgroundColor, foregroundColor, styleData.view, styleData.childrenLayer, Int.MAX_VALUE)
+		}
+	}
+
+	@MainThread
+	private fun updateStyle(@ColorInt backgroundColor: Int,
 	                        @ColorInt foregroundColor: Int,
 	                        view: View,
 	                        layer: Int,
@@ -299,13 +335,14 @@ class ColorController : CoroutineScope {
 		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
-			val newDepthLeft = depthLeft - 1
-			if (newDepthLeft < 0) return
-
 			updateStyleForeground(view, foregroundColor)
 
+			if (depthLeft <= 0) return
+
+			val newDepthLeft = depthLeft - 1
+
 			for (i in 0 until view.childCount) {
-				updateStyle(colorData, backgroundColor, foregroundColor, view.getChildAt(i), newLayer, newDepthLeft)
+				updateStyle(backgroundColor, foregroundColor, view.getChildAt(i), newLayer, newDepthLeft)
 			}
 		} else {
 			updateStyleForeground(view, foregroundColor)
@@ -366,7 +403,7 @@ class ColorController : CoroutineScope {
 	@MainThread
 	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
 		when (view) {
-			is ColorableView -> view.onColorChanged(currentColorData)
+			is StyleableView -> view.onStyleChanged(styleData)
 			is ImageView -> view.setColorFilter(foregroundColor)
 			is TextView -> updateStyleForeground(view, foregroundColor)
 			is SeekBar -> updateStyleForeground(view, foregroundColor)

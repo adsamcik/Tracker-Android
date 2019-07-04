@@ -11,9 +11,9 @@ import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.view.setPadding
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.appeaser.sublimepickerlibrary.SublimePicker
 import com.appeaser.sublimepickerlibrary.datepicker.SelectedDate
@@ -22,7 +22,7 @@ import com.appeaser.sublimepickerlibrary.recurrencepicker.SublimeRecurrencePicke
 import java.util.*
 
 class DateTimeRangeDialog : AppCompatDialogFragment() {
-	private lateinit var colorController: ColorController
+	private lateinit var styleController: StyleController
 
 
 	var successCallback: ((range: ClosedRange<Calendar>) -> Unit)? = null
@@ -31,7 +31,7 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val context = requireContext()
-		colorController = ColorManager.createController()
+		styleController = StyleManager.createController()
 
 		val linearLayout = LinearLayout(context)
 		linearLayout.orientation = LinearLayout.VERTICAL
@@ -73,8 +73,8 @@ class DateTimeRangeDialog : AppCompatDialogFragment() {
 
 		linearLayout.addView(sublimePicker)
 
-		colorController.watchView(ColorView(sublimePicker.findViewById(R.id.date_picker_header), 0))
-		colorController.watchView(ColorView(text, 0, 0))
+		styleController.watchView(StyleView(sublimePicker.findViewById(R.id.date_picker_header), 0))
+		styleController.watchView(StyleView(text, 0, 0))
 
 		return linearLayout
 	}

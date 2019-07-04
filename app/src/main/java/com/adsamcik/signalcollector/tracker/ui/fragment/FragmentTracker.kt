@@ -21,8 +21,9 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
@@ -121,7 +122,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	}
 
 	override fun onStop() {
-		ColorManager.recycleController(colorController)
+		StyleManager.recycleController(styleController)
 		super.onStop()
 	}
 
@@ -194,9 +195,9 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
-		colorController.apply {
-			watchView(ColorView(top_panel_root, 1))
-			watchRecyclerView(ColorView(tracker_recycler, 0))
+		styleController.apply {
+			watchView(StyleView(top_panel_root, 1))
+			watchRecyclerView(RecyclerStyleView(tracker_recycler, 0))
 		}
 	}
 

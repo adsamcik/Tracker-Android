@@ -6,7 +6,7 @@ import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
 
-data class ColorData(@ColorInt private val backgroundColor: Int,
+data class StyleData(@ColorInt private val backgroundColor: Int,
                      @ColorInt private val foregroundColor: Int) {
 
 	private val baseColorHSL: FloatArray = FloatArray(3)
@@ -23,10 +23,10 @@ data class ColorData(@ColorInt private val backgroundColor: Int,
 	}
 
 	/**
-	 * Returns proper base foreground color for given ColorView
+	 * Returns proper base foreground color for given StyleView
 	 */
 	@ColorInt
-	fun foregroundColorFor(colorView: ColorView): Int = foregroundColor(colorView.isInverted)
+	fun foregroundColorFor(styleView: BaseStyleView): Int = foregroundColor(styleView.isInverted)
 
 	/**
 	 * Returns proper base foreground color based on [isInverted]
@@ -37,10 +37,10 @@ data class ColorData(@ColorInt private val backgroundColor: Int,
 	fun foregroundColor(isInverted: Boolean): Int = if (isInverted) backgroundColor else foregroundColor
 
 	/**
-	 * Returns proper base background color for given ColorView
+	 * Returns proper base background color for given StyleView
 	 */
 	@ColorInt
-	fun backgroundColorFor(colorView: ColorView): Int = backgroundColor(colorView.isInverted)
+	fun backgroundColorFor(styleView: BaseStyleView): Int = backgroundColor(styleView.isInverted)
 
 	/**
 	 * Returns proper base background color based on [isInverted]
@@ -54,7 +54,7 @@ data class ColorData(@ColorInt private val backgroundColor: Int,
 		if (this === other) return true
 		if (javaClass != other?.javaClass) return false
 
-		other as ColorData
+		other as StyleData
 
 		if (backgroundColor != other.backgroundColor) return false
 		if (foregroundColor != other.foregroundColor) return false

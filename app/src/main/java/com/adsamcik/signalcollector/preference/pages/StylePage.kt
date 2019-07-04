@@ -7,7 +7,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.StyleManager
 import com.adsamcik.signalcollector.preference.findPreferenceTyped
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
 
@@ -66,7 +66,7 @@ class StylePage : PreferencePage {
 		//todo consider using PreferenceObserver
 		styleChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
 			when (key) {
-				styleKey, defaultColorKey -> ColorManager.initializeFromPreferences(caller.requireContext())
+				styleKey, defaultColorKey -> StyleManager.initializeFromPreferences(caller.requireContext())
 				morningKey, dayKey, eveningKey, nightKey -> {
 					if (preferences.contains(key)) {
 						val stylePrefVal = stylePreference.value.toInt()
@@ -94,7 +94,7 @@ class StylePage : PreferencePage {
 							else -> -1
 						}
 
-						ColorManager.updateColorAt(index, preferences.getInt(key, 0))
+						StyleManager.updateColorAt(index, preferences.getInt(key, 0))
 					}
 				}
 			}

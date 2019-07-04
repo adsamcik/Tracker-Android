@@ -5,14 +5,14 @@ import android.content.res.ColorStateList
 import android.util.AttributeSet
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.signalcollector.common.color.ColorData
-import com.adsamcik.signalcollector.common.color.ColorableView
+import com.adsamcik.signalcollector.common.color.StyleData
+import com.adsamcik.signalcollector.common.color.StyleableView
 
-class ImageSwitchImageView : AppCompatImageView, ColorableView {
+class ImageSwitchImageView : AppCompatImageView, StyleableView {
 	private var lastColor: Int = 0
 
-	override fun onColorChanged(colorData: ColorData) {
-		val foregroundColor = colorData.foregroundColor(false)
+	override fun onStyleChanged(styleData: StyleData) {
+		val foregroundColor = styleData.foregroundColor(false)
 		if (foregroundColor == lastColor) return
 
 		val selectedColor = ColorUtils.setAlphaComponent(foregroundColor, SELECTED_ALPHA)

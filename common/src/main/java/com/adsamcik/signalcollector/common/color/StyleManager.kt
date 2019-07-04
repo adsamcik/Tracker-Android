@@ -23,14 +23,14 @@ import kotlin.math.abs
  * It needs to be updated with proper location to have accurate color transitions.
  */
 @AnyThread
-object ColorManager {
+object StyleManager {
 	//Lock order colorList, colorManagerLock, timer
 
 	private val colorList = mutableListOf<@ColorInt Int>()
 	private var timer: Timer? = null
 	private var timerActive = false
 
-	private val controllerCollection = mutableListOf<ColorController>()
+	private val controllerCollection = mutableListOf<StyleController>()
 
 	private val sunsetRise = SunSetRise()
 
@@ -46,7 +46,7 @@ object ColorManager {
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
 
-	var currentColorData = ColorData(0, 0)
+	var styleData = StyleData(0, 0)
 		private set
 
 	private val controllerLock = ReentrantLock()
@@ -58,13 +58,13 @@ object ColorManager {
 	/**
 	 * Creates color manager instance
 	 */
-	fun createController(): ColorController {
+	fun createController(): StyleController {
 		if (darkTextColor == 0) {
 			lightTextColor = ColorUtils.setAlphaComponent(Color.WHITE, TEXT_ALPHA)
 			darkTextColor = ColorUtils.setAlphaComponent(Color.BLACK, TEXT_ALPHA)
 		}
 
-		val colorManager = ColorController()
+		val colorManager = StyleController()
 
 		controllerLock.withLock {
 			controllerCollection.add(colorManager)
@@ -79,11 +79,11 @@ object ColorManager {
 	 * Recycles color manager instance. Cleans it up and prepares it for removal.
 	 * It is also removed from active color managers.
 	 */
-	fun recycleController(colorController: ColorController) {
+	fun recycleController(styleController: StyleController) {
 		var isCollectionEmpty = false
 		controllerLock.withLock {
-			controllerCollection.remove(colorController)
-			colorController.cleanup()
+			controllerCollection.remove(styleController)
+			styleController.dispose()
 			isCollectionEmpty = controllerCollection.isEmpty()
 		}
 
@@ -163,10 +163,10 @@ object ColorManager {
 		val perceivedLuminance = perceivedRelLuminance(backgroundColor)
 		val foregroundColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
 
-		val colorData = ColorData(backgroundColor, foregroundColor)
+		val colorData = StyleData(backgroundColor, foregroundColor)
 
 
-		currentColorData = colorData
+		styleData = colorData
 
 		controllerLock.withLock {
 			controllerCollection.forEach {
@@ -204,7 +204,7 @@ object ColorManager {
 						else -> throw IllegalStateException()
 					}
 
-					ColorManager.timer = timer
+					StyleManager.timer = timer
 				}
 			}
 		}
@@ -235,11 +235,11 @@ object ColorManager {
 			val sunset = sunsetRise.nextSunset()
 			val sunrise = sunsetRise.nextSunrise()
 			val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
-			Log.d("ColorManager", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+			Log.d("StyleManager", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
 					"Sunrise is at ${format.format(sunrise.time)} " +
 					"and sun sets at ${format.format(sunset.time)}")
 
-			Log.d("ColorManager", "Update rate is $period")
+			Log.d("StyleManager", "Update rate is $period")
 		}
 	}
 

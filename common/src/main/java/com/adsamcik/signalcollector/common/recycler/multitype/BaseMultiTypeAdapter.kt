@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.common.recycler.multitype
 
 import android.view.ViewGroup
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.color.StyleController
 
-open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val colorController: ColorController) : SortableAdapter<Data, MultiTypeViewHolder<Data>>() {
+open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleController: StyleController) : SortableAdapter<Data, MultiTypeViewHolder<Data>>() {
 	private val typeMap = mutableMapOf<Int, MultiTypeViewHolderCreator<Data>>()
 
 	override fun getItemViewType(position: Int) = getItem(position).typeValue
@@ -16,7 +16,7 @@ open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val colorContr
 	}
 
 	override fun onBindViewHolder(holder: MultiTypeViewHolder<Data>, position: Int) {
-		holder.bind(getItem(position), colorController)
+		holder.bind(getItem(position), styleController)
 	}
 
 	@Throws(AlreadyRegisteredException::class)
@@ -27,7 +27,7 @@ open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val colorContr
 
 	override fun onViewRecycled(holder: MultiTypeViewHolder<Data>) {
 		super.onViewRecycled(holder)
-		holder.onRecycle(colorController)
+		holder.onRecycle(styleController)
 	}
 
 	class NotRegisteredException(message: String) : Exception(message)

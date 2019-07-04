@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorData
+import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.color.StyleData
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.LineChartStatisticsData
@@ -15,8 +15,8 @@ import com.github.mikephil.charting.data.LineDataSet
 class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart) : MultiTypeViewHolder<LineChartStatisticsData>(root) {
 
 
-	private fun onColorChange(colorData: ColorData) {
-		val foregroundColor = colorData.foregroundColor(false)
+	private fun onColorChange(styleData: StyleData) {
+		val foregroundColor = styleData.foregroundColor(false)
 
 		chart.data.dataSets.forEach {
 			if (it is LineDataSet) {
@@ -30,7 +30,7 @@ class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart)
 		}
 	}
 
-	override fun bind(value: LineChartStatisticsData, colorController: ColorController) {
+	override fun bind(value: LineChartStatisticsData, styleController: StyleController) {
 		val context = itemView.context
 		val resources = context.resources
 		val titleText = resources.getString(value.titleRes)
@@ -49,13 +49,13 @@ class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart)
 
 		val data = LineData(dataSet)
 		chart.data = data
-		colorController.addListener(this::onColorChange)
+		styleController.addListener(this::onColorChange)
 		chart.invalidate()
 	}
 
-	override fun onRecycle(colorController: ColorController) {
+	override fun onRecycle(styleController: StyleController) {
 		chart.clear()
-		colorController.removeListener(this::onColorChange)
+		styleController.removeListener(this::onColorChange)
 	}
 
 }

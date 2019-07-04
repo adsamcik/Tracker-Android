@@ -10,7 +10,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
@@ -36,7 +37,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		//updateChallenges()
 
 		val context = requireContext()
-		val adapter = GameAdapter(colorController).apply {
+		val adapter = GameAdapter(styleController).apply {
 			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
@@ -52,8 +53,8 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				firstRowMargin = statusBarHeight + contentPadding,
 				lastRowMargin = navBarHeight + contentPadding))
 
-		colorController.watchView(ColorView(rootView, 1, 0))
-		colorController.watchRecyclerView(ColorView(recycler, 1))
+		styleController.watchView(StyleView(rootView, 1, 0))
+		styleController.watchRecyclerView(RecyclerStyleView(recycler, 1))
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
 		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter), AppendPriority.Any)

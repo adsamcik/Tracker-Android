@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.common.recycler.multitype
 
-import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.color.StyleController
 
-open class MultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<DataTypeEnum>>(colorController: ColorController) : BaseMultiTypeAdapter<Data>(colorController) {
+open class MultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<DataTypeEnum>>(styleController: StyleController) : BaseMultiTypeAdapter<Data>(styleController) {
 
 	/**
 	 * Registers [MultiTypeViewHolderCreator] for given [DataTypeEnum].

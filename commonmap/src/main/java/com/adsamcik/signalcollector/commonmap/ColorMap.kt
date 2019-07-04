@@ -3,9 +3,9 @@ package com.adsamcik.signalcollector.commonmap
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorData
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.color.StyleData
+import com.adsamcik.signalcollector.common.color.StyleManager
 import com.adsamcik.signalcollector.common.extension.remove
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
@@ -17,16 +17,16 @@ import java.lang.ref.WeakReference
 object ColorMap {
 	private val colorChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null
-	private var colorController: ColorController? = null
+	private var styleController: StyleController? = null
 
 	private var activeMapStyle: MapStyleOptions? = null
 	private var activeMapStyleRes: Int = 0
 
 	private fun init(context: Context) {
 		if (resources == null) resources = context.resources
-		if (colorController == null) {
-			ColorManager.createController().also {
-				colorController = it
+		if (styleController == null) {
+			StyleManager.createController().also {
+				styleController = it
 				it.addListener(this::onColorChange)
 			}
 		}
@@ -34,11 +34,11 @@ object ColorMap {
 
 	private fun destroy() {
 		resources = null
-		colorController?.let { ColorManager.recycleController(it) }
+		styleController?.let { StyleManager.recycleController(it) }
 	}
 
-	private fun onColorChange(colorData: ColorData) {
-		val newStyle = getMapStyleRes(colorData)
+	private fun onColorChange(styleData: StyleData) {
+		val newStyle = getMapStyleRes(styleData)
 		if (newStyle != activeMapStyleRes) {
 			activeMapStyleRes = newStyle
 			activeMapStyle = loadMapStyleRes(newStyle).also { onStyleChange(it) }
@@ -88,11 +88,11 @@ object ColorMap {
 	}
 
 	@RawRes
-	private fun getMapStyleRes(colorData: ColorData): Int {
+	private fun getMapStyleRes(styleData: StyleData): Int {
 		return when {
-			colorData.saturation > 0.6f -> R.raw.map_style_vibrant
-			colorData.perceivedLuminance > 24 -> R.raw.map_style_light
-			colorData.perceivedLuminance < -48 -> R.raw.map_style_dark
+			styleData.saturation > 0.6f -> R.raw.map_style_vibrant
+			styleData.perceivedLuminance > 24 -> R.raw.map_style_light
+			styleData.perceivedLuminance < -48 -> R.raw.map_style_dark
 			else -> R.raw.map_style_grey
 		}
 	}

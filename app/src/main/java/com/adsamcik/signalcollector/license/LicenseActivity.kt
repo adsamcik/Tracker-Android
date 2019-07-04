@@ -15,8 +15,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.color.IViewChange
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
@@ -93,8 +94,8 @@ class LicenseActivity : DetailActivity() {
 
 		setTitle(R.string.open_source_licenses)
 
-		colorController.watchRecyclerView(ColorView(recycler, 0))
-		colorController.watchView(ColorView(frameLayout, 0, 0))
+		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
+		styleController.watchView(StyleView(frameLayout, 0, 0))
 	}
 
 	private class Adapter : RecyclerView.Adapter<Adapter.ViewHolder>(), IViewChange {

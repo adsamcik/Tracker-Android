@@ -11,8 +11,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.color.IViewChange
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.module.Module
@@ -94,8 +95,8 @@ class ModuleActivity : DetailActivity() {
 
 		val recycler = rootContentView.findViewById<RecyclerView>(R.id.recycler)
 
-		colorController.watchView(ColorView(rootContentView, 0))
-		colorController.watchRecyclerView(ColorView(recycler, 0))
+		styleController.watchView(StyleView(rootContentView, 0))
+		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
 
 		val moduleInfoList = Module.getActiveModuleInfo(manager)
 

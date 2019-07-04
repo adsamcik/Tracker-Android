@@ -12,7 +12,8 @@ import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.signalcollector.activity.ui.recycler.ContextualSwipeTouchHelper
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
@@ -86,9 +87,9 @@ class SessionActivityActivity : DetailActivity() {
 	}
 
 	private fun initializeColorController() {
-		colorController.watchRecyclerView(ColorView(recycler, 0))
-		colorController.watchView(ColorView(fab, 1, isInverted = true))
-		colorController.watchView(ColorView(add_item_layout, 2))
+		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
+		styleController.watchView(StyleView(fab, 1, isInverted = true))
+		styleController.watchView(StyleView(add_item_layout, 2))
 	}
 
 	override fun onDestroy() {

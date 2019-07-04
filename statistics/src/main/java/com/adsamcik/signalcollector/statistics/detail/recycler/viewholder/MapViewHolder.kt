@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 
-import com.adsamcik.signalcollector.common.color.ColorController
+import com.adsamcik.signalcollector.common.color.StyleController
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.MapStatisticsData
@@ -14,7 +14,7 @@ import com.google.android.gms.maps.model.PolylineOptions
 class MapViewHolder(val map: MapView) : MultiTypeViewHolder<MapStatisticsData>(map) {
 	private var googleMap: GoogleMap? = null
 
-	override fun bind(value: MapStatisticsData, colorController: ColorController) {
+	override fun bind(value: MapStatisticsData, styleController: StyleController) {
 		map.onCreate(null)
 		map.getMapAsync {
 			googleMap = it
@@ -36,7 +36,7 @@ class MapViewHolder(val map: MapView) : MultiTypeViewHolder<MapStatisticsData>(m
 		}
 	}
 
-	override fun onRecycle(colorController: ColorController) {
+	override fun onRecycle(styleController: StyleController) {
 		googleMap?.let {
 			ColorMap.removeListener(it)
 			googleMap = null

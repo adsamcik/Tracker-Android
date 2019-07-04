@@ -18,7 +18,8 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.activity.ui.SessionActivitySelection
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
@@ -66,7 +67,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_stats_detail)
 
-		colorController.watchView(ColorView(rootContentView.findViewById(R.id.root_stats_detail), 0))
+		styleController.watchView(StyleView(rootContentView.findViewById(R.id.root_stats_detail), 0))
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
 
@@ -119,7 +120,7 @@ class StatsDetailActivity : DetailActivity() {
 			supportsChangeAnimations = false
 		}
 
-		val adapter = StatsDetailAdapter(colorController).apply {
+		val adapter = StatsDetailAdapter(styleController).apply {
 			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
 			registerType(StatisticDetailType.Map, MapViewHolderCreator())
 			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
@@ -149,7 +150,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		recycler.adapter = adapter
 
-		colorController.watchRecyclerView(ColorView(recycler, 0))
+		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
 
 		val endCalendar = Date(session.end).toCalendar()
 		val startCalendar = Date(session.start).toCalendar()

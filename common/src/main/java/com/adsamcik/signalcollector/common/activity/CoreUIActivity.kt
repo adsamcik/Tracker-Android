@@ -6,14 +6,14 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.color.ColorController
-import com.adsamcik.signalcollector.common.color.ColorManager
+import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.color.StyleManager
 import com.google.android.gms.location.LocationServices
 
 abstract class CoreUIActivity : CoreActivity() {
 	private var themeLocationRequestCode = 4513
 
-	protected val colorController: ColorController = ColorManager.createController()
+	protected val styleController: StyleController = StyleManager.createController()
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,24 +23,24 @@ abstract class CoreUIActivity : CoreActivity() {
 
 	@CallSuper
 	override fun onDestroy() {
-		ColorManager.recycleController(colorController)
+		StyleManager.recycleController(styleController)
 		super.onDestroy()
 	}
 
 	@CallSuper
 	override fun onPause() {
-		colorController.isSuspended = true
+		styleController.isSuspended = true
 		super.onPause()
 	}
 
 	@CallSuper
 	override fun onResume() {
-		colorController.isSuspended = false
+		styleController.isSuspended = false
 		super.onResume()
 	}
 
 	private fun initializeColors() {
-		ColorManager.initializeFromPreferences(this)
+		StyleManager.initializeFromPreferences(this)
 		initializeSunriseSunset()
 	}
 
@@ -60,7 +60,7 @@ abstract class CoreUIActivity : CoreActivity() {
 			fusedLocationClient.lastLocation.addOnCompleteListener {
 				if (it.isSuccessful) {
 					val loc = it.result
-					if (loc != null) ColorManager.setLocation(loc)
+					if (loc != null) StyleManager.setLocation(loc)
 				}
 			}
 		} else if (Build.VERSION.SDK_INT >= 23) {

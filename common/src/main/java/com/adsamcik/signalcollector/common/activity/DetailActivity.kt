@@ -14,7 +14,7 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.R
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
@@ -43,10 +43,10 @@ abstract class DetailActivity : CoreUIActivity() {
 		val desiredElevation = configuration.elevation ?: 4.dp * configuration.titleBarLayer
 		top_panel_root.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
-		colorController.watchView(ColorView(top_panel_root, configuration.titleBarLayer))
+		styleController.watchView(StyleView(top_panel_root, configuration.titleBarLayer))
 
 		if (configuration.useColorControllerForContent) {
-			colorController.watchView(ColorView(content_detail_root, 0))
+			styleController.watchView(StyleView(content_detail_root, 0))
 		}
 	}
 

@@ -18,12 +18,14 @@ import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
-import com.adsamcik.signalcollector.common.color.ColorManager
-import com.adsamcik.signalcollector.common.color.ColorView
+import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginBottom
 import com.adsamcik.signalcollector.common.extension.transaction
@@ -182,7 +184,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 		map?.let { ColorMap.removeListener(it) }
 		map = null
 
-		colorController.let { ColorManager.recycleController(it) }
+		styleController.let { StyleManager.recycleController(it) }
 	}
 
 	/**
@@ -302,8 +304,8 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			locationListener?.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
 
-		colorController.watchView(ColorView(map_menu_button, MAP_MENU_BUTTON_LAYER, 0))
-		colorController.watchView(ColorView(layout_map_controls, MAP_CONTROLS_LAYER))
+		styleController.watchView(StyleView(map_menu_button, MAP_MENU_BUTTON_LAYER, 0))
+		styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
 	}
 
 	/**
@@ -405,7 +407,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			payload.height = map_menu_parent.height
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
-				colorController.watchRecyclerView(ColorView(it.requireView(), 2))
+				styleController.watchRecyclerView(RecyclerStyleView(it.requireView() as RecyclerView, 2))
 				if (mapLayers.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
@@ -419,7 +421,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			}
 			payload.onBeforeDestroyed = {
 				fragmentMapMenu.set(null)
-				colorController.stopWatchingRecyclerView(R.id.recycler)
+				styleController.stopWatchingRecyclerView(R.id.recycler)
 			}
 
 			map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
@@ -436,7 +438,6 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			map_menu_button.addPayload(payload)
 			if (mapLayers.isNotEmpty()) {
 				map_menu_button.visibility = VISIBLE
-				colorController.notifyChangeOn(map_menu_button)
 			}
 		}
 
