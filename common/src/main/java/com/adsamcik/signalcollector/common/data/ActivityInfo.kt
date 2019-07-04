@@ -26,6 +26,7 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
 
 
 	companion object {
+		val UNKNOWN get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)
 
 		/**
 		 * 0 still/default
