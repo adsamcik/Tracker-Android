@@ -23,7 +23,9 @@ class StatsViewModel(application: Application) : AndroidViewModel(application), 
 	init {
 		launch {
 			val sessionDao = AppDatabase.getDatabase(getApplication()).sessionDao()
-			mutableSessionData.postValue(sessionDao.getBetween(Time.dayStartMillis, Time.nowMillis))
+			val end = Time.dayStartMillis + Time.DAY_IN_MILLISECONDS
+			val start = end - Time.DAY_IN_MILLISECONDS * 30
+			mutableSessionData.postValue(sessionDao.getBetween(start, end))
 		}
 	}
 }
