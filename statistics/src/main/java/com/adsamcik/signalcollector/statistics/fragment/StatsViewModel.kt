@@ -4,12 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.extension.cloneCalendar
+import com.adsamcik.signalcollector.common.extension.roundToDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.*
 import kotlin.coroutines.CoroutineContext
 
 class StatsViewModel(application: Application) : AndroidViewModel(application), CoroutineScope {
@@ -23,9 +25,12 @@ class StatsViewModel(application: Application) : AndroidViewModel(application), 
 	init {
 		launch {
 			val sessionDao = AppDatabase.getDatabase(getApplication()).sessionDao()
-			val end = Time.dayStartMillis + Time.DAY_IN_MILLISECONDS
-			val start = end - Time.DAY_IN_MILLISECONDS * 30
-			mutableSessionData.postValue(sessionDao.getBetween(start, end))
+			val end = Calendar.getInstance().apply {
+				roundToDate()
+				add(Calendar.DAY_OF_MONTH, 1)
+			}
+			val start = end.cloneCalendar().apply { add(Calendar.MONTH, -1) }
+			mutableSessionData.postValue(sessionDao.getBetween(start.timeInMillis, end.timeInMillis))
 		}
 	}
 }

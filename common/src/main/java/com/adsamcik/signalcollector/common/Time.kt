@@ -1,5 +1,9 @@
 package com.adsamcik.signalcollector.common
 
+import com.adsamcik.signalcollector.common.extension.roundToDate
+import com.adsamcik.signalcollector.common.extension.toCalendar
+import java.util.*
+
 /**
  * Centralized access to time.
  * This ensures that time is taken from a single source and is therefore comparable.
@@ -7,9 +11,13 @@ package com.adsamcik.signalcollector.common
 object Time {
 	val nowMillis: Long get() = System.currentTimeMillis()
 
-	val dayStartMillis: Long get() = roundToDate(nowMillis)
+	val todayMillis: Long get() = roundToDate(nowMillis)
 
-	fun roundToDate(time: Long): Long = time - time.rem(DAY_IN_MILLISECONDS)
+	fun roundToDate(time: Long): Long {
+		return Date(time).toCalendar().apply {
+			roundToDate()
+		}.timeInMillis
+	}
 
 	const val HOURS_IN_A_DAY: Long = 24L
 	const val MINUTES_IN_AN_HOUR: Long = 60L

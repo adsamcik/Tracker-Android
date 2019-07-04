@@ -5,6 +5,7 @@ import android.text.format.DateUtils
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
@@ -60,7 +61,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		val resources = holder.itemView.resources
 		val context = holder.itemView.context
 
-		holder.time.text = DateUtils.getRelativeDateTimeString(context, time, DateUtils.DAY_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, 0)
+		holder.time.text = DateUtils.getRelativeTimeSpanString(time, Time.todayMillis, DateUtils.DAY_IN_MILLIS)
 		holder.distance.text = resources.formatDistance(distance, 1, Preferences.getLengthSystem(context))
 	}
 
