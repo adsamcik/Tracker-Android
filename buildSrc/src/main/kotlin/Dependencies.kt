@@ -8,7 +8,7 @@ object Libraries {
 		const val appcompat = "1.1.0-beta01"
 		const val room = "2.1.0"
 		const val fragment = "1.1.0-beta01"
-		const val kotlin = "1.3.40"
+		const val kotlin = "1.3.41"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
 		const val work = "2.1.0-beta02"
