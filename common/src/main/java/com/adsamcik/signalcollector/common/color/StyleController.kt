@@ -122,7 +122,7 @@ class StyleController : CoroutineScope {
 					updateStyle(backgroundColor,
 							foregroundColor,
 							it,
-							styleView.layer + 1,
+							styleView.childrenLayer,
 							styleView.maxDepth)
 				}
 			} else {
@@ -134,7 +134,7 @@ class StyleController : CoroutineScope {
 						updateStyle(styleData.backgroundColor(styleView.isInverted),
 								styleData.foregroundColor(styleView.isInverted),
 								child,
-								styleView.layer + 1,
+								styleView.childrenLayer,
 								styleView.maxDepth)
 					}
 				})

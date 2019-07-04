@@ -107,7 +107,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					lastRowMargin = navBarHeight + contentPadding))
 		}
 
-		styleController.watchRecyclerView(RecyclerStyleView(recyclerView, layer = 1))
+		styleController.watchRecyclerView(RecyclerStyleView(recyclerView, onlyChildren = true, childrenLayer = 2))
 		styleController.watchView(StyleView(fragmentView, layer = 1, maxDepth = 0))
 
 		return fragmentView

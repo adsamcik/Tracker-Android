@@ -29,7 +29,7 @@ data class StyleView(override val view: View,
 
 
 data class RecyclerStyleView(override val view: RecyclerView,
-                             override val layer: Int,
+                             override val layer: Int = 0,
                              val childrenLayer: Int = layer,
                              val onlyChildren: Boolean = false,
                              override val isInverted: Boolean = false) : BaseStyleView {

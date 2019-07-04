@@ -15,6 +15,7 @@ import com.adsamcik.signalcollector.common.preference.Preferences
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.ConcurrentModificationException
 import kotlin.concurrent.withLock
 import kotlin.math.abs
 
@@ -66,6 +67,10 @@ object StyleManager {
 
 		val colorManager = StyleController()
 
+		if(controllerLock.isHeldByCurrentThread) {
+			throw ConcurrentModificationException("Controller cannot be created during update")
+		}
+
 		controllerLock.withLock {
 			controllerCollection.add(colorManager)
 		}
@@ -80,6 +85,10 @@ object StyleManager {
 	 * It is also removed from active color managers.
 	 */
 	fun recycleController(styleController: StyleController) {
+		if(controllerLock.isHeldByCurrentThread) {
+			throw ConcurrentModificationException("Controller cannot be removed during an update")
+		}
+
 		var isCollectionEmpty = false
 		controllerLock.withLock {
 			controllerCollection.remove(styleController)
