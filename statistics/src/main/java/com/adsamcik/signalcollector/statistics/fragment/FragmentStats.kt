@@ -8,15 +8,14 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.*
@@ -33,7 +32,6 @@ import com.adsamcik.signalcollector.statistics.list.recycler.SummarySection
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.customListAdapter
 import com.afollestad.materialdialogs.list.getRecyclerView
-import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
@@ -41,16 +39,10 @@ import java.util.*
 @Suppress("unused")
 //todo move this to the main package so basic overview can be accessed and activities set
 class FragmentStats : CoreUIFragment(), IOnDemandView {
-	private lateinit var adapter: SectionedRecyclerViewAdapter
-
-	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
-
 	private lateinit var viewModel: StatsViewModel
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-
-		adapter = SectionedRecyclerViewAdapter()
 
 		viewModel = ViewModelProviders.of(this).get(StatsViewModel::class.java)
 
@@ -61,7 +53,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private fun onDataUpdated(collection: Collection<TrackerSession>?) {
 		if (collection == null) return
 
-		adapter.removeAllSections()
+		viewModel.adapter.removeAllSections()
 
 		SummarySection().apply {
 			addData(R.string.stats_sum_title) {
@@ -71,16 +63,16 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			addData(R.string.stats_weekly_title) {
 				showLastSevenDays()
 			}
-		}.also { adapter.addSection(it) }
+		}.also { viewModel.adapter.addSection(it) }
 
 		collection.groupBy { Time.roundToDate(it.start) }.forEach {
 			val distance = it.value.sumByDouble { session -> session.distanceInM.toDouble() }
-			adapter.addSection(SessionSection(it.key, distance).apply {
+			viewModel.adapter.addSection(SessionSection(it.key, distance).apply {
 				addAll(it.value)
 			})
 		}
 
-		adapter.notifyDataSetChanged()
+		viewModel.adapter.notifyDataSetChanged()
 	}
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -96,11 +88,11 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		val navBarHeight = navBarSize.second.y
 
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
-			this.adapter = this@FragmentStats.adapter
+			adapter = viewModel.adapter
 			val layoutManager = LinearLayoutManager(activity)
 			this.layoutManager = layoutManager
 
-			addItemDecoration(SectionedDividerDecoration(this@FragmentStats.adapter, context, layoutManager.orientation))
+			addItemDecoration(SectionedDividerDecoration(viewModel.adapter, context, layoutManager.orientation))
 			addItemDecoration(SimpleMarginDecoration(spaceBetweenItems = 0,
 					horizontalMargin = 0,
 					firstRowMargin = statusBarHeight + contentPadding,
@@ -179,11 +171,13 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					title(res = R.string.stats_weekly_title)
 					customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
 						addItemDecoration(SimpleMarginDecoration())
+						styleController.watchRecyclerView(RecyclerStyleView(this, 2))
 					}
 
 					styleController.watchView(StyleView(view, 2))
 					setOnDismissListener {
 						styleController.stopWatchingView(view)
+						styleController.stopWatchingRecyclerView(getRecyclerView())
 					}
 				}
 			}

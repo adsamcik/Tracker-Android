@@ -30,7 +30,7 @@
 
     <string name="settings_speed_format_key" translatable="false">speedFormat</string>
     <string name="settings_speed_format_default" translatable="false">Hour</string>
-    
+
     <string name="settings_error_reporting_key" translatable="false">errorReporting</string>
     <string name="settings_error_reporting_default" translatable="false">false</string>
 

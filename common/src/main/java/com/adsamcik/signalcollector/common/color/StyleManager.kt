@@ -67,7 +67,7 @@ object StyleManager {
 
 		val colorManager = StyleController()
 
-		if(controllerLock.isHeldByCurrentThread) {
+		if (controllerLock.isHeldByCurrentThread) {
 			throw ConcurrentModificationException("Controller cannot be created during update")
 		}
 
@@ -85,7 +85,7 @@ object StyleManager {
 	 * It is also removed from active color managers.
 	 */
 	fun recycleController(styleController: StyleController) {
-		if(controllerLock.isHeldByCurrentThread) {
+		if (controllerLock.isHeldByCurrentThread) {
 			throw ConcurrentModificationException("Controller cannot be removed during an update")
 		}
 

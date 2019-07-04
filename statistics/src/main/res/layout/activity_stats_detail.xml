@@ -12,9 +12,9 @@
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/add_item_layout"
         android:layout_width="match_parent"
-        android:background="#FFFFFF"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
+        android:background="#FFFFFF"
         android:visibility="gone">
 
         <com.google.android.material.button.MaterialButton

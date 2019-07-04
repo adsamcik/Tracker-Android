@@ -14,6 +14,7 @@
         android:textAllCaps="true"
         android:textStyle="bold"
         tools:text="Lorem ipsum dolor sit amet"/>
+
     <ProgressBar
         android:id="@+id/challenge_progress"
         style="@style/Widget.AppCompat.ProgressBar.Horizontal"

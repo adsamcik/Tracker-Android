@@ -16,14 +16,15 @@ data class SessionActivity(
 		val iconName: String?
 ) {
 
-	constructor(context: Context, nativeSessionActivity: NativeSessionActivity):
+	constructor(context: Context, nativeSessionActivity: NativeSessionActivity) :
 			this(nativeSessionActivity.id,
 					context.getString(nativeSessionActivity.nameRes),
 					nativeSessionActivity.iconName)
 
 	fun getIcon(context: Context): Drawable {
 		val resources = context.resources
-		val drawableName = iconName	?: com.adsamcik.signalcollector.common.R.drawable::ic_baseline_device_unknown.name
+		val drawableName = iconName
+				?: com.adsamcik.signalcollector.common.R.drawable::ic_baseline_device_unknown.name
 		val drawableId = resources.getIdentifier(drawableName, "drawable", context.packageName)
 
 		if (drawableId == 0) throw NullPointerException("Resource with name $drawableName not found")

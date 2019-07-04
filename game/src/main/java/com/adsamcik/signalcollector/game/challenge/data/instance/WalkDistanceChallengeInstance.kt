@@ -23,6 +23,7 @@ class WalkDistanceChallengeInstance(data: ChallengeEntry,
 		val resources = context.resources
 		return resources.getString(definition.descriptionRes, resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem))
 	}
+
 	override val progress: Double
 		get() = extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble()
 
