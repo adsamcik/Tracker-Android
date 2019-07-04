@@ -1,18 +1,25 @@
 package com.adsamcik.signalcollector.statistics.list.recycler
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.text.format.DateUtils
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.extension.formatAsDuration
+import com.adsamcik.signalcollector.common.extension.formatDistance
+import com.adsamcik.signalcollector.common.extension.startActivity
+import com.adsamcik.signalcollector.common.extension.toCalendar
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.StatsFormat
+import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
 import io.github.luizgrp.sectionedrecyclerviewadapter.StatelessSection
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +75,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 	override fun onBindItemViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 		holder as ItemViewHolder
 		val session = sessionList[position]
+		val sessionId = session.id
 
 		val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.MEDIUM, Locale.getDefault())
 
@@ -86,8 +94,15 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 			launch {
 				val activity = AppDatabase.getDatabase(context).activityDao().get(activityId)
 						?: SessionActivity.empty
-				holder.title.text = StatsFormat.createTitle(context, startCalendar, activity)
+
+				launch(Dispatchers.Main) {
+					holder.title.text = StatsFormat.createTitle(context, startCalendar, activity)
+				}
 			}
+		}
+
+		holder.itemView.setOnClickListener {
+			context.startActivity<StatsDetailActivity> { putExtra(StatsDetailActivity.ARG_SESSION_ID, sessionId) }
 		}
 	}
 

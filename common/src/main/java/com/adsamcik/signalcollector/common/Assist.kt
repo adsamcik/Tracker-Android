@@ -223,8 +223,8 @@ object Assist {
 		return Looper.myLooper() == Looper.getMainLooper()
 	}
 
-	fun getBackgroundDrawable(pressedColor: Int, backgroundDrawable: Drawable?): RippleDrawable {
-		return RippleDrawable(getPressedState(pressedColor), backgroundDrawable, null)
+	fun getBackgroundDrawable(pressedColor: Int, backgroundDrawable: Drawable? = null, mask: Drawable? = null): RippleDrawable {
+		return RippleDrawable(getPressedState(pressedColor), backgroundDrawable, mask)
 	}
 
 	fun getPressedState(pressedColor: Int): ColorStateList {

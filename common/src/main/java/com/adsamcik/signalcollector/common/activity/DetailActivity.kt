@@ -73,7 +73,7 @@ abstract class DetailActivity : CoreUIActivity() {
 			setImageResource(iconRes)
 			scaleType = ImageView.ScaleType.CENTER_INSIDE
 
-			background = Assist.getBackgroundDrawable(Color.BLACK, null)
+			background = Assist.getBackgroundDrawable(Color.BLACK)
 
 			setOnClickListener(onClickListener)
 		}

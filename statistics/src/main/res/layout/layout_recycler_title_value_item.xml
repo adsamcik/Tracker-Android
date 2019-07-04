@@ -3,27 +3,22 @@
                                               xmlns:tools="http://schemas.android.com/tools"
                                               android:layout_width="match_parent"
                                               android:layout_height="wrap_content"
-                                              android:orientation="horizontal"
-                                              android:paddingStart="@dimen/content_padding"
-                                              android:paddingTop="@dimen/content_padding"
-                                              android:paddingEnd="@dimen/content_padding"
-                                              android:paddingBottom="8dp">
+                                              android:orientation="horizontal">
 
     <androidx.appcompat.widget.AppCompatTextView
-        android:id="@+id/text_time"
-        style="@style/TextAppearance.MaterialComponents.Subtitle2"
+        android:id="@+id/text_title"
+        style="@style/TextAppearance.MaterialComponents.Body2"
         android:layout_width="wrap_content"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:layout_weight="1"
-        tools:text="27 January"/>
+        tools:text="title"/>
 
     <androidx.appcompat.widget.AppCompatTextView
-        android:id="@+id/text_distance"
-        style="@style/TextAppearance.MaterialComponents.Subtitle2"
+        android:id="@+id/text_value"
+        style="@style/TextAppearance.MaterialComponents.Body2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:gravity="end"
-        tools:text="50km"/>
-
+        tools:text="value"/>
 </androidx.appcompat.widget.LinearLayoutCompat>

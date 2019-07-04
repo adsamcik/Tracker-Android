@@ -12,10 +12,10 @@ import androidx.core.view.setPadding
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginRight
-import com.adsamcik.signalcollector.common.extension.setMargin
 import com.google.android.material.button.MaterialButton
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
 import io.github.luizgrp.sectionedrecyclerviewadapter.StatelessSection
+import kotlin.math.roundToInt
 
 class SummarySection : StatelessSection(SectionParameters.builder()
 		.itemViewWillBeProvided()
@@ -58,6 +58,8 @@ class SummarySection : StatelessSection(SectionParameters.builder()
 		return LinearLayoutCompat(parent.context).apply {
 			orientation = LinearLayoutCompat.HORIZONTAL
 			layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+			val contentPadding = parent.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding).roundToInt()
+			setPadding(contentPadding, 0, contentPadding, 0)
 		}
 	}
 

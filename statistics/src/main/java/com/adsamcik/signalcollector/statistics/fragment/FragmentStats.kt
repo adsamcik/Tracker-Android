@@ -6,12 +6,10 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProviders
-import androidx.paging.LivePagedListBuilder
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.AppendBehavior
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.table.TableCard
@@ -20,18 +18,20 @@ import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.color.ColorView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.database.DatabaseMaintenance
 import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
-import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
 import com.adsamcik.signalcollector.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.signalcollector.statistics.list.recycler.SessionSection
+import com.adsamcik.signalcollector.statistics.list.recycler.SessionSummaryAdapter
 import com.adsamcik.signalcollector.statistics.list.recycler.SummarySection
+import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.list.customListAdapter
+import com.afollestad.materialdialogs.list.getRecyclerView
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -40,8 +40,6 @@ import java.util.*
 @Suppress("unused")
 //todo move this to the main package so basic overview can be accessed and activities set
 class FragmentStats : CoreUIFragment(), IOnDemandView {
-	private lateinit var fragmentView: View
-
 	private lateinit var adapter: SectionedRecyclerViewAdapter
 
 	private lateinit var swipeRefreshLayout: SwipeRefreshLayout
@@ -55,16 +53,33 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 		viewModel = ViewModelProviders.of(this).get(StatsViewModel::class.java)
 
-		viewModel.sessionLiveData.observe(this) { collection ->
-			if (collection == null) return@observe
+		viewModel.sessionLiveData.observe(this, this::onDataUpdated)
+	}
 
-			collection.groupBy { Time.roundToDate(it.start) }.forEach {
-				val distance = it.value.sumByDouble { session -> session.distanceInM.toDouble() }
-				adapter.addSection(SessionSection(it.key, distance).apply {
-					addAll(it.value)
-				})
+	//Todo add smart update if sections exist
+	private fun onDataUpdated(collection: Collection<TrackerSession>?) {
+		if (collection == null) return
+
+		adapter.removeAllSections()
+
+		SummarySection().apply {
+			addData(R.string.stats_sum_title) {
+				showSummary()
 			}
+
+			addData(R.string.stats_weekly_title) {
+				showLastSevenDays()
+			}
+		}.also { adapter.addSection(it) }
+
+		collection.groupBy { Time.roundToDate(it.start) }.forEach {
+			val distance = it.value.sumByDouble { session -> session.distanceInM.toDouble() }
+			adapter.addSection(SessionSection(it.key, distance).apply {
+				addAll(it.value)
+			})
 		}
+
+		adapter.notifyDataSetChanged()
 	}
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -79,24 +94,17 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		val navBarSize = Assist.getNavigationBarSize(activity)
 		val navBarHeight = navBarSize.second.y
 
-		swipeRefreshLayout = fragmentView.findViewById(R.id.swiperefresh_stats)
-		swipeRefreshLayout.setOnRefreshListener { this.updateStats() }
-		//swipeRefreshLayout.setColorSchemeResources(R.color.color_primary)
-		swipeRefreshLayout.setProgressViewOffset(true, 0, statusBarHeight)
-
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
 			this.adapter = this@FragmentStats.adapter
 			val layoutManager = LinearLayoutManager(activity)
 			this.layoutManager = layoutManager
 
 			addItemDecoration(SectionedDividerDecoration(this@FragmentStats.adapter, context, layoutManager.orientation))
-			addItemDecoration(SimpleMarginDecoration(
+			addItemDecoration(SimpleMarginDecoration(spaceBetweenItems = 0,
+					horizontalMargin = 0,
 					firstRowMargin = statusBarHeight + contentPadding,
 					lastRowMargin = navBarHeight + contentPadding))
 		}
-		updateStats()
-
-		this.fragmentView = fragmentView
 
 		colorController.watchRecyclerView(ColorView(recyclerView, layer = 1))
 		colorController.watchView(ColorView(fragmentView, layer = 1, maxDepth = 0))
@@ -104,39 +112,21 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		return fragmentView
 	}
 
-	private fun updateStats() {
-		val context = requireContext()
-
-		//adapter.removeAllSections()
-
-		val resources = context.resources
-
-		launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = true }
-
-
+	private fun showSummary() {
 		launch(Dispatchers.Default) {
-			val database = AppDatabase.getDatabase(context)
-			val sessionDao = database.sessionDao()
+			val activity = requireActivity()
+			val database = AppDatabase.getDatabase(activity)
 			val wifiDao = database.wifiDao()
 			val cellDao = database.cellDao()
 			val locationDao = database.locationDao()
-
-			val calendar = Calendar.getInstance()
-
-			val now = calendar.timeInMillis
-
-			calendar.add(Calendar.WEEK_OF_YEAR, -1)
-			val weekAgo = calendar.timeInMillis
-
-			DatabaseMaintenance().run(context)
-
-			val lengthSystem = Preferences.getLengthSystem(context)
-
+			val sessionDao = database.sessionDao()
 			val sumSessionData = sessionDao.getSummary()
-			val summaryStats = TableStat(resources.getString(R.string.stats_sum_title), showPosition = false, data = listOf(
-					StatData(resources.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(context)),
+
+			val adapter = SessionSummaryAdapter()
+			adapter.addAll(listOf(
+					StatData(resources.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(activity)),
 					StatData(resources.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
-					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, lengthSystem)),
+					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, Preferences.getLengthSystem(activity))),
 					StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
@@ -144,55 +134,58 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					StatData(resources.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
 			))
 
-			val lastMonthSummary = sessionDao.getSummary(weekAgo, now)
+			launch(Dispatchers.Main) {
+				MaterialDialog(activity).show {
+					title(res = R.string.stats_sum_title)
+					customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
+						addItemDecoration(SimpleMarginDecoration())
+					}
 
-			val weeklyStats = TableStat(resources.getString(R.string.stats_weekly_title), showPosition = false, data = listOf(
-					StatData(resources.getString(R.string.stats_time), lastMonthSummary.duration.formatAsDuration(context)),
-					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(lastMonthSummary.distanceInM, 1, lengthSystem)),
-					StatData(resources.getString(R.string.stats_collections), lastMonthSummary.collections.formatReadable()),
-					StatData(resources.getString(R.string.stats_steps), lastMonthSummary.steps.formatReadable())
+					colorController.watchView(ColorView(view, 2))
+					setOnDismissListener {
+						colorController.stopWatchingView(view)
+					}
+				}
+			}
+		}
+	}
+
+	private fun showLastSevenDays() {
+		launch(Dispatchers.Default) {
+			val activity = requireActivity()
+			val now = Time.nowMillis
+			val weekAgo = Calendar.getInstance(Locale.getDefault()).apply {
+				add(Calendar.WEEK_OF_MONTH, -1)
+			}.timeInMillis
+
+			val database = AppDatabase.getDatabase(activity)
+			val sessionDao = database.sessionDao()
+			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
+
+			val adapter = SessionSummaryAdapter()
+			adapter.addAll(listOf(
+					StatData(resources.getString(R.string.stats_time), lastWeekSummary.duration.formatAsDuration(activity)),
+					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(lastWeekSummary.distanceInM, 1, Preferences.getLengthSystem(activity))),
+					StatData(resources.getString(R.string.stats_collections), lastWeekSummary.collections.formatReadable()),
+					StatData(resources.getString(R.string.stats_steps), lastWeekSummary.steps.formatReadable())
+					/*StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable())*/
 			))
 
+			launch(Dispatchers.Main) {
+				MaterialDialog(activity).show {
+					title(res = R.string.stats_weekly_title)
+					customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
+						addItemDecoration(SimpleMarginDecoration())
+					}
 
-			SummarySection().apply {
-				addData(R.string.stats_sum_title) {
-
+					colorController.watchView(ColorView(view, 2))
+					setOnDismissListener {
+						colorController.stopWatchingView(view)
+					}
 				}
-
-				addData(R.string.stats_weekly_title) {
-
-				}
-			}.also { adapter.addSection(it) }
-
-			launch(Dispatchers.Main) { adapter.notifyDataSetChanged() }
-
-			val startOfTheDay = Calendar.getInstance().apply { roundToDate() }
-
-			val todayStats = sessionDao.getBetween(startOfTheDay.timeInMillis, now)
-			addSessionData(todayStats, AppendPriority(AppendBehavior.End, -1))
-
-			val monthAgoCalendar = Calendar.getInstance().apply {
-				roundToDate()
-				add(Calendar.MONTH, -1)
 			}
-
-			val sessionSource = sessionDao.getAllPaged()
-
-			val pagedBuilder = LivePagedListBuilder<Int, TrackerSession>(sessionSource, 20)
-
-
-
-
-			sessionDao.getSummaryByDays(monthAgoCalendar.timeInMillis, startOfTheDay.timeInMillis).map {
-				TableStat(it.time.formatAsDate(), false, listOf(
-						StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(it.distanceInM, 1, lengthSystem)),
-						StatData(resources.getString(R.string.stats_collections), it.collections.formatReadable()),
-						StatData(resources.getString(R.string.stats_steps), it.steps.formatReadable()),
-						StatData(resources.getString(R.string.stats_distance_on_foot), resources.formatDistance(it.distanceOnFootInM, 2, lengthSystem)),
-						StatData(resources.getString(R.string.stats_distance_in_vehicle), resources.formatDistance(it.distanceInVehicleInM, 1, lengthSystem))
-				))
-			}
-			launch(Dispatchers.Main) { swipeRefreshLayout.isRefreshing = false }
 		}
 	}
 
