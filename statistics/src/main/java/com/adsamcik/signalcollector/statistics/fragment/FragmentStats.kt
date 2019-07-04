@@ -216,9 +216,13 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		return list
 	}
 
+	override fun onResume() {
+		super.onResume()
+		viewModel.updateSessionData()
+	}
 
 	override fun onEnter(activity: FragmentActivity) {
-
+		viewModel.updateSessionData()
 	}
 
 	override fun onLeave(activity: FragmentActivity) {

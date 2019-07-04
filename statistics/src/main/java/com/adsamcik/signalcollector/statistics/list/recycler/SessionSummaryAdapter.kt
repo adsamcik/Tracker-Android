@@ -5,10 +5,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.color.IViewChange
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 
-class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHolder>() {
+class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHolder>(), IViewChange {
+	override var onViewChangedListener: ((View) -> Unit)? = null
+
 	private val list = mutableListOf<StatData>()
 
 	fun addAll(list: Collection<StatData>) {
@@ -29,6 +32,8 @@ class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHol
 		val item = list[position]
 		holder.title.text = item.id
 		holder.value.text = item.value
+
+		onViewChangedListener?.invoke(holder.itemView)
 	}
 
 	class ViewHolder(root: View, val title: TextView, val value: TextView) : RecyclerView.ViewHolder(root)
