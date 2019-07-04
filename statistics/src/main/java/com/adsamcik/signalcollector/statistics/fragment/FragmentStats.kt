@@ -29,6 +29,7 @@ import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.data.TableStat
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity
+import com.adsamcik.signalcollector.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.signalcollector.statistics.list.recycler.SessionSection
 import com.adsamcik.signalcollector.statistics.list.recycler.SummarySection
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
@@ -85,7 +86,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
 			this.adapter = this@FragmentStats.adapter
-			layoutManager = LinearLayoutManager(activity)
+			val layoutManager = LinearLayoutManager(activity)
+			this.layoutManager = layoutManager
+
+			addItemDecoration(SectionedDividerDecoration(this@FragmentStats.adapter, context, layoutManager.orientation))
 			addItemDecoration(SimpleMarginDecoration(
 					firstRowMargin = statusBarHeight + contentPadding,
 					lastRowMargin = navBarHeight + contentPadding))

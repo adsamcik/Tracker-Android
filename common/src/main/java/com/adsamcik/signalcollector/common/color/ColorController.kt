@@ -302,6 +302,8 @@ class ColorController : CoroutineScope {
 			val newDepthLeft = depthLeft - 1
 			if (newDepthLeft < 0) return
 
+			updateStyleForeground(view, foregroundColor)
+
 			for (i in 0 until view.childCount) {
 				updateStyle(colorData, backgroundColor, foregroundColor, view.getChildAt(i), newLayer, newDepthLeft)
 			}
@@ -355,12 +357,18 @@ class ColorController : CoroutineScope {
 	}
 
 	@MainThread
+	private fun updateStyleForeground(viewGroup: ViewGroup, @ColorInt foregroundColor: Int) {
+		when (viewGroup) {
+			is RecyclerView -> updateStyleForeground(viewGroup, foregroundColor)
+		}
+	}
+
+	@MainThread
 	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
 		when (view) {
 			is ColorableView -> view.onColorChanged(currentColorData)
 			is ImageView -> view.setColorFilter(foregroundColor)
 			is TextView -> updateStyleForeground(view, foregroundColor)
-			is RecyclerView -> updateStyleForeground(view, foregroundColor)
 			is SeekBar -> updateStyleForeground(view, foregroundColor)
 		}
 	}
