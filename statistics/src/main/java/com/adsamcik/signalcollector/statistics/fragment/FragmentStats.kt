@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -105,6 +106,28 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		return fragmentView
 	}
 
+	private fun showSummaryDialog(statDataCollection: Collection<StatData>, @StringRes titleRes: Int) {
+		val activity = requireActivity()
+		val adapter = SessionSummaryAdapter().apply { addAll(statDataCollection) }
+
+
+		launch(Dispatchers.Main) {
+			MaterialDialog(activity).show {
+				title(res = titleRes)
+				customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
+					addItemDecoration(SimpleMarginDecoration())
+					styleController.watchRecyclerView(RecyclerStyleView(this, 2))
+				}
+
+				styleController.watchView(StyleView(view, 2))
+				setOnDismissListener {
+					styleController.stopWatchingView(view)
+					styleController.stopWatchingRecyclerView(getRecyclerView())
+				}
+			}
+		}
+	}
+
 	private fun showSummary() {
 		launch(Dispatchers.Default) {
 			val activity = requireActivity()
@@ -115,8 +138,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val sumSessionData = sessionDao.getSummary()
 
-			val adapter = SessionSummaryAdapter()
-			adapter.addAll(listOf(
+			val statList = listOf(
 					StatData(resources.getString(R.string.stats_time), sumSessionData.duration.formatAsDuration(activity)),
 					StatData(resources.getString(R.string.stats_collections), sumSessionData.collections.formatReadable()),
 					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, Preferences.getLengthSystem(activity))),
@@ -125,21 +147,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
-			))
+			)
 
-			launch(Dispatchers.Main) {
-				MaterialDialog(activity).show {
-					title(res = R.string.stats_sum_title)
-					customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
-						addItemDecoration(SimpleMarginDecoration())
-					}
+			showSummaryDialog(statList, R.string.stats_sum_title)
 
-					styleController.watchView(StyleView(view, 2))
-					setOnDismissListener {
-						styleController.stopWatchingView(view)
-					}
-				}
-			}
 		}
 	}
 
@@ -154,9 +165,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val database = AppDatabase.getDatabase(activity)
 			val sessionDao = database.sessionDao()
 			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
-
-			val adapter = SessionSummaryAdapter()
-			adapter.addAll(listOf(
+			val statDataList = listOf(
 					StatData(resources.getString(R.string.stats_time), lastWeekSummary.duration.formatAsDuration(activity)),
 					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(lastWeekSummary.distanceInM, 1, Preferences.getLengthSystem(activity))),
 					StatData(resources.getString(R.string.stats_collections), lastWeekSummary.collections.formatReadable()),
@@ -164,23 +173,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					/*StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable())*/
-			))
+			)
 
-			launch(Dispatchers.Main) {
-				MaterialDialog(activity).show {
-					title(res = R.string.stats_weekly_title)
-					customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
-						addItemDecoration(SimpleMarginDecoration())
-						styleController.watchRecyclerView(RecyclerStyleView(this, 2))
-					}
-
-					styleController.watchView(StyleView(view, 2))
-					setOnDismissListener {
-						styleController.stopWatchingView(view)
-						styleController.stopWatchingRecyclerView(getRecyclerView())
-					}
-				}
-			}
+			showSummaryDialog(statDataList, R.string.stats_weekly_title)
 		}
 	}
 
