@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.import
+package com.adsamcik.signalcollector.import.file
 
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import java.io.File

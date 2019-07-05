@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.import
+package com.adsamcik.signalcollector.import.file
 
 //Todo write this, it's really a hassle and needs to be done as generic as possible. Gave up after constructor params were api 26+
 /*class DatabaseImport : FileImport {

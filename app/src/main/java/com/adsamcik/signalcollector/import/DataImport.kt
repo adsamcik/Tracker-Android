@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.import
 import android.content.Context
 import android.os.Build
 import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.import.file.FileImport
+import com.adsamcik.signalcollector.import.file.GpxImport
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.FileFilter
 import com.afollestad.materialdialogs.files.fileChooser

@@ -1,13 +1,10 @@
 package com.adsamcik.signalcollector.statistics.list.recycler
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.text.format.DateUtils
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
@@ -89,11 +86,11 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 
 		val activityId = session.sessionActivityId
 		if (activityId == null) {
-			holder.title.text = StatsFormat.createTitle(context, startCalendar, SessionActivity.empty)
+			holder.title.text = StatsFormat.createTitle(context, startCalendar, SessionActivity.UNKNOWN)
 		} else {
 			launch {
 				val activity = AppDatabase.getDatabase(context).activityDao().get(activityId)
-						?: SessionActivity.empty
+						?: SessionActivity.UNKNOWN
 
 				launch(Dispatchers.Main) {
 					holder.title.text = StatsFormat.createTitle(context, startCalendar, activity)

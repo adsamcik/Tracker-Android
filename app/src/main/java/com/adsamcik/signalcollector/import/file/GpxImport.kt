@@ -1,10 +1,7 @@
-package com.adsamcik.signalcollector.import
+package com.adsamcik.signalcollector.import.file
 
 import androidx.annotation.RequiresApi
-import com.adsamcik.signalcollector.common.data.ActivityInfo
-import com.adsamcik.signalcollector.common.data.LengthUnit
-import com.adsamcik.signalcollector.common.data.Location
-import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
@@ -22,8 +19,15 @@ class GpxImport : FileImport {
 	override fun import(database: AppDatabase, file: File) {
 		val gpx = GPX.read(file.path)
 		gpx.tracks().forEach { track ->
+			val type: String? = if (track.type.isPresent) track.type.get() else null
+			val activity = if (type != null) {
+				prepareActivity(database, type)
+			} else {
+				null
+			}
+
 			track.segments().forEach { segment ->
-				val session = prepareSession(segment)
+				val session = prepareSession(segment, activity)
 				if (session != null) {
 					handleSegment(database, segment, session)
 				}
@@ -31,7 +35,16 @@ class GpxImport : FileImport {
 		}
 	}
 
-	private fun prepareSession(segment: TrackSegment): MutableTrackerSession? {
+	private fun prepareActivity(database: AppDatabase, type: String): SessionActivity {
+		val activityDao = database.activityDao()
+
+		return activityDao.find(type) ?: SessionActivity(name = type).also {
+			val id = activityDao.insert(it)
+			it.id = id
+		}
+	}
+
+	private fun prepareSession(segment: TrackSegment, activity: SessionActivity?): MutableTrackerSession? {
 		val start: Long
 		val end: Long
 
@@ -44,6 +57,11 @@ class GpxImport : FileImport {
 
 		val session = MutableTrackerSession(start = start, isUserInitiated = true)
 		session.end = end
+
+		if (activity != null) {
+			session.sessionActivityId = activity.id
+		}
+
 		return session
 	}
 
@@ -67,6 +85,7 @@ class GpxImport : FileImport {
 				lastLocation = location
 			}
 		}
+
 		saveSession(database, session)
 	}
 

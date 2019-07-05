@@ -175,7 +175,7 @@ class StatsDetailActivity : DetailActivity() {
 					val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity).activityDao()
 					activityDao.get(activityId)
 				}
-			} ?: SessionActivity.empty
+			} ?: SessionActivity.UNKNOWN
 
 			val title = StatsFormat.createTitle(this@StatsDetailActivity, startCalendar, sessionActivity)
 

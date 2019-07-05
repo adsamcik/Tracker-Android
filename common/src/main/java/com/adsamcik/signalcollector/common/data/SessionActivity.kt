@@ -11,9 +11,9 @@ import com.adsamcik.signalcollector.common.database.AppDatabase
 //todo add icon
 @Entity(tableName = "activity", indices = [Index("name")])
 data class SessionActivity(
-		@PrimaryKey(autoGenerate = true) var id: Long,
+		@PrimaryKey(autoGenerate = true) var id: Long = 0,
 		var name: String,
-		val iconName: String?
+		val iconName: String? = null
 ) {
 
 	constructor(context: Context, nativeSessionActivity: NativeSessionActivity) :
@@ -33,7 +33,7 @@ data class SessionActivity(
 	}
 
 	companion object {
-		val empty get() = SessionActivity(0L, "", null)
+		val UNKNOWN get() = SessionActivity(0L, "", null)
 
 		@WorkerThread
 		fun getAll(context: Context): List<SessionActivity> {
