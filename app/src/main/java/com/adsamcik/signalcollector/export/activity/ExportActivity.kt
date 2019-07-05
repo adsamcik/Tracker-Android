@@ -16,11 +16,9 @@ import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.cloneCalendar
 import com.adsamcik.signalcollector.common.misc.SnackMaker
+import com.adsamcik.signalcollector.export.ExportFile
 import com.adsamcik.signalcollector.export.ExportResult
-import com.adsamcik.signalcollector.export.IExport
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.files.FileFilter
-import com.afollestad.materialdialogs.files.fileChooser
 import com.afollestad.materialdialogs.files.folderChooser
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
@@ -41,7 +39,7 @@ class ExportActivity : DetailActivity() {
 	private lateinit var sharableDir: File
 	private lateinit var root: ViewGroup
 
-	private lateinit var exporter: IExport
+	private lateinit var exporter: ExportFile
 
 	private var range: ClosedRange<Calendar> = createDefaultRange()
 		set(value) {
@@ -70,43 +68,51 @@ class ExportActivity : DetailActivity() {
 		sharableDir = File(filesDir, SHARABLE_DIR_NAME)
 
 		val exporterType = intent.extras!![EXPORTER_KEY] as Class<*>
-		exporter = exporterType.newInstance() as IExport
+		exporter = exporterType.newInstance() as ExportFile
 
 		root = createLinearContentParent(false)
 		layoutInflater.inflate(R.layout.layout_data_export, root)
 
-		val now = Calendar.getInstance()
 
-		val in15minutes = now.cloneCalendar().apply {
-			add(Calendar.MINUTE, 15)
+		if (exporter.canSelectDateRange) {
+			val now = Calendar.getInstance()
+
+			val in15minutes = now.cloneCalendar().apply {
+				add(Calendar.MINUTE, 15)
+			}
+
+			val monthBefore = now.cloneCalendar().apply {
+				add(Calendar.MONTH, -1)
+			}
+
+			range = monthBefore..now
+
+			val clickListener = { _: View ->
+				DateTimeRangeDialog().apply {
+					arguments = Bundle().apply {
+						putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
+							setCanPickDateRange(true)
+							setDateParams(range.start, range.endInclusive)
+							setDisplayOptions(ACTIVATE_DATE_PICKER.or(ACTIVATE_TIME_PICKER))
+							setDateRange(-1L, in15minutes.timeInMillis)
+							pickerToShow = SublimeOptions.Picker.DATE_PICKER
+							setAnimateLayoutChanges(true)
+						})
+					}
+					successCallback = { range ->
+						this@ExportActivity.range = range
+					}
+				}.show(supportFragmentManager, "Map date range dialog")
+			}
+
+			edittext_date_range_from.setOnClickListener(clickListener)
+			edittext_date_range_to.setOnClickListener(clickListener)
+
+		} else {
+			edittext_date_range_from.visibility = View.GONE
+			edittext_date_range_to.visibility = View.GONE
+			imageview_from_date.visibility = View.GONE
 		}
-
-		val monthBefore = now.cloneCalendar().apply {
-			add(Calendar.MONTH, -1)
-		}
-
-		range = monthBefore..now
-
-		val clickListener = { _: View ->
-			DateTimeRangeDialog().apply {
-				arguments = Bundle().apply {
-					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
-						setCanPickDateRange(true)
-						setDateParams(range.start, range.endInclusive)
-						setDisplayOptions(ACTIVATE_DATE_PICKER.or(ACTIVATE_TIME_PICKER))
-						setDateRange(-1L, in15minutes.timeInMillis)
-						pickerToShow = SublimeOptions.Picker.DATE_PICKER
-						setAnimateLayoutChanges(true)
-					})
-				}
-				successCallback = { range ->
-					this@ExportActivity.range = range
-				}
-			}.show(supportFragmentManager, "Map date range dialog")
-		}
-
-		edittext_date_range_from.setOnClickListener(clickListener)
-		edittext_date_range_to.setOnClickListener(clickListener)
 
 		button_export.setOnClickListener { if (checkExternalStoragePermissions()) exportClick() }
 
@@ -131,7 +137,7 @@ class ExportActivity : DetailActivity() {
 
 	private fun exportClick() {
 		MaterialDialog(this).show {
-			folderChooser (waitForPositiveButton = true, allowFolderCreation = true) { _, file ->
+			folderChooser(waitForPositiveButton = true, allowFolderCreation = true) { _, file ->
 				export(file)
 			}
 		}
@@ -169,15 +175,23 @@ class ExportActivity : DetailActivity() {
 		val to = this.range.endInclusive
 
 		launch(Dispatchers.Default) {
-			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
+			val result = if(exporter.canSelectDateRange) {
+				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
-			if (locations.isEmpty()) {
-				SnackMaker(root).addMessage(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
-				return@launch
+				if (locations.isEmpty()) {
+					SnackMaker(root).addMessage(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
+					return@launch
+				}
+				//todo do not pass location, make it somewhat smarter so there are no useless queries
+				exporter.export(this@ExportActivity, locations, directory, getExportFileName())
+			} else {
+				exporter.export(this@ExportActivity, listOf(), directory, getExportFileName())
 			}
 
-			val result = exporter.export(this@ExportActivity, locations, directory, getExportFileName())
+
 			onPick?.invoke(result)
+
+			finish()
 		}
 	}
 

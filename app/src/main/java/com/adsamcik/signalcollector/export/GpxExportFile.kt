@@ -10,7 +10,9 @@ import io.jenetics.jpx.WayPoint
 import java.io.File
 import java.io.FileOutputStream
 
-class GpxExport : IExport {
+class GpxExportFile : ExportFile {
+	override val canSelectDateRange: Boolean = true
+
 	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.gpx")
 		serialize(context, targetFile, locationData)

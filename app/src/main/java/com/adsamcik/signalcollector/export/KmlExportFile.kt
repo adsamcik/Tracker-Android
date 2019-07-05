@@ -10,7 +10,9 @@ import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
-class KmlExport : IExport {
+class KmlExportFile : ExportFile {
+	override val canSelectDateRange: Boolean = true
+
 	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.kml")
 		serialize(targetFile, locationData)
@@ -19,7 +21,7 @@ class KmlExport : IExport {
 	}
 
 
-	fun serialize(file: File, locationData: List<DatabaseLocation>) {
+	private fun serialize(file: File, locationData: List<DatabaseLocation>) {
 		FileOutputStream(file, false).let { outputStream ->
 			outputStream.channel.lock()
 			OutputStreamWriter(outputStream).use { osw ->
