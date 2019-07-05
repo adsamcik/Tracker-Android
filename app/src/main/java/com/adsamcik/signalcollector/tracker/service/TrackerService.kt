@@ -68,6 +68,7 @@ class TrackerService : LifecycleService(), CoroutineScope {
 	private val notificationComponent: NotificationComponent = NotificationComponent()
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
+	//todo can crash if ended too quickly because uninicialized
 	private lateinit var dataComponentManager: DataComponentManager
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
 

@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.import
 
 //Todo write this, it's really a hassle and needs to be done as generic as possible. Gave up after constructor params were api 26+
-/*class DatabaseImport : IImport {
+/*class DatabaseImport : FileImport {
 	override fun import(database: AppDatabase, file: File) {
 		//val database = SQLiteDatabase.openDatabase(file.path, null, 0)
 

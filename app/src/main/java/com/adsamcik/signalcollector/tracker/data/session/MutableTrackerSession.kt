@@ -12,7 +12,17 @@ class MutableTrackerSession(
 		distanceOnFootInM: Float,
 		distanceInVehicleInM: Float,
 		steps: Int,
-		sessionActivityId: Long? = null) : TrackerSession(id, start, end, isUserInitiated, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps, sessionActivityId) {
+		sessionActivityId: Long? = null) :
+		TrackerSession(id,
+				start,
+				end,
+				isUserInitiated,
+				collections,
+				distanceInM,
+				distanceOnFootInM,
+				distanceInVehicleInM,
+				steps,
+				sessionActivityId) {
 
 	override var id: Long
 		get() = super.id
