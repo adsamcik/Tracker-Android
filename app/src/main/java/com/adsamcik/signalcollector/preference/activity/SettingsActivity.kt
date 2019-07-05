@@ -8,7 +8,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.color.RecyclerStyleView
-import com.adsamcik.signalcollector.common.color.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.preference.ModuleSettings
@@ -109,7 +108,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 			r.getString(R.string.settings_debug_title) -> DebugPage()
 			r.getString(R.string.settings_style_title) -> StylePage()
 			r.getString(R.string.settings_tracking_title) -> TrackerPreferencePage()
-			r.getString(R.string.settings_export_title) -> DataPage()
+			r.getString(R.string.settings_data_title) -> DataPage()
+			r.getString(R.string.settings_export_title) -> ExportPage()
 			else -> return
 		}
 		setPage(caller, page)
@@ -131,5 +131,20 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 
 		initializeStartScreen(caller, pref.title.toString())
 		return true
+	}
+
+	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+		val page = activePage
+		if (page != null) {
+			val collection = mutableListOf<Pair<String, Int>>()
+
+			for (i in 0 until permissions.size) {
+				collection.add(permissions[i] to grantResults[i])
+			}
+
+			page.onRequestPermissionsResult(this, requestCode, collection)
+		}
 	}
 }

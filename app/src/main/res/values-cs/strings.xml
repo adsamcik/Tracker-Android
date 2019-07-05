@@ -118,8 +118,8 @@
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
     <string name="settings_export_dialog_from">Od</string>
     <string name="settings_export_dialog_to">Do</string>
-    <string name="settings_export_export_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
-    <string name="settings_export_export_title">Jako hrubá data</string>
+    <string name="settings_export_json_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
+    <string name="settings_export_json_title">Jako hrubá data</string>
     <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
     <string name="settings_export_gpx_title">Jako GPX soubor</string>
     <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>

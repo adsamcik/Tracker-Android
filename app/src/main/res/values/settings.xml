@@ -146,9 +146,9 @@
 
     <!-- EXPORT -->
 
-    <string name="settings_export_export_title">As raw data</string>
-    <string name="settings_export_export_key" translatable="false">rawExport</string>
-    <string name="settings_export_export_summary">Export your tracked data to an app of your choice</string>
+    <string name="settings_export_json_title">As JSON file</string>
+    <string name="settings_export_json_key" translatable="false">jsonExport</string>
+    <string name="settings_export_json_summary">Export your tracked data to JSON file</string>
 
     <string name="settings_export_gpx_title">As GPX file</string>
     <string name="settings_export_gpx_key" translatable="false">gpxExport</string>
@@ -164,6 +164,11 @@
 
     <string name="settings_export_dialog_from">From</string>
     <string name="settings_export_dialog_to">To</string>
+
+    <string name="settings_import_title">Import</string>
+    <string name="settings_import_key" translatable="false">import</string>
+    <string name="settings_import_summary">Import data from supported types: %s</string>
+    <string name="settings_import_no_types">no types supported on your device, sorry.</string>
 
     <!-- MODULES -->
 

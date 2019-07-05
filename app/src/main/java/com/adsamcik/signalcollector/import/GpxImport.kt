@@ -13,6 +13,8 @@ import java.io.File
 
 @RequiresApi(26)
 class GpxImport : IImport {
+	override val supportedExtensions: Collection<String> = listOf("gpx")
+
 	override fun import(database: AppDatabase, file: File) {
 		val locationDao = database.locationDao()
 		val gpx = GPX.read(file.path)

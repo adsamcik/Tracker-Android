@@ -129,7 +129,6 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun exportClick() {
-
 		MaterialDialog(this).show {
 			val filter: FileFilter = { it.isDirectory }
 
@@ -137,14 +136,6 @@ class ExportActivity : DetailActivity() {
 				export(file)
 			}
 		}
-		/*ChooserDialog(this@ExportActivity)
-				.withFilter(true, false)
-				.cancelOnTouchOutside(true)
-				.withOnCancelListener { it.dismiss() }
-				.withChosenListener { _, pathFile ->
-
-				}
-				.show()*/
 	}
 
 	private fun checkExternalStoragePermissions(): Boolean {

@@ -140,24 +140,34 @@
             android:title="@string/settings_export_title"
             app:icon="@drawable/ic_outline_share_24px">
             <androidx.preference.Preference
-                android:key="@string/settings_export_export_key"
-                android:summary="@string/settings_export_export_summary"
-                android:title="@string/settings_export_export_title"/>
+                android:icon="@drawable/ic_file_outline_json"
+                android:key="@string/settings_export_json_key"
+                android:summary="@string/settings_export_json_summary"
+                android:title="@string/settings_export_json_title"/>
             <androidx.preference.Preference
+                android:icon="@drawable/ic_file_outline_gps"
                 android:key="@string/settings_export_gpx_key"
                 android:summary="@string/settings_export_gpx_summary"
                 android:title="@string/settings_export_gpx_title"/>
             <androidx.preference.Preference
+                android:icon="@drawable/ic_file_outline_gps"
                 android:key="@string/settings_export_kml_key"
                 android:summary="@string/settings_export_kml_summary"
                 android:title="@string/settings_export_kml_title"/>
 
             <androidx.preference.Preference
+                android:icon="@drawable/ic_file_outline_database"
                 android:key="@string/settings_export_sqlite_key"
                 android:summary="@string/settings_export_sqlite_summary"
                 android:title="@string/settings_export_sqlite_title"
                 />
         </androidx.preference.PreferenceScreen>
+
+        <androidx.preference.Preference
+            android:icon="@drawable/ic_database_import"
+            android:key="@string/settings_import_key"
+            android:summary="@string/settings_import_summary"
+            android:title="@string/settings_import_title"/>
 
         <androidx.preference.PreferenceCategory>
             <androidx.preference.Preference

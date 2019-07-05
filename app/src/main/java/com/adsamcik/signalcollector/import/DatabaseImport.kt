@@ -1,15 +1,12 @@
 package com.adsamcik.signalcollector.import
 
-import com.adsamcik.signalcollector.common.database.AppDatabase
-import java.io.File
-
 //Todo write this, it's really a hassle and needs to be done as generic as possible. Gave up after constructor params were api 26+
-class DatabaseImport : IImport {
+/*class DatabaseImport : IImport {
 	override fun import(database: AppDatabase, file: File) {
 		//val database = SQLiteDatabase.openDatabase(file.path, null, 0)
 
 	}
-/*
+
 	private fun getConstructor(type: Class<*>, columnNames: Array<out String>): Constructor<*>? {
 		type.constructors.forEach {
 			it.parameters.forEach {
@@ -39,6 +36,6 @@ class DatabaseImport : IImport {
 		} catch (e: SQLiteException) {
 
 		}
-	}*/
+	}
 
-}
+}*/
