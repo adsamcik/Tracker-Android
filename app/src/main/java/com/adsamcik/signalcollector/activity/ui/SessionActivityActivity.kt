@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 
+//todo add session editing
 class SessionActivityActivity : DetailActivity() {
 
 	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper

@@ -27,15 +27,6 @@ class SessionActivitySelection(private val context: Context,
 	@MainThread
 	private fun createActivitySelectionDialog(): MaterialDialog {
 		return MaterialDialog(context).apply {
-			val selectedId = session.sessionActivityId
-
-			/*val selectedIndex =
-					if (selectedId != null) {
-						activityList.indexOfFirst { it.id == selectedId }
-					} else {
-						-1
-					}*/
-
 			listItems(items = activityList.map { it.name },
 					//initialSelection = selectedIndex,
 					selection = this@SessionActivitySelection::onSelected)
