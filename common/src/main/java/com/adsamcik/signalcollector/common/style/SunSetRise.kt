@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.color
+package com.adsamcik.signalcollector.common.style
 
 import com.adsamcik.signalcollector.common.extension.roundToDate
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator

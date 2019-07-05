@@ -6,8 +6,8 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.color.StyleController
-import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleController
+import com.adsamcik.signalcollector.common.style.StyleManager
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

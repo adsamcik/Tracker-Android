@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.color
+package com.adsamcik.signalcollector.common.style
 
 import android.view.View
 

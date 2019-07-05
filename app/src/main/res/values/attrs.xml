@@ -2,11 +2,6 @@
 <resources>
     <attr name="titleColor" format="reference|color"/>
 
-    <declare-styleable name="InfoComponent">
-        <attr name="title" format="string"/>
-        <attr name="titleImage" format="integer"/>
-    </declare-styleable>
-
     <declare-styleable name="ImageSwitchPreference">
         <attr name="drawables" format="reference"/>
         <attr name="titles" format="reference"/>

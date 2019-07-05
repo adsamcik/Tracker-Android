@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.color
+package com.adsamcik.signalcollector.common.style
 
 interface StyleableView {
 	fun onStyleChanged(styleData: StyleData)

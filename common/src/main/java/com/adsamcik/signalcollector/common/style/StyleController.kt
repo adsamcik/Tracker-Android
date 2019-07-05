@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.color
+package com.adsamcik.signalcollector.common.style
 
 import android.content.res.ColorStateList
 import android.graphics.BlendMode
@@ -21,8 +21,8 @@ import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.color.StyleManager.layerColor
-import com.adsamcik.signalcollector.common.color.StyleManager.styleData
+import com.adsamcik.signalcollector.common.style.StyleManager.layerColor
+import com.adsamcik.signalcollector.common.style.StyleManager.styleData
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

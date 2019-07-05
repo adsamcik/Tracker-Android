@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.app.HomeIntroduction
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.CoreUIActivity
-import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.guidelineEnd
 import com.adsamcik.signalcollector.common.extension.transaction
@@ -33,7 +33,6 @@ class MainActivity : CoreUIActivity() {
 	private var navigationOffset = Int.MIN_VALUE
 
 	private lateinit var trackerFragment: androidx.fragment.app.Fragment
-
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setTheme(R.style.AppTheme_Transluscent)
@@ -237,8 +236,6 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun initializeColorElements() {
-		styleController.watchView(StyleView(root, 0, maxDepth = 0))
-
 		styleController.watchView(StyleView(button_stats, 1, maxDepth = 0, isInverted = true))
 		styleController.watchView(StyleView(button_map, 1, maxDepth = 0, isInverted = true))
 		styleController.watchView(StyleView(button_game, 1, maxDepth = 0, isInverted = true))

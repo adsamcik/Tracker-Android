@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.common.color
+package com.adsamcik.signalcollector.common.style
 
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
