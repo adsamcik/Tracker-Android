@@ -2,9 +2,15 @@ package com.adsamcik.signalcollector.common.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 
-@Entity(tableName = "tracker_session")
+@Entity(tableName = "tracker_session", foreignKeys = [ForeignKey(entity = SessionActivity::class,
+		parentColumns = ["id"],
+		childColumns = ["session_activity_id"],
+		onDelete = ForeignKey.SET_NULL,
+		onUpdate = ForeignKey.NO_ACTION)])
 open class TrackerSession(
 		id: Long = 0,
 		start: Long = 0,

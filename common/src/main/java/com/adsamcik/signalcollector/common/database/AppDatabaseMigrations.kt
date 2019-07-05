@@ -89,6 +89,11 @@ val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 			execSQL("DROP TABLE IF EXISTS activity")
 			execSQL("CREATE TABLE IF NOT EXISTS activity (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `iconName` TEXT)")
 			execSQL("CREATE  INDEX `index_activity_name` ON activity (`name`)")
+
+			execSQL("CREATE TABLE IF NOT EXISTS tracker_session_tmp (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `user_initiated` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `distance_on_foot` REAL NOT NULL, `distance_in_vehicle` REAL NOT NULL, `steps` INTEGER NOT NULL, `session_activity_id` INTEGER, FOREIGN KEY(`session_activity_id`) REFERENCES `activity`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )")
+			execSQL("INSERT INTO tracker_session_tmp SELECT * from tracker_session")
+			execSQL("DROP TABLE tracker_session")
+			execSQL("ALTER TABLE tracker_session_tmp RENAME TO tracker_session")
 		}
 	}
 }
