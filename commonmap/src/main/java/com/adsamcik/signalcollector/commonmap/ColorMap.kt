@@ -3,9 +3,9 @@ package com.adsamcik.signalcollector.commonmap
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
-import com.adsamcik.signalcollector.common.color.StyleController
-import com.adsamcik.signalcollector.common.color.StyleData
-import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleController
+import com.adsamcik.signalcollector.common.style.StyleData
+import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.common.extension.remove
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions

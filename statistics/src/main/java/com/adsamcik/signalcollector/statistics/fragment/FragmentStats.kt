@@ -15,8 +15,8 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.color.RecyclerStyleView
-import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.*

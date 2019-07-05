@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.common.recycler.multitype
 
 import android.view.ViewGroup
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.signalcollector.common.color.StyleController
+import com.adsamcik.signalcollector.common.style.StyleController
 
 open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleController: StyleController) : SortableAdapter<Data, MultiTypeViewHolder<Data>>() {
 	private val typeMap = mutableMapOf<Int, MultiTypeViewHolderCreator<Data>>()

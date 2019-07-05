@@ -11,9 +11,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.StyleView
-import com.adsamcik.signalcollector.common.color.IViewChange
-import com.adsamcik.signalcollector.common.color.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
+import com.adsamcik.signalcollector.common.style.IViewChange
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.module.Module

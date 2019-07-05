@@ -18,8 +18,8 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.activity.ui.SessionActivitySelection
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.RecyclerStyleView
-import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation

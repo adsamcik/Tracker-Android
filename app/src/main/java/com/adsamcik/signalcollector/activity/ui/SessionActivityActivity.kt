@@ -12,8 +12,8 @@ import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.signalcollector.activity.ui.recycler.ContextualSwipeTouchHelper
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.color.RecyclerStyleView
-import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager

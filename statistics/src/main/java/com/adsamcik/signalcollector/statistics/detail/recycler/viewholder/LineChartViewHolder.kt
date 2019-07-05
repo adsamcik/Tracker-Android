@@ -3,8 +3,8 @@ package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.common.color.StyleController
-import com.adsamcik.signalcollector.common.color.StyleData
+import com.adsamcik.signalcollector.common.style.StyleController
+import com.adsamcik.signalcollector.common.style.StyleData
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.LineChartStatisticsData

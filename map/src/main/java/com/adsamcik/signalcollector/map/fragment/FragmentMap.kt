@@ -23,9 +23,9 @@ import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
-import com.adsamcik.signalcollector.common.color.RecyclerStyleView
-import com.adsamcik.signalcollector.common.color.StyleManager
-import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginBottom
 import com.adsamcik.signalcollector.common.extension.transaction

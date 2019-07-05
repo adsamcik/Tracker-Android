@@ -8,8 +8,8 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.color.StyleData
-import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleData
+import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope

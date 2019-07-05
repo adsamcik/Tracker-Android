@@ -7,7 +7,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.color.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.preference.findPreferenceTyped
 import com.jaredrummler.android.colorpicker.ColorPreferenceCompat
 

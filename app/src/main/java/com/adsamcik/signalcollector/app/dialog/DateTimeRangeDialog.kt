@@ -11,9 +11,9 @@ import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.view.setPadding
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.color.StyleController
-import com.adsamcik.signalcollector.common.color.StyleManager
-import com.adsamcik.signalcollector.common.color.StyleView
+import com.adsamcik.signalcollector.common.style.StyleController
+import com.adsamcik.signalcollector.common.style.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.appeaser.sublimepickerlibrary.SublimePicker
 import com.appeaser.sublimepickerlibrary.datepicker.SelectedDate

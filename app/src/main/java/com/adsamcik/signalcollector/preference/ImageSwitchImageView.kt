@@ -5,8 +5,8 @@ import android.content.res.ColorStateList
 import android.util.AttributeSet
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.signalcollector.common.color.StyleData
-import com.adsamcik.signalcollector.common.color.StyleableView
+import com.adsamcik.signalcollector.common.style.StyleData
+import com.adsamcik.signalcollector.common.style.StyleableView
 
 class ImageSwitchImageView : AppCompatImageView, StyleableView {
 	private var lastColor: Int = 0

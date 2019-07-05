@@ -5,7 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.color.IViewChange
+import com.adsamcik.signalcollector.common.style.IViewChange
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 
