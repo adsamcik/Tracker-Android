@@ -197,7 +197,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	private fun initializeColorElements() {
 		styleController.apply {
 			watchView(StyleView(top_panel_root, 1))
-			watchRecyclerView(RecyclerStyleView(tracker_recycler, 0))
+			watchRecyclerView(RecyclerStyleView(tracker_recycler, layer = 0, childrenLayer = 1))
 		}
 	}
 

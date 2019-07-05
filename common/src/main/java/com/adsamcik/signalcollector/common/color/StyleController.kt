@@ -319,7 +319,7 @@ class StyleController : CoroutineScope {
 		val iterator = styleData.view.children.iterator()
 
 		for (item in iterator) {
-			updateStyle(backgroundColor, foregroundColor, styleData.view, styleData.childrenLayer, Int.MAX_VALUE)
+			updateStyle(backgroundColor, foregroundColor, item, styleData.childrenLayer, Int.MAX_VALUE)
 		}
 	}
 
