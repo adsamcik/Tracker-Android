@@ -313,6 +313,7 @@ class StyleController : CoroutineScope {
 	                        @ColorInt backgroundColor: Int,
 	                        @ColorInt foregroundColor: Int) {
 		if (!styleData.onlyChildren) {
+			updateStyleForeground(styleData.view, foregroundColor)
 			updateStyle(backgroundColor, foregroundColor, styleData.view, styleData.layer, 0)
 		}
 
@@ -405,10 +406,6 @@ class StyleController : CoroutineScope {
 	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
 		val background = view.background
 		when {
-			view is androidx.cardview.widget.CardView -> {
-				view.setCardBackgroundColor(bgColor)
-				return true
-			}
 			view is MaterialButton -> {
 				val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
 				view.rippleColor = ColorStateList.valueOf(nextLevel)

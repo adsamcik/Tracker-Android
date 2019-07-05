@@ -13,6 +13,8 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.game.R
 import com.adsamcik.signalcollector.game.challenge.ChallengeManager
 import com.adsamcik.signalcollector.game.challenge.adapter.ChallengeAdapter
@@ -51,8 +53,8 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				firstRowMargin = statusBarHeight + contentPadding,
 				lastRowMargin = navBarHeight + contentPadding))
 
-		//styleController.watchView(StyleView(rootView, 1, 0))
-		//styleController.watchRecyclerView(RecyclerStyleView(recycler, 1))
+		styleController.watchView(StyleView(rootView, layer = 1, maxDepth = 0))
+		styleController.watchRecyclerView(RecyclerStyleView(recycler, onlyChildren = true, childrenLayer = 2))
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
 		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter), AppendPriority.Any)

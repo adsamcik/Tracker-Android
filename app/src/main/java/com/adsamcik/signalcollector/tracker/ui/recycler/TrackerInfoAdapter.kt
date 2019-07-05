@@ -7,7 +7,7 @@ import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.color.IViewChange
+import com.adsamcik.signalcollector.common.style.IViewChange
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.ui.recycler.data.*
@@ -19,7 +19,7 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 		val layoutInflater = LayoutInflater.from(parent.context)
 		val root = layoutInflater.inflate(R.layout.layout_tracker_card, parent, false)
-		val content = root.findViewById<ViewGroup>(R.id.content)
+		val content = root.findViewById<ViewGroup>(R.id.tracker_item_content)
 		val title = root.findViewById<AppCompatTextView>(R.id.tracker_item_title)
 		return ViewHolder(root, content, title)
 	}

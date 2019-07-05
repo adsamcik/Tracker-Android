@@ -24,7 +24,7 @@
         tools:text="Wifi"/>
 
     <androidx.appcompat.widget.LinearLayoutCompat
-        android:id="@+id/content"
+        android:id="@+id/tracker_item_content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">

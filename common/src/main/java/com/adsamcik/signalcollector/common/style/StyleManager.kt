@@ -73,9 +73,9 @@ object StyleManager {
 
 		controllerLock.withLock {
 			controllerCollection.add(colorManager)
-		}
 
-		ensureUpdate()
+			if (controllerCollection.size == 1) ensureUpdate()
+		}
 
 		return colorManager
 	}

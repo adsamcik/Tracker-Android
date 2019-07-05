@@ -35,8 +35,8 @@ abstract class CoreUIFragment : CoreFragment() {
 	}
 
 	private fun initializeColors() {
-		StyleManager.initializeFromPreferences(requireContext())
-		initializeSunriseSunset()
+		//StyleManager.initializeFromPreferences(requireContext())
+		//initializeSunriseSunset()
 	}
 
 	@CallSuper
