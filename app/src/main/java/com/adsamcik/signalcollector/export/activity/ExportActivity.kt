@@ -21,6 +21,7 @@ import com.adsamcik.signalcollector.export.IExport
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.FileFilter
 import com.afollestad.materialdialogs.files.fileChooser
+import com.afollestad.materialdialogs.files.folderChooser
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
@@ -130,9 +131,7 @@ class ExportActivity : DetailActivity() {
 
 	private fun exportClick() {
 		MaterialDialog(this).show {
-			val filter: FileFilter = { it.isDirectory }
-
-			fileChooser(filter = filter, waitForPositiveButton = true, allowFolderCreation = true) { _, file ->
+			folderChooser (waitForPositiveButton = true, allowFolderCreation = true) { _, file ->
 				export(file)
 			}
 		}
