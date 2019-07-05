@@ -335,9 +335,7 @@ class StyleController : CoroutineScope {
 		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
-			updateStyleForeground(view, foregroundColor)
-
-			if (depthLeft <= 0) return
+			if (depthLeft <= 0 || view is RecyclerView) return
 
 			val newDepthLeft = depthLeft - 1
 
@@ -390,13 +388,6 @@ class StyleController : CoroutineScope {
 					if (drawable != null) updateStyleForeground(drawable, foregroundColor)
 				}
 			}
-		}
-	}
-
-	@MainThread
-	private fun updateStyleForeground(viewGroup: ViewGroup, @ColorInt foregroundColor: Int) {
-		when (viewGroup) {
-			is RecyclerView -> updateStyleForeground(viewGroup, foregroundColor)
 		}
 	}
 
