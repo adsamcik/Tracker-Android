@@ -21,6 +21,7 @@ open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleContr
 
 	override fun onBindViewHolder(holder: MultiTypeViewHolder<Data>, position: Int) {
 		holder.bind(getItem(position), styleController)
+		onViewChangedListener?.invoke(holder.itemView)
 	}
 
 	@Throws(AlreadyRegisteredException::class)
