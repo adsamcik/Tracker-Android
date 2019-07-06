@@ -94,6 +94,8 @@ val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 			execSQL("INSERT INTO tracker_session_tmp SELECT * from tracker_session")
 			execSQL("DROP TABLE tracker_session")
 			execSQL("ALTER TABLE tracker_session_tmp RENAME TO tracker_session")
+
+			execSQL("DROP TABLE IF EXISTS map_max_heat")
 		}
 	}
 }

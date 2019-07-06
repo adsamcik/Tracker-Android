@@ -16,7 +16,6 @@ import com.adsamcik.signalcollector.common.database.data.*
 	TrackerSession::class,
 	DatabaseWifiData::class,
 	DatabaseCellData::class,
-	DatabaseMapMaxHeat::class,
 	SessionActivity::class],
 		version = 8)
 @TypeConverters(CellTypeTypeConverter::class)
@@ -29,8 +28,6 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun wifiDao(): WifiDataDao
 
 	abstract fun cellDao(): CellDataDao
-
-	abstract fun mapHeatDao(): MapHeatDao
 
 	abstract fun activityDao(): ActivityDao
 

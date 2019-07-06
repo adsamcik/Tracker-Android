@@ -6,8 +6,6 @@ import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.extension.toDate
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.database.data.DatabaseMapMaxHeat
 import com.adsamcik.signalcollector.map.LayerType
 import com.adsamcik.signalcollector.map.MapFunctions
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
@@ -36,9 +34,6 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
-	private val heatDao = AppDatabase.getDatabase(context).mapHeatDao()
-
-	private lateinit var maxHeat: DatabaseMapMaxHeat
 	private val heatLock = ReentrantLock()
 	private val heatUpdateScheduled = AtomicBoolean(false)
 
@@ -57,6 +52,8 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	private var heatmapSize: Int = 0
 	private lateinit var stamp: HeatmapStamp
 
+	private var maxHeat: Float = MIN_HEAT
+
 	var range: ClosedRange<Calendar>? = null
 		set(value) {
 			field = if (value != null) {
@@ -66,7 +63,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			} else
 				null
 			heatmapCache.clear()
-			initMaxHeat(maxHeat.layerName, maxHeat.zoom, value == null)
+			resetMaxHeat()
 		}
 
 	private val colorScheme = HeatmapColorScheme.fromArray(listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW), Pair(1.0, Color.RED)), 100)
@@ -82,24 +79,15 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	fun synchronizeMaxHeat() {
 		heatLock.withLock {
 			heatmapCache.forEach {
-				it.value.heatmap.maxHeat = maxHeat.maxHeat
+				it.value.heatmap.maxHeat = maxHeat
 			}
 			heatChange = 0f
 		}
 	}
 
-	fun initMaxHeat(layerName: String, zoom: Int, useDatabase: Boolean) {
+	private fun resetMaxHeat() {
 		heatLock.withLock {
-			heatChange = 0f
-			if (useDatabase) {
-				val dbMaxHeat = heatDao.getSingle(layerName, zoom)
-				if (dbMaxHeat != null) {
-					maxHeat = dbMaxHeat
-					return
-				}
-			}
-
-			maxHeat = DatabaseMapMaxHeat(layerName, zoom, MIN_HEAT)
+			maxHeat = MIN_HEAT
 		}
 	}
 
@@ -109,7 +97,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			LayerType.Cell -> CellHeatmapTileCreator(context)
 			LayerType.WiFi -> WifiHeatmapTileCreator(context)
 		}
-		initMaxHeat(layerType.name, lastZoom, range == null)
+		resetMaxHeat()
 	}
 
 	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
@@ -120,7 +108,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 				heatmapCache.clear()
 				lastZoom = zoom
 
-				initMaxHeat(maxHeat.layerName, zoom, range == null)
+				resetMaxHeat()
 			}
 		}
 
@@ -142,27 +130,25 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 		} else {
 			val range = range
 			heatmap = if (range == null) {
-				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat)
 			} else {
-				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat.maxHeat)
+				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat)
 			}
 			heatmapCache[key] = heatmap
 		}
 
 		heatLock.withLock {
-			if (maxHeat.maxHeat < heatmap.maxHeat && zoom == lastZoom) {
+			if (maxHeat < heatmap.maxHeat && zoom == lastZoom) {
 				//round to next whole number to avoid frequent calls
 				val newHeat = ceil(heatmap.maxHeat)
-				heatChange += newHeat - maxHeat.maxHeat
-				maxHeat.maxHeat = newHeat
-
-				if (range == null) heatDao.insert(maxHeat)
+				heatChange += newHeat - maxHeat
+				maxHeat = newHeat
 
 				if (!heatUpdateScheduled.get()) {
 					heatUpdateScheduled.set(true)
 					tileRequestCount.addWaiter({ it == 0 }) {
 						if (heatChange > 0) {
-							onHeatChange?.invoke(maxHeat.maxHeat, heatChange)
+							onHeatChange?.invoke(maxHeat, heatChange)
 							heatUpdateScheduled.set(false)
 						}
 					}

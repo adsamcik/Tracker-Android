@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
-    <string name="settings_map_clear_heat_cache_summary">Use this if your locations on the map suddenly became too dim</string>
-    <string name="settings_map_clear_heat_cache_key" translatable="false">clearHeatmapMaxHeat</string>
-    <string name="settings_map_clear_heat_cache_title">Clear heatmap offset</string>
     <string name="settings_map_default_layer_default" translatable="false">location</string>
     <string name="settings_map_default_layer_key" translatable="false">mapDefaultLayer</string>
     <string-array name="settings_map_default_layer_names">

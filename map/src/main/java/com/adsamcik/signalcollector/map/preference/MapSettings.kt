@@ -41,20 +41,5 @@ class MapSettings : ModuleSettings {
 			setDefaultValue(resources.getString(R.string.settings_map_default_layer_default))
 			setIcon(com.adsamcik.signalcollector.common.R.drawable.ic_outline_layers_24dp)
 		}.also { preferenceScreen.addPreference(it) }
-
-
-		Preference(context).apply {
-			setTitle(R.string.settings_map_clear_heat_cache_title)
-			setSummary(R.string.settings_map_clear_heat_cache_summary)
-			setOnPreferenceClickListener {
-				ConfirmDialog.create(context, it.title.toString()) {
-					GlobalScope.launch {
-						AppDatabase.getDatabase(context).mapHeatDao().clear()
-					}
-				}
-				true
-			}
-		}.also { preferenceScreen.addPreference(it) }
-
 	}
 }

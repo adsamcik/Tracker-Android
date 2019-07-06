@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 8,
-    "identityHash": "bcdb3b1971fa2a3f619c7816f6877b39",
+    "identityHash": "f6ce97972f10c2c4f9ae46aaf02f66ab",
     "entities": [
       {
         "tableName": "location_data",
@@ -390,39 +390,6 @@
         ]
       },
       {
-        "tableName": "map_max_heat",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`layer_name` TEXT NOT NULL, `zoom` INTEGER NOT NULL, `max_heat` REAL NOT NULL, PRIMARY KEY(`layer_name`, `zoom`))",
-        "fields": [
-          {
-            "fieldPath": "layerName",
-            "columnName": "layer_name",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "zoom",
-            "columnName": "zoom",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "maxHeat",
-            "columnName": "max_heat",
-            "affinity": "REAL",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "columnNames": [
-            "layer_name",
-            "zoom"
-          ],
-          "autoGenerate": false
-        },
-        "indices": [],
-        "foreignKeys": []
-      },
-      {
         "tableName": "activity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `iconName` TEXT)",
         "fields": [
@@ -467,7 +434,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bcdb3b1971fa2a3f619c7816f6877b39')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f6ce97972f10c2c4f9ae46aaf02f66ab')"
     ]
   }
 }
