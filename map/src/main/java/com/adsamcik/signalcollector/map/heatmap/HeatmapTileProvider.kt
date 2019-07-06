@@ -2,12 +2,14 @@ package com.adsamcik.signalcollector.map.heatmap
 
 import android.content.Context
 import android.graphics.Color
+import com.adsamcik.signalcollector.common.extension.toDate
 import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.common.misc.Int2
-import com.adsamcik.signalcollector.common.extension.toDate
+import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.LayerType
 import com.adsamcik.signalcollector.map.MapFunctions
+import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCreator
@@ -32,6 +34,8 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			field = value
 		}
 
+	private val preferences = Preferences.getPref(context)
+
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
 	private val heatLock = ReentrantLock()
@@ -39,8 +43,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private val tileRequestCount: ConditionVariableInt = ConditionVariableInt(0)
 
-	var heatChange: Float = 0f
-		private set
+	private var heatChange: Float = 0f
 
 	var onHeatChange: ((currentHeat: Float, heatChange: Float) -> Unit)? = null
 
@@ -52,7 +55,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	private var heatmapSize: Int = 0
 	private lateinit var stamp: HeatmapStamp
 
-	private var maxHeat: Float = MIN_HEAT
+	private var maxHeat: Float = 0f
 
 	var range: ClosedRange<Calendar>? = null
 		set(value) {
@@ -67,6 +70,10 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 		}
 
 	private val colorScheme = HeatmapColorScheme.fromArray(listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW), Pair(1.0, Color.RED)), 100)
+
+	init {
+		resetMaxHeat()
+	}
 
 	fun updateQuality(quality: Float) {
 		this.quality = quality
@@ -87,7 +94,9 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private fun resetMaxHeat() {
 		heatLock.withLock {
-			maxHeat = MIN_HEAT
+			maxHeat = preferences.getIntResString(
+					R.string.settings_map_max_heat_key,
+					R.string.settings_map_max_heat_default).toFloat()
 		}
 	}
 
@@ -164,7 +173,6 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	}
 
 	companion object {
-		const val MIN_HEAT: Float = 1f
 		const val MIN_TILE_SIZE: Int = 256
 	}
 }

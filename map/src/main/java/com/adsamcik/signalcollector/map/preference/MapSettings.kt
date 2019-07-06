@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.preference.FloatValueSliderPreference
+import com.adsamcik.signalcollector.preference.IntValueSliderPreference
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
@@ -40,6 +41,17 @@ class MapSettings : ModuleSettings {
 
 			setDefaultValue(resources.getString(R.string.settings_map_default_layer_default))
 			setIcon(com.adsamcik.signalcollector.common.R.drawable.ic_outline_layers_24dp)
+		}.also { preferenceScreen.addPreference(it) }
+
+		IntValueSliderPreference(context).apply {
+			key = resources.getString(R.string.settings_map_max_heat_key)
+			setTitle(R.string.settings_map_max_heat_title)
+			setSummary(R.string.settings_map_max_heat_summary)
+			setDefaultValue(resources.getString(R.string.settings_map_max_heat_default).toInt())
+			setIcon(R.drawable.ic_oil_temperature)
+
+			setValuesResource(R.array.settings_map_max_heat_values)
+			setStringFormat("%d")
 		}.also { preferenceScreen.addPreference(it) }
 	}
 }

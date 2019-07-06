@@ -52,6 +52,14 @@ class IntValueSliderPreference : Preference {
 		layoutResource = R.layout.layout_settings_int_slider
 	}
 
+	fun setStringFormat(format: String) {
+		mTextViewString = format
+	}
+
+	fun setValuesResource(resource: Int) {
+		mValuesResource = resource
+	}
+
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
 		val valueString = a.getString(index)
 		return valueString?.toInt() ?: 0

@@ -4,7 +4,6 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
-import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 
 @Entity(tableName = "tracker_session", foreignKeys = [ForeignKey(entity = SessionActivity::class,
 		parentColumns = ["id"],

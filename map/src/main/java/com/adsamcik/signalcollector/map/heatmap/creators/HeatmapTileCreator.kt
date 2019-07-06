@@ -55,7 +55,8 @@ interface HeatmapTileCreator {
 			}
 		}
 
-		val heatmap = HeatmapTile(heatmapSize, stamp, colorScheme, x, y, z, maxHeat, true)
+		//todo add dynamic heat (most things are ready for it, just find use for it)
+		val heatmap = HeatmapTile(heatmapSize, stamp, colorScheme, x, y, z, maxHeat, false)
 		heatmap.addAll(allInside.sortedWith(compareBy({ it.longitude }, { it.latitude })))
 		return heatmap
 	}

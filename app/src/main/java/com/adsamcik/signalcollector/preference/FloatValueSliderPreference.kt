@@ -56,10 +56,6 @@ class FloatValueSliderPreference : Preference {
 		mValuesResource = resource
 	}
 
-	fun setInitialValue(value: Float) {
-		mInitialValue = value
-	}
-
 	init {
 		layoutResource = R.layout.layout_settings_float_slider
 	}
