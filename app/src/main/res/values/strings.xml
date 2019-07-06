@@ -29,9 +29,10 @@
     <string name="export_file_name">File name</string>
     <string name="export_default_file_name">SignalsExportData</string>
 
-    <string name="import_notification_progress">Import in progress</string>
-    <string name="import_notification_success">Import successful</string>
-    <string name="import_notification_failed">Import failed</string>
+    <string name="import_notification_progress">Import in progress …</string>
+    <string name="import_notification_finished">Import finished. Successfully imported %d files.</string>
+    <string name="import_notification_extracting">Extracting %s …</string>
+    <string name="import_notification_importing">Importing %s …</string>
 
     <string name="dev_notification_dummy">Hello World!</string>
     <string name="dev_activity_recognition_hide">Filter</string>

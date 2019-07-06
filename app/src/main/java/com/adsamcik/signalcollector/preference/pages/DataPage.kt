@@ -15,20 +15,29 @@ class DataPage : PreferencePage {
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
 			findPreference(R.string.settings_import_key).apply {
-				val supportedExtensions = DataImport().supportedExtensions
-				val extensionsText = if (supportedExtensions.isEmpty()) {
-					getString(R.string.settings_import_no_types)
+				val dataImport = DataImport()
+				val supportedExtensions = dataImport.supportedImporterExtensions
+
+				if (supportedExtensions.isEmpty()) {
+					summary = getString(R.string.settings_import_no_types)
+					isEnabled = false
 				} else {
-					supportedExtensions.joinToString(separator = ", ")
-				}
+					val archiveExtensions = dataImport
+							.supportedArchiveExtractorExtensions
+							.joinToString(separator = SEPARATOR)
 
-				summary = getString(R.string.settings_import_summary, extensionsText)
+					val fileExtensions = supportedExtensions.joinToString(separator = SEPARATOR)
 
-				setOnPreferenceClickListener {
-					if (requireImportPermissions(caller.requireActivity())) {
-						openImportDialog(it.context)
+					summary = getString(R.string.settings_import_summary,
+							fileExtensions,
+							archiveExtensions)
+
+					setOnPreferenceClickListener {
+						if (requireImportPermissions(caller.requireActivity())) {
+							openImportDialog(it.context)
+						}
+						true
 					}
-					true
 				}
 			}
 		}
@@ -71,5 +80,6 @@ class DataPage : PreferencePage {
 
 	companion object {
 		private const val PERMISSION_READ_EXTERNAL_REQUEST = 857854
+		private const val SEPARATOR = ", "
 	}
 }

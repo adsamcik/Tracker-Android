@@ -121,8 +121,15 @@
         <service
             android:name=".tracker.service.TrackerService"
             android:exported="false"/>
-        <service android:name=".activity.service.ActivityService"/>
-        <service android:name=".activity.service.ActivityWatcherService"/>
+        <service
+            android:name=".activity.service.ActivityService"
+            android:exported="false"/>
+        <service
+            android:name=".activity.service.ActivityWatcherService"
+            android:exported="false"/>
+        <service
+            android:name=".import.service.ImportService"
+            android:exported="false"/>
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"

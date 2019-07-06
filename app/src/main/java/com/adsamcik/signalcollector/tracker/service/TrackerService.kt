@@ -10,7 +10,6 @@ import android.os.Looper
 import android.os.PowerManager
 import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -25,6 +24,7 @@ import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.misc.NonNullLiveData
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.service.CoreService
 import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
@@ -37,16 +37,13 @@ import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionDat
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.gms.location.*
-import kotlinx.coroutines.*
-import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
-class TrackerService : LifecycleService(), CoroutineScope {
+class TrackerService : CoreService() {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
-
-	private val job = SupervisorJob()
-	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
 
 	/**
 	 * Previous location of collection
@@ -180,7 +177,7 @@ class TrackerService : LifecycleService(), CoroutineScope {
 		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
 		startForeground(notificationId, notification)
 
-		launch(job) {
+		launch {
 			if (!isUserInitiated) {
 				ActivityService.requestAutoTracking(this@TrackerService, this@TrackerService::class, minUpdateDelayInSeconds)
 				TrackerLocker.isLocked.observe(this@TrackerService) {

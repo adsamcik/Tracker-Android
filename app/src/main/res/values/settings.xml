@@ -167,7 +167,7 @@
 
     <string name="settings_import_title">Import</string>
     <string name="settings_import_key" translatable="false">import</string>
-    <string name="settings_import_summary">Import data from supported types: %s</string>
+    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
     <string name="settings_import_no_types">no types supported on your device, sorry.</string>
 
     <!-- MODULES -->
