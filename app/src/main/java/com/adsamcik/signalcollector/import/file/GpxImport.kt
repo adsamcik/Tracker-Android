@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.import.file
 
 import androidx.annotation.RequiresApi
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
@@ -11,6 +12,7 @@ import io.jenetics.jpx.Speed
 import io.jenetics.jpx.TrackSegment
 import io.jenetics.jpx.WayPoint
 import java.io.File
+import java.time.ZonedDateTime
 
 @RequiresApi(26)
 class GpxImport : FileImport {
@@ -44,13 +46,17 @@ class GpxImport : FileImport {
 		}
 	}
 
+	private fun ZonedDateTime.toEpochMillisecond(): Long {
+		return toEpochSecond() * Time.SECOND_IN_MILLISECONDS
+	}
+
 	private fun prepareSession(segment: TrackSegment, activity: SessionActivity?): MutableTrackerSession? {
 		val start: Long
 		val end: Long
 
 		try {
-			start = segment.points.first { it.time.isPresent }.time.get().toEpochSecond()
-			end = segment.points.last { it.time.isPresent }.time.get().toEpochSecond()
+			start = segment.points.first { it.time.isPresent }.time.get().toEpochMillisecond()
+			end = segment.points.last { it.time.isPresent }.time.get().toEpochMillisecond()
 		} catch (e: NoSuchElementException) {
 			return null
 		}
@@ -98,7 +104,7 @@ class GpxImport : FileImport {
 	private fun saveWaypointToDb(locationDao: LocationDataDao, waypoint: WayPoint): Location? {
 		if (!waypoint.time.isPresent) return null
 
-		val time = waypoint.time.get().toEpochSecond()
+		val time = waypoint.time.get().toEpochMillisecond()
 		val latitude = waypoint.latitude.toDegrees()
 		val longitude = waypoint.longitude.toDegrees()
 		val altitude = waypoint.elevation.orElse(null)?.toDouble()
