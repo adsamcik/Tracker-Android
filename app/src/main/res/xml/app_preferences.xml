@@ -171,6 +171,7 @@
 
         <androidx.preference.PreferenceCategory>
             <androidx.preference.Preference
+                android:icon="@drawable/delete_forever_outline"
                 android:key="@string/settings_remove_all_collected_data_key"
                 android:summary="@string/settings_remove_all_collected_data_summary"
                 android:title="@string/settings_remove_all_collected_data_title"/>
