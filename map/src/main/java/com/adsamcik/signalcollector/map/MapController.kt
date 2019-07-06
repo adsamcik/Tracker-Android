@@ -92,7 +92,7 @@ class MapController(context: Context, val map: GoogleMap) {
 	}
 
 	companion object {
-		private const val MAX_ZOOM = 17f
+		const val MAX_ZOOM = 17f
 		private const val HEAT_CHANGE_THRESHOLD_PERCENTAGE = 0.05f
 	}
 }

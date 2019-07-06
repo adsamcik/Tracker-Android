@@ -8,6 +8,7 @@ import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.LayerType
+import com.adsamcik.signalcollector.map.MapController
 import com.adsamcik.signalcollector.map.MapFunctions
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
@@ -97,6 +98,9 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			maxHeat = preferences.getIntResString(
 					R.string.settings_map_max_heat_key,
 					R.string.settings_map_max_heat_default).toFloat()
+
+			//todo make this smarter so it actually takes nearest neighbour
+			maxHeat *= max(1f, 2f.pow(MAX_HEAT_ZOOM - lastZoom))
 		}
 	}
 
@@ -174,5 +178,6 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	companion object {
 		const val MIN_TILE_SIZE: Int = 256
+		const val MAX_HEAT_ZOOM = MapController.MAX_ZOOM
 	}
 }
