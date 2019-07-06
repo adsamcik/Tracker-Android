@@ -30,6 +30,7 @@ import kotlin.reflect.KClass
  * Intent service that receives all activity updates.
  * Handles logging if it is enabled.
  */
+//todo add listener for updates instead of hardcoded actions
 class ActivityService : IntentService("ActivityService") {
 	private lateinit var mPowerManager: PowerManager
 
@@ -51,12 +52,6 @@ class ActivityService : IntentService("ActivityService") {
 				}
 			}
 		}
-
-		/*Log.i(TAG, "_____activities detected");
-		for (DetectedActivity da: result.getProbableActivities()) {
-			Log.i(TAG, ActivityInfo.getActivityName(da.getType()) + " " + da.getConfidence() + "%"
-			);
-		}*/
 	}
 
 	private fun canTrackerServiceBeStarted() = !TrackerLocker.isLocked.value && !mPowerManager.isPowerSaveMode && Assist.canTrack(this)

@@ -12,6 +12,7 @@ import android.os.Looper
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
@@ -23,6 +24,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.*
 import java.lang.Math.toDegrees
 
+//todo add activity icon instead of generic location icon when possible
 class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
 	var followMyPosition: Boolean = false
 	private var useGyroscope = false
@@ -75,6 +77,8 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 	init {
 		initializePositions()
 		subscribeToLocationUpdates(context, true)
+
+		ActivityService.requestActivity(context, UpdateLocationListener::class)
 	}
 
 	/**
