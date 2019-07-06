@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.common.database
 
 import android.content.Context
+import androidx.annotation.WorkerThread
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -52,6 +53,18 @@ abstract class AppDatabase : RoomDatabase() {
 		fun closeDatabase() {
 			instance_?.close()
 			instance_ = null
+		}
+
+		@WorkerThread
+		fun deleteAllCollectedData(context: Context) {
+			val database = getDatabase(context)
+
+			database.runInTransaction {
+				database.sessionDao().deleteAll()
+				database.cellDao().deleteAll()
+				database.locationDao().deleteAll()
+				database.wifiDao().deleteAll()
+			}
 		}
 
 		fun getTestDatabase(context: Context): AppDatabase {

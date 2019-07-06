@@ -8,6 +8,8 @@ import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 
 @Dao
 interface WifiDataDao : BaseDao<DatabaseWifiData> {
+	@Query("DELETE FROM tracker_session")
+	fun deleteAll()
 
 	@Query("UPDATE wifi_data SET longitude = :longitude, latitude = :latitude, altitude = :altitude, level = :level WHERE bssid = :bssid AND level < :level")
 	fun updateSignalStrength(bssid: String, longitude: Double, latitude: Double, altitude: Double?, level: Int)

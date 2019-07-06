@@ -171,13 +171,9 @@
 
         <androidx.preference.PreferenceCategory>
             <androidx.preference.Preference
-                android:key="@string/settings_delete_stored_data_key"
-                android:summary="@string/settings_delete_stored_data_summary"
-                android:title="@string/settings_delete_stored_data_title"/>
-            <androidx.preference.Preference
-                android:key="@string/settings_delete_tracked_data_key"
-                android:summary="@string/settings_delete_tracked_data_summary"
-                android:title="@string/settings_delete_tracked_data_title"/>
+                android:key="@string/settings_remove_all_collected_data_key"
+                android:summary="@string/settings_remove_all_collected_data_summary"
+                android:title="@string/settings_remove_all_collected_data_title"/>
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
 

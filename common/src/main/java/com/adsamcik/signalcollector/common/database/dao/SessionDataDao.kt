@@ -13,6 +13,9 @@ import com.adsamcik.signalcollector.common.database.data.TrackerSessionTimeSumma
 @Dao
 interface SessionDataDao : BaseDao<TrackerSession> {
 
+	@Query("DELETE FROM tracker_session")
+	fun deleteAll()
+
 	@Query("SELECT * FROM tracker_session WHERE id = :id")
 	fun get(id: Long): TrackerSession?
 

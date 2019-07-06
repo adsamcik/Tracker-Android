@@ -136,13 +136,9 @@
 
 
     <!-- DATA -->
-    <string name="settings_delete_stored_data_title">Delete archived data</string>
-    <string name="settings_delete_stored_data_summary">Delete tracked data that have already been uploaded but kept for future use</string>
-    <string name="settings_delete_stored_data_key" translatable="false">deleteStoredData</string>
-
-    <string name="settings_delete_tracked_data_title">Delete tracked data</string>
-    <string name="settings_delete_tracked_data_summary">Delete tracked data that has not yet been uploaded</string>
-    <string name="settings_delete_tracked_data_key" translatable="false">deleteTrackedData</string>
+    <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
+    <string name="settings_remove_all_collected_data_summary">Deletes are data acquired during collection (Custom activities, settings etc. will be kept)</string>
+    <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
 
     <!-- EXPORT -->
 

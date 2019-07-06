@@ -9,6 +9,9 @@ import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
 @Dao
 interface CellDataDao : BaseDao<DatabaseCellData> {
 
+	@Query("DELETE FROM cell_data")
+	fun deleteAll()
+
 	@Query("UPDATE cell_data SET location_id = CASE WHEN location_id IS NULL OR asu < :asu THEN :locationId ELSE location_id END, last_seen = :lastSeen, type = :type, asu = CASE WHEN asu < :asu THEN :asu ELSE asu END WHERE id = :id")
 	fun update(id: String, locationId: Long?, lastSeen: Long, type: CellType, asu: Int)
 

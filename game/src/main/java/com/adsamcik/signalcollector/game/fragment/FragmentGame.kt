@@ -78,7 +78,5 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 
 	override fun onLeave(activity: FragmentActivity) {}
 
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
-
-	}
+	override fun onPermissionResponse(requestCode: Int, success: Boolean) {}
 }
