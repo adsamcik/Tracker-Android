@@ -23,9 +23,6 @@ import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
-import com.adsamcik.signalcollector.common.style.RecyclerStyleView
-import com.adsamcik.signalcollector.common.style.StyleManager
-import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.marginBottom
 import com.adsamcik.signalcollector.common.extension.transaction
@@ -36,6 +33,9 @@ import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.*
@@ -385,9 +385,9 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	private fun loadMapLayers() {
 		val resources = resources
 		val mapLayers = mutableListOf(
-				MapLayer(resources.getString(com.adsamcik.signalcollector.common.R.string.location)),
-				MapLayer(resources.getString(com.adsamcik.signalcollector.common.R.string.wifi)),
-				MapLayer(resources.getString(com.adsamcik.signalcollector.common.R.string.cell)))
+				MapLayer(LayerType.Location, resources.getString(com.adsamcik.signalcollector.common.R.string.location)),
+				MapLayer(LayerType.WiFi, resources.getString(com.adsamcik.signalcollector.common.R.string.wifi)),
+				MapLayer(LayerType.Cell, resources.getString(com.adsamcik.signalcollector.common.R.string.cell)))
 		initializeMenuButton(mapLayers)
 	}
 
@@ -412,8 +412,8 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 					val adapter = it.adapter
 					adapter.clear()
 					adapter.addAll(mapLayers)
-					it.onClickListener = { (name), _ ->
-						mapController?.setLayer(activity, LayerType.valueOfCaseInsensitive(name))
+					it.onClickListener = { layer, _ ->
+						mapController?.setLayer(activity, layer.type)
 						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
 					}
 					it.filter(mapLayerFilterRule)

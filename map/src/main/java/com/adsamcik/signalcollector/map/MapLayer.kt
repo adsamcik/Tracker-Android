@@ -9,14 +9,16 @@ import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LAT
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LONGITUDE
 import java.util.*
 
-data class MapLayer(var name: String,
+data class MapLayer(var type: LayerType,
+                    var name: String,
                     val bounds: CoordinateBounds,
                     /**
                      * Contains information for the legend
                      */
                     var values: Array<ValueColor>? = null) {
 
-	constructor(name: String,
+	constructor(type: LayerType,
+	            name: String,
 	            top: Double = MAX_LATITUDE,
 	            right: Double = MAX_LONGITUDE,
 	            bottom: Double = MIN_LATITUDE,
@@ -24,7 +26,7 @@ data class MapLayer(var name: String,
 	            /**
 	             * Contains information for the legend
 	             */
-	            values: Array<ValueColor>? = null) : this(name, CoordinateBounds(top, right, bottom, left), values)
+	            values: Array<ValueColor>? = null) : this(type, name, CoordinateBounds(top, right, bottom, left), values)
 
 	companion object {
 		/**
@@ -32,14 +34,6 @@ data class MapLayer(var name: String,
 		 */
 		fun contains(layerArray: Array<MapLayer>, name: String): Boolean =
 				layerArray.any { it.name == name }
-
-		fun mockArray(): Array<MapLayer> = arrayOf(
-				MapLayer("Mock", 30.0, 30.0, -30.0, -30.0),
-				MapLayer("Wifi", 0.0, 30.0, -20.0, -30.0),
-				MapLayer("Cell", 30.0, 30.0, -30.0, -30.0),
-				MapLayer("Cell", 60.0, 30.0, -30.0, -30.0),
-				MapLayer("Cell", 30.0, 30.0, -30.0, -30.0)
-		)
 	}
 
 	override fun equals(other: Any?): Boolean {
