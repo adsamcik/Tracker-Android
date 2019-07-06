@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.utility
 
-import com.adsamcik.signalcollector.extensions.contains
-import com.adsamcik.signalcollector.extensions.date
+import com.adsamcik.signalcollector.common.extension.contains
+import com.adsamcik.signalcollector.common.extension.toDate
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -10,25 +10,25 @@ import java.util.*
 
 @RunWith(JUnit4::class)
 class ExtensionTests {
-    @Test
-    fun listContainsTest() {
-        val list = listOf("x", "xar", "y", "d")
+	@Test
+	fun listContainsTest() {
+		val list = listOf("x", "xar", "y", "d")
 
-        assertTrue(list.contains { it == "xar" })
-        assertFalse(list.contains { it == "xa" })
-    }
+		assertTrue(list.contains { it == "xar" })
+		assertFalse(list.contains { it == "xa" })
+	}
 
-    @Test
-    fun roundToDateTest() {
-        val cal = Calendar.getInstance()
-        val calRound = cal.date()
+	@Test
+	fun roundToDateTest() {
+		val cal = Calendar.getInstance()
+		val calRound = cal.toDate()
 
-        assertEquals(cal[Calendar.DAY_OF_MONTH], calRound[Calendar.DAY_OF_MONTH])
-        assertEquals(cal[Calendar.MONTH], calRound[Calendar.MONTH])
-        assertEquals(cal[Calendar.YEAR], calRound[Calendar.YEAR])
-        assertEquals(0, calRound[Calendar.HOUR_OF_DAY])
-        assertEquals(0, calRound[Calendar.MINUTE])
-        assertEquals(0, calRound[Calendar.SECOND])
-        assertEquals(0, calRound[Calendar.MILLISECOND])
-    }
+		assertEquals(cal[Calendar.DAY_OF_MONTH], calRound[Calendar.DAY_OF_MONTH])
+		assertEquals(cal[Calendar.MONTH], calRound[Calendar.MONTH])
+		assertEquals(cal[Calendar.YEAR], calRound[Calendar.YEAR])
+		assertEquals(0, calRound[Calendar.HOUR_OF_DAY])
+		assertEquals(0, calRound[Calendar.MINUTE])
+		assertEquals(0, calRound[Calendar.SECOND])
+		assertEquals(0, calRound[Calendar.MILLISECOND])
+	}
 }

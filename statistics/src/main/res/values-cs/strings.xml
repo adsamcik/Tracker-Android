@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stats_cell_count">Počet mobilních vysílačů</string>
+    <string name="stats_collections">Počet sběrů</string>
+    <string name="stats_distance_in_vehicle">Vzdálenost ve vozidle</string>
+    <string name="stats_distance_on_foot">Vzdálenost pěšky</string>
+    <string name="stats_distance_total">Vzdálenost</string>
+    <string name="stats_location_count">Počet poloh</string>
+    <string name="stats_session_count">Počet relací</string>
+    <string name="stats_steps">Počet kroků</string>
+    <string name="stats_sum_title">Souhrn</string>
+    <string name="stats_time">Čas stráven sběrem</string>
+    <string name="stats_weekly_title">Posledních 7 dnů</string>
+    <string name="stats_wifi_count">Počet Wi-Fi</string>
+    <string name="stats_details">Detail</string>
+    <string name="stats_afternoon">%1$s odpolední %2$s</string>
+    <string name="stats_elevation">Nadmořská výška</string>
+    <string name="stats_ascended">Celkový vzestup</string>
+    <string name="stats_avg_speed">Průměrná rychlost</string>
+    <string name="stats_descended">Celkový sestup</string>
+    <string name="stats_elevation_max">Max nadmořská výška</string>
+    <string name="stats_elevation_min">Min nadmořská výška</string>
+    <string name="stats_evening">%1$s večerní %2$s</string>
+    <string name="stats_max_speed">Max rychlost</string>
+    <string name="stats_morning">%1$s ranní %2$s</string>
+    <string name="stats_night">%1$s noční %2$s</string>
+    <string name="stats_ride">jízda</string>
+    <string name="stats_run">běh</string>
+    <string name="stats_walk">chůze</string>
+</resources>

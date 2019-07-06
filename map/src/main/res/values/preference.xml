@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="settings_map_default_layer_default" translatable="false">location</string>
+    <string name="settings_map_default_layer_key" translatable="false">mapDefaultLayer</string>
+    <string-array name="settings_map_default_layer_names">
+        <item>Location</item>
+        <item>Cell</item>
+        <item>Wi-Fi</item>
+    </string-array>
+    <string name="settings_map_default_layer_title">Default layer</string>
+    <string-array name="settings_map_default_layer_values" translatable="false">
+        <item>location</item>
+        <item>cell</item>
+        <item>wifi</item>
+    </string-array>
+    <string name="settings_map_quality_default" translatable="false">1.0</string>
+    <string name="settings_map_quality_key" translatable="false">mapHeatmapQuality</string>
+    <string name="settings_map_quality_summary">Scale relative to default value</string>
+    <string name="settings_map_quality_title">Heatmap resolution</string>
+    <string-array name="settings_map_quality_values">
+        <item>0.25</item>
+        <item>0.5</item>
+        <item>1</item>
+        <item>2</item>
+        <item>4</item>
+        <item>8</item>
+    </string-array>
+
+
+
+    <string name="settings_map_max_heat_default" translatable="false">10</string>
+    <string name="settings_map_max_heat_key" translatable="false">mapMaxHeat</string>
+    <integer-array name="settings_map_max_heat_values">
+        <item>1</item>
+        <item>3</item>
+        <item>5</item>
+        <item>8</item>
+        <item>10</item>
+        <item>12</item>
+        <item>15</item>
+        <item>20</item>
+        <item>25</item>
+        <item>30</item>
+        <item>40</item>
+        <item>50</item>
+        <item>100</item>
+    </integer-array>
+    <string name="settings_map_max_heat_title">Max heat after visits</string>
+    <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
+</resources>

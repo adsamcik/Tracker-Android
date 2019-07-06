@@ -1,104 +1,64 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Signals</string>
 
-    <string name="button_back">back</string>
-
-    <string name="main_collected">%1$s collected</string>
     <plurals name="main_collections">
         <item quantity="one">1 collection</item>
         <item quantity="other">%d collections</item>
     </plurals>
 
-    <string name="main_latitude">%1$s latitude</string>
-    <string name="main_longitude">%1$s longitude</string>
-    <string name="main_archived_data">%1$s archived</string>
+    <string name="latitude">latitude</string>
+    <string name="longitude">longitude</string>
+    <string name="altitude">altitude</string>
+    <string name="speed">speed</string>
+    <string name="speed_value">%s/s</string>
+    <string name="horizontal_accuracy">horizontal accuracy</string>
+    <string name="vertical_accuracy">vertical accuracy</string>
 
-    <string name="main_last_update">%1$s</string>
-    <string name="main_wifi_updated">found %1$d m before collection</string>
-    <string name="main_wifi_count">%1$d in range</string>
-    <string name="main_cell_count">Cell in range %1$d</string>
-    <string name="main_cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm, %3$d asu</string>
-
-    <string name="map_search">Search</string>
-    <string name="map_personal">Personal</string>
-    <string name="map_search_no_text">Searching for nothing is not very useful</string>
-    <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
-
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_weekly_collected_wifi">Wi-Fi data collected</string>
-    <string name="stats_weekly_collected_cell">Cell data collected</string>
-    <string name="stats_weekly_collected_location">Collections performed</string>
-    <string name="stats_weekly_minutes">Minutes spent tracking</string>
-    <string name="stats_weekly_uploaded">Uploaded data</string>
-
-    <string name="map_no_play_services">Map requires up-to-date Play Services</string>
-
-    <string name="wifi">Wi-Fi</string>
-    <string name="cell_title">Cell</string>
+    <string name="in_range">in range</string>
+    <string name="current">current</string>
+    <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm</string>
 
     <string name="wifi_new_title">New Wi-Fi</string>
     <string name="cell_new">New cell</string>
     <string name="collections_title">Collections</string>
     <string name="locations_new_title">New locations</string>
-    <string name="size_title">Size</string>
 
-    <string name="export_share_button">Share (Export)</string>
+    <string name="share_button">Share</string>
+    <string name="export_button">Export</string>
+    <string name="export_gpx_description">Export of location data tracked using Signals between %1$s - %2$s</string>
+    <string name="export_file_name">File name</string>
+    <string name="export_default_file_name">SignalsExportData</string>
 
-    <string name="challenge_list_title">Challenges</string>
+    <string name="import_notification_progress">Import in progress …</string>
+    <string name="import_notification_finished">Import finished. Successfully imported %d files.</string>
+    <string name="import_notification_extracting">Extracting %s …</string>
+    <string name="import_notification_importing">Importing %s …</string>
 
-    <string name="dev_browse_files">Browse files</string>
     <string name="dev_notification_dummy">Hello World!</string>
     <string name="dev_activity_recognition_hide">Filter</string>
     <string name="dev_activity_recognition_show">Show all</string>
 
-    <!-- Feedback strings -->
-    <string name="feedback_title">Feedback</string>
-    <string name="feedback_bug">Bug</string>
-    <string name="feedback_feature">Enhancement</string>
-    <string name="feedback_summary">Summary</string>
-    <string name="feedback_description">Description (optional)</string>
-
-    <string name="feedback_error_type">You must select a type of feedback</string>
-    <string name="feedback_error_short_summary">Summary is too brief</string>
-    <string name="feedback_error_long_summary">Summary is too long</string>
-    <string name="feedback_error_spaces_summary">Too much spacing</string>
-    <string name="feedback_error_long_description">Description is too long</string>
-
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
 
-    <!-- Signin strings -->
-
-    <!-- Activity strings -->
-    <string name="activity_idle">Idle</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_unknown">Unknown</string>
-
-    <!-- Generic strings -->
-    <string name="other">Other</string>
-    <string name="cancel">Cancel</string>
-    <string name="yes">Yes</string>
-    <string name="no">No</string>
-    <string name="send">Send</string>
-    <string name="enable">Enable</string>
-    <string name="your_stats">Your stats</string>
-    <string name="start">Start</string>
-    <string name="stop">Stop</string>
-    <string name="clear">Clear</string>
-    <string name="select_all">Select all</string>
-    <string name="deselect_all">Deselect all</string>
-    <string name="share_nothing_to_share">Nothing to share</string>
-    <string name="agree">I agree</string>
-    <string name="disagree">I disagree</string>
+    <!-- PREFERENCES KEYS -->
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
 
     <!-- NEW UI -->
-    <string name="info_altitude">%d m altitude</string>
-    <string name="info_accuracy">%d m accuracy</string>
+    <string name="info_altitude">%s altitude</string>
+    <string name="info_accuracy">%s accuracy</string>
+    <plurals name="info_session_collections">
+        <item quantity="one">%d collection</item>
+        <item quantity="other">%d collections</item>
+    </plurals>
+    <string name="info_session_distance">%s distance</string>
+    <string name="title_statistics">Statistics</string>
+    <string name="title_game">Game</string>
+    <string name="title_map">Map</string>
+
+    <string name="date_long_press_range_selection">Long press and pull activates date range selection</string>
 
 
-    <string name="privacy_policy_agreement_title">Privacy policy agreement</string>
-    <string name="privacy_policy_agreement_description">You need to agree to privacy policy, before uploading data to Signals servers.</string>
-    <string name="privacy_policy_agreement_autoup_description">Autoupload requires you to agree to privacy policy.</string>
-    <string name="privacy_policy_agreement_link">See privacy policy</string>
+    <string name="sessioncategory_add">Add category</string>
+    <string name="sessioncategory_add_contentdescription">Add category</string>
 </resources>

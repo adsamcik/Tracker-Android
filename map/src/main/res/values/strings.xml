@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="map_search">Search</string>
+    <string name="map_search_no_text">Searching for nothing is not very useful</string>
+    <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
+
+    <string name="map_no_play_services">Map requires up-to-date Play Services</string>
+
+    <string name="tips_map_search_title">Search</string>
+    <string name="tips_map_search_description">Type in this area to search. Tapping on the magnifying glass on the right triggers the search, or you can use your keyboards search button, if it has one.</string>
+
+    <string name="tips_map_my_location_title">My location</string>
+    <string name="tips_map_my_location_description">Tapping on this button moves you to your location. Map will follow your location until you move the map manually. Tapping on it again while following shows you the direction you are facing.</string>
+
+    <string name="tips_map_overlay_title">Map layers</string>
+    <string name="tips_map_overlay_description">Tapping or pulling up this bar will open selection of map layers</string>
+
+</resources>

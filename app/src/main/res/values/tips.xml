@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="show_tips_title">Show tips</string>
-    <string name="show_tips_key" translatable="false">tipsEnabled</string>
-
-    <string name="next_part">continue</string>
-    <string name="skip_tips">skip</string>
 
 
     <string name="tutorial_welcome_title">Welcome to Signals</string>
@@ -19,15 +15,6 @@
     <string name="tutorial_activity_title">Activity</string>
     <string name="tutorial_activity_description">You can find activities on the right</string>
 
+    <string name="tutorial_map_title">Map</string>
     <string name="tutorial_map_description">If you click or drag this surface upwards, it will bring up the map</string>
-
-
-    <string name="tips_map_search_title">Search</string>
-    <string name="tips_map_search_description">Type in this area to search. Tapping on the magnifying glass on the right triggers the search, or you can use your keyboards search button, if it has one.</string>
-
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_my_location_description">Tapping on this button moves you to your location. Map will follow your location until you move the map manually. Tapping on it again while following shows you the direction you are facing.</string>
-
-    <string name="tips_map_overlay_title">Map overlays</string>
-    <string name="tips_map_overlay_description">If you are signed in and have access to the map, you can pull this up to change maps overlay layer.</string>
 </resources>

@@ -1,247 +1,51 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+
     <string name="app_name">Signals</string>
-    <string name="did_you_know">Věděli jste, že</string>
-    <string name="button_back">zpět</string>
-    <string name="settings_title">Nastavení</string>
-    <string name="settings_account_title">Účet</string>
-    <string name="settings_tracking_title">Sběr dat</string>
-    <string name="settings_upload_title">Nahrávání dat</string>
-    <string name="settings_style_title">Vzhled</string>
-    <string name="settings_debug_title">Vývojářské nástroje</string>
-    <string name="settings_other_title">Ostatní</string>
-    <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
-    <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
-    <string name="settings_activity_watcher_title">Sledovač aktivity</string>
-    <string name="settings_activity_watcher_summary">Může (velmi) zlepšit spolehlivost služby na sběr dat</string>
-    <string name="settings_activity_freq_title">Frekvence aktualizace aktivity</string>
-    <string name="settings_allow_upload_notification_summary">Zobrazit notifikaci, když je dostupný souhrn naposledy nahraných dat</string>
-    <string name="settings_allow_upload_notification_title">Zobrazit notifikaci souhrnu nahraných dat</string>
-    <string name="settings_auto_tracking_category">Automatický sběr dat</string>
-    <string name="settings_auto_upload_category">Automatické nahrávaní dat</string>
-    <string name="settings_color_day_title">Barva ve dne</string>
-    <string name="settings_color_default_title">Výchozí barvy</string>
-    <string name="settings_color_evening_title">Barva večer</string>
-    <string name="settings_color_morning_title">Barva ráno</string>
-    <string name="settings_color_night_title">Barva v noci</string>
-    <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
-    <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>
-    <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
-        <item quantity="other">Zbývá %d stisknutí pro přístup k vývojářským nástrojům</item>
-    </plurals>
-    <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
-    <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
-    <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
-    <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
-    <string name="settings_browse_files_title">Procházet soubory</string>
-    <string name="settings_browse_cache_title">Procházet cache soubory</string>
-    <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
-    <string name="settings_clear_cache_title">Smazat dočasné soubory</string>
-    <string name="settings_clear_data_title">Smazat nasbíraná data</string>
-    <string name="settings_clear_reports_title">Smazat souhrny nahrání</string>
-    <string name="settings_export_title">Sdílet nasbíraná data</string>
-    <string name="settings_feedback_title">Zašlete zpětnou vazbu o aplikaci</string>
-    <string name="settings_feedback_summary">Můžete zaslat cennou zpětnou vazbu o aplikaci.</string>
-    <string name="settings_hello_world_title">Vítej světe!</string>
-    <string name="settings_licenses_title">Otevřené licence</string>
-    <string name="settings_location_enabled_title">Záznam polohy</string>
-    <string name="settings_notifications_title">Notifikace</string>
-    <string name="settings_smart_upload_title">Používat chytré nahrávání</string>
-    <string name="settings_smart_upload_summary">Chytré nahrávání za vás rozhoduje kdy data nahrávat na základě několika faktorů</string>
-    <string name="settings_style_mode_title">Režim barev</string>
-    <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
-    <string name="new_upload_summary">Nový souhrn nahraných dat</string>
-    <string name="new_wifi_count">%1$d nových Wi-Fi</string>
-    <string name="map_personal">Osobní</string>
-    <string name="map_search">Vyhledávání</string>
-    <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
-    <string name="main_wifi_count">%1$d v dosahu</string>
-    <string name="main_cell_count">Mobilních vysílačů v dosahu %1$d</string>
-    <string name="challenge_alphabet_title">A je pro abecedu</string>
-    <string name="challenge_awful_explorer_title">Příšerný průzkumník</string>
-    <string name="challenge_cell_range_title">Zůstaňte v dosahu</string>
-    <string name="challenge_cross_country_title">Přespolní běh</string>
-    <string name="challenge_crowded_title">Přelidněno?</string>
-    <string name="challenge_easy">Jednoduché</string>
-    <string name="challenge_hard">Obtížné</string>
-    <string name="challenge_lawful_explorer_title">Zákona dbalý průzkumník</string>
-    <string name="challenge_list_title">Herní výzvy</string>
-    <string name="challenge_long_journey_description">Nasbírejte %1$s míst v jednom dni</string>
-    <string name="challenge_long_journey_title">Dlouhá cesta</string>
-    <string name="challenge_medium">Střední</string>
-    <string name="challenge_peaceful_forest_title">Poklidný les</string>
-    <string name="challenge_peaceful_forest_description">"Vydejte se ven a najděte %1$s nových míst bez Wi-Fi sítí. "</string>
-    <string name="challenge_memory_lane_title">Nostalgická cesta</string>
-    <string name="challenge_memory_lane_description">Navštivte %1$s již nalezených míst pěšky</string>
-    <string name="challenge_lawful_explorer_description">Nasbírejte %1$s nových míst bez překročení rychlosti %2$s km/h</string>
-    <string name="challenge_error_name">Aktualizujte na poslední verzi aplikace</string>
-    <string name="challenge_crowded_description">Najděte nové místo s alespoň %1$s novými Wi-Fi sítěmi</string>
-    <string name="challenge_cross_country_description">Vyšplhejte %1$s metrů pěšky</string>
-    <string name="challenge_cell_range_description">Nasbírejte %1$s bez ztráty mobilního signálu</string>
-    <string name="challenge_awful_explorer_description">Nenajděte ani jedno nové místo v %1$s po sobě jdoucích záznamech</string>
-    <string name="challenge_alphabet_description">Najděte %1$s Wi-Fi sítí obsahujících v názvu symbol %2$s</string>
-    <string name="cancel">Zrušit</string>
-    <string name="alert_confirm_generic">Jste si jistí?</string>
-    <string name="activity_idle">V klidu</string>
-    <string name="activity_in_vehicle">Ve vozidle</string>
-    <string name="activity_on_foot">Pěšky</string>
-    <string name="activity_unknown">Neznámý</string>
-    <string name="challenge_scattered_data_description">Najděte %1$s kusů dat v nových Wi-Fi sítích</string>
-    <string name="challenge_scattered_data_title">Roztroušená data</string>
-    <string name="challenge_very_easy">Velmi jednoduché</string>
-    <string name="challenge_very_hard">Velmi obtížné</string>
-    <string name="clear">Vyčistit</string>
-    <string name="deselect_all">Odznačit vše</string>
-    <string name="dev_activity_recognition_hide">Filtrovat</string>
-    <string name="dev_activity_recognition_show">Zobrazit vše</string>
-    <string name="dev_browse_files">Procházet soubory</string>
-    <string name="info_accuracy">%d m přesnost</string>
-    <string name="info_altitude">%d m n. m.</string>
-    <string name="internet_connection_required">Nedostupné připojení k internetu</string>
-    <string name="user_renew_map">Obnovit přístup k mapě</string>
-    <string name="user_access_date">Máte přístup do %1$s</string>
-    <string name="user_cost_per_month">%1$s bezdrátových bodů měsíčně</string>
-    <string name="notification_looking_for_gps">Hledá se GPS</string>
-    <string name="notification_stop_til_recharge">Zastavit do nabití</string>
-    <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
-    <string name="notification_stop">Zastavit</string>
-    <string name="notification_tracker_active_ticker">Sběr dat je aktivní</string>
-    <string name="notification_activity">aktivita %s</string>
-    <plurals name="notification_cell_count">
-        <item quantity="one">1 mobilní vysílač v dosahu</item>
-        <item quantity="few">%d mobilní vysílače v dosahu</item>
-        <item quantity="other">%d mobilních vysílačů v dosahu</item>
-    </plurals>
-    <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
-    <string name="notification_nothing_found">Nic nenalezeno</string>
-    <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
-    <string name="notification_feedback_success">Zpětná vazba úspěšně odeslána</string>
-    <string name="notification_feedback_user_not_signed">Uživatel není přihlášen. Ruším odeslání zpětná vazby. Omlouvám se.</string>
-    <string name="notification_challenge_done_title">%1$s herní výzva splněna</string>
-    <string name="notification_challenge_done_description">Gratuluji ke splnění herní výzvy %1$s</string>
-    <string name="notification_challenge_unknown_title">Neznámá výzva splněna</string>
-    <string name="tutorial_activity_title">Aktivita</string>
-    <string name="tutorial_stats_title">Statistiky</string>
-    <string name="tutorial_settings_title">Nastavení</string>
-    <string name="tutorial_welcome_title">Vítejte v Signals</string>
-    <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
-    <string name="user_not_enough_wp">Nemáte dostatek bezdrátových bodů</string>
-    <string name="user_renew_personal_map">Obnovit přístup k osobní mapě</string>
-    <string name="user_have_wireless_points">Máte %s bezdrátových bodů</string>
-    <string name="signout">Odhlásit se</string>
-    <string name="main_wifi_updated">Nalezeno %d m před záznamem</string>
-    <string name="main_collected">%1$s nasbíráno</string>
-    <string name="stats_weekly_title">Posledních 7 dnů</string>
-    <string name="stats_weekly_collected_wifi">Nalezeno Wi-Fi</string>
-    <string name="stats_weekly_collected_cell">Nalezeno mobilních vysílačů</string>
-    <string name="stats_weekly_collected_location">Záznamů</string>
-    <string name="stats_weekly_minutes">Minut stráveno sběrem</string>
-    <string name="stats_weekly_uploaded">Nahráno dat</string>
-    <string name="wifi_new_title">Nové Wi-Fi</string>
-    <string name="cell_title">Mobilní vysílače</string>
+
     <string name="cell_new">Nové mobilní vysílače</string>
-    <string name="collections_title">Záznamů</string>
-    <string name="locations_new_title">Nových míst</string>
-    <string name="size_title">Velikost</string>
-    <plurals name="main_collections">
-        <item quantity="one">1 záznam</item>
-        <item quantity="few">%d záznamy</item>
-        <item quantity="other">%d záznamů</item>
-    </plurals>
 
-    <string-array name="settings_style_mode_names">
-        <item>neměnná barva</item>
-        <item>den/noc</item>
-        <item>ráno/den/večer/noc</item>
-    </string-array>
-
-    <string-array name="auto_upload_options_titles">
-        <item>Vypnuto</item>
-        <item>Pouze na Wi-Fi</item>
-        <item>Vždy</item>
-    </string-array>
-    <string name="next_part">pokračovat</string>
-    <string name="show_tips_title">Zobrazovat tipy</string>
-    <string name="feedback_error_short_summary">Souhrn je příliš stručný</string>
-    <string name="feedback_summary">Souhrn</string>
-    <string name="feedback_description">Popis (dobrovolný)</string>
-    <string name="feedback_feature">Vylepšení</string>
-    <string name="feedback_bug">Chyba</string>
-    <string name="feedback_title">Zpětná vazba</string>
-    <string name="feedback_error_type">Musíte vybrat typ zpětné vazby</string>
-    <string name="feedback_error_long_summary">Souhrn je příliš dlouhý</string>
-    <string name="feedback_error_spaces_summary">Příliš mnoho mezer</string>
-    <string name="feedback_error_long_description">Popis je příliš dlouhý</string>
-    <string name="open_source_licenses">Licence otevřeného softwaru</string>
-    <string name="other">Ostatní</string>
-    <string name="yes">Ano</string>
-    <string name="no">Ne</string>
-    <string name="send">Odeslat</string>
-    <string name="enable">Povolit</string>
-    <string name="your_stats">Vaše statistiky</string>
-    <string name="start">Start</string>
-    <string name="stop">Stop</string>
-    <string name="select_all">Vybrat vše</string>
-    <string name="share_nothing_to_share">Není co sdílet</string>
-    <string name="skip_tips">přeskočit</string>
-    <string name="tips_map_search_title">Vyhledávání</string>
-    <string name="tips_map_search_description">Toto pole slouží pro vyhledávání. Při kliknutí na lupu v pravé části spustíte vyhledávání, alternativně můžete využít vyhledávací tlačítko na vaší klávesnici pokud nějaké má.</string>
-    <string name="tips_map_my_location_title">Moje poloha</string>
-    <string name="tips_map_my_location_description">Kliknutím na toto tlačítko se přesunute na svou aktuální polohu. Mapa bude následovat vaši polohu dokud s ní manuálně nepohnete. Kliknutím na toto tlačítko při sledování polohy spustíte směrový režim.</string>
-    <string name="tips_map_overlay_title">Mapové podklady</string>
-    <string name="tips_map_overlay_description">Pokud jste přihlášeni a máte přístup k mapovým podkladům, můžete vytáhnutím této lišty vzhůru zobrazit výběr dostupných mapových podkladů.</string>
-    <string name="shortcut_stop_tracking">Zastavit záznam</string>
-    <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
-    <string name="shortcut_start_tracking">Spustit záznam</string>
-    <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
-    <string name="channel_track_name">Sběr dat</string>
-    <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat</string>
-    <string name="channel_upload_name">Nahrávání</string>
-    <string name="channel_upload_description">Kanál obsahující notifikace spojené s nahráváním dat</string>
-    <string name="channel_other_name">Ostatní</string>
-    <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu</string>
-    <string name="channel_challenges_name">Herní výzvy</string>
-    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s herními výzvami</string>
-    <string name="channel_activity_watcher_name">Sledovač aktivity</string>
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat</string>
-    <string name="notification_challenge_unknown_description">Vaše verze Signals je pravděpodobně neaktuální.</string>
-    <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>
-    <string name="error_missing_permission">Aplikace nemá dostatečná oprávnění</string>
-    <string name="error_play_services_not_available">knihovna Play Services není dostupná</string>
-    <string name="error_no_internet">Internet není dostupný</string>
-    <string name="error_connection_failed">Připojení k serveru selhalo</string>
-    <string name="error_invalid_data">Získány neplatná data</string>
-    <string name="error_no_data">Nepodařilo se získat data</string>
-    <string name="error_failed_signin">Přihlášení selhalo</string>
-    <string name="error_upload_in_progress">Nahrávání již probíhá</string>
-    <string name="error_during_upload_scheduling">Objevila se chyba při plánování nahrávání</string>
-    <string name="error_not_enough_data">Nemáte dostatek dat pro nahrání dat</string>
-    <string name="error_gnss_not_enabled">Satelitní lokalizace není povolena (GPS)</string>
-    <string name="error_general">Objevila se chyba</string>
-    <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
-    <string name="export_share_button">Sdílet (Export)</string>
-    <string name="dev_notification_dummy">Ahoj světe!</string>
-    <string name="settings_activity_debug_title">Nástroje pro ladění aktivity</string>
-    <string name="description_my_location">Tlačítko pro aktuální polohu</string>
+    <string name="channel_activity_watcher_name">Sledovač aktivity</string>
+    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s herními výzvami</string>
+    <string name="channel_challenges_name">Herní výzvy</string>
+    <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu</string>
+    <string name="channel_other_name">Ostatní</string>
+    <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat</string>
+    <string name="channel_track_name">Sběr dat</string>
+
+    <string name="collections_title">Záznamů</string>
+
     <string name="description_map_search">Tlačítko pro vyhledávání</string>
-    <string name="description_upload">Tlačítko pro nahrání dat</string>
+    <string name="description_my_location">Tlačítko pro aktuální polohu</string>
+    <string name="description_settings">Tlačítko pro nastavení</string>
+    <string name="description_storage">Ikonka uložiště</string>
     <string name="description_tracking_lock">Tlačítko pro odemčení zámku pro záznam dat</string>
     <string name="description_tracking_start">Tlačítko pro spuštění záznamu dat</string>
     <string name="description_tracking_stop">Tlačítko pro zastavení záznamu dat</string>
-    <string name="description_settings">Tlačítko pro nastavení</string>
-    <string name="description_storage">Ikonka uložiště</string>
-    <string name="notification_tracking_active">Záznam dat je aktivní</string>
-    <string name="notification_wifi">%d Wi-Fi</string>
-    <string name="recent_uploads">Nedávná nahrání</string>
-    <string name="most_recent_upload">Poslední nahrání</string>
-    <string name="more_uploads">Více nahrání</string>
-    <string name="notification_found">Nalezeno</string>
-    <string name="new_cell_count">%1$d nových mobilních vysílačů</string>
-    <string name="main_cell_current">%1$s %2$d dbm, %3$d asu</string>
-    <string name="main_last_update">%1$s</string>
-    <string name="wifi">Wi-Fi</string>
-    <string name="settings_wifi_enabled_title">Sběr Wi-Fi</string>
-    <string name="challenge_progress">%1$d%%</string>
+
+    <string name="dev_activity_recognition_hide">Filtrovat</string>
+    <string name="dev_activity_recognition_show">Zobrazit vše</string>
+    <string name="dev_notification_dummy">Ahoj světe!</string>
+
+    <string name="did_you_know">Věděli jste, že</string>
+
+    <string name="error_no_locations_in_interval">Nebyly nalezeny žádné záznamy pro zadaný interval</string>
+    <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
+
+    <string name="share_button">Sdílet (Export)</string>
+
+    <string name="info_accuracy">%s přesnost</string>
+    <string name="info_altitude">%s n. m.</string>
+    <plurals name="info_session_collections">
+        <item quantity="one">%d sběr</item>
+        <item quantity="few">%d sběry</item>
+        <item quantity="other">%d sběrů</item>
+    </plurals>
+    <string name="info_session_distance">%s vzdálenost</string>
+
+    <string name="locations_new_title">Nových míst</string>
+
     <string-array name="lorem_ipsum_facts">
         <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
         <item>Lorem ipsum se používá již od roku 16. století</item>
@@ -254,57 +58,174 @@
         <item>Bacon ipsum dolor amet swine filet mignon boudin turducken.</item>
         <item>Dodělat více textu, kterej nikdo neuvidí.</item>
     </string-array>
+
+    <plurals name="main_collections">
+        <item quantity="one">1 záznam</item>
+        <item quantity="few">%d záznamy</item>
+        <item quantity="other">%d záznamů</item>
+    </plurals>
+    <string name="latitude">%1$s zeměpisné šířky</string>
+    <string name="longitude">%1$s zeměpisné délky</string>
+
+
+    <string name="notification_activity">aktivita %s</string>
+    <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
+    <plurals name="notification_cell_count">
+        <item quantity="one">1 mobilní vysílač v dosahu</item>
+        <item quantity="few">%d mobilní vysílače v dosahu</item>
+        <item quantity="other">%d mobilních vysílačů v dosahu</item>
+    </plurals>
+    <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
+    <string name="notification_location">%1$s° S %2$s° V</string>
+    <string name="notification_looking_for_gps">Hledá se GPS</string>
+    <string name="notification_stop">Zastavit</string>
+    <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
+    <string name="notification_stop_til_recharge">Zastavit do nabití</string>
+    <string name="notification_tracker_active_ticker">Sběr dat je aktivní</string>
+    <string name="notification_tracking_active">Záznam dat je aktivní</string>
+    <string name="notification_wifi">%d Wi-Fi</string>
+
+    <string name="open_source_licenses">Licence otevřeného softwaru</string>
+
+    <string name="settings_activity_freq_title">Frekvence aktualizace aktivity</string>
+    <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
+    <string name="settings_activity_watcher_summary">Může (velmi) zlepšit spolehlivost služby na sběr dat</string>
+    <string name="settings_activity_watcher_title">Sledovač aktivity</string>
+    <string name="settings_auto_tracking_category">Automatický sběr dat</string>
+    <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
+    <string name="settings_clear_cache_title">Smazat dočasné soubory</string>
+    <string name="settings_clear_data_title">Smazat nasbíraná data</string>
+    <string name="settings_clear_preferences_title">Smazat preference</string>
+    <string name="settings_color_day_title">Barva ve dne</string>
+    <string name="settings_color_default_title">Výchozí barvy</string>
+    <string name="settings_color_evening_title">Barva večer</string>
+    <string name="settings_color_morning_title">Barva ráno</string>
+    <string name="settings_color_night_title">Barva v noci</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_debug_activity_title">Nástroje pro ladění aktivity</string>
+    <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
+    <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>
+    <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
+        <item quantity="other">Zbývá %d stisknutí pro přístup k vývojářským nástrojům</item>
+    </plurals>
+    <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
+    <string name="settings_debug_title">Vývojářské nástroje</string>
+    <string name="settings_delete_stored_data_summary">Smazat nasbíraná data, která již byla nahrána, ale ponechána lokálně pro budoucí využití</string>
+    <string name="settings_delete_stored_data_title">Smazat archivní data</string>
+    <string name="settings_delete_tracked_data_summary">Smazat nasbíraná data, která zatím nebyla nahrána</string>
+    <string name="settings_delete_tracked_data_title">Smazat nasbíraná data</string>
+    <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
+    <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
+    <string name="settings_export_dialog_from">Od</string>
+    <string name="settings_export_dialog_to">Do</string>
+    <string name="settings_export_json_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
+    <string name="settings_export_json_title">Jako hrubá data</string>
+    <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
+    <string name="settings_export_gpx_title">Jako GPX soubor</string>
+    <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>
+    <string name="settings_export_kml_title">Jako KML soubor</string>
+    <string name="settings_export_title">Exportovat nasbíraná data</string>
+    <string name="settings_hello_world_title">Vítej světe!</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrický</item>
+        <item>Imperiální (USA)</item>
+        <item>Římské míry</item>
+    </string-array>
+    <string name="settings_length_system_title">Délkový systém</string>
+    <string name="settings_licenses_title">Otevřené licence</string>
+    <string name="settings_location_enabled_title">Záznam polohy</string>
+    <string name="settings_notifications_title">Notifikace</string>
+    <string name="settings_other_title">Ostatní</string>
+    <string-array name="settings_style_mode_names">
+        <item>neměnná barva</item>
+        <item>den/noc</item>
+        <item>ráno/den/večer/noc</item>
+    </string-array>
+    <string name="settings_style_mode_title">Režim barev</string>
+    <string name="settings_style_title">Vzhled</string>
+    <string name="settings_title">Nastavení</string>
+    <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
+    <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
+    <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
+    <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
+    <string name="settings_tracking_title">Sběr dat</string>
+    <string name="settings_wifi_enabled_title">Sběr Wi-Fi</string>
+
+    <string name="shortcut_start_tracking">Spustit záznam</string>
+    <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
+    <string name="shortcut_stop_tracking">Zastavit záznam</string>
+    <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
+
+    <string name="show_tips_title">Zobrazovat tipy</string>
+
     <string-array name="tracking_options_titles">
         <item>Vypnuto</item>
         <item>Pěšky</item>
         <item>V pohybu</item>
     </string-array>
-    <string name="map_search_no_text">Hledat nic není moc užitečné</string>
-    <string name="map_search_no_geocoder">Bohužel vaše zařízení nemá službu pro překlad adres na souřadnice</string>
-    <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
-    <string name="settings_privacy_policy_agreement_title">Souhlas se zásadami ochrany osobních údajů</string>
-    <string name="settings_privacy_policy_agreement_summary">Před nahráním dat na server, je nutné souhlasit se zásadami ochrany osobních údajů.</string>
-    <string name="privacy_policy_agreement_title">Souhlas se zásadami ochrany osobních údajů</string>
-    <string name="privacy_policy_agreement_description">Před nahráním souborů na server je nutné souhlasit se zásadami ochrany osobních údajů.</string>
-    <string name="privacy_policy_agreement_autoup_description">Automatické nahrávání vyžaduje souhlas se zásadami ochrany osobních údajů.</string>
-    <string name="privacy_policy_agreement_link">Zásady ochrany osobních údajů</string>
-    <string name="agree">Souhlasím</string>
-    <string name="disagree">Nesouhlasím</string>
-    <string name="settings_auto_upload_at_title">Automaticky nahrát při</string>
 
-    <plurals name="new_locations">
-        <item quantity="one">1 nové místo</item>
-        <item quantity="few">%d nová místa</item>
-        <item quantity="other">%d nových míst</item>
-    </plurals>
+    <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
+    <string name="tutorial_activity_title">Aktivita</string>
+    <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
+    <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>
+    <string name="tutorial_settings_title">Nastavení</string>
+    <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
+    <string name="tutorial_stats_title">Statistiky</string>
+    <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
+    <string name="tutorial_welcome_title">Vítejte v Signals</string>
 
-    <string name="wifi_count" tools:ignore="PluralsCandidate">%1$d Wi-Fi</string>
-    <plurals name="cell_count">
-        <item quantity="one">1 mobilní síť</item>
-        <item quantity="few">%d mobilní sítě</item>
-        <item quantity="other">%d mobilních sítí</item>
-    </plurals>
+    <string name="wifi_new_title">Nové Wi-Fi</string>
 
-
-    <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
-    <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
-    <string name="settings_delete_uploaded_data_title">Smazat nahraná data</string>
-    <string name="settings_delete_uploaded_data_summary">Pokud vypnuto, nahraná data budou zkomprimována a uložena do specialní složky</string>
-    <string name="settings_export_export_title">Jako hrubá data</string>
-    <string name="settings_export_export_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
-    <string name="settings_export_gpx_title">Jako GPX soubor</string>
-    <string name="settings_export_kml_title">Jako KML soubor</string>
-    <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
-    <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>
-    <string name="alert_confirm">Jste si jisti, že chcete %1$s?</string>
-    <string name="settings_delete_stored_data_summary">Smazat nasbíraná data, která již byla nahrána, ale ponechána lokálně pro budoucí využití</string>
-    <string name="settings_delete_stored_data_title">Smazat archivní data</string>
-    <string name="settings_data_title">Data</string>
-    <string name="settings_clear_preferences_title">Smazat preference</string>
-    <string name="main_archived_data">%1$s archivováno</string>
-    <string name="main_latitude">%1$s zeměpisné šířky</string>
-    <string name="main_longitude">%1$s zeměpisné délky</string>
-    <string name="settings_browse_archived_data_title">Procházet archivovaná data</string>
-    <string name="settings_delete_tracked_data_summary">Smazat nasbíraná data, která zatím nebyla nahrána</string>
-    <string name="settings_delete_tracked_data_title">Smazat nasbíraná data</string>
+    <string name="altitude">výška</string>
+    <string name="cell_current">%1$s %2$d dbm</string>
+    <string name="current">aktuální</string>
+    <string name="export_button">Export</string>
+    <string name="export_default_file_name">SignalsExportovanaData</string>
+    <string name="export_file_name">Název souboru</string>
+    <string name="module_download_progress">Staženo %1$s / %2$s</string>
+    <string name="module_downloading">Stahuji modul %s</string>
+    <string name="module_error">Selhala instalace modulu %1$s (číslo chyby %2$d)</string>
+    <string name="module_game_title">hry</string>
+    <string name="module_installing">Instaluje se modul %s</string>
+    <string name="module_map_title">mapa</string>
+    <string name="module_statistics_title">statistiky</string>
+    <string name="module_success">Instalace byla úspěšně dokončena</string>
+    <string name="sessioncategory_add">Přidat kategorii</string>
+    <string name="sessioncategory_add_contentdescription">Přidat kategorii</string>
+    <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
+    <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
+    <string name="settings_export_sqlite_summary">Exportovat databázový soubor ve formátu SQLite3</string>
+    <string name="settings_export_sqlite_title">Databázový soubor</string>
+    <string name="settings_module_enable_title">Moduly</string>
+    <string name="settings_module_group_title">Nastavení modulů</string>
+    <string name="settings_speed_format_title">Formát rychlosti</string>
+    <string name="speed">rychlost</string>
+    <string name="speed_value">%s/s</string>
+    <string name="title_game">Hra</string>
+    <string name="title_map">Mapa</string>
+    <string name="title_statistics">Statistika</string>
+    <string name="tutorial_map_title">Mapa</string>
+    <string name="vertical_accuracy">Vertikální přesnost</string>
+    <string name="export_gpx_description">Export pozičních informací s pomocí aplikace Signals mezi %1$s - %2$s</string>
+    <string name="horizontal_accuracy">horizontální přesnost</string>
+    <string name="in_range">v dosahu</string>
+    <string name="date_long_press_range_selection">Dlouhým stistkem a táhnutím z data aktivuje výběr časového období</string>
+    <string name="tracker_activity_card_title">Aktivita</string>
+    <string name="tracker_activity_confidence">Jistota</string>
+    <string name="tracker_activity_title">Aktivita</string>
+    <string name="tracker_collections_title">Záznamů</string>
+    <string name="tracker_distance_title">Vzdáelnost</string>
+    <string name="tracker_session_age">Začátek relace</string>
+    <string name="tracker_session_card_title">Relace</string>
+    <string name="tracker_steps">Kroky</string>
+    <string name="import_notification_extracting">Rozbaluji %s …</string>
+    <string name="import_notification_finished">Import dokončen. Úspěšně importováno %d souborů.</string>
+    <string name="import_notification_importing">Importuji %s …</string>
+    <string name="import_notification_progress">Probíhá import …</string>
+    <string name="settings_activity_title">Aktivity</string>
+    <string name="settings_import_no_types">bohužel, žádné typy nejsou dostupné na tomto zařízení.</string>
+    <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%1$s)</string>
+    <string name="settings_import_title">Import</string>
+    <string name="settings_language_summary">Aktuální jazyk: %s</string>
+    <string name="settings_language_title">Jazyk aplikace</string>
 </resources>

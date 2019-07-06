@@ -2,19 +2,22 @@
 <resources>
     <attr name="titleColor" format="reference|color"/>
 
-    <declare-styleable name="InfoComponent">
-        <attr name="title" format="string"/>
-        <attr name="titleImage" format="integer"/>
-    </declare-styleable>
-
     <declare-styleable name="ImageSwitchPreference">
-        <attr name="foregroundStateColors" format="reference"/>
         <attr name="drawables" format="reference"/>
         <attr name="titles" format="reference"/>
     </declare-styleable>
 
+
+    <attr name="items" format="reference"/>
+    <attr name="stringFormat" format="string"/>
+
     <declare-styleable name="IntValueSliderPreference">
-        <attr name="items" format="reference"/>
-        <attr name="stringFormat" format="string"/>
+        <attr name="items"/>
+        <attr name="stringFormat"/>
+    </declare-styleable>
+
+    <declare-styleable name="FloatValueSliderPreference">
+        <attr name="items"/>
+        <attr name="stringFormat"/>
     </declare-styleable>
 </resources>

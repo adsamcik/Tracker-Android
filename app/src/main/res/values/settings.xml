@@ -1,36 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="alert_confirm_generic">Are you sure?</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
-
-    <string name="internet_connection_required">Internet connection required</string>
-
-    <!-- SIGN-IN -->
-    <string name="user_have_wireless_points">You have %1$s wireless points</string>
-    <string name="user_renew_map">Renew map access</string>
-    <string name="user_access_date">You have access until %1$s</string>
-    <string name="user_cost_per_month">%1$s wireless points per month</string>
-    <string name="user_renew_personal_map">Renew personal map</string>
-    <string name="user_not_enough_wp">You don\'t have enough wireless points</string>
-    <string name="signout">Sign out</string>
-
     <!--- TITLES -->
     <string name="settings_title">Settings</string>
-    <string name="settings_account_title">Account</string>
-    <string name="settings_account_key" translatable="false">account_key</string>
     <string name="settings_tracking_title">Tracking</string>
-    <string name="settings_upload_title">Upload</string>
     <string name="settings_style_title">Style</string>
     <string name="settings_data_title">Data</string>
     <string name="settings_export_title">Export</string>
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_other_title">Other</string>
 
+    <string name="settings_debug_key" translatable="false">debugSection</string>
+
     <!--- TRACKING -->
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
     <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
     <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
+
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
 
     <string name="settings_activity_watcher_title">Activity watcher</string>
     <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
@@ -40,24 +28,28 @@
     <string name="settings_activity_freq_title">Activity update rate</string>
     <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_freq_default" translatable="false">30</string>
-
-    <string name="settings_tracking_activity_key" translatable="false">backgroundTracking</string>
-    <string name="settings_tracking_activity_default" translatable="false">1</string>
+    <integer-array name="activity_watching_interval">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>7</item>
+        <item>10</item>
+        <item>15</item>
+        <item>30</item>
+        <item>60</item>
+        <item>120</item>
+    </integer-array>
 
     <string name="settings_auto_tracking_category">Automatic tracking</string>
     <string name="settings_tracking_enable_category">Tracking options</string>
 
     <string name="settings_location_enabled_title">Location tracking</string>
-    <string name="settings_location_enabled_key" translatable="false">trackingLocationEnabled</string>
-    <string name="settings_location_enabled_default" translatable="false">true</string>
 
     <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
-    <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
-    <string name="settings_wifi_enabled_default" translatable="false">true</string>
+
 
     <string name="settings_cell_enabled_title">Cell tracking</string>
-    <string name="settings_cell_enabled_key" translatable="false">trackingCellEnabled</string>
-    <string name="settings_cell_enabled_default" translatable="false">true</string>
 
     <string-array name="tracking_options_titles">
         <item>Disabled</item>
@@ -66,26 +58,12 @@
     </string-array>
 
     <integer-array name="tracking_options_drawables">
-        <item>@drawable/ic_close_black_24dp</item>
+        <item>@drawable/ic_close_black</item>
         <item>@drawable/ic_directions_walk_white_24dp</item>
         <item>@drawable/ic_directions_car_white_24dp</item>
     </integer-array>
 
-    <integer-array name="activity_watching_interval">
-        <item>0</item>
-        <item>5</item>
-        <item>10</item>
-        <item>30</item>
-        <item>60</item>
-        <item>120</item>
-        <item>240</item>
-        <item>300</item>
-        <item>600</item>
-    </integer-array>
-
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
-    <string name="settings_tracking_min_distance_key" translatable="false">minTrackingDistance</string>
-    <integer name="settings_tracking_min_distance_default">10</integer>
 
     <integer-array name="settings_tracking_min_distance_values">
         <item>5</item>
@@ -100,8 +78,6 @@
     </integer-array>
 
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
-    <string name="settings_tracking_min_time_key" translatable="false">minTrackingTimeDifference</string>
-    <integer name="settings_tracking_min_time_default">2</integer>
 
     <integer-array name="settings_tracking_min_time_values">
         <item>0</item>
@@ -117,49 +93,25 @@
         <item>60</item>
     </integer-array>
 
-    <!--- UPLOAD -->
-    <string name="settings_auto_upload_category">Automatic uploading</string>
 
-    <string name="settings_uploading_network_key" translatable="false">autoUpload</string>
-    <string name="settings_uploading_network_default" translatable="false">0</string>
+    <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
 
-    <string-array name="auto_upload_options_titles">
-        <item>Disabled</item>
-        <item>Wi-Fi only</item>
-        <item>Always</item>
-    </string-array>
-
-    <integer-array name="auto_upload_options_drawables">
-        <item>@drawable/ic_close_black_24dp</item>
-        <item>@drawable/ic_network_wifi_24dp</item>
-        <item>@drawable/ic_network_cell_black_24dp</item>
-    </integer-array>
-
-    <string name="settings_smart_upload_title">Use smart upload</string>
-    <string name="settings_smart_upload_summary">Smart upload decides for you when to upload data based on multiple factors</string>
-    <string name="settings_smart_upload_key" translatable="false">smartAutoUpload</string>
-    <string name="settings_smart_upload_default" translatable="false">true</string>
-
-    <string name="settings_auto_upload_at_title">Auto upload at</string>
-    <string name="settings_auto_upload_at_key" translatable="false">autoUpAtMB</string>
-    <string name="settings_auto_upload_at_default" translatable="false">3</string>
-
-    <integer-array name="settings_auto_upload_at_MB">
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>4</item>
+    <integer-array name="settings_tracking_required_accuracy">
         <item>5</item>
-        <item>7</item>
-        <item>9</item>
-        <item>12</item>
+        <item>10</item>
         <item>15</item>
+        <item>20</item>
+        <item>35</item>
+        <item>50</item>
+        <item>75</item>
+        <item>100</item>
+        <item>200</item>
+        <item>500</item>
+        <item>1000</item>
     </integer-array>
 
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
-    <string name="settings_style_mode_key" translatable="false">styleMode</string>
-    <string name="settings_style_mode_default" translatable="false">2</string>
 
     <string-array name="settings_style_mode_values" translatable="false">
         <item>0</item>
@@ -175,44 +127,24 @@
 
 
     <string name="settings_color_morning_title">Morning color</string>
-    <string name="settings_color_morning_key" translatable="false">colorMorning</string>
-    <color name="settings_color_morning_default" translatable="false">#bf9615</color>
-
     <string name="settings_color_day_title">Day color</string>
-    <string name="settings_color_day_key" translatable="false">colorDay</string>
-    <color name="settings_color_day_default" translatable="false">#559676</color>
-
     <string name="settings_color_evening_title">Evening color</string>
-    <string name="settings_color_evening_key" translatable="false">colorEvening</string>
-    <color name="settings_color_evening_default" translatable="false">#6a4e39</color>
-
     <string name="settings_color_night_title">Night color</string>
-    <string name="settings_color_night_key" translatable="false">colorNight</string>
-    <color name="settings_color_night_default" translatable="false">#002733</color>
 
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
 
 
     <!-- DATA -->
-    <string name="settings_delete_uploaded_data_title">Delete uploaded data</string>
-    <string name="settings_delete_uploaded_data_summary">If disabled, uploaded data will be compressed and put into special folder</string>
-    <string name="settings_delete_uploaded_data_key" translatable="false">deleteUploadedData</string>
-    <string name="settings_delete_uploaded_data_default" translatable="false">true</string>
-
-    <string name="settings_delete_stored_data_title">Delete archived data</string>
-    <string name="settings_delete_stored_data_summary">Delete tracked data that have already been uploaded but kept for future use</string>
-    <string name="settings_delete_stored_data_key" translatable="false">deleteStoredData</string>
-
-    <string name="settings_delete_tracked_data_title">Delete tracked data</string>
-    <string name="settings_delete_tracked_data_summary">Delete tracked data that has not yet been uploaded</string>
-    <string name="settings_delete_tracked_data_key" translatable="false">deleteTrackedData</string>
+    <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
+    <string name="settings_remove_all_collected_data_summary">Deletes are data acquired during collection (Custom activities, settings etc. will be kept)</string>
+    <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
 
     <!-- EXPORT -->
 
-    <string name="settings_export_export_title">As raw data</string>
-    <string name="settings_export_export_key" translatable="false">rawExport</string>
-    <string name="settings_export_export_summary">Export your tracked data to an app of your choice</string>
+    <string name="settings_export_json_title">As JSON file</string>
+    <string name="settings_export_json_key" translatable="false">jsonExport</string>
+    <string name="settings_export_json_summary">Export your tracked data to JSON file</string>
 
     <string name="settings_export_gpx_title">As GPX file</string>
     <string name="settings_export_gpx_key" translatable="false">gpxExport</string>
@@ -222,27 +154,55 @@
     <string name="settings_export_kml_key" translatable="false">kmlExport</string>
     <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
 
+    <string name="settings_export_sqlite_title">Raw database file</string>
+    <string name="settings_export_sqlite_key" translatable="false">sqliteExport</string>
+    <string name="settings_export_sqlite_summary">Export raw SQLite3 database file</string>
+
+    <string name="settings_export_dialog_from">From</string>
+    <string name="settings_export_dialog_to">To</string>
+
+    <string name="settings_import_title">Import</string>
+    <string name="settings_import_key" translatable="false">import</string>
+    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
+    <string name="settings_import_no_types">no types supported on your device, sorry.</string>
+
+    <!-- MODULES -->
+
+    <string name="settings_module_enable_title">Modules</string>
+    <string name="settings_module_enable_key" translatable="false">modules</string>
+
+    <string name="settings_module_group_title">Module settings</string>
+    <string name="settings_module_group_key" translatable="false">moduleSettings</string>
+
+    <!-- ACTIVITIES -->
+    <string name="settings_activity_title">Activities</string>
+    <string name="settings_activity_key" translatable="false">activities</string>
+
+    <string name="settings_activity_snackbar_message">Removed %s</string>
+
+    <!-- LANGUAGE -->
+    <string name="settings_language_title">Application language</string>
+    <string name="settings_language_summary">Current language: %s</string>
+    <string name="settings_language_key" translatable="false">language</string>
+
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>
     <string name="settings_debug_available">You now have access to developer options</string>
     <string name="settings_debug_enabled">Dev options enabled</string>
-    <string name="settings_debug_key" translatable="false">showDevSettings</string>
+    <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
+    <string name="settings_debug_enabled_default" translatable="false">false</string>
     <plurals name="settings_debug_available_in">
         <item quantity="one">%d tap left to enable developer options</item>
         <item quantity="other">%d taps left to enable developer options</item>
     </plurals>
 
-    <string name="settings_browse_files_title">Browse files</string>
-    <string name="settings_browse_files_key" translatable="false">browseFiles</string>
+    <string name="settings_debug_activity_title">Activity recognition logger</string>
+    <string name="settings_debug_activity_key" translatable="false">activityLogger</string>
 
-    <string name="settings_browse_cache_title">Browse cache</string>
-    <string name="settings_browse_cache_key" translatable="false">browseCache</string>
+    <string name="settings_activity_debug_tracking_key" translatable="false">activityDebugTracking</string>
+    <string name="settings_activity_debug_tracking_default" translatable="false">false</string>
 
-    <string name="settings_browse_archived_data_title">Browse archived data</string>
-    <string name="settings_browse_archived_data_key" translatable="false">browseArchivedData</string>
-
-    <string name="settings_activity_debug_title">Activity recognition logger</string>
-    <string name="settings_activity_debug_key" translatable="false">activityLogger</string>
+    <string name="settings_activity_debug_tracking_start_time_key" translatable="false">activityDebugTrackingStartTime</string>
 
     <string name="settings_activity_status_title">Status information</string>
     <string name="settings_activity_status_key" translatable="false">activityStatus</string>
@@ -253,35 +213,44 @@
     <string name="settings_clear_data_title">Remove persistent files</string>
     <string name="settings_clear_data_key" translatable="false">clearData</string>
 
-    <string name="settings_clear_reports_title">Remove upload reports</string>
-    <string name="settings_clear_reports_key" translatable="false">clearUploadReports</string>
-
     <string name="settings_clear_cache_title">Remove cache files</string>
     <string name="settings_clear_cache_key" translatable="false">clearCache</string>
 
     <string name="settings_clear_preferences_title">Clear preferences</string>
     <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
-
     <!-- OTHER -->
     <string name="settings_notifications_title">Notifications</string>
-
-    <string name="settings_allow_upload_notification_title">Show upload notifications</string>
-    <string name="settings_allow_upload_notification_key" translatable="false">uploadNotificationsEnabled</string>
-    <string name="settings_allow_upload_notification_summary">Show notification when upload report is available</string>
-    <string name="settings_allow_upload_notification_default" translatable="false">true</string>
-
-    <string name="settings_privacy_policy_agreement_key" translatable="false">agreedToPrivacyPolicy</string>
-    <string name="settings_privacy_policy_agreement_title">Agreed to the privacy policy</string>
-    <string name="settings_privacy_policy_agreement_summary">You must agree to the privacy policy prior to uploading files.</string>
-
-    <string name="settings_privacy_policy_key" translatable="false">privacyPolicy</string>
-
-    <string name="settings_feedback_title">Send feedback about the app</string>
-    <string name="settings_feedback_key" translatable="false">feedbackButton</string>
-    <string name="settings_feedback_summary">You can send valuable feedback about the app such as new ideas for improvements or bug reports</string>
 
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
 
+    <string name="settings_length_system_title">Length system</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+    </string-array>
+    <string-array name="settings_length_system_names">
+        <item>Metric</item>
+        <item>Imperial (USC)</item>
+        <item>Ancient Roman</item>
+    </string-array>
+
+    <string name="settings_speed_format_title">Speed format</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string-array name="settings_speed_format_names">
+        <item>In seconds</item>
+        <item>In minutes</item>
+        <item>In hours</item>
+    </string-array>
+
+    <string name="settings_error_reporting_title">Automatic error reporting</string>
+    <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
+
     <string name="settings_app_version_key" translatable="false">appVersion</string>
+
 </resources>

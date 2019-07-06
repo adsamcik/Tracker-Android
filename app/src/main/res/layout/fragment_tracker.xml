@@ -1,44 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<androidx.appcompat.widget.LinearLayoutCompat
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:animateLayoutChanges="true">
+    android:animateLayoutChanges="true"
+    android:orientation="vertical">
 
-    <LinearLayout
-        android:id="@+id/top_panel"
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/top_panel_root"
         android:layout_width="match_parent"
-        android:layout_height="72dp"
+        android:layout_height="48dp"
         android:background="#555555"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:elevation="4dp"
-        android:gravity="bottom"
+        android:gravity="bottom|right"
         android:orientation="horizontal"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <TextView
-            android:id="@+id/textview_time"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:paddingStart="@dimen/edge_margin"
-            android:paddingEnd="@dimen/edge_margin"
-            android:textColor="@color/text_primary"
-            tools:text="06:00:00"/>
-
-        <ImageButton
-            android:id="@+id/button_upload"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/description_upload"
-            android:tint="@color/text_primary"
-            app:srcCompat="@drawable/ic_cloud_upload_24dp"/>
+        tools:ignore="RtlHardcoded">
 
         <ImageButton
             android:id="@+id/button_tracking_lock"
@@ -67,220 +49,22 @@
             android:contentDescription="@string/description_settings"
             android:tint="@color/text_primary"
             app:srcCompat="@drawable/ic_settings_black_24dp"/>
-    </LinearLayout>
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/bar_info_top"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/edge_margin"
-        android:layout_marginTop="90dp"
-        android:layout_marginEnd="@dimen/edge_margin"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <ImageView
-            android:id="@+id/image_storage"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="@string/description_storage"
-            android:padding="4dp"
-            android:tint="@android:color/white"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_storage_black_24dp"/>
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/data_size"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:singleLine="true"
-            app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
-            app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
-            app:layout_constraintStart_toEndOf="@id/image_storage"
-            tools:text="588 KB"
-            />
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/collection_count"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            app:layout_constraintEnd_toStartOf="@id/guideline_info_vertical"
-            app:layout_constraintStart_toEndOf="@id/image_storage"
-            app:layout_constraintTop_toBottomOf="@id/guideline_info_horizontal"
-            tools:text="170 collections"
-            />
-
-        <ImageView
-            android:id="@+id/icon_activity"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="4dp"
-            android:tint="@android:color/white"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_help_white_24dp"
-            tools:ignore="ContentDescription"/>
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/altitude"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:singleLine="true"
-            android:textAlignment="textEnd"
-            app:layout_constraintBottom_toTopOf="@id/guideline_info_horizontal"
-            app:layout_constraintEnd_toStartOf="@id/icon_activity"
-            app:layout_constraintStart_toEndOf="@id/guideline_info_vertical"
-            tools:text="237 m altitude"
-            />
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/accuracy"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            android:textAlignment="textEnd"
-            app:layout_constraintEnd_toStartOf="@id/icon_activity"
-            app:layout_constraintHorizontal_bias="1"
-            app:layout_constraintStart_toEndOf="@id/guideline_info_vertical"
-            app:layout_constraintTop_toBottomOf="@id/guideline_info_horizontal"
-            tools:text="8 m accuracy"
-            />
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline_info_vertical"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            app:layout_constraintGuide_percent="0.5"/>
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline_info_horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            app:layout_constraintGuide_percent="0.5"/>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/bar_info_top_extended"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:paddingTop="@dimen/edge_margin"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="@id/bar_info_top"
-        app:layout_constraintStart_toStartOf="@id/bar_info_top"
-        app:layout_constraintTop_toBottomOf="@id/bar_info_top"
-        tools:visibility="visible">
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/longitude"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            android:textAlignment="textEnd"
-            android:textIsSelectable="true"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="@id/guideline_info_extended_vertical"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="50° 8' 18.61&quot; longitude"/>
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/latitude"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            android:textAlignment="textEnd"
-            android:textIsSelectable="true"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="@id/longitude"
-            app:layout_constraintTop_toBottomOf="@id/longitude"
-            tools:text="50° 8' 18.61&quot; latitude"/>
-
-        <androidx.appcompat.widget.AppCompatTextView
-            android:id="@+id/archived_data"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp"
-            android:singleLine="true"
-            app:layout_constraintEnd_toEndOf="@id/guideline_info_extended_vertical"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="588 KB Archived"/>
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline_info_extended_vertical"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            app:layout_constraintGuide_percent="0.5"/>
-
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-
-    <ScrollView
-        android:id="@+id/include"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/tracker_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="#FFFFFFFF"
+        android:clipToPadding="false"
+        android:overScrollMode="ifContentScrolls"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:translationZ="-1dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bar_info_top_extended">
+        app:layout_constraintTop_toBottomOf="@id/top_panel_root"/>
 
-        <com.google.android.flexbox.FlexboxLayout
-            xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            android:id="@+id/content"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:animateLayoutChanges="true"
-            android:clipChildren="false"
-            android:clipToPadding="false"
-            android:filterTouchesWhenObscured="true"
-            android:paddingLeft="@dimen/edge_margin"
-            android:paddingTop="24dp"
-            android:paddingRight="@dimen/edge_margin"
-            android:paddingBottom="@dimen/edge_margin"
-            app:alignItems="flex_start"
-            app:dividerDrawableHorizontal="@drawable/flexbox_spacing"
-            app:dividerDrawableVertical="@drawable/flexbox_spacing"
-            app:flexWrap="wrap"
-            app:justifyContent="center"
-            app:showDividerHorizontal="middle"
-            app:showDividerVertical="middle"/>
-    </ScrollView>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.appcompat.widget.LinearLayoutCompat>

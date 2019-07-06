@@ -4,10 +4,6 @@
     <string name="channel_track_name">Tracking</string>
     <string name="channel_track_description">Notifications related to tracking.</string>
 
-    <string name="channel_upload_id" translatable="false">upload_channel_id</string>
-    <string name="channel_upload_name">Upload</string>
-    <string name="channel_upload_description">Notifications related to upload reports.</string>
-
     <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Other</string>
     <string name="channel_other_description">Other notifications that do not belong to any other category.</string>

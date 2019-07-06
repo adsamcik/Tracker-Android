@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_map_default_layer_title">Výchozí vrstva</string>
+    <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
+    <string name="map_search">Vyhledávání</string>
+    <string name="map_search_no_geocoder">Vašemu zařízení bohužel chybí geocoder</string>
+    <string name="map_search_no_text">Hledat nic je nanic</string>
+    <string name="settings_map_clear_heat_cache_summary">Použijte tuto možnost pokud pozice na mapě jsou z ničeho nic příliš tmavé</string>
+    <string name="settings_map_clear_heat_cache_title">Vymazat ofset teplotní mapy</string>
+    <string name="settings_map_quality_summary">Škálování je relativní k výchozí hodnotě</string>
+    <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
+
+    <string name="tips_map_my_location_description">Kliknutím na toto tlačítko se přesunute na svou aktuální polohu. Mapa bude následovat vaši polohu dokud s ní manuálně nepohnete. Kliknutím na toto tlačítko při sledování polohy spustíte směrový režim.</string>
+    <string name="tips_map_my_location_title">Moje poloha</string>
+    <string name="tips_map_overlay_title">Mapové podklady</string>
+    <string name="tips_map_search_description">Toto pole slouží pro vyhledávání. Při kliknutí na lupu v pravé části spustíte vyhledávání, alternativně můžete využít vyhledávací tlačítko na vaší klávesnici pokud nějaké má.</string>
+    <string name="tips_map_search_title">Vyhledávání</string>
+    <string name="tips_map_overlay_description">Kliknutím nebo tažením tohoto panelu vzhůru otevře nabídku vrstev pro mapu</string>
+</resources>

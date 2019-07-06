@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stats_morning">%1$s morning %2$s</string>
+    <string name="stats_afternoon">%1$s afternoon %2$s</string>
+    <string name="stats_evening">%1$s evening %2$s</string>
+    <string name="stats_night">%1$s night %2$s</string>
+
+    <string name="stats_run">run</string>
+    <string name="stats_walk">walk</string>
+    <string name="stats_ride">ride</string>
+</resources>
