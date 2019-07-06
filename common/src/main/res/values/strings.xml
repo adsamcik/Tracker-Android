@@ -52,4 +52,7 @@
 
     <!-- unused for now -->
     <string name="activity_icon">Activity icon</string>
+
+
+    <string name="undo">undo</string>
 </resources>

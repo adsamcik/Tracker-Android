@@ -72,10 +72,18 @@ class SnackMaker(view: View) : CoroutineScope {
 	 * @param actionRes Action string resource
 	 * @param onActionClick On action click listener
 	 */
-	fun addMessage(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority, @StringRes actionRes: Int, onActionClick: View.OnClickListener) {
+	fun addMessage(@StringRes messageRes: Int,
+	               @SnackDuration duration: Int = LENGTH_LONG,
+	               priority: SnackbarPriority,
+	               @StringRes actionRes: Int,
+	               onActionClick: View.OnClickListener) {
 		val action = resources.getString(actionRes)
 		val message = resources.getString(messageRes)
 		addSnackbar(SnackbarRecipe(message, duration, priority, action, onActionClick))
+	}
+
+	fun addMessage(recipe: SnackbarRecipe) {
+		addSnackbar(recipe)
 	}
 
 	private fun addSnackbar(snackbarRecipe: SnackbarRecipe) {
@@ -130,6 +138,11 @@ class SnackMaker(view: View) : CoroutineScope {
 			addCallback(object : BaseTransientBottomBar.BaseCallback<Snackbar>() {
 				override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
 					super.onDismissed(transientBottomBar, event)
+
+					if (event != DISMISS_EVENT_ACTION) {
+						recipe.onDismissed?.invoke()
+					}
+
 					next()
 				}
 			})
@@ -138,11 +151,12 @@ class SnackMaker(view: View) : CoroutineScope {
 	}
 
 
-	private data class SnackbarRecipe(val message: String,
-	                                  @SnackDuration val duration: Int,
-	                                  val priority: SnackbarPriority,
-	                                  val action: String? = null,
-	                                  val onActionClick: View.OnClickListener? = null)
+	data class SnackbarRecipe(val message: String,
+	                          @SnackDuration val duration: Int,
+	                          val priority: SnackbarPriority,
+	                          val action: String? = null,
+	                          val onActionClick: View.OnClickListener? = null,
+	                          val onDismissed: (() -> Unit)? = null)
 
 	enum class SnackbarPriority {
 		QUEUE,

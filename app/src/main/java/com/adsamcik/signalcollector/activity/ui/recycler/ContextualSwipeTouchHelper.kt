@@ -23,6 +23,8 @@ class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecycler
 	private val backgroundPaint = Paint()
 	private val foregroundPaint = Paint()
 
+	var onSwipedCallback: ((position: Int) -> Unit)? = null
+
 	init {
 		colorController.addListener {
 			updateColor(it)
@@ -60,9 +62,7 @@ class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecycler
 		when (direction) {
 			ItemTouchHelper.LEFT, ItemTouchHelper.RIGHT -> {
 				val position = viewHolder.adapterPosition
-				GlobalScope.launch(Dispatchers.Default) {
-					adapter.removeAtPermanently(viewHolder.itemView.context, position)
-				}
+				onSwipedCallback?.invoke(position)
 			}
 		}
 	}

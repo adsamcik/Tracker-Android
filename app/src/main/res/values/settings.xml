@@ -178,6 +178,8 @@
     <string name="settings_activity_title">Activities</string>
     <string name="settings_activity_key" translatable="false">activities</string>
 
+    <string name="settings_activity_snackbar_message">Removed %s</string>
+
     <!-- LANGUAGE -->
     <string name="settings_language_title">Application language</string>
     <string name="settings_language_summary">Current language: %s</string>
@@ -250,4 +252,5 @@
     <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
 
     <string name="settings_app_version_key" translatable="false">appVersion</string>
+
 </resources>
