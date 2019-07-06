@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.signalcollector.activity.ui.recycler.ContextualSwipeTouchHelper
@@ -89,7 +90,7 @@ class SessionActivityActivity : DetailActivity() {
 
 	private fun initializeColorController() {
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
-		styleController.watchView(StyleView(fab, 1, isInverted = true))
+		styleController.watchView(StyleView(findViewById(R.id.fab), 1, isInverted = true))
 		styleController.watchView(StyleView(add_item_layout, 2))
 	}
 

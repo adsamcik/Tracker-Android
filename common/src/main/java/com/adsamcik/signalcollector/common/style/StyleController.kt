@@ -24,6 +24,7 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.style.StyleManager.layerColor
 import com.adsamcik.signalcollector.common.style.StyleManager.styleData
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -415,6 +416,7 @@ class StyleController : CoroutineScope {
 				if (background is RippleDrawable) {
 					val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
 					background.setColor(Assist.getPressedState(nextLevel))
+					background.setTint(bgColor)
 				} else {
 					if (background.alpha < 255) return false
 
