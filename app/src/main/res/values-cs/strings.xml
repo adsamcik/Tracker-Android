@@ -178,7 +178,6 @@
 
     <string name="altitude">výška</string>
     <string name="cell_current">%1$s %2$d dbm</string>
-    <string name="challenge_list_title">Výzvy</string>
     <string name="current">aktuální</string>
     <string name="export_button">Export</string>
     <string name="export_default_file_name">SignalsExportovanaData</string>
@@ -219,4 +218,14 @@
     <string name="tracker_session_age">Začátek relace</string>
     <string name="tracker_session_card_title">Relace</string>
     <string name="tracker_steps">Kroky</string>
+    <string name="import_notification_extracting">Rozbaluji %s …</string>
+    <string name="import_notification_finished">Import dokončen. Úspěšně importováno %d souborů.</string>
+    <string name="import_notification_importing">Importuji %s …</string>
+    <string name="import_notification_progress">Probíhá import …</string>
+    <string name="settings_activity_title">Aktivity</string>
+    <string name="settings_import_no_types">bohužel, žádné typy nejsou dostupné na tomto zařízení.</string>
+    <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%1$s)</string>
+    <string name="settings_import_title">Import</string>
+    <string name="settings_language_summary">Aktuální jazyk: %s</string>
+    <string name="settings_language_title">Jazyk aplikace</string>
 </resources>
