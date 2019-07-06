@@ -32,20 +32,6 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 	override fun onStart() {
 		super.onStart()
 		val adapter = MapFilterableAdapter(requireContext(), com.adsamcik.signalcollector.common.R.layout.recycler_item) { it.name }
-
-		if (useMock) {
-			adapter.addAll(arrayListOf(MapLayer("WiFi"),
-					MapLayer("CenterFon", MAX_LATITUDE / 2, MAX_LONGITUDE / 2, MIN_LATITUDE / 2, MIN_LONGITUDE / 2),
-					MapLayer("Filler01"),
-					MapLayer("Filler02"),
-					MapLayer("Filler03"),
-					MapLayer("Filler04"),
-					MapLayer("Filler"),
-					MapLayer("Filler"),
-					MapLayer("Filler"),
-					MapLayer("Filler"),
-					MapLayer("Filler")))
-		}
 		val context = requireContext()
 
 		recycler.adapter = adapter
