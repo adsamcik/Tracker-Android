@@ -11,27 +11,23 @@ import com.adsamcik.signalcollector.activity.ActivityRecognitionWorker
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.getPositiveLongExtraReportNull
 import com.adsamcik.signalcollector.common.useMock
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class ActivitySessionReceiver : BroadcastReceiver() {
 	private fun onSessionEnded(context: Context, intent: Intent) {
 		val id = intent.getPositiveLongExtraReportNull(ARG_ID) ?: return
 
-		GlobalScope.launch {
-			val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, id).build()
-			val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
-					.setInitialDelay(DELAY_IN_MINUTES, TimeUnit.MINUTES)
-					.addTag(ActivityRecognitionWorker.WORK_TAG)
-					.setInputData(data)
-					.setConstraints(Constraints.Builder()
-							.setRequiresBatteryNotLow(true)
-							.build()
-					).build()
+		val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, id).build()
+		val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
+				.setInitialDelay(DELAY_IN_MINUTES, TimeUnit.MINUTES)
+				.addTag(ActivityRecognitionWorker.WORK_TAG)
+				.setInputData(data)
+				.setConstraints(Constraints.Builder()
+						.setRequiresBatteryNotLow(true)
+						.build()
+				).build()
 
-			WorkManager.getInstance(context).enqueue(workRequest)
-		}
+		WorkManager.getInstance(context).enqueue(workRequest)
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {
