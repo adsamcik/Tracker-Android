@@ -12,8 +12,7 @@ import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 
 class TrackerDataComponent : PostTrackerComponent {
 	private var locationDao: LocationDataDao? = null
@@ -26,11 +25,13 @@ class TrackerDataComponent : PostTrackerComponent {
 		wifiDao = null
 	}
 
-	override suspend fun onEnable(context: Context) {
-		val database = AppDatabase.getDatabase(context)
-		locationDao = database.locationDao()
-		cellDao = database.cellDao()
-		wifiDao = database.wifiDao()
+	override suspend fun onEnable(context: Context) = coroutineScope {
+		withContext(Dispatchers.Default) {
+			val database = AppDatabase.getDatabase(context)
+			locationDao = database.locationDao()
+			cellDao = database.cellDao()
+			wifiDao = database.wifiDao()
+		}
 	}
 
 	override fun onNewData(context: Context, session: TrackerSession, location: Location, collectionData: CollectionData) {

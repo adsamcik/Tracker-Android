@@ -168,13 +168,13 @@ class ExportActivity : DetailActivity() {
 			?: getString(R.string.export_default_file_name)
 
 	private fun export(directory: File, onPick: ((ExportResult) -> Unit)? = null) {
-		val database = AppDatabase.getDatabase(applicationContext)
-		val locationDao = database.locationDao()
-
 		val from = this.range.start
 		val to = this.range.endInclusive
 
 		launch(Dispatchers.Default) {
+			val database = AppDatabase.getDatabase(applicationContext)
+			val locationDao = database.locationDao()
+
 			val result = if(exporter.canSelectDateRange) {
 				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 

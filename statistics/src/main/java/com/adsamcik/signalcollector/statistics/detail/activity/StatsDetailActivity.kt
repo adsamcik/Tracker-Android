@@ -5,8 +5,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.MainThread
-import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
+import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.DefaultItemAnimator
@@ -18,8 +17,6 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.activity.ui.SessionActivitySelection
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.style.RecyclerStyleView
-import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
@@ -27,6 +24,8 @@ import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.StatsFormat
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
@@ -73,7 +72,11 @@ class StatsDetailActivity : DetailActivity() {
 
 		if (sessionId <= 0L) throw IllegalArgumentException("Argument $ARG_SESSION_ID must be set with valid value!")
 
-		viewModel = ViewModelProviders.of(this)[ViewModel::class.java].also { it.initialize(this, sessionId) }
+		viewModel = ViewModelProviders.of(this)[ViewModel::class.java].also {
+			launch(Dispatchers.Default) {
+				it.initialize(this@StatsDetailActivity, sessionId)
+			}
+		}
 
 		viewModel.run {
 			session.observe(this@StatsDetailActivity) {
@@ -333,6 +336,7 @@ class StatsDetailActivity : DetailActivity() {
 		private var initialized = false
 		lateinit var session: LiveData<TrackerSession>
 
+		@WorkerThread
 		fun initialize(context: Context, sessionId: Long) {
 			if (initialized) return
 			initialized = true

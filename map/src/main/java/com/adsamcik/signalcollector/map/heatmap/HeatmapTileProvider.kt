@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.map.heatmap
 
 import android.content.Context
 import android.graphics.Color
+import androidx.annotation.WorkerThread
 import com.adsamcik.signalcollector.common.extension.toDate
 import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.common.misc.Int2
@@ -104,6 +105,7 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 		}
 	}
 
+	@WorkerThread
 	fun setHeatmapLayer(context: Context, layerType: LayerType) {
 		heatmapTileCreator = when (layerType) {
 			LayerType.Location -> LocationHeatmapTileCreator(context)

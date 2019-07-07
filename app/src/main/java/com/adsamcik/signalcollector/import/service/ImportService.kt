@@ -22,8 +22,6 @@ class ImportService : CoreService() {
 	private lateinit var database: AppDatabase
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-		database = AppDatabase.getDatabase(this)
-
 		val path = intent.getStringExtra(ARG_FILE_PATH)
 				?: throw NullPointerException("Argument $ARG_FILE_PATH needs to be set")
 
@@ -34,6 +32,7 @@ class ImportService : CoreService() {
 				true))
 
 		launch {
+			database = AppDatabase.getDatabase(this@ImportService)
 			database.runInTransaction {
 				val count = handleFile(file)
 
