@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import android.os.PowerManager
+import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
@@ -16,6 +17,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
+import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
@@ -37,10 +39,7 @@ import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionDat
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.gms.location.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 
 class TrackerService : CoreService() {
 	private lateinit var powerManager: PowerManager
@@ -141,24 +140,21 @@ class TrackerService : CoreService() {
 		}
 	}
 
+	@MainThread
 	private suspend fun initializeComponents(isSessionUserInitiated: Boolean) {
 		preComponentList.apply {
 			add(PreLocationTrackerComponent())
 		}.forEach { it.onEnable(this) }
 
-		val dataComponentAsync = async(Dispatchers.Main) {
-			dataComponentManager = DataComponentManager(this@TrackerService)
-					.apply {
-						onEnable(isSessionUserInitiated)
-					}
-		}
+		dataComponentManager = DataComponentManager(this)
+				.apply {
+					onEnable(isSessionUserInitiated)
+				}
 
 		postComponentList.apply {
 			add(notificationComponent)
 			add(TrackerDataComponent())
 		}.forEach { it.onEnable(this) }
-
-		dataComponentAsync.await()
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -197,7 +193,9 @@ class TrackerService : CoreService() {
 
 			ActivityWatcherService.poke(this@TrackerService, trackerRunning = true)
 
-			initializeComponents(isSessionUserInitiated = isUserInitiated)
+			val componentInitialization = async(Dispatchers.Main) {
+				initializeComponents(isSessionUserInitiated = isUserInitiated)
+			}
 
 			val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
 			LocalBroadcastManager.getInstance(this@TrackerService).sendBroadcast(sessionStartIntent)
@@ -210,7 +208,11 @@ class TrackerService : CoreService() {
 				priority = LocationRequest.PRIORITY_HIGH_ACCURACY
 			}
 
-			client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
+			componentInitialization.await()
+
+			launch(Dispatchers.Main) {
+				client.requestLocationUpdates(request, locationCallback, Looper.myLooper())
+			}
 		}
 
 		return START_NOT_STICKY
@@ -240,10 +242,10 @@ class TrackerService : CoreService() {
 
 		//This work needs to be done, but might take extra time so it's fine to do it in GlobalScope
 		val appContext = applicationContext
-		GlobalScope.launch {
+		launch(Dispatchers.Main) {
 			dataComponentManager.onDisable()
 			preComponentList.forEach { it.onDisable(appContext) }
-			postComponentList.forEach { it.onEnable(appContext) }
+			postComponentList.forEach { it.onDisable(appContext) }
 		}
 
 		val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {

@@ -47,11 +47,13 @@ class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters
 
 		if (results.isEmpty()) return@coroutineScope Result.success()
 
-		val activityRecognitionResult = results.maxBy { it.first.precisionConfidence * it.second.confidence }
-				?: throw NullPointerException()
+		val activityRecognitionResult = results.maxBy {
+			it.first.precisionConfidence * it.second.confidence
+		} ?: throw NullPointerException()
 
-		val mutableSession = MutableTrackerSession(session)
-		mutableSession.sessionActivityId = activityRecognitionResult.second.requireRecognizedActivity.id
+		val mutableSession = MutableTrackerSession(session).apply {
+			sessionActivityId = activityRecognitionResult.second.requireRecognizedActivity.id
+		}
 
 		database.sessionDao().update(mutableSession)
 

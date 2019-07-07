@@ -13,7 +13,6 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.signalcollector.activity.ui.recycler.ContextualSwipeTouchHelper
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.misc.SnackMaker
@@ -77,15 +76,9 @@ class SessionActivityActivity : DetailActivity() {
 		}
 
 		launch(Dispatchers.Default) {
-			val database = AppDatabase.getDatabase(this@SessionActivityActivity)
-			val activityDao = database.activityDao()
-			val itemCollection = mutableListOf<SortableAdapter.SortableData<SessionActivity>>().apply {
-				addAll(NativeSessionActivity.values().map {
-					SortableAdapter.SortableData(it.getSessionActivity(this@SessionActivityActivity), AppendPriority.Start)
-				})
-				addAll(activityDao.getAll().map {
-					SortableAdapter.SortableData(it, AppendPriority.Any)
-				})
+			val itemCollection = SessionActivity.getAll(this@SessionActivityActivity).map {
+				SortableAdapter.SortableData(it,
+						if (it.id >= 0) AppendPriority.Start else AppendPriority.Any)
 			}
 
 			launch(Dispatchers.Main) {

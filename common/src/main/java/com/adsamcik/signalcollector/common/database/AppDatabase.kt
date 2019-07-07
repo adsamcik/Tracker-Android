@@ -6,10 +6,14 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.dao.*
-import com.adsamcik.signalcollector.common.database.data.*
+import com.adsamcik.signalcollector.common.database.data.CellTypeTypeConverter
+import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 
 
 @Database(entities = [DatabaseLocation::class,
@@ -38,11 +42,21 @@ abstract class AppDatabase : RoomDatabase() {
 			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
 					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 					.build()
+			initialize(context, instance)
 
 			instance_ = instance
 			return instance
 		}
 
+		private fun initialize(context: Context, database: AppDatabase) {
+			val sessionActivity = NativeSessionActivity.values().map {
+				it.getSessionActivity(context)
+			}
+
+			database.activityDao().insert(sessionActivity)
+		}
+
+		@WorkerThread
 		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)
 		}

@@ -9,6 +9,9 @@ interface ActivityDao : BaseDao<SessionActivity> {
 	@Query("SELECT * FROM activity")
 	fun getAll(): List<SessionActivity>
 
+	@Query("SELECT * FROM activity WHERE id >= 0")
+	fun getAllUser(): List<SessionActivity>
+
 	@Query("SELECT * FROM activity WHERE id = :id")
 	fun get(id: Long): SessionActivity?
 
