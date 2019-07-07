@@ -7,6 +7,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
+import androidx.annotation.WorkerThread
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
@@ -21,7 +22,10 @@ import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import com.google.android.gms.location.LocationResult
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
@@ -70,10 +74,8 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 	}
 
 	override suspend fun onDisable(context: Context) {
-		withContext(Dispatchers.Main) {
-			PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
-			PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
-		}
+		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
+		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
 
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
@@ -88,12 +90,8 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 	}
 
 	override suspend fun onEnable(context: Context) {
-		val observeAsync = coroutineScope {
-			async(Dispatchers.Main) {
-				PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
-				PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
-			}
-		}
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
 
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
@@ -102,14 +100,36 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 			sensorManager.registerListener(this, stepCounter, SensorManager.SENSOR_DELAY_NORMAL)
 		}
 
-		mutableSession = MutableTrackerSession(Time.nowMillis, isUserInitiated)
-
 		withContext(coroutineContext) {
-			sessionDao = AppDatabase.getDatabase(context).sessionDao()
-			sessionDao.insert(mutableSession).also { mutableSession.id = it }
+			initializeSession(context)
+		}
+	}
+
+	@WorkerThread
+	private fun initializeSession(context: Context) {
+		sessionDao = AppDatabase.getDatabase(context).sessionDao()
+
+		val lastSession = sessionDao.getLast(1)
+		val now = Time.nowMillis
+
+		var continuingSession = false
+		if (lastSession != null) {
+			val lastSessionEnd = lastSession.end
+			val lastSessionAge = now - lastSessionEnd
+
+			if (lastSessionAge in 1..MERGE_SESSION_MAX_AGE &&
+					lastSession.isUserInitiated == isUserInitiated &&
+					!isUserInitiated) {
+				mutableSession = MutableTrackerSession(lastSession)
+				continuingSession = true
+			}
 		}
 
-		observeAsync.await()
+		if (!continuingSession) {
+			val session = MutableTrackerSession(now, isUserInitiated)
+			session.id = sessionDao.insert(session)
+			mutableSession = session
+		}
 	}
 
 	override fun onSensorChanged(event: SensorEvent) {
@@ -130,4 +150,9 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 	}
 
 	override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+
+	companion object {
+		const val MERGE_SESSION_MAX_AGE = 15 * Time.MINUTE_IN_MILLISECONDS
+	}
 }
