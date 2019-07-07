@@ -9,6 +9,7 @@ import androidx.annotation.WorkerThread
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -336,7 +337,9 @@ class StatsDetailActivity : DetailActivity() {
 
 	class ViewModel : androidx.lifecycle.ViewModel() {
 		private var initialized = false
-		lateinit var session: LiveData<TrackerSession>
+		private val sessionMutable: MutableLiveData<TrackerSession> = MutableLiveData()
+
+		val session: LiveData<TrackerSession> get() = sessionMutable
 
 		@WorkerThread
 		fun initialize(context: Context, sessionId: Long) {
@@ -344,7 +347,7 @@ class StatsDetailActivity : DetailActivity() {
 			initialized = true
 
 			val database = AppDatabase.getDatabase(context)
-			session = database.sessionDao().getLive(sessionId)
+			sessionMutable.postValue(database.sessionDao().get(sessionId))
 		}
 	}
 
