@@ -39,6 +39,7 @@ import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.gms.location.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class TrackerService : CoreService() {
@@ -145,12 +146,19 @@ class TrackerService : CoreService() {
 			add(PreLocationTrackerComponent())
 		}.forEach { it.onEnable(this) }
 
-		dataComponentManager = DataComponentManager(this).apply { onEnable(isSessionUserInitiated) }
+		val dataComponentAsync = async(Dispatchers.Main) {
+			dataComponentManager = DataComponentManager(this@TrackerService)
+					.apply {
+						onEnable(isSessionUserInitiated)
+					}
+		}
 
 		postComponentList.apply {
 			add(notificationComponent)
 			add(TrackerDataComponent())
 		}.forEach { it.onEnable(this) }
+
+		dataComponentAsync.await()
 	}
 
 	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
