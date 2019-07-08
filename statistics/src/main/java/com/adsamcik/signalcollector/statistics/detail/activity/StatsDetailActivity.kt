@@ -289,7 +289,7 @@ class StatsDetailActivity : DetailActivity() {
 		val firstTime = locations.first().time
 		var descended = 0.0
 		var ascended = 0.0
-		var previousAltitude = locations.first { it.altitude != null }.altitude!!
+		var previousAltitude = locations.firstOrNull { it.altitude != null }?.altitude ?: return
 
 		var maxAltitude = previousAltitude
 		var minAltitude = previousAltitude
