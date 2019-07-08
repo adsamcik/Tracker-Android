@@ -181,18 +181,18 @@ class TrackerService : CoreService() {
 		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
 		startForeground(notificationId, notification)
 
-		launch {
-			if (!isUserInitiated) {
-				ActivityService.requestAutoTracking(this@TrackerService, this@TrackerService::class, minUpdateDelayInSeconds)
-				TrackerLocker.isLocked.observe(this@TrackerService) {
-					if (it) stopSelf()
-				}
-			} else {
-				ActivityService.requestActivity(this@TrackerService, this::class, minUpdateDelayInSeconds)
+		if (!isUserInitiated) {
+			ActivityService.requestAutoTracking(this, this::class, minUpdateDelayInSeconds)
+			TrackerLocker.isLocked.observe(this) {
+				if (it) stopSelf()
 			}
+		} else {
+			ActivityService.requestActivity(this, this::class, minUpdateDelayInSeconds)
+		}
 
-			ActivityWatcherService.poke(this@TrackerService, trackerRunning = true)
+		ActivityWatcherService.poke(this, trackerRunning = true)
 
+		launch {
 			val componentInitialization = async(Dispatchers.Main) {
 				initializeComponents(isSessionUserInitiated = isUserInitiated)
 			}
