@@ -233,7 +233,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		var maxSpeed = 0.0
 		var speedSum = 0.0
-		var timeSum = 0L
+		var speedCount = 0
 
 		var previous = locations[0]
 		var previousAltitude = previous.altitude
@@ -250,7 +250,6 @@ class StatsDetailActivity : DetailActivity() {
 				speed = if (recordedSpeed != null) {
 					recordedSpeed.toDouble()
 				} else {
-
 					val distance = if (currentAltitude != null && previousAltitude != null) {
 						Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
 					} else {
@@ -262,14 +261,14 @@ class StatsDetailActivity : DetailActivity() {
 
 				if (speed > maxSpeed) maxSpeed = speed
 				speedSum += speed
-				timeSum += timeDifference
+				speedCount++
 			}
 
 			previous = current
 			previousAltitude = currentAltitude
 		}
 
-		val avgSpeed = speedSum / (timeSum / Time.SECOND_IN_MILLISECONDS)
+		val avgSpeed = speedSum / speedCount
 		val lengthSystem = Preferences.getLengthSystem(this)
 		val speedFormat = Preferences.getSpeedFormat(this)
 		val dataList = listOf(
