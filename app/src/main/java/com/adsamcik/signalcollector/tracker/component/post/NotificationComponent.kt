@@ -14,6 +14,7 @@ import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.formatDistance
+import com.adsamcik.signalcollector.common.extension.formatSpeed
 import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.extension.requireValue
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -111,12 +112,12 @@ class NotificationComponent : PostTrackerComponent {
 		val lengthSystem = Preferences.getLengthSystem(context)
 		val delimiter = ", "
 
-		sb.append(resources.getString(R.string.notification_location,
-				Location.convert(location.latitude, Location.FORMAT_DEGREES),
-				Location.convert(location.longitude, Location.FORMAT_DEGREES)
-		))
-				.append(delimiter)
-				.append(resources.getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
+		if (location.hasSpeed()) {
+			sb.append(resources.formatSpeed(context, location.speed.toDouble(), 1))
+					.append(delimiter)
+		}
+
+		sb.append(resources.getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
 				.append(delimiter)
 
 		val activity = d.activity

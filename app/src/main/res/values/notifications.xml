@@ -13,7 +13,6 @@
     </plurals>
     <string name="notification_cell_current">active %1$s %2$d dBm</string>
     <string name="notification_activity">activity %s</string>
-    <string name="notification_location">%1$s° N %2$s° W</string>
 
     <plurals name="notification_auto_tracking_lock">
         <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
