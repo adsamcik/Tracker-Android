@@ -4,34 +4,33 @@ import org.gradle.kotlin.dsl.kotlin
 object Libraries {
 	object Versions {
 		const val constraintLayout = "2.0.0-beta2"
-		const val coreKtx = "1.1.0-rc01"
-		const val appcompat = "1.1.0-beta01"
+		const val coreKtx = "1.1.0-rc02"
+		const val appcompat = "1.1.0-rc01"
 		const val room = "2.1.0"
-		const val fragment = "1.1.0-beta01"
+		const val fragment = "1.1.0-rc01"
 		const val kotlin = "1.3.41"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
-		const val work = "2.1.0-beta02"
-		const val lifecycle = "2.2.0-alpha01"
-		const val preference = "1.1.0-beta01"
+		const val work = "2.1.0-rc01"
+		const val lifecycle = "2.2.0-alpha02"
+		const val preference = "1.1.0-rc01"
 		const val material = "1.1.0-alpha07"
-		const val coroutines = "1.3.0-M1"
+		const val coroutines = "1.3.0-M2"
 
 		const val maps = "17.0.0"
 		const val location = "17.0.0"
 		const val firebaseCore = "17.0.0"
-		const val recyclerView = "1.1.0-alpha06"
+		const val recyclerView = "1.1.0-beta01"
 		const val paging = "2.1.0"
 
 		const val crashlytics = "2.10.1"
-
-		const val fileChooser = "1.2.0"
 
 		const val playServicesBase = "17.0.0"
 		const val playCore = "1.6.1"
 
 		const val sublimePicker = "2.1.2"
 		const val spotlight = "2.1.0"
+		const val dialogs = "3.1.0"
 
 		object Test {
 			const val androidxTest = "1.2.0"
@@ -80,7 +79,7 @@ object Libraries {
 			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
 			implementation("com.google.android.play:core:${Versions.playCore}")
 
-			implementation("com.afollestad.material-dialogs:core:3.0.2")
+			implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
 
 			work(this)
 
@@ -146,7 +145,7 @@ object Libraries {
 	fun fileChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			//todo update to version that supports Android Q when ready
-			implementation("com.afollestad.material-dialogs:files:3.1.0")
+			implementation("com.afollestad.material-dialogs:files:${Versions.dialogs}")
 		}
 	}
 
