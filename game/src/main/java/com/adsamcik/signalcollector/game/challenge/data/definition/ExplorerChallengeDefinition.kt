@@ -11,13 +11,18 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.ExplorerChallen
 class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstance>(
 		R.string.challenge_explorer_title,
 		R.string.challenge_explorer_description,
-		Time.WEEK_IN_MILLISECONDS) {
-	val defaultLocationCount: Int = 1000
+		Time.DAY_IN_MILLISECONDS * BASE_DAY_COUNT) {
+	val defaultLocationCount: Int = BASE_NEW_LOCATIONS_PER_DAY * BASE_DAY_COUNT
 
 	override val type: ChallengeType = ChallengeType.Explorer
 
 	override fun newInstance(context: Context, startAt: Long): ExplorerChallengeInstance {
 		return ExplorerChallengeBuilder(this).build(context, startAt)
+	}
+
+	companion object {
+		private const val BASE_NEW_LOCATIONS_PER_DAY = 100
+		private const val BASE_DAY_COUNT = 7
 	}
 
 }
