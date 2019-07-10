@@ -10,6 +10,7 @@ import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.exception.PermissionException
+import com.adsamcik.signalcollector.common.extension.hasExternalStorageReadPermission
 import com.adsamcik.signalcollector.import.DataImport
 import com.adsamcik.signalcollector.preference.findPreference
 import com.afollestad.materialdialogs.MaterialDialog
@@ -86,7 +87,7 @@ class DataPage : PreferencePage {
 	}
 
 	private fun validateImportPermissions(context: Context): Boolean {
-		return ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+		return context.hasExternalStorageReadPermission
 	}
 
 	private fun openImportDialog(context: Context) {

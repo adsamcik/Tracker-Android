@@ -23,10 +23,7 @@ import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
-import com.adsamcik.signalcollector.common.extension.dp
-import com.adsamcik.signalcollector.common.extension.marginBottom
-import com.adsamcik.signalcollector.common.extension.transaction
-import com.adsamcik.signalcollector.common.extension.transactionStateLoss
+import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.SnackMaker
@@ -98,7 +95,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 * s permission available atm
 	 */
 	private fun checkLocationPermission(context: Context, request: Boolean): Boolean {
-		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+		if (context.hasLocationPermission) {
 			return true
 		} else if (request && Build.VERSION.SDK_INT >= 23) {
 			activity?.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_LOCATION_CODE)

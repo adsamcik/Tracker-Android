@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.core.content.ContextCompat
+import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.common.style.StyleManager
 import com.google.android.gms.location.LocationServices
@@ -64,7 +65,7 @@ abstract class CoreUIFragment : CoreFragment() {
 		val context = requireContext()
 		val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
-		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+		if (context.hasLocationPermission) {
 			fusedLocationClient.lastLocation.addOnCompleteListener {
 				if (it.isSuccessful) {
 					it.result?.let { location -> StyleManager.setLocation(location) }

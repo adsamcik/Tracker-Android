@@ -16,6 +16,7 @@ import android.view.Surface
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.extension.locationManager
 import com.adsamcik.signalcollector.common.extension.windowManager
 import com.adsamcik.signalcollector.common.misc.Int2
@@ -102,8 +103,9 @@ object Assist {
 	fun checkTrackingPermissions(context: Context): Array<String>? {
 		if (Build.VERSION.SDK_INT > 22) {
 			val permissions = ArrayList<String>()
-			if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+			if (context.hasLocationPermission) {
 				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+			}
 
 			return if (permissions.size == 0) null else permissions.toTypedArray()
 

@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.core.content.ContextCompat
+import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.common.style.StyleManager
 import com.google.android.gms.location.LocationServices
@@ -56,7 +57,7 @@ abstract class CoreUIActivity : CoreActivity() {
 	private fun initializeSunriseSunset() {
 		val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+		if (hasLocationPermission) {
 			fusedLocationClient.lastLocation.addOnCompleteListener {
 				if (it.isSuccessful) {
 					val loc = it.result

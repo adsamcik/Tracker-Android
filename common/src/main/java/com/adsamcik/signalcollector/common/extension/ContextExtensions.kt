@@ -1,11 +1,13 @@
 package com.adsamcik.signalcollector.common.extension
 
+import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ShortcutManager
 import android.hardware.SensorManager
 import android.location.LocationManager
@@ -129,6 +131,24 @@ fun Context.appVersion(): Long {
 		@Suppress("DEPRECATION")
 		packageInfo.versionCode.toLong()
 }
+
+fun Context.hasSelfPermission(permission: String): Boolean =
+		ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+fun Context.hasSelfPermissions(permissions: Collection<String>): BooleanArray =
+		permissions.map { hasSelfPermission(it) }.toBooleanArray()
+
+val Context.hasLocationPermission: Boolean
+	get() =
+		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+
+val Context.hasExternalStorageReadPermission: Boolean
+	get() =
+		hasSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+
+val Context.hasExternalStorageWritePermission: Boolean
+	get() =
+		hasSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
 
 
 /**
