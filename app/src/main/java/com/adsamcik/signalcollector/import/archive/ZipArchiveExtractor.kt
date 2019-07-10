@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.import.archive
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.Reporter
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -22,17 +23,25 @@ class ZipArchiveExtractor : ArchiveExtractor {
 
 			var entry = it.nextEntry
 			while (entry != null) {
-				//todo entry name might be unsafe it's not priority to fix because
-				// user chooses the file, but it might be good idea to fix it in the future
 				val filename = entry.name
 
 				if (entry.isDirectory) {
-					val directory = File(outputDirectory, filename)
-					directory.mkdirs()
+					//todo add support for directories
+					//val directory = File(outputDirectory, filename)
+					//directory.mkdirs()
 					continue
 				}
 
 				val fileOut = File(outputDirectory, filename)
+
+				val canonicalPath = fileOut.canonicalPath
+				if (!canonicalPath.startsWith(outputDirectory.path)) {
+					//todo report this to the user
+					//todo remove the report once out of beta
+					Reporter.report(SecurityException("File has invalid file name $filename"))
+					continue
+				}
+
 				val fileOutStream = FileOutputStream(fileOut, false)
 
 				var count = it.read(buffer)
