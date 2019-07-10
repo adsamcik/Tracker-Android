@@ -1,8 +1,6 @@
 package com.adsamcik.signalcollector.map
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -14,6 +12,8 @@ import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -59,6 +59,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 	private var rotationMatrix = FloatArray(9)
 
 	//Location
+	private var isSubscribed = false
 	private val locationCallback = object : LocationCallback() {
 		override fun onLocationResult(locationResult: LocationResult?) {
 			locationResult ?: return
@@ -93,10 +94,11 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 	}
 
 	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
-		if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+		if (!isSubscribed && context.hasLocationPermission) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
 			val locationRequest = LocationRequest().apply {
-				this.priority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
+				this.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+				this.interval = LOCATION_UPDATE_INTERVAL
 			}
 
 			Assist.ensureLooper()
@@ -112,12 +114,15 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 					}
 				}
 			}
+
+			isSubscribed = true
 		}
 	}
 
 	fun unsubscribeFromLocationUpdates(context: Context) {
 		val locationClient = LocationServices.getFusedLocationProviderClient(context)
 		locationClient.removeLocationUpdates(locationCallback)
+		isSubscribed = false
 	}
 
 
@@ -275,5 +280,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 
 		private const val MAX_MOVE_ZOOM = 17f
 		private const val MIN_MOVE_ZOOM = 16f
+
+		private const val LOCATION_UPDATE_INTERVAL = 2 * Time.SECOND_IN_MILLISECONDS
 	}
 }
