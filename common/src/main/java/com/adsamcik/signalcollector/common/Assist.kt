@@ -100,17 +100,16 @@ object Assist {
 	 * @param context context
 	 * @return permissions that app does not have, null if api is lower than 23 or all permission are acquired
 	 */
-	fun checkTrackingPermissions(context: Context): Array<String>? {
+	fun checkTrackingPermissions(context: Context): Array<String> {
 		if (Build.VERSION.SDK_INT > 22) {
 			val permissions = ArrayList<String>()
-			if (context.hasLocationPermission) {
+			if (!context.hasLocationPermission) {
 				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
 			}
 
-			return if (permissions.size == 0) null else permissions.toTypedArray()
-
+			return permissions.toTypedArray()
 		}
-		return null
+		return arrayOf()
 	}
 
 	/**

@@ -28,7 +28,6 @@ import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.SnackMaker
-import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.preference.activity.SettingsActivity
@@ -146,10 +145,9 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	private fun toggleCollecting(activity: FragmentActivity, enable: Boolean) {
 		if (TrackerService.isServiceRunning.value == enable) return
 
-		val requiredPermissions = Assist.checkTrackingPermissions(activity)
-		val view = view
+		val missingPermissions = Assist.checkTrackingPermissions(activity)
 
-		if (requiredPermissions == null && view != null) {
+		if (missingPermissions.isEmpty()) {
 			if (!TrackerService.isServiceRunning.value) {
 				if (!Assist.isGNSSEnabled(activity)) {
 					SnackMaker(activity.root).addMessage(R.string.error_gnss_not_enabled,
@@ -162,10 +160,6 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 				} else if (!Assist.canTrack(activity)) {
 					SnackMaker(activity.findViewById(R.id.root)).addMessage(R.string.error_nothing_to_track)
 				} else {
-					Preferences.getPref(activity).edit {
-						setBoolean(R.string.settings_disabled_recharge_key, false)
-					}
-
 					activity.startForegroundService<TrackerService> {
 						putExtra(TrackerService.ARG_IS_USER_INITIATED, true)
 					}
@@ -176,7 +170,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 				activity.stopService<TrackerService>()
 			}
 		} else if (Build.VERSION.SDK_INT >= 23) {
-			activity.requestPermissions(requiredPermissions!!, 0)
+			activity.requestPermissions(missingPermissions, 0)
 		}
 	}
 
