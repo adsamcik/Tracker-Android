@@ -131,8 +131,10 @@ object TrackerLocker {
 	 * Removed recharge lockTimeLock
 	 */
 	fun unlockRechargeLock(context: Context) {
-		WorkManager.getInstance(context).cancelAllWorkByTag(WORK_DISABLE_TILL_RECHARGE_TAG)
-		setRechargeLock(context, false)
+		synchronized(this) {
+			WorkManager.getInstance(context).cancelAllWorkByTag(WORK_DISABLE_TILL_RECHARGE_TAG)
+			setRechargeLock(context, false)
+		}
 	}
 
 	/**
@@ -140,18 +142,20 @@ object TrackerLocker {
 	 * Cannot be locked for less than a second
 	 */
 	fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
-		val lockUntilTime = Time.nowMillis + lockTimeInMillis
-		if (lockTimeInMillis < Time.SECOND_IN_MILLISECONDS || lockUntilTime <= this.lockedUntilTime)
-			return
+		synchronized(this) {
+			val lockUntilTime = Time.nowMillis + lockTimeInMillis
+			if (lockTimeInMillis < Time.SECOND_IN_MILLISECONDS || lockUntilTime <= this.lockedUntilTime) {
+				return
+			}
 
-		setTimeLock(context, lockUntilTime)
-		context.alarmManager.set(AlarmManager.RTC_WAKEUP,
-				lockUntilTime, getTimeUnlockBroadcastIntent(context))
+			setTimeLock(context, lockUntilTime)
+			context.alarmManager.set(AlarmManager.RTC_WAKEUP,
+					lockUntilTime, getTimeUnlockBroadcastIntent(context))
+		}
 	}
 
 	/**
 	 * Unlocks active time lock
-	 * Thread safe
 	 */
 	fun unlockTimeLock(context: Context) {
 		synchronized(this) {
@@ -159,6 +163,16 @@ object TrackerLocker {
 			setTimeLock(context, 0)
 
 			ActivityWatcherService.poke(context, isLockedRightNow())
+		}
+	}
+
+	/**
+	 * Unlocks all locks
+	 */
+	fun unlock(context: Context) {
+		synchronized(this) {
+			unlockRechargeLock(context)
+			unlockTimeLock(context)
 		}
 	}
 
