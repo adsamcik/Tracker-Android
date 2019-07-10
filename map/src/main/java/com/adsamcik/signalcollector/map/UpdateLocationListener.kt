@@ -26,7 +26,7 @@ import java.lang.Math.toDegrees
 
 //todo add activity icon instead of generic location icon when possible
 class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
-	var followMyPosition: Boolean = false
+	private var followMyPosition: Boolean = false
 	private var useGyroscope = false
 
 	private val sensorManager: SensorManager = context.sensorManager

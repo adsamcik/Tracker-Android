@@ -172,7 +172,6 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			fragmentView = inflater.inflate(com.adsamcik.signalcollector.common.R.layout.layout_error, container, false)
 			fragmentView.findViewById<AppCompatTextView>(com.adsamcik.signalcollector.common.R.id.activity_error_text)
 					.setText(if (hasPermissions) com.adsamcik.signalcollector.common.R.string.error_play_services_not_available else com.adsamcik.signalcollector.common.R.string.error_missing_permission)
-			return fragmentView
 		}
 
 		return fragmentView
@@ -258,8 +257,8 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 */
 	private fun initializeUserElements() {
 		initializeKeyboardDetection()
-		edittext_map_search.setOnEditorActionListener { v, _, _ ->
-			search(v.text.toString())
+		edittext_map_search.setOnEditorActionListener { textView, _, _ ->
+			search(textView.text.toString())
 			true
 		}
 
