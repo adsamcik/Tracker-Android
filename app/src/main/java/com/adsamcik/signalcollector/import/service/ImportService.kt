@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.import.service
 
 import android.app.Notification
+import android.app.Service
 import android.content.Intent
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
@@ -21,7 +22,13 @@ class ImportService : CoreService() {
 	private val import = DataImport()
 	private lateinit var database: AppDatabase
 
-	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+		if(intent == null) {
+			Reporter.report(NullPointerException("Service cannot be started without intent"))
+			stopSelf()
+			return Service.START_NOT_STICKY
+		}
+
 		val path = intent.getStringExtra(ARG_FILE_PATH)
 				?: throw NullPointerException("Argument $ARG_FILE_PATH needs to be set")
 

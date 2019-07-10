@@ -14,6 +14,7 @@ import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.service.CoreService
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.util.*
@@ -22,7 +23,7 @@ import kotlin.concurrent.scheduleAtFixedRate
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
-class ActivityWatcherService : LifecycleService() {
+class ActivityWatcherService : CoreService() {
 	private var activityInfo = ActivityService.lastActivity
 
 	private val timer: Timer = Timer()
@@ -57,7 +58,7 @@ class ActivityWatcherService : LifecycleService() {
 		timer.cancel()
 	}
 
-	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
 		return START_REDELIVER_INTENT
 	}

@@ -1,28 +1,25 @@
 package com.adsamcik.signalcollector.tracker.service
 
-import android.Manifest
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import android.os.PowerManager
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
-import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.exception.PermissionException
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.misc.NonNullLiveData
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -39,7 +36,9 @@ import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionDat
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.gms.location.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 
 class TrackerService : CoreService() {
 	private lateinit var powerManager: PowerManager
@@ -157,20 +156,25 @@ class TrackerService : CoreService() {
 		}.forEach { it.onEnable(this) }
 	}
 
-	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
+
+		if (intent == null) {
+			Reporter.report(NullPointerException("Intent is null"))
+		}
 
 		val preferences = Preferences.getPref(this)
 		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default)
 		val minDistanceInMeters = preferences.getIntRes(R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default)
 
-		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+		if (!this.hasLocationPermission) {
 			Reporter.report(PermissionException("Tracker does not have sufficient permissions"))
 			stopSelf()
 			return Service.START_NOT_STICKY
 		}
 
-		val isUserInitiated = intent.getBooleanExtra(ARG_IS_USER_INITIATED, false)
+		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
+				?: DEFAULT_IS_USER_INITIATED
 
 		isServiceRunningMutable.value = true
 
@@ -281,5 +285,6 @@ class TrackerService : CoreService() {
 
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"
+		private const val DEFAULT_IS_USER_INITIATED = false
 	}
 }
