@@ -153,6 +153,6 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 
 
 	companion object {
-		const val MERGE_SESSION_MAX_AGE = 15 * Time.MINUTE_IN_MILLISECONDS
+		const val MERGE_SESSION_MAX_AGE = 10 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
