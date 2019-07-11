@@ -206,7 +206,7 @@ class StatsDetailActivity : DetailActivity() {
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_shoe_print, R.string.stats_steps, session.steps.formatReadable()),
 				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
-		adapter.addAll(data.map { SortableAdapter.SortableData(it) })
+		adapter.addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 	}
 
 	private fun addLocationStats(session: TrackerSession, adapter: StatsDetailAdapter) {
