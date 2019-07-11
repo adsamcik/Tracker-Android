@@ -47,4 +47,7 @@
     <string name="per_hour_abbr">%s/h</string>
     <string name="per_minute_abbr">%s/m</string>
     <string name="per_second_abbr">%s/s</string>
+    <string name="activity_icon">Ikonka aktivity</string>
+    <string name="activity_name">Název aktivity</string>
+    <string name="undo">vrátit</string>
 </resources>

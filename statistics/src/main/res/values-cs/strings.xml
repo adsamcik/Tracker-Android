@@ -27,4 +27,5 @@
     <string name="stats_ride">jízda</string>
     <string name="stats_run">běh</string>
     <string name="stats_walk">chůze</string>
+    <string name="edit_session">Upravit relaci</string>
 </resources>

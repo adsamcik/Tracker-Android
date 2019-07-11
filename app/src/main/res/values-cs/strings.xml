@@ -64,8 +64,8 @@
         <item quantity="few">%d záznamy</item>
         <item quantity="other">%d záznamů</item>
     </plurals>
-    <string name="latitude">%1$s zeměpisné šířky</string>
-    <string name="longitude">%1$s zeměpisné délky</string>
+    <string name="latitude">zeměpisná šířka</string>
+    <string name="longitude">zeměpisná délka</string>
 
 
     <string name="notification_activity">aktivita %s</string>
