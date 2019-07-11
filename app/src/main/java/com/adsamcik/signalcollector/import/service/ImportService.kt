@@ -23,7 +23,7 @@ class ImportService : CoreService() {
 	private lateinit var database: AppDatabase
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-		if(intent == null) {
+		if (intent == null) {
 			Reporter.report(NullPointerException("Service cannot be started without intent"))
 			stopSelf()
 			return Service.START_NOT_STICKY
@@ -44,7 +44,7 @@ class ImportService : CoreService() {
 				val count = handleFile(file)
 
 				showNotification(
-						getString(R.string.import_notification_finished, count),
+						resources.getQuantityString(R.plurals.import_notification_finished, count, count),
 						false)
 			}
 
