@@ -76,7 +76,6 @@
         <item quantity="other">%d mobilních vysílačů v dosahu</item>
     </plurals>
     <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
-    <string name="notification_location">%1$s° S %2$s° V</string>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop">Zastavit</string>
     <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
@@ -110,10 +109,6 @@
     </plurals>
     <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
-    <string name="settings_delete_stored_data_summary">Smazat nasbíraná data, která již byla nahrána, ale ponechána lokálně pro budoucí využití</string>
-    <string name="settings_delete_stored_data_title">Smazat archivní data</string>
-    <string name="settings_delete_tracked_data_summary">Smazat nasbíraná data, která zatím nebyla nahrána</string>
-    <string name="settings_delete_tracked_data_title">Smazat nasbíraná data</string>
     <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
     <string name="settings_export_dialog_from">Od</string>
@@ -219,13 +214,20 @@
     <string name="tracker_session_card_title">Relace</string>
     <string name="tracker_steps">Kroky</string>
     <string name="import_notification_extracting">Rozbaluji %s …</string>
-    <string name="import_notification_finished">Import dokončen. Úspěšně importováno %d souborů.</string>
     <string name="import_notification_importing">Importuji %s …</string>
     <string name="import_notification_progress">Probíhá import …</string>
     <string name="settings_activity_title">Aktivity</string>
     <string name="settings_import_no_types">bohužel, žádné typy nejsou dostupné na tomto zařízení.</string>
-    <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%1$s)</string>
+    <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%2$s)</string>
     <string name="settings_import_title">Import</string>
     <string name="settings_language_summary">Aktuální jazyk: %s</string>
     <string name="settings_language_title">Jazyk aplikace</string>
+    <string name="settings_activity_snackbar_message">%s odstraněno</string>
+    <string name="settings_remove_all_collected_data_summary">Odstraní nasbíraná data (Uživatelské aktivity, nastavení atd. zůstanou nedotčena)</string>
+    <string name="settings_remove_all_collected_data_title">Odstranit veškerá nasbíraná data</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import dokončen. Úspěšně naimportován %d soubor.</item>
+        <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
+        <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
+    </plurals>
 </resources>

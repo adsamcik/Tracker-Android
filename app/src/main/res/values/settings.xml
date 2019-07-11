@@ -137,7 +137,7 @@
 
     <!-- DATA -->
     <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
-    <string name="settings_remove_all_collected_data_summary">Deletes are data acquired during collection (Custom activities, settings etc. will be kept)</string>
+    <string name="settings_remove_all_collected_data_summary">Deletes data acquired during collection (Custom activities, settings etc. will be kept)</string>
     <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
 
     <!-- EXPORT -->

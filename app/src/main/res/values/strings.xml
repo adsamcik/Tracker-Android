@@ -30,7 +30,10 @@
     <string name="export_default_file_name">SignalsExportData</string>
 
     <string name="import_notification_progress">Import in progress …</string>
-    <string name="import_notification_finished">Import finished. Successfully imported %d files.</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import finished. Successfully imported %d file.</item>
+        <item quantity="other">Import finished. Successfully imported %d files.</item>
+    </plurals>
     <string name="import_notification_extracting">Extracting %s …</string>
     <string name="import_notification_importing">Importing %s …</string>
 
