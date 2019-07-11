@@ -37,6 +37,7 @@ class NotificationComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
+		notificationManager?.cancel(NOTIFICATION_ID)
 		notificationManager = context.notificationManager
 	}
 
@@ -63,6 +64,7 @@ class NotificationComponent : PostTrackerComponent {
 				.setSmallIcon(R.drawable.ic_signals)  // the done icon
 				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(Time.nowMillis)  // the time stamp
+				.setOngoing(true)
 				.setColor(ContextCompat.getColor(context, R.color.color_accent))
 				.setContentIntent(TaskStackBuilder.create(context).run {
 					addNextIntentWithParentStack(intent)
@@ -95,8 +97,9 @@ class NotificationComponent : PostTrackerComponent {
 			data == null -> {
 			}
 			else -> {
+				//todo improve title
 				builder.setContentTitle(resources.getString(R.string.notification_tracking_active))
-				builder.setContentText(buildNotificationText(context, location, data))
+				builder.setStyle(NotificationCompat.BigTextStyle().bigText(buildNotificationText(context, location, data)))
 			}
 		}
 
