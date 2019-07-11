@@ -138,17 +138,21 @@ fun Context.hasSelfPermission(permission: String): Boolean =
 fun Context.hasSelfPermissions(permissions: Collection<String>): BooleanArray =
 		permissions.map { hasSelfPermission(it) }.toBooleanArray()
 
-val Context.hasLocationPermission: Boolean
+inline val Context.hasLocationPermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
-val Context.hasExternalStorageReadPermission: Boolean
+inline val Context.hasExternalStorageReadPermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
 
-val Context.hasExternalStorageWritePermission: Boolean
+inline val Context.hasExternalStorageWritePermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+inline val Context.hasReadPhonePermission: Boolean
+	get() =
+		hasSelfPermission(Manifest.permission.READ_PHONE_STATE)
 
 
 /**
