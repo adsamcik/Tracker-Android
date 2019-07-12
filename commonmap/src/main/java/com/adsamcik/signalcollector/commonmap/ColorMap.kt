@@ -3,10 +3,10 @@ package com.adsamcik.signalcollector.commonmap
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
+import com.adsamcik.signalcollector.common.extension.remove
 import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.common.style.StyleData
 import com.adsamcik.signalcollector.common.style.StyleManager
-import com.adsamcik.signalcollector.common.extension.remove
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
 object ColorMap {
-	private val colorChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
+	private val styleChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null
 	private var styleController: StyleController? = null
 
@@ -33,8 +33,16 @@ object ColorMap {
 	}
 
 	private fun destroy() {
-		resources = null
-		styleController?.let { StyleManager.recycleController(it) }
+		GlobalScope.launch {
+			synchronized(styleChangeListeners) {
+				if (styleChangeListeners.isEmpty()) {
+					resources = null
+					styleController?.let { StyleManager.recycleController(it) }
+					styleController = null
+					activeMapStyle = null
+				}
+			}
+		}
 	}
 
 	private fun onColorChange(styleData: StyleData) {
@@ -46,8 +54,8 @@ object ColorMap {
 	}
 
 	private fun removeNullMaps() {
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.removeAll { it.get() == null }
+		synchronized(styleChangeListeners) {
+			styleChangeListeners.removeAll { it.get() == null }
 			checkIfEmpty()
 		}
 	}
@@ -55,8 +63,8 @@ object ColorMap {
 	private fun onStyleChange(style: MapStyleOptions) {
 		removeNullMaps()
 		GlobalScope.launch(Dispatchers.Main) {
-			synchronized(colorChangeListeners) {
-				colorChangeListeners.forEach {
+			synchronized(styleChangeListeners) {
+				styleChangeListeners.forEach {
 					it.get()?.setMapStyle(style)
 				}
 			}
@@ -64,23 +72,25 @@ object ColorMap {
 	}
 
 	fun addListener(context: Context, googleMap: GoogleMap) {
-		synchronized(colorChangeListeners) {
-			val isEmpty = colorChangeListeners.isEmpty()
-			colorChangeListeners.add(WeakReference(googleMap))
+		synchronized(styleChangeListeners) {
+			val isEmpty = styleChangeListeners.isEmpty()
+			styleChangeListeners.add(WeakReference(googleMap))
 			if (isEmpty) init(context) else googleMap.setMapStyle(activeMapStyle)
 			removeNullMaps()
 		}
 	}
 
 	fun removeListener(googleMap: GoogleMap) {
-		synchronized(colorChangeListeners) {
-			colorChangeListeners.remove { it.get() == googleMap }
+		synchronized(styleChangeListeners) {
+			styleChangeListeners.remove { it.get() == googleMap }
 			removeNullMaps()
 		}
 	}
 
 	private fun checkIfEmpty() {
-		if (colorChangeListeners.isEmpty()) destroy()
+		synchronized(styleChangeListeners) {
+			if (styleChangeListeners.isEmpty()) destroy()
+		}
 	}
 
 	private fun loadMapStyleRes(@RawRes mapStyleRes: Int): MapStyleOptions {
