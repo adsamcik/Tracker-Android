@@ -32,7 +32,7 @@ class VehicleActivityRecognizer : ActivityRecognizer {
 			return ActivityRecognitionResult(NativeSessionActivity.BICYCLE, bicycle.confidence)
 		}
 
-		if (vehicle.count * MINIMUM_PERCENTAGE_OF_TOTAL_VEHICLE > locationCollection.size) {
+		if (vehicle.count > locationCollection.size * MINIMUM_PERCENTAGE_OF_TOTAL_VEHICLE) {
 			return ActivityRecognitionResult(NativeSessionActivity.VEHICLE, vehicle.confidence)
 		}
 
