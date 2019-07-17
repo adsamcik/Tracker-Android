@@ -119,6 +119,7 @@
 
         <service
             android:name=".tracker.service.TrackerService"
+            android:foregroundServiceType="location"
             android:exported="false"/>
         <service
             android:name=".activity.service.ActivityService"
