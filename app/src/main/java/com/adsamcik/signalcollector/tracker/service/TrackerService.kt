@@ -64,7 +64,7 @@ class TrackerService : CoreService() {
 	private val notificationComponent: NotificationComponent = NotificationComponent()
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
-	//todo can crash if ended too quickly because uninicialized
+	//todo can crash if ended too quickly because uninitialized
 	private lateinit var dataComponentManager: DataComponentManager
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
 
@@ -84,12 +84,10 @@ class TrackerService : CoreService() {
 			this.lastLocation = null
 			return
 		}
-		//location.time is bugged... basically they subtract timezone from UTC.
-		//I guess they get somewhere time in UTC and think it is timezone so they subtract timezone time
-		//Awesome right?
-		/*else if (location.time < dataComponentManager.session.start) {
+
+		if (location.time < dataComponentManager.session.start) {
 			return
-		}*/
+		}
 
 		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
 
