@@ -43,8 +43,10 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 		processSession(context, session)
 		if (checkCompletionConditions()) {
 			extra.isCompleted = true
+			@Suppress("UNCHECKED_CAST")
 			onChallengeCompletedListener.invoke(this as Instance)
 		}
+		@Suppress("UNCHECKED_CAST")
 		persistence.persist(context, this as Instance)
 	}
 }
