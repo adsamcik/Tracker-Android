@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
 	id("com.android.dynamic-feature")
 	Libraries.corePlugins(this)
@@ -20,6 +22,12 @@ android {
 	with(compileOptions) {
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
+	}
+
+	tasks.withType<KotlinCompile> {
+		with(kotlinOptions) {
+			jvmTarget = "1.8"
+		}
 	}
 
 	buildTypes {
