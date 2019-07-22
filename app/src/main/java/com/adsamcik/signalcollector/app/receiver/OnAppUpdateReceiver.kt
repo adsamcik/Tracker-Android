@@ -32,14 +32,13 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 				val keyLastVersion = context.getString(R.string.key_last_app_version)
 				val lastVersion = getLong(keyLastVersion)
 
-				if (lastVersion < 299) {
+				if (lastVersion < 306) {
 					GlobalScope.launch(Dispatchers.Default) {
 						val sessionDao = AppDatabase.getDatabase(context).sessionDao()
 						val workManager = WorkManager.getInstance(context)
 						sessionDao.getAll().forEach {
 							val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, it.id).build()
 							val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
-									.setInitialDelay(ActivitySessionReceiver.DELAY_IN_MINUTES, TimeUnit.MINUTES)
 									.addTag(ActivityRecognitionWorker.WORK_TAG)
 									.setInputData(data)
 									.setConstraints(Constraints.Builder()
