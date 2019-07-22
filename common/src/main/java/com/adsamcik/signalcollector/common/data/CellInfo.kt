@@ -87,8 +87,8 @@ data class CellInfo
 			val mcc: String
 			val mnc: String
 			if (Build.VERSION.SDK_INT == 28) {
-				mcc = cig.mccString
-				mnc = cig.mncString
+				mcc = cig.mccString ?: return null
+				mnc = cig.mncString ?: return null
 			} else {
 				mcc = cig.mcc.toString()
 				mnc = cig.mnc.toString()
@@ -130,8 +130,8 @@ data class CellInfo
 			val mcc: String
 			val mnc: String
 			if (Build.VERSION.SDK_INT == 28) {
-				mcc = cil.mccString
-				mnc = cil.mncString
+				mcc = cil.mccString ?: return null
+				mnc = cil.mncString ?: return null
 			} else {
 				mcc = cil.mcc.toString()
 				mnc = cil.mnc.toString()
@@ -157,8 +157,8 @@ data class CellInfo
 			val mcc: String
 			val mnc: String
 			if (Build.VERSION.SDK_INT == 28) {
-				mcc = cil.mccString
-				mnc = cil.mncString
+				mcc = cil.mccString ?: return null
+				mnc = cil.mncString ?: return null
 			} else {
 				mcc = cil.mcc.toString()
 				mnc = cil.mnc.toString()
