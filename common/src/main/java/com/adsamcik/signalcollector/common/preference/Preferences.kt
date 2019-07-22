@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.common.preference
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Resources
-import android.preference.PreferenceManager
+import androidx.preference.PreferenceManager
 import androidx.annotation.ColorRes
 import androidx.annotation.DimenRes
 import androidx.annotation.IntegerRes
