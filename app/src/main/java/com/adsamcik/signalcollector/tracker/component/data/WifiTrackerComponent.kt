@@ -10,10 +10,10 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.SystemClock
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.LocationExtensions
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlin.math.abs
@@ -28,7 +28,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 	private var wifiLastScanRequest: Long = 0
 	private var wifiScanRequested: Boolean = false
 
-	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
 		if (wifiScanData != null) {
 			val location = locationResult.lastLocation
 			val locations = locationResult.locations
@@ -40,7 +40,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 				val second = nearestLocation[(firstIndex + 1).rem(2)]
 				setWifi(first, second, first.distanceTo(second), collectionData)
 			} else if (previousLocation != null) {
-				setWifi(previousLocation, location, distance, collectionData)
+				setWifi(previousLocation, location, tempData.distance, collectionData)
 			}
 
 			wifiScanData = null

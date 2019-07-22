@@ -31,6 +31,8 @@ import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
 import com.adsamcik.signalcollector.tracker.component.pre.PreLocationTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
@@ -91,17 +93,22 @@ class TrackerService : CoreService() {
 
 		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
 
+		val elapsedRealtimeNanos = location.elapsedRealtimeNanos - (previousLocation?.elapsedRealtimeNanos
+				?: location.elapsedRealtimeNanos)
+
 		val activityInfo = ActivityService.lastActivity
 
+		val tempData = CollectionTempData(distance, elapsedRealtimeNanos, activityInfo)
+
 		//if we don't know the accuracy the location is worthless
-		if (!preComponentList.all { it.onNewLocation(locationResult, previousLocation, distance) }) {
+		if (!preComponentList.all { it.onNewLocation(locationResult, previousLocation, tempData) }) {
 			wakeLock.release()
 			return
 		}
 
 		val collectionData = MutableCollectionData(location.time)
 
-		dataComponentManager.onLocationUpdated(locationResult, previousLocation, distance, activityInfo, collectionData)
+		dataComponentManager.onLocationUpdated(locationResult, previousLocation, collectionData, tempData)
 
 		postComponentList.forEach {
 			it.onNewData(this, dataComponentManager.session, location, collectionData)
@@ -140,6 +147,7 @@ class TrackerService : CoreService() {
 	@MainThread
 	private suspend fun initializeComponents(isSessionUserInitiated: Boolean) {
 		preComponentList.apply {
+			add(StepPreTrackerComponent())
 			add(PreLocationTrackerComponent())
 		}.forEach { it.onEnable(this) }
 

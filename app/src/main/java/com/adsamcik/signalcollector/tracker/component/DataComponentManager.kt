@@ -4,10 +4,10 @@ import android.content.Context
 import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.data.*
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 import kotlinx.coroutines.*
@@ -66,10 +66,10 @@ class DataComponentManager(context: Context) : CoroutineScope {
 		dataComponentList.clear()
 	}
 
-	suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
 		withContext(coroutineContext) {
 			dataComponentList.map {
-				async { it.onLocationUpdated(locationResult, previousLocation, distance, activity, collectionData) }
+				async { it.onLocationUpdated(locationResult, previousLocation, collectionData, tempData) }
 			}.awaitAll()
 		}
 	}

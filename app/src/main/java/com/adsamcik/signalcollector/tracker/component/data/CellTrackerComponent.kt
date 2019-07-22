@@ -2,18 +2,16 @@ package com.adsamcik.signalcollector.tracker.component.data
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.extension.hasReadPhonePermission
 import com.adsamcik.signalcollector.common.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.LocationResult
 
@@ -25,7 +23,7 @@ class CellTrackerComponent : DataTrackerComponent {
 
 	//Lint is really stupid and can't even check inside inline vals
 	@SuppressLint("MissingPermission")
-	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, distance: Float, activity: ActivityInfo, collectionData: MutableCollectionData) {
+	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
 		val context = context ?: throw NullPointerException("Context must not be null")
 		if (!Assist.isAirplaneModeEnabled(context)) {
 			val telephonyManager = telephonyManager
