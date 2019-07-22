@@ -8,7 +8,7 @@ buildscript {
 		classpath("com.android.tools.build:gradle:3.4.2")
 		classpath("com.google.gms:google-services:4.3.0")
 		classpath("com.google.gms:oss-licenses:0.9.2")
-		classpath("io.fabric.tools:gradle:1.29.0")
+		classpath("io.fabric.tools:gradle:1.30.0")
 
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Libraries.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Libraries.Versions.kotlin))
