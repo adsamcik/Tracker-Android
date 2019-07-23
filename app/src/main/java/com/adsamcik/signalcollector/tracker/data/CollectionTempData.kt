@@ -17,7 +17,7 @@ class CollectionTempData(val distance: Float,
 
 	fun <T> tryGet(key: String): T? {
 		@Suppress("UNCHECKED_CAST")
-		return map[key] as? T
+		return map[key]?.value as? T
 	}
 
 
