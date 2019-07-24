@@ -12,6 +12,7 @@ import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
@@ -46,6 +47,9 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 			distanceInM += tempData.distance
 			collections++
 			end = Time.nowMillis
+
+			val newSteps = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
+			if (newSteps != null) steps += newSteps
 
 			if (previousLocation != null &&
 					(tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
