@@ -40,7 +40,7 @@ class ActivityTrackerComponent : DataTrackerComponent {
 
 		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
 		if (stepCount != null &&
-				stepCount / (tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS) >= 1 &&
+				stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
 				speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND) {
 			if (isOnFoot(activity)) return activity
 			else if (isUnknown(activity)) return ActivityInfo(DetectedActivity.ON_FOOT, 90)
