@@ -30,7 +30,7 @@ import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
-import com.adsamcik.signalcollector.tracker.component.pre.PreLocationTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.pre.LocationPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
@@ -148,7 +148,7 @@ class TrackerService : CoreService() {
 	private suspend fun initializeComponents(isSessionUserInitiated: Boolean) {
 		preComponentList.apply {
 			add(StepPreTrackerComponent())
-			add(PreLocationTrackerComponent())
+			add(LocationPreTrackerComponent())
 		}.forEach { it.onEnable(this) }
 
 		dataComponentManager = DataComponentManager(this)

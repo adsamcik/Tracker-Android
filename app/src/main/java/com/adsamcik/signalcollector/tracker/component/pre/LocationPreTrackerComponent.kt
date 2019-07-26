@@ -14,7 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-class PreLocationTrackerComponent : PreTrackerComponent, CoroutineScope {
+class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job

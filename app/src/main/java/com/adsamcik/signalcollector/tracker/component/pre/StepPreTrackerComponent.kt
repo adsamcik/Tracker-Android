@@ -14,13 +14,14 @@ import com.google.android.gms.location.LocationResult
 
 class StepPreTrackerComponent : PreTrackerComponent, SensorEventListener {
 	private var lastStepCount = -1
-	private var stepCount = -1
+	private var stepCountSinceLastCollection = 0
 
 	override suspend fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, data: CollectionTempData): Boolean {
-		if (lastStepCount >= 0 && stepCount >= 0) {
-			val diff = stepCount - lastStepCount
-			lastStepCount = stepCount
-			data.set(NEW_STEPS_ARG, diff)
+		if (stepCountSinceLastCollection >= 0) {
+			synchronized(stepCountSinceLastCollection) {
+				data.set(NEW_STEPS_ARG, stepCountSinceLastCollection)
+				stepCountSinceLastCollection = 0
+			}
 		}
 		return true
 	}
@@ -43,12 +44,14 @@ class StepPreTrackerComponent : PreTrackerComponent, SensorEventListener {
 		val sensor = event.sensor
 		if (sensor.type == Sensor.TYPE_STEP_COUNTER) {
 			val stepCount = event.values.first().toInt()
-			if (lastStepCount >= 0) {
-				//in case sensor would overflow and reset to 0 at some point
-				if (lastStepCount > stepCount) {
-					this.stepCount += stepCount
-				} else {
-					this.stepCount += stepCount - lastStepCount
+			if (lastStepCount >= 0 && stepCount > 0) {
+				synchronized(stepCountSinceLastCollection) {
+					//In case sensor would overflow and reset to 0 at some point
+					if (lastStepCount > stepCount) {
+						this.stepCountSinceLastCollection += stepCount
+					} else {
+						this.stepCountSinceLastCollection += stepCount - lastStepCount
+					}
 				}
 			}
 
