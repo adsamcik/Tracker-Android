@@ -18,6 +18,7 @@ import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.exception.PermissionException
+import com.adsamcik.signalcollector.common.extension.forEachIf
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.misc.NonNullLiveData
@@ -32,7 +33,7 @@ import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
 import com.adsamcik.signalcollector.tracker.component.pre.LocationPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
+import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
@@ -97,21 +98,39 @@ class TrackerService : CoreService() {
 				?: location.elapsedRealtimeNanos)
 
 		val activityInfo = ActivityService.lastActivity
+		val activityAvailable = activityInfo.confidence >= ACTIVITY_CONFIDENCE_THRESHOLD
 
-		val tempData = CollectionTempData(distance, elapsedRealtimeNanos, activityInfo)
+		val tempData = MutableCollectionTempData(elapsedRealtimeNanos).apply {
+			if (activityAvailable) {
+				setActivity(activityInfo)
+			}
+
+			if (previousLocation != null) {
+				setPreviousLocation(previousLocation)
+				setDistance(distance)
+			}
+
+			setLocationResult(locationResult)
+		}
 
 		//if we don't know the accuracy the location is worthless
-		if (!preComponentList.all { it.onNewLocation(locationResult, previousLocation, tempData) }) {
+		if (!preComponentList.all {
+					if (it.requirementsMet(tempData)) {
+						it.onNewData(tempData)
+					} else {
+						true
+					}
+				}) {
 			wakeLock.release()
 			return
 		}
 
 		val collectionData = MutableCollectionData(location.time)
 
-		dataComponentManager.onLocationUpdated(locationResult, previousLocation, collectionData, tempData)
+		dataComponentManager.onNewData(tempData, collectionData)
 
-		postComponentList.forEach {
-			it.onNewData(this, dataComponentManager.session, location, collectionData)
+		postComponentList.forEachIf({ it.requirementsMet(tempData) }) {
+			it.onNewData(this, dataComponentManager.session, collectionData, tempData)
 		}
 
 		if (!sessionInfo.isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
@@ -292,5 +311,7 @@ class TrackerService : CoreService() {
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"
 		private const val DEFAULT_IS_USER_INITIATED = false
+
+		private const val ACTIVITY_CONFIDENCE_THRESHOLD = 50
 	}
 }

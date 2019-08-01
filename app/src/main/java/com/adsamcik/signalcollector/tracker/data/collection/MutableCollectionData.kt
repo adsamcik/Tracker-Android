@@ -44,10 +44,11 @@ data class MutableCollectionData(
 	 * @param time time of collection
 	 * @return this
 	 */
-	fun setWifi(location: android.location.Location, time: Long, data: Array<ScanResult>?) {
+	fun setWifi(location: android.location.Location?, time: Long, data: Array<ScanResult>?) {
 		if (data != null && time > 0) {
 			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }
-			this.wifi = WifiData(Location(location), time, scannedWifi)
+			val wifiLocation = if (location != null) Location(location) else null
+			this.wifi = WifiData(wifiLocation, time, scannedWifi)
 		}
 	}
 

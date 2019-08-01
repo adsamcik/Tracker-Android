@@ -1,9 +1,7 @@
 package com.adsamcik.signalcollector.tracker.component
 
-import android.location.Location
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
-import com.google.android.gms.location.LocationResult
+import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
 
-interface PreTrackerComponent : TrackerComponent {
-	suspend fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, data: CollectionTempData): Boolean
+internal interface PreTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
+	suspend fun onNewData(data: MutableCollectionTempData): Boolean
 }

@@ -6,17 +6,17 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.location.Location
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
-import com.google.android.gms.location.LocationResult
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
+import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
 
-class StepPreTrackerComponent : PreTrackerComponent, SensorEventListener {
+internal class StepPreTrackerComponent : PreTrackerComponent, SensorEventListener {
+	override val requiredData: Collection<TrackerComponentRequirement> = listOf()
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
 
-	override suspend fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, data: CollectionTempData): Boolean {
+	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
 		if (stepCountSinceLastCollection >= 0) {
 			synchronized(stepCountSinceLastCollection) {
 				data.set(NEW_STEPS_ARG, stepCountSinceLastCollection)

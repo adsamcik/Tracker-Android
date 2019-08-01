@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.tracker.component.data
 
 import android.content.Context
-import android.location.Location
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
@@ -12,11 +11,11 @@ import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
-import com.google.android.gms.location.LocationResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,7 +23,9 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
-class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent, CoroutineScope {
+internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent, CoroutineScope {
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
+
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
@@ -42,21 +43,27 @@ class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTracke
 
 	private lateinit var sessionDao: SessionDataDao
 
-	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
+	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
 		mutableSession.run {
-			distanceInM += tempData.distance
+			val distance = tempData.tryGetDistance()
+			distance?.let { distanceInM += it }
+
 			collections++
 			end = Time.nowMillis
 
 			val newSteps = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
 			if (newSteps != null) steps += newSteps
 
-			if (previousLocation != null &&
+			val previousLocation = tempData.tryGetPreviousLocation()
+
+			if (distance != null &&
+					previousLocation != null &&
 					(tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
-							tempData.distance <= minDistanceInMeters * 2f)) {
-				when (tempData.activity.groupedActivity) {
-					GroupedActivity.ON_FOOT -> distanceOnFootInM += tempData.distance
-					GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += tempData.distance
+							distance <= minDistanceInMeters * 2f)) {
+
+				when (tempData.tryGetActivity()?.groupedActivity) {
+					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
+					GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
 					else -> {
 					}
 				}

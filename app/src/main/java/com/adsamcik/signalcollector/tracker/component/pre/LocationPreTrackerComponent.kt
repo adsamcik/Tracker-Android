@@ -1,20 +1,21 @@
 package com.adsamcik.signalcollector.tracker.component.pre
 
 import android.content.Context
-import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
-import com.google.android.gms.location.LocationResult
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
+import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
+internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
+	override val requiredData: Collection<TrackerComponentRequirement> = listOf(TrackerComponentRequirement.LOCATION)
+
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
@@ -38,8 +39,8 @@ class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
 		}
 	}
 
-	override suspend fun onNewLocation(locationResult: LocationResult, previousLocation: Location?, data: CollectionTempData): Boolean {
-		val location = locationResult.lastLocation
+	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
+		val location = data.getLocation(this)
 
 		if (!location.hasAccuracy()) return false
 

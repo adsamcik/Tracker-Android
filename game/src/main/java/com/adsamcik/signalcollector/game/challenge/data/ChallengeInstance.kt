@@ -33,7 +33,7 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 	protected abstract fun checkCompletionConditions(): Boolean
 
 	/**
-	 * Runs a batch process on a specified session
+	 * Runs a batch process onDataUpdated a specified session
 	 */
 	protected abstract fun processSession(context: Context, session: TrackerSession)
 

@@ -99,3 +99,18 @@ val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 		}
 	}
 }
+
+val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+	override fun migrate(database: SupportSQLiteDatabase) {
+		with(database) {
+			execSQL("CREATE TABLE IF NOT EXISTS wifi_data_tmp (`bssid` TEXT NOT NULL, `longitude` REAL, `latitude` REAL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, PRIMARY KEY(`bssid`))")
+			execSQL("INSERT INTO wifi_data_tmp SELECT * FROM wifi_data")
+			execSQL("DROP TABLE wifi_data")
+			execSQL("ALTER TABLE wifi_data_tmp RENAME TO wifi_data")
+
+			execSQL("CREATE  INDEX `index_wifi_data_longitude` ON wifi_data (`longitude`)")
+			execSQL("CREATE  INDEX `index_wifi_data_latitude` ON wifi_data (`latitude`)")
+			execSQL("CREATE  INDEX `index_wifi_data_last_seen` ON wifi_data (`last_seen`)")
+		}
+	}
+}

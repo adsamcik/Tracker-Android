@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.tracker.component.data
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.location.Location
 import android.os.Build
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
@@ -11,11 +10,12 @@ import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.extension.hasReadPhonePermission
 import com.adsamcik.signalcollector.common.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.google.android.gms.location.LocationResult
 
-class CellTrackerComponent : DataTrackerComponent {
+internal class CellTrackerComponent : DataTrackerComponent {
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(TrackerComponentRequirement.CELL)
 
 	private var context: Context? = null
 	private var telephonyManager: TelephonyManager? = null
@@ -23,7 +23,7 @@ class CellTrackerComponent : DataTrackerComponent {
 
 	//Lint is really stupid and can't even check inside inline vals
 	@SuppressLint("MissingPermission")
-	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
+	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
 		val context = context ?: throw NullPointerException("Context must not be null")
 		if (!Assist.isAirplaneModeEnabled(context)) {
 			val telephonyManager = telephonyManager
@@ -40,7 +40,9 @@ class CellTrackerComponent : DataTrackerComponent {
 	override suspend fun onEnable(context: Context) {
 		this.context = context
 		telephonyManager = context.telephonyManager
-		if (Build.VERSION.SDK_INT >= 22) subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
+		if (Build.VERSION.SDK_INT >= 22) {
+			subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
+		}
 	}
 
 	override suspend fun onDisable(context: Context) {

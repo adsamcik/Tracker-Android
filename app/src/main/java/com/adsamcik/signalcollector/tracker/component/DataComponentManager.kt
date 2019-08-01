@@ -1,19 +1,18 @@
 package com.adsamcik.signalcollector.tracker.component
 
 import android.content.Context
-import android.location.Location
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.extension.mapIf
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.data.*
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.google.android.gms.location.LocationResult
 import kotlinx.coroutines.*
 import kotlin.coroutines.CoroutineContext
 
-class DataComponentManager(context: Context) : CoroutineScope {
+internal class DataComponentManager(context: Context) : CoroutineScope {
 	private val appContext = context.applicationContext
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
@@ -66,10 +65,10 @@ class DataComponentManager(context: Context) : CoroutineScope {
 		dataComponentList.clear()
 	}
 
-	suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
+	suspend fun onNewData(tempData: CollectionTempData, collectionData: MutableCollectionData) {
 		withContext(coroutineContext) {
-			dataComponentList.map {
-				async { it.onLocationUpdated(locationResult, previousLocation, collectionData, tempData) }
+			dataComponentList.mapIf({ it.requirementsMet(tempData) }) {
+				async { it.onDataUpdated(tempData, collectionData) }
 			}.awaitAll()
 		}
 	}

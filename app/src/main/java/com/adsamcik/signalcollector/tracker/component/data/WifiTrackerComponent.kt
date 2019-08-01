@@ -13,12 +13,15 @@ import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.extension.LocationExtensions
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
-import com.google.android.gms.location.LocationResult
 import kotlin.math.abs
 
-class WifiTrackerComponent : DataTrackerComponent {
+internal class WifiTrackerComponent : DataTrackerComponent {
+
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(TrackerComponentRequirement.WIFI)
+
 	private lateinit var wifiManager: WifiManager
 	private var wifiReceiver: WifiReceiver = WifiReceiver()
 
@@ -28,19 +31,28 @@ class WifiTrackerComponent : DataTrackerComponent {
 	private var wifiLastScanRequest: Long = 0
 	private var wifiScanRequested: Boolean = false
 
-	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
+	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
 		if (wifiScanData != null) {
-			val location = locationResult.lastLocation
-			val locations = locationResult.locations
-			if (locations.size == 2) {
-				val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
-				val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
+			val locationResult = tempData.tryGetLocationResult()
+			if (locationResult != null) {
+				val location = locationResult.lastLocation
+				val locations = locationResult.locations
+				if (locations.size == 2) {
+					val nearestLocation = locations.sortedBy { abs(wifiScanTime - it.time) }.take(2)
+					val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
 
-				val first = nearestLocation[firstIndex]
-				val second = nearestLocation[(firstIndex + 1).rem(2)]
-				setWifi(first, second, first.distanceTo(second), collectionData)
-			} else if (previousLocation != null) {
-				setWifi(previousLocation, location, tempData.distance, collectionData)
+					val first = nearestLocation[firstIndex]
+					val second = nearestLocation[(firstIndex + 1).rem(2)]
+					setWifi(first, second, first.distanceTo(second), collectionData)
+				} else {
+					val previousLocation = tempData.tryGetPreviousLocation()
+					val distance = tempData.tryGetDistance()
+					if (previousLocation != null && distance != null) {
+						setWifi(previousLocation, location, distance, collectionData)
+					}
+				}
+			} else {
+				setWifi(collectionData)
 			}
 
 			wifiScanData = null
@@ -67,6 +79,10 @@ class WifiTrackerComponent : DataTrackerComponent {
 		}
 	}
 
+	private fun setWifi(collectionData: MutableCollectionData) {
+		collectionData.setWifi(null, wifiScanTime, wifiScanData)
+	}
+
 	private fun setWifi(firstLocation: Location, secondLocation: Location, distanceBetweenFirstAndSecond: Float, collectionData: MutableCollectionData) {
 		val timeDelta = (wifiScanTime - firstLocation.time).toDouble() / (secondLocation.time - firstLocation.time).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
@@ -79,7 +95,7 @@ class WifiTrackerComponent : DataTrackerComponent {
 	override suspend fun onEnable(context: Context) {
 		wifiManager = context.getSystemServiceTyped(Context.WIFI_SERVICE)
 
-		//Let's not waste precious scan requests on Pie and newer
+		//Let's not waste precious scan requests onDataUpdated Pie and newer
 		if (Build.VERSION.SDK_INT < 28) {
 			@Suppress("deprecation")
 			wifiScanRequested = wifiManager.startScan()

@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.tracker.component.post
 
 import android.content.Context
-import android.location.Location
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.CellDataDao
@@ -11,10 +10,14 @@ import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import kotlinx.coroutines.*
 
-class TrackerDataComponent : PostTrackerComponent {
+internal class TrackerDataComponent : PostTrackerComponent {
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
+
 	private var locationDao: LocationDataDao? = null
 	private var cellDao: CellDataDao? = null
 	private var wifiDao: WifiDataDao? = null
@@ -34,7 +37,7 @@ class TrackerDataComponent : PostTrackerComponent {
 		}
 	}
 
-	override fun onNewData(context: Context, session: TrackerSession, location: Location, collectionData: CollectionData) {
+	override fun onNewData(context: Context, session: TrackerSession, collectionData: CollectionData, tempData: CollectionTempData) {
 		GlobalScope.launch {
 			val trackedLocation = collectionData.location
 			var locationId: Long? = null
@@ -53,8 +56,15 @@ class TrackerDataComponent : PostTrackerComponent {
 			if (wifiData != null) {
 				val wifiDao = wifiDao ?: throw NullPointerException("wifiDao should not be null")
 
-				val estimatedWifiLocation = com.adsamcik.signalcollector.common.data.Location(wifiData.location)
-				wifiData.inRange.map { DatabaseWifiData(estimatedWifiLocation, it) }.let { wifiDao.upsert(it) }
+				val tmpWifiLocation = wifiData.location
+				val map = if (tmpWifiLocation != null) {
+					val estimatedWifiLocation = com.adsamcik.signalcollector.common.data.Location(tmpWifiLocation)
+					wifiData.inRange.map { DatabaseWifiData(wifiData.time, it, estimatedWifiLocation) }
+				} else {
+					wifiData.inRange.map { DatabaseWifiData(wifiData.time, it) }
+				}
+
+				map.let { wifiDao.upsert(it) }
 			}
 		}
 	}

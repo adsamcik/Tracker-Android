@@ -4,7 +4,7 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = false)
 data class WifiData(
-		val location: Location,
+		val location: Location?,
 		/**
 		 * Time of collection of wifi data
 		 */

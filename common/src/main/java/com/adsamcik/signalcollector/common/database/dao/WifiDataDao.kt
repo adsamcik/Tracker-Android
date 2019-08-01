@@ -23,7 +23,9 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 		val updateList = objList.filterIndexed { index, _ -> insertResult[index] == -1L }
 
 		updateList.forEach {
-			updateSignalStrength(it.BSSID, it.longitude, it.latitude, it.altitude, it.level)
+			if (it.longitude != null && it.latitude != null) {
+				updateSignalStrength(it.BSSID, it.longitude, it.latitude, it.altitude, it.level)
+			}
 			updateData(it.BSSID, it.SSID, it.capabilities, it.frequency, it.lastSeen)
 		}
 	}

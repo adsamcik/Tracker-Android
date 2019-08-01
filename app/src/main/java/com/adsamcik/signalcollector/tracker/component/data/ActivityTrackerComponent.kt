@@ -5,13 +5,16 @@ import android.location.Location
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.LocationResult
 
-class ActivityTrackerComponent : DataTrackerComponent {
+internal class ActivityTrackerComponent : DataTrackerComponent {
+	override val requiredData: Collection<TrackerComponentRequirement> get() = mutableListOf(TrackerComponentRequirement.ACTIVITY)
+
 	private fun isNotConfidentWalk(activity: ActivityInfo): Boolean {
 		return activity.activity == DetectedActivity.WALKING &&
 				activity.confidence < CONFIDENT_CONFIDENCE
@@ -31,21 +34,7 @@ class ActivityTrackerComponent : DataTrackerComponent {
 				activity.activity == DetectedActivity.STILL
 	}
 
-
-	private fun determineActivity(speed: Float, tempData: CollectionTempData): ActivityInfo {
-		val activity = tempData.activity
-
-		//Bicycle activity is impossible to guess from position
-		if (activity.activity == DetectedActivity.ON_BICYCLE) return activity
-
-		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
-		if (stepCount != null &&
-				stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
-				speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND) {
-			if (isOnFoot(activity)) return activity
-			else if (isUnknown(activity)) return ActivityInfo(DetectedActivity.ON_FOOT, 90)
-		}
-
+	private fun determineActivityBySpeed(speed: Float, activity: ActivityInfo): ActivityInfo {
 		return if (speed > MAX_RUN_SPEED_METERS_PER_SECOND && isOnFoot(activity)) {
 			ActivityInfo(DetectedActivity.IN_VEHICLE, 90)
 		} else if (speed > MAX_ON_FOOT_SPEED && isUnknownOnFootActivity(activity)) {
@@ -60,6 +49,28 @@ class ActivityTrackerComponent : DataTrackerComponent {
 		}
 	}
 
+
+	private fun determineActivity(speed: Float?, tempData: CollectionTempData): ActivityInfo {
+		val activity = tempData.getActivity(this)
+
+		//Bicycle activity is impossible to guess from position
+		if (activity.activity == DetectedActivity.ON_BICYCLE) return activity
+
+		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
+		if (stepCount != null &&
+				stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
+				(speed == null || speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND)) {
+			if (isOnFoot(activity)) return activity
+			else if (isUnknown(activity)) return ActivityInfo(DetectedActivity.ON_FOOT, 90)
+		}
+
+		return if (speed != null) {
+			determineActivityBySpeed(speed, activity)
+		} else {
+			activity
+		}
+	}
+
 	private fun getSpeed(locationResult: LocationResult, previousLocation: Location?, distance: Float): Float? {
 		val location = locationResult.lastLocation
 		return when {
@@ -69,15 +80,19 @@ class ActivityTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	override suspend fun onLocationUpdated(locationResult: LocationResult, previousLocation: Location?, collectionData: MutableCollectionData, tempData: CollectionTempData) {
-		val speed = getSpeed(locationResult, previousLocation, tempData.distance)
-
-		collectionData.activity = if (speed != null) {
-			determineActivity(speed, tempData)
+	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
+		val locationResult = tempData.tryGetLocationResult()
+		val previousLocation = tempData.tryGetPreviousLocation()
+		val distance = tempData.tryGetDistance()
+		val speed = if (locationResult != null &&
+				previousLocation != null &&
+				distance != null) {
+			getSpeed(locationResult, previousLocation, distance)
 		} else {
-			tempData.activity
+			null
 		}
 
+		collectionData.activity = determineActivity(speed, tempData)
 	}
 
 	override suspend fun onDisable(context: Context) {}

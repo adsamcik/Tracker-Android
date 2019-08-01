@@ -18,13 +18,17 @@ import com.adsamcik.signalcollector.common.extension.formatSpeed
 import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.math.RoundingMode
 import java.text.DecimalFormat
 
-class NotificationComponent : PostTrackerComponent {
+internal class NotificationComponent : PostTrackerComponent {
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
+
 	private var notificationManager: NotificationManager? = null
 
 	private val requireNotificationManager: NotificationManager
@@ -40,7 +44,8 @@ class NotificationComponent : PostTrackerComponent {
 		notificationManager = context.notificationManager
 	}
 
-	override fun onNewData(context: Context, session: TrackerSession, location: Location, collectionData: CollectionData) {
+	override fun onNewData(context: Context, session: TrackerSession, collectionData: CollectionData, tempData: CollectionTempData) {
+		val location = tempData.tryGetLocation()
 		notify(generateNotification(context, location, collectionData))
 	}
 

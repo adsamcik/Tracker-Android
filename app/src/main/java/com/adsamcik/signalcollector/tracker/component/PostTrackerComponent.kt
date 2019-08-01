@@ -1,12 +1,12 @@
 package com.adsamcik.signalcollector.tracker.component
 
 import android.content.Context
-import android.location.Location
 import androidx.annotation.MainThread
 import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 
-interface PostTrackerComponent : TrackerComponent {
+internal interface PostTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
 	@MainThread
-	fun onNewData(context: Context, session: TrackerSession, location: Location, collectionData: CollectionData)
+	fun onNewData(context: Context, session: TrackerSession, collectionData: CollectionData, tempData: CollectionTempData)
 }
