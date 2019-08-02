@@ -13,6 +13,7 @@ class VehicleActivityRecognizer : ActivityRecognizer {
 		val bicycle = ActivitySum()
 		val onFoot = ActivitySum()
 		val still = ActivitySum()
+		val unknown = ActivitySum()
 		val other = ActivitySum()
 
 		locationCollection.forEach {
@@ -21,6 +22,7 @@ class VehicleActivityRecognizer : ActivityRecognizer {
 				DetectedActivity.IN_VEHICLE -> vehicle
 				DetectedActivity.ON_BICYCLE -> bicycle
 				DetectedActivity.STILL -> still
+				DetectedActivity.UNKNOWN, DetectedActivity.TILTING -> unknown
 				else -> other
 			}.apply {
 				count++
@@ -28,11 +30,11 @@ class VehicleActivityRecognizer : ActivityRecognizer {
 			}
 		}
 
-		if (bicycle.count > (onFoot.count + vehicle.count) / LOCATION_BICYCLE_DENOMINATOR) {
+		if (unknown.count + bicycle.count > (unknown.count + onFoot.count + vehicle.count) / LOCATION_BICYCLE_DENOMINATOR) {
 			return ActivityRecognitionResult(NativeSessionActivity.BICYCLE, bicycle.confidence)
 		}
 
-		if (vehicle.count > locationCollection.size * MINIMUM_PERCENTAGE_OF_TOTAL_VEHICLE) {
+		if (unknown.count + vehicle.count > locationCollection.size * MINIMUM_PERCENTAGE_OF_TOTAL_VEHICLE) {
 			return ActivityRecognitionResult(NativeSessionActivity.VEHICLE, vehicle.confidence)
 		}
 

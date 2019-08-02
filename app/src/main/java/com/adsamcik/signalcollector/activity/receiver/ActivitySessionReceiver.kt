@@ -19,7 +19,6 @@ class ActivitySessionReceiver : BroadcastReceiver() {
 
 		val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, id).build()
 		val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
-				.setInitialDelay(DELAY_IN_MINUTES, TimeUnit.MINUTES)
 				.addTag(ActivityRecognitionWorker.WORK_TAG)
 				.setInputData(data)
 				.setConstraints(Constraints.Builder()
@@ -38,6 +37,5 @@ class ActivitySessionReceiver : BroadcastReceiver() {
 
 	companion object {
 		const val ARG_ID = "id"
-		val DELAY_IN_MINUTES = if (useMock) 0L else 60L
 	}
 }

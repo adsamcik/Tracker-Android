@@ -4,6 +4,7 @@ import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.google.android.gms.location.DetectedActivity
+import kotlin.math.roundToInt
 
 class OnFootActivityRecognizer : ActivityRecognizer {
 	override val precisionConfidence: Int = 75
@@ -13,6 +14,7 @@ class OnFootActivityRecognizer : ActivityRecognizer {
 		val walk = ActivitySum()
 		val onFoot = ActivitySum()
 		val still = ActivitySum()
+		val unknown = ActivitySum()
 		val other = ActivitySum()
 
 		locationCollection.forEach {
@@ -20,6 +22,7 @@ class OnFootActivityRecognizer : ActivityRecognizer {
 				DetectedActivity.WALKING, DetectedActivity.ON_FOOT -> walk
 				DetectedActivity.RUNNING -> run
 				DetectedActivity.STILL -> still
+				DetectedActivity.TILTING, DetectedActivity.UNKNOWN -> unknown
 				else -> other
 			}.apply {
 				count++
@@ -27,13 +30,14 @@ class OnFootActivityRecognizer : ActivityRecognizer {
 			}
 		}
 
-		if (other.count > onFoot.count + walk.count + run.count) {
+		if (other.count + unknown.count > onFoot.count + walk.count + run.count + unknown.count) {
 			return ActivityRecognitionResult(null, 0)
 		}
 
 		//just a little run should make it enough to consider it running session
 		if (run.confidenceSum > walk.confidenceSum / WALK_DENOMINATOR) {
-			return ActivityRecognitionResult(NativeSessionActivity.RUN, run.confidence)
+			val confidence = (run.count.toDouble() / locationCollection.size.toDouble()) * run.confidence
+			return ActivityRecognitionResult(NativeSessionActivity.RUN, confidence.roundToInt())
 		}
 
 		return ActivityRecognitionResult(NativeSessionActivity.WALK, walk.confidence)
