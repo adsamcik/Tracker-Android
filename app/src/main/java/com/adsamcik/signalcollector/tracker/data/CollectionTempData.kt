@@ -5,6 +5,7 @@ import com.adsamcik.signalcollector.BuildConfig
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.tracker.component.TrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
+import com.adsamcik.signalcollector.tracker.component.TrackerDataConsumerComponent
 import com.google.android.gms.location.LocationResult
 
 internal class MutableCollectionTempData(elapseRealtimeNanos: Long) : CollectionTempData(elapseRealtimeNanos) {
@@ -54,13 +55,13 @@ internal abstract class CollectionTempData(val elapsedRealtimeNanos: Long) {
 		return map[key]?.value as T
 	}
 
-	private fun validatePermissions(component: TrackerComponent, required: TrackerComponentRequirement) {
+	private fun validatePermissions(component: TrackerDataConsumerComponent, required: TrackerComponentRequirement) {
 		if (BuildConfig.DEBUG) {
 			assert(component.requiredData.contains(required))
 		}
 	}
 
-	fun getActivity(component: TrackerComponent): ActivityInfo {
+	fun getActivity(component: TrackerDataConsumerComponent): ActivityInfo {
 		validatePermissions(component, TrackerComponentRequirement.ACTIVITY)
 		return get(TrackerComponentRequirement.ACTIVITY.name)
 	}
@@ -69,7 +70,7 @@ internal abstract class CollectionTempData(val elapsedRealtimeNanos: Long) {
 		return tryGet(TrackerComponentRequirement.ACTIVITY.name)
 	}
 
-	fun getDistance(component: TrackerComponent): Float {
+	fun getDistance(component: TrackerDataConsumerComponent): Float {
 		validatePermissions(component, TrackerComponentRequirement.LOCATION)
 		return get(DISTANCE)
 	}
@@ -78,7 +79,7 @@ internal abstract class CollectionTempData(val elapsedRealtimeNanos: Long) {
 		return tryGet(DISTANCE)
 	}
 
-	fun getLocationResult(component: TrackerComponent): LocationResult {
+	fun getLocationResult(component: TrackerDataConsumerComponent): LocationResult {
 		validatePermissions(component, TrackerComponentRequirement.LOCATION)
 		return get(TrackerComponentRequirement.LOCATION.name)
 	}
@@ -87,7 +88,7 @@ internal abstract class CollectionTempData(val elapsedRealtimeNanos: Long) {
 		return tryGet(TrackerComponentRequirement.LOCATION.name)
 	}
 
-	fun getLocation(component: TrackerComponent): Location {
+	fun getLocation(component: TrackerDataConsumerComponent): Location {
 		return getLocationResult(component).lastLocation
 	}
 
@@ -95,7 +96,7 @@ internal abstract class CollectionTempData(val elapsedRealtimeNanos: Long) {
 		return tryGet<LocationResult>(TrackerComponentRequirement.LOCATION.name)?.lastLocation
 	}
 
-	fun getPreviousLocation(component: TrackerComponent): Location {
+	fun getPreviousLocation(component: TrackerDataConsumerComponent): Location {
 		validatePermissions(component, TrackerComponentRequirement.LOCATION)
 		return get(PREVIOUS_LOCATION)
 	}
