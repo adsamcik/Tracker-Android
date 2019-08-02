@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.component.data
+package com.adsamcik.signalcollector.tracker.component.consumer.data
 
 import android.content.Context
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent

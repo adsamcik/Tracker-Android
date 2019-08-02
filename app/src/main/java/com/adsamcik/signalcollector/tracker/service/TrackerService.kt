@@ -29,10 +29,10 @@ import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.component.DataComponentManager
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
-import com.adsamcik.signalcollector.tracker.component.post.NotificationComponent
-import com.adsamcik.signalcollector.tracker.component.post.TrackerDataComponent
-import com.adsamcik.signalcollector.tracker.component.pre.LocationPreTrackerComponent
-import com.adsamcik.signalcollector.tracker.component.pre.StepPreTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.TrackerDataComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.pre.LocationPreTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData

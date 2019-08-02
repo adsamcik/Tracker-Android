@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.component.post
+package com.adsamcik.signalcollector.tracker.component.consumer.post
 
 import android.app.Notification
 import android.app.NotificationManager

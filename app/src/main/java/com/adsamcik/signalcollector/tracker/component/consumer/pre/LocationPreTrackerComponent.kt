@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.component.pre
+package com.adsamcik.signalcollector.tracker.component.consumer.pre
 
 import android.content.Context
 import androidx.lifecycle.Observer

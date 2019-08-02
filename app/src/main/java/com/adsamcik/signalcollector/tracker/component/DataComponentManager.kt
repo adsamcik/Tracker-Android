@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.mapIf
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
-import com.adsamcik.signalcollector.tracker.component.data.*
+import com.adsamcik.signalcollector.tracker.component.consumer.data.*
 import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import kotlinx.coroutines.*
