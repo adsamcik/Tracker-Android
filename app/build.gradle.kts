@@ -101,7 +101,7 @@ dependencies {
 	//GPX
 	implementation("stax:stax-api:1.0.1")
 	implementation("com.fasterxml:aalto-xml:1.2.1")
-	implementation("io.jenetics:jpx:1.4.0")
+	implementation("io.jenetics:jpx:1.5.2")
 
 	//Google dependencies
 	implementation("com.google.android:flexbox:1.1.0")

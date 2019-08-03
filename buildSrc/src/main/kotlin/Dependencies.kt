@@ -11,10 +11,10 @@ object Libraries {
 		const val kotlin = "1.3.41"
 		const val dokka = "0.9.18"
 		const val moshi = "1.8.0"
-		const val work = "2.1.0"
+		const val work = "2.2.0-rc01"
 		const val lifecycle = "2.2.0-alpha02"
 		const val preference = "1.1.0-rc01"
-		const val material = "1.1.0-alpha08"
+		const val material = "1.1.0-alpha09"
 		const val coroutines = "1.3.0-RC"
 
 		const val maps = "17.0.0"
@@ -167,7 +167,7 @@ object Libraries {
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
 			androidTestImplementation("androidx.test.ext:junit:1.1.1")
-			androidTestImplementation("androidx.arch.core:core-testing:2.0.1")
+			androidTestImplementation("androidx.arch.core:core-testing:2.1.0-rc01")
 			androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
 			androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
 			androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.espresso}")
