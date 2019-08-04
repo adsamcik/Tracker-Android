@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.tracker.component.consumer.data
 import android.content.Context
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 
 internal class LocationTrackerComponent : DataTrackerComponent {

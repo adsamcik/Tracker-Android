@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.tracker.component.consumer.data
+package com.adsamcik.signalcollector.tracker.component.consumer
 
 import android.content.Context
 import androidx.annotation.WorkerThread
@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserve
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTrackerComponent
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import kotlinx.coroutines.CoroutineScope

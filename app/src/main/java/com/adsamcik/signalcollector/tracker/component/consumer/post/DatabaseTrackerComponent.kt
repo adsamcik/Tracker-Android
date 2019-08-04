@@ -11,11 +11,11 @@ import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
 import kotlinx.coroutines.*
 
-internal class TrackerDataComponent : PostTrackerComponent {
+internal class DatabaseTrackerComponent : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
 	private var locationDao: LocationDataDao? = null

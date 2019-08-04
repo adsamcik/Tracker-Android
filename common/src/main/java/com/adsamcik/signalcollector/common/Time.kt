@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.common
 
+import android.os.SystemClock
 import com.adsamcik.signalcollector.common.extension.roundToDate
 import com.adsamcik.signalcollector.common.extension.toCalendar
 import java.util.*
@@ -10,6 +11,10 @@ import java.util.*
  */
 object Time {
 	val nowMillis: Long get() = System.currentTimeMillis()
+
+	val elapsedRealtimeMillis: Long get() = SystemClock.elapsedRealtime()
+
+	val elapsedRealtimeNanos: Long get() = SystemClock.elapsedRealtimeNanos()
 
 	val todayMillis: Long get() = roundToDate(nowMillis)
 

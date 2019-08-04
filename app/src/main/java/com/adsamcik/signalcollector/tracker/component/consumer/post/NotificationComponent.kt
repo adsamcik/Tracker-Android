@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import androidx.core.content.ContextCompat
@@ -19,8 +20,8 @@ import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.math.RoundingMode
@@ -53,6 +54,12 @@ internal class NotificationComponent : PostTrackerComponent {
 		notify(generateNotification(context, location, null))
 	}
 
+	fun onError(context: Context, @StringRes textRes: Int) {
+		val builder = prepareNotificationBase(context)
+		builder.setContentTitle(context.getString(textRes))
+		notify(builder.build())
+	}
+
 	fun foregroundServiceNotification(context: Context): Pair<Int, Notification> {
 		return NOTIFICATION_ID to generateNotification(context)
 	}
@@ -60,20 +67,9 @@ internal class NotificationComponent : PostTrackerComponent {
 	private fun notify(notification: Notification) = requireNotificationManager.notify(NOTIFICATION_ID, notification)
 
 	private fun generateNotification(context: Context, location: Location? = null, data: CollectionData? = null): Notification {
-		val resources = context.resources
-		val intent = Intent(context, MainActivity::class.java)
+		val builder = prepareNotificationBase(context)
 
-		val builder = NotificationCompat.Builder(context, resources.getString(R.string.channel_track_id))
-				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals)  // the done icon
-				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
-				.setWhen(Time.nowMillis)  // the time stamp
-				.setOngoing(true)
-				.setColor(ContextCompat.getColor(context, R.color.color_accent))
-				.setContentIntent(TaskStackBuilder.create(context).run {
-					addNextIntentWithParentStack(intent)
-					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
-				})
+		val resources = context.resources
 
 		when {
 			location == null -> builder.setContentTitle(resources.getString(R.string.notification_looking_for_gps))
@@ -115,6 +111,23 @@ internal class NotificationComponent : PostTrackerComponent {
 		}
 
 		return builder.build()
+	}
+
+	private fun prepareNotificationBase(context: Context): NotificationCompat.Builder {
+		val resources = context.resources
+		val intent = Intent(context, MainActivity::class.java)
+
+		return NotificationCompat.Builder(context, resources.getString(R.string.channel_track_id))
+				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+				.setSmallIcon(R.drawable.ic_signals)  // the done icon
+				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
+				.setWhen(Time.nowMillis)  // the time stamp
+				.setOngoing(true)
+				.setColor(ContextCompat.getColor(context, R.color.color_accent))
+				.setContentIntent(TaskStackBuilder.create(context).run {
+					addNextIntentWithParentStack(intent)
+					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
+				})
 	}
 
 	private fun buildNotificationText(context: Context, location: Location, d: CollectionData): String {

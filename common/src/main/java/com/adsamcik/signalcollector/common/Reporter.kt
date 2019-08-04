@@ -44,4 +44,14 @@ object Reporter {
 		checkInitialized()
 		if (isEnabled) Crashlytics.logException(exception)
 	}
+
+	fun report(message: String) {
+		checkInitialized()
+		if (isEnabled) Crashlytics.logException(Throwable(message))
+	}
+
+	fun log(message: String) {
+		checkInitialized()
+		if(isEnabled) Crashlytics.log(message)
+	}
 }

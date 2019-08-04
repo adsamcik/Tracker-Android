@@ -9,7 +9,7 @@ import android.hardware.SensorManager
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
-import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 
 internal class StepPreTrackerComponent : PreTrackerComponent, SensorEventListener {
 	override val requiredData: Collection<TrackerComponentRequirement> = listOf()

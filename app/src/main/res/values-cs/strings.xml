@@ -230,4 +230,5 @@
         <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
         <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
     </plurals>
+    <string name="settings_activity_enabled_title">Sběr aktivity</string>
 </resources>

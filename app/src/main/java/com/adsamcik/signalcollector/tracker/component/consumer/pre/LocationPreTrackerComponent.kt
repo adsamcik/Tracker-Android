@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
-import com.adsamcik.signalcollector.tracker.data.MutableCollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,6 +41,8 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 
 	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
 		val location = data.getLocation(this)
+
+		if (location.isFromMockProvider) return false
 
 		if (!location.hasAccuracy()) return false
 

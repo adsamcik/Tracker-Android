@@ -1,6 +1,6 @@
 package com.adsamcik.signalcollector.tracker.component
 
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 
 internal interface TrackerDataConsumerComponent {
 	val requiredData: Collection<TrackerComponentRequirement>

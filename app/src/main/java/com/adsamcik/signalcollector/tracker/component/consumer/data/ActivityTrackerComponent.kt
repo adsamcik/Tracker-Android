@@ -7,7 +7,7 @@ import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTrackerComponent
-import com.adsamcik.signalcollector.tracker.data.CollectionTempData
+import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionData
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.LocationResult

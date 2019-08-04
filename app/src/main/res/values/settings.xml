@@ -23,7 +23,7 @@
     <string name="settings_activity_watcher_title">Activity watcher</string>
     <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
     <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
-    <string name="settings_activity_watcher_default" translatable="false">false</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
 
     <string name="settings_activity_freq_title">Activity update rate</string>
     <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
@@ -45,10 +45,8 @@
     <string name="settings_tracking_enable_category">Tracking options</string>
 
     <string name="settings_location_enabled_title">Location tracking</string>
-
+    <string name="settings_activity_enabled_title">Activity tracking</string>
     <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
-
-
     <string name="settings_cell_enabled_title">Cell tracking</string>
 
     <string-array name="tracking_options_titles">
