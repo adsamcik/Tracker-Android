@@ -1,17 +1,11 @@
 package com.adsamcik.signalcollector.tracker.data.collection
 
-import android.annotation.SuppressLint
 import android.net.wifi.ScanResult
-import android.os.Build
-import android.telephony.*
-import androidx.annotation.RequiresApi
-import androidx.annotation.RequiresPermission
-import com.adsamcik.signalcollector.common.Reporter
+import android.os.Parcel
+import android.os.Parcelable
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.*
-import com.adsamcik.signalcollector.common.data.CellInfo
 import com.squareup.moshi.JsonClass
-import java.util.*
 
 /**
  * Object containing raw collection data.
@@ -26,6 +20,14 @@ data class MutableCollectionData(
 		override var cell: CellData? = null,
 		override var wifi: WifiData? = null) : CollectionData {
 
+
+	constructor(parcel: Parcel) : this(
+			parcel.readLong(),
+			parcel.readParcelable(Location::class.java.classLoader),
+			parcel.readParcelable(ActivityInfo::class.java.classLoader),
+			parcel.readParcelable(CellData::class.java.classLoader),
+			parcel.readParcelable(WifiData::class.java.classLoader)) {
+	}
 
 	/**
 	 * Sets collection location.
@@ -49,6 +51,28 @@ data class MutableCollectionData(
 			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }
 			val wifiLocation = if (location != null) Location(location) else null
 			this.wifi = WifiData(wifiLocation, time, scannedWifi)
+		}
+	}
+
+	override fun writeToParcel(parcel: Parcel, flags: Int) {
+		parcel.writeLong(time)
+		parcel.writeParcelable(location, flags)
+		parcel.writeParcelable(activity, flags)
+		parcel.writeParcelable(cell, flags)
+		parcel.writeParcelable(wifi, flags)
+	}
+
+	override fun describeContents(): Int {
+		return 0
+	}
+
+	companion object CREATOR : Parcelable.Creator<MutableCollectionData> {
+		override fun createFromParcel(parcel: Parcel): MutableCollectionData {
+			return MutableCollectionData(parcel)
+		}
+
+		override fun newArray(size: Int): Array<MutableCollectionData?> {
+			return arrayOfNulls(size)
 		}
 	}
 }

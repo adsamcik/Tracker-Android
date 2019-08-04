@@ -1,6 +1,8 @@
 package com.adsamcik.signalcollector.common.data
 
 import android.content.Context
+import android.os.Parcel
+import android.os.Parcelable
 import androidx.room.Ignore
 import com.adsamcik.signalcollector.common.R
 import com.google.android.gms.location.DetectedActivity
@@ -11,11 +13,16 @@ import com.google.android.gms.location.DetectedActivity
  *
  * Using [getGroupedActivityName]
  */
-class ActivityInfo(val activity: Int, val confidence: Int) {
+class ActivityInfo(val activity: Int, val confidence: Int) : Parcelable {
 	constructor(detectedActivity: DetectedActivity) : this(detectedActivity.type, detectedActivity.confidence)
 
 	@Ignore
 	val groupedActivity: GroupedActivity = resolveActivity(activity)
+
+	constructor(parcel: Parcel) : this(
+			parcel.readInt(),
+			parcel.readInt()) {
+	}
 
 	/**
 	 * Shortcut function for static version of this function
@@ -24,8 +31,17 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
 	 */
 	fun getGroupedActivityName(context: Context): String = getGroupedActivityName(context, groupedActivity)
 
+	override fun writeToParcel(parcel: Parcel, flags: Int) {
+		parcel.writeInt(activity)
+		parcel.writeInt(confidence)
+	}
 
-	companion object {
+	override fun describeContents(): Int {
+		return 0
+	}
+
+
+	companion object CREATOR : Parcelable.Creator<ActivityInfo> {
 		val UNKNOWN get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)
 
 		/**
@@ -55,5 +71,13 @@ class ActivityInfo(val activity: Int, val confidence: Int) {
 					GroupedActivity.IN_VEHICLE -> context.getString(R.string.activity_in_vehicle)
 					GroupedActivity.UNKNOWN -> context.getString(R.string.activity_unknown)
 				}
+
+		override fun createFromParcel(parcel: Parcel): ActivityInfo {
+			return ActivityInfo(parcel)
+		}
+
+		override fun newArray(size: Int): Array<ActivityInfo?> {
+			return arrayOfNulls(size)
+		}
 	}
 }

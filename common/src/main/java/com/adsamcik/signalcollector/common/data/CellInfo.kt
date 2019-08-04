@@ -1,10 +1,13 @@
 package com.adsamcik.signalcollector.common.data
 
 import android.os.Build
+import android.os.Parcel
+import android.os.Parcelable
 import android.telephony.*
 import androidx.annotation.RequiresApi
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
+import com.adsamcik.signalcollector.common.extension.requireString
 import com.squareup.moshi.JsonClass
 
 /**
@@ -64,12 +67,44 @@ data class CellInfo
      * Signal strength as int 0...4 calculated by device
      */
     @Ignore
-    var level: Int = 0) {
+    var level: Int = 0) : Parcelable {
+
+	constructor(parcel: Parcel) : this(
+			parcel.requireString(),
+			CellType.values()[parcel.readInt()],
+			parcel.readLong(),
+			parcel.requireString(),
+			parcel.requireString(),
+			parcel.readInt(),
+			parcel.readInt(),
+			parcel.readInt()) {
+	}
 
 	constructor(operatorName: String, type: CellType, cellId: Long, mcc: String, mnc: String, asu: Int) : this(operatorName, type, cellId, mcc, mnc, asu, 0, 0)
 
+	override fun writeToParcel(parcel: Parcel, flags: Int) {
+		parcel.writeString(operatorName)
+		parcel.writeLong(cellId)
+		parcel.writeString(mcc)
+		parcel.writeString(mnc)
+		parcel.writeInt(asu)
+		parcel.writeInt(dbm)
+		parcel.writeInt(level)
+	}
 
-	companion object {
+	override fun describeContents(): Int {
+		return 0
+	}
+
+
+	companion object CREATOR : Parcelable.Creator<CellInfo> {
+		override fun createFromParcel(parcel: Parcel): CellInfo {
+			return CellInfo(parcel)
+		}
+
+		override fun newArray(size: Int): Array<CellInfo?> {
+			return arrayOfNulls(size)
+		}
 
 		/**
 		 * Creates new instance of CellInfo from GSM cell info
@@ -192,8 +227,6 @@ data class CellInfo
 				CellInfo(operatorName, CellType.NR, cil.nci, mcc, mnc, cssg.asuLevel, cssg.dbm, cssg.level)
 			}
 		}
-
-
 	}
 }
 

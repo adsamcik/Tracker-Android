@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.tracker.service
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.os.PowerManager
+import android.os.*
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
+	private lateinit var mMessenger: Messenger
 
 	private var timerComponent: TrackerTimerComponent = NoTimer()
 
@@ -150,14 +151,24 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}.forEach { it.onEnable(this) }
 	}
 
+	/**
+	 * When binding to the service, we return an interface to our messenger
+	 * for sending messages to the service.
+	 */
+	override fun onBind(intent: Intent): IBinder? {
+		super.onBind(intent)
+		mMessenger = Messenger(IncomingHandler(this))
+		mMessenger.send(Message().data.putParcelable(ARG_TRACKER_DATA, ))
+		return mMessenger.binder
+	}
+
+
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
 
 		if (intent == null) {
 			Reporter.report(NullPointerException("Intent is null"))
 		}
-
-
 
 		if (!this.hasLocationPermission) {
 			Reporter.report(PermissionException("Tracker does not have sufficient permissions"))
@@ -277,6 +288,18 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionEndIntent)
 	}
 
+	internal class IncomingHandler(
+			context: Context,
+			private val applicationContext: Context = context.applicationContext
+	) : Handler() {
+		override fun handleMessage(msg: Message) {
+			when (msg.what) {
+				MESSAGE_TRACKER_UPDATE ->
+				else -> super.handleMessage(msg)
+			}
+		}
+	}
+
 
 	companion object {
 		private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
@@ -286,24 +309,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		 */
 		val isServiceRunning: NonNullLiveData<Boolean> get() = isServiceRunningMutable
 
-		private val lastCollectionDataMutable: MutableLiveData<CollectionDataEcho> = MutableLiveData()
-
-		/**
-		 * Collection data from last collection
-		 */
-		val lastCollectionData: LiveData<CollectionDataEcho> get() = lastCollectionDataMutable
-
-
-		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo> = MutableLiveData()
-
-		/**
-		 * Current information about session.
-		 * Null when no session is active.
-		 */
-		val sessionInfo: LiveData<TrackerSessionInfo> get() = sessionInfoMutable
-
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"
 		private const val DEFAULT_IS_USER_INITIATED = false
+
+		const val ARG_TRACKER_DATA = "trackerData"
+		private const val MESSAGE_TRACKER_UPDATE = 115
 	}
 }

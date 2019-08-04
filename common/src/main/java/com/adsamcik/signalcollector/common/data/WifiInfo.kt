@@ -4,7 +4,10 @@ import android.net.wifi.ScanResult
 import android.net.wifi.ScanResult.*
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.Parcel
+import android.os.Parcelable
 import androidx.room.Ignore
+import com.adsamcik.signalcollector.common.extension.requireString
 import com.squareup.moshi.JsonClass
 
 /**
@@ -69,8 +72,20 @@ data class WifiInfo(
 		/**
 		 * Is wifi passpoint certified
 		 */
-		var isPasspoint: Boolean = false) {
+		var isPasspoint: Boolean = false) : Parcelable {
 
+
+	constructor(parcel: Parcel) : this(
+			parcel.requireString(),
+			parcel.requireString(),
+			parcel.requireString(),
+			parcel.readInt(),
+			parcel.readInt(),
+			parcel.readInt(),
+			parcel.readInt(),
+			parcel.readInt(),
+			parcel.readInt(),
+			parcel.readByte() != 0.toByte())
 
 	constructor() : this("", "", "")
 
@@ -98,7 +113,32 @@ data class WifiInfo(
 		this.bar = WifiManager.calculateSignalLevel(sr.level, MAX_SIGNAL_BAR)
 	}
 
-	companion object {
+	override fun writeToParcel(parcel: Parcel, flags: Int) {
+		parcel.writeString(bssid)
+		parcel.writeString(ssid)
+		parcel.writeString(capabilities)
+		parcel.writeInt(frequency)
+		parcel.writeInt(level)
+		parcel.writeInt(bar)
+		parcel.writeInt(centerFreq0)
+		parcel.writeInt(centerFreq1)
+		parcel.writeInt(channelWidth)
+		parcel.writeByte(if (isPasspoint) 1 else 0)
+	}
+
+	override fun describeContents(): Int {
+		return 0
+	}
+
+	companion object CREATOR : Parcelable.Creator<WifiInfo> {
 		private const val MAX_SIGNAL_BAR = 10
+
+		override fun createFromParcel(parcel: Parcel): WifiInfo {
+			return WifiInfo(parcel)
+		}
+
+		override fun newArray(size: Int): Array<WifiInfo?> {
+			return arrayOfNulls(size)
+		}
 	}
 }
