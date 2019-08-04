@@ -80,6 +80,7 @@ object Libraries {
 			implementation("com.google.android.play:core:${Versions.playCore}")
 
 			implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
+			implementation("com.codezjx.library:andlinker:0.7.2")
 
 			work(this)
 
