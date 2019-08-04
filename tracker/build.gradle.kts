@@ -53,11 +53,18 @@ android {
 }
 
 dependencies {
-    implementation(project(":common"))
-
     Libraries.core(this)
+    Libraries.moshi(this)
     Libraries.database(this)
     Libraries.crashlytics(this)
     Libraries.location(this)
+    Libraries.preference(this)
+    Libraries.introduction(this)
+    Libraries.test(this)
+
+    implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
+
+    implementation(fileTree("libs").setIncludes(listOf("*.jar")))
+
     Libraries.test(this)
 }
