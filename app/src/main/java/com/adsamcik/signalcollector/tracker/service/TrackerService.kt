@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.tracker.service
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.os.*
+import android.os.PowerManager
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
@@ -46,10 +46,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
+//todo move TrackerService to it's own process
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
-	private lateinit var mMessenger: Messenger
 
 	private var timerComponent: TrackerTimerComponent = NoTimer()
 
@@ -150,18 +150,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(DatabaseTrackerComponent())
 		}.forEach { it.onEnable(this) }
 	}
-
-	/**
-	 * When binding to the service, we return an interface to our messenger
-	 * for sending messages to the service.
-	 */
-	override fun onBind(intent: Intent): IBinder? {
-		super.onBind(intent)
-		mMessenger = Messenger(IncomingHandler(this))
-		mMessenger.send(Message().data.putParcelable(ARG_TRACKER_DATA, ))
-		return mMessenger.binder
-	}
-
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
@@ -284,22 +272,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
 			putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+			`package` = this@TrackerService.packageName
 		}
-		LocalBroadcastManager.getInstance(this).sendBroadcast(sessionEndIntent)
+		sendBroadcast(sessionEndIntent, "com.adsamcik.signalcollector.permission.TRACKER")
 	}
-
-	internal class IncomingHandler(
-			context: Context,
-			private val applicationContext: Context = context.applicationContext
-	) : Handler() {
-		override fun handleMessage(msg: Message) {
-			when (msg.what) {
-				MESSAGE_TRACKER_UPDATE ->
-				else -> super.handleMessage(msg)
-			}
-		}
-	}
-
 
 	companion object {
 		private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
@@ -308,6 +284,22 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		 * LiveData containing information about whether the service is currently running
 		 */
 		val isServiceRunning: NonNullLiveData<Boolean> get() = isServiceRunningMutable
+
+		private val lastCollectionDataMutable: MutableLiveData<CollectionDataEcho> = MutableLiveData()
+
+		/**
+		 * Collection data from last collection
+		 */
+		val lastCollectionData: LiveData<CollectionDataEcho> get() = lastCollectionDataMutable
+
+
+		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo> = MutableLiveData()
+
+		/**
+		 * Current information about session.
+		 * Null when no session is active.
+		 */
+		val sessionInfo: LiveData<TrackerSessionInfo> get() = sessionInfoMutable
 
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"
