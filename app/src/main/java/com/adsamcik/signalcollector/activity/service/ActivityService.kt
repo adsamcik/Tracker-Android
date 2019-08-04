@@ -31,22 +31,21 @@ import kotlin.reflect.KClass
  * Handles logging if it is enabled.
  */
 //todo add listener for updates instead of hardcoded actions
-class ActivityService : IntentService("ActivityService") {
-	private lateinit var mPowerManager: PowerManager
-
+class ActivityService : IntentService(this::class.java.simpleName) {
 	override fun onHandleIntent(intent: Intent?) {
 		val result = ActivityRecognitionResult.extractResult(intent)
 
-		mPowerManager = powerManager
-
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
+
 		lastActivity = detectedActivity
+		lastActivityElapsedTimeMillis = Time.elapsedRealtimeMillis
+
 		if (mBackgroundTracking && detectedActivity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerService.isServiceRunning.value) {
 				if (!TrackerService.sessionInfo.requireValue.isInitiatedByUser && !canContinueBackgroundTracking(this, detectedActivity.groupedActivity)) {
 					stopService<TrackerService>()
 				}
-			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) && canTrackerServiceBeStarted()) {
+			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) && canTrackerServiceBeStarted(powerManager.isPowerSaveMode)) {
 				startForegroundService<TrackerService> {
 					putExtra(TrackerService.ARG_IS_USER_INITIATED, false)
 				}
@@ -54,7 +53,7 @@ class ActivityService : IntentService("ActivityService") {
 		}
 	}
 
-	private fun canTrackerServiceBeStarted() = !TrackerLocker.isLocked.value && !mPowerManager.isPowerSaveMode && Assist.canTrack(this)
+	private fun canTrackerServiceBeStarted(isPowerSaveMode: Boolean) = !TrackerLocker.isLocked.value && !isPowerSaveMode && Assist.canTrack(this)
 
 	/**
 	 * Singleton part of the service that holds information about active requests and last known activity.
@@ -77,6 +76,9 @@ class ActivityService : IntentService("ActivityService") {
 		var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
 			private set
 
+		var lastActivityElapsedTimeMillis: Long = 0L
+			private set
+
 		/**
 		 * Request activity updates
 		 *
@@ -85,7 +87,9 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param updateRate update rate in seconds
 		 * @return true if success
 		 */
-		fun requestActivity(context: Context, tClass: KClass<*>, updateRate: Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)): Boolean =
+		fun requestActivity(context: Context,
+		                    tClass: KClass<*>,
+		                    updateRate: Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)): Boolean =
 				requestActivityInternal(context, tClass, updateRate, false)
 
 		/**
@@ -96,7 +100,9 @@ class ActivityService : IntentService("ActivityService") {
 		 * @param tClass  class that requests update
 		 * @return true if success
 		 */
-		fun requestAutoTracking(context: Context, tClass: KClass<*>, updateRate: Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)): Boolean {
+		fun requestAutoTracking(context: Context,
+		                        tClass: KClass<*>,
+		                        updateRate: Int = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)): Boolean {
 			val preferences = Preferences.getPref(context)
 
 			if (preferences.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default) > 0 &&
