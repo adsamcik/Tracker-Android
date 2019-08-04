@@ -2,7 +2,7 @@ package com.adsamcik.signalcollector.common.data
 
 import android.os.Parcel
 import android.os.Parcelable
-import com.adsamcik.signalcollector.common.extension.requireArray
+import com.adsamcik.signalcollector.common.extension.requireArrayList
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = false)
@@ -19,7 +19,7 @@ data class WifiData(
 	constructor(parcel: Parcel) : this(
 			parcel.readParcelable(Location::class.java.classLoader),
 			parcel.readLong(),
-			parcel.requireArray(WifiInfo))
+			parcel.requireArrayList(WifiInfo))
 
 	override fun writeToParcel(parcel: Parcel, flags: Int) {
 		parcel.writeParcelable(location, flags)
