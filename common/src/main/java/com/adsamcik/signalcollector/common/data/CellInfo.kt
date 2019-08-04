@@ -77,7 +77,8 @@ data class CellInfo
 			parcel.requireString(),
 			parcel.readInt(),
 			parcel.readInt(),
-			parcel.readInt())
+			parcel.readInt()) {
+	}
 
 	constructor(operatorName: String, type: CellType, cellId: Long, mcc: String, mnc: String, asu: Int) : this(operatorName, type, cellId, mcc, mnc, asu, 0, 0)
 

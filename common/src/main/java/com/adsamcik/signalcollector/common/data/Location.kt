@@ -42,7 +42,8 @@ data class Location(
 			parcel.readValue(Float::class.java.classLoader) as? Float,
 			parcel.readValue(Float::class.java.classLoader) as? Float,
 			parcel.readValue(Float::class.java.classLoader) as? Float,
-			parcel.readValue(Float::class.java.classLoader) as? Float)
+			parcel.readValue(Float::class.java.classLoader) as? Float) {
+	}
 
 	constructor(location: android.location.Location) : this(location.time,
 			location.latitude,
