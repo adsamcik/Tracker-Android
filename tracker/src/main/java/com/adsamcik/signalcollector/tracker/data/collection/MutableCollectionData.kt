@@ -26,8 +26,7 @@ data class MutableCollectionData(
 			parcel.readParcelable(Location::class.java.classLoader),
 			parcel.readParcelable(ActivityInfo::class.java.classLoader),
 			parcel.readParcelable(CellData::class.java.classLoader),
-			parcel.readParcelable(WifiData::class.java.classLoader)) {
-	}
+			parcel.readParcelable(WifiData::class.java.classLoader))
 
 	/**
 	 * Sets collection location.

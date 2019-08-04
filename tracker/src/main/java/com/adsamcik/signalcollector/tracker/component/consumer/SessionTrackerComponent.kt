@@ -3,13 +3,13 @@ package com.adsamcik.signalcollector.tracker.component.consumer
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.Observer
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTrackerComponent
